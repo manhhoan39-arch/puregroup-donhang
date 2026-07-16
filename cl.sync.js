@@ -153,7 +153,7 @@
     // ---------- DATASETS: ghi (cache ngay + đẩy DB / xếp hàng offline) ----------
     save: function (rec) {
       // rec = {id?, name, payload}. Gắn factory_id theo profile.
-      if (!profile || !profile.factory_id) return Promise.reject(new Error('Chưa xác định xưởng của người dùng.'));
+      if (!profile || !profile.factory_id) return Promise.reject(new Error('Tài khoản chưa được gán Xưởng — liên hệ quản trị viên.'));
       var id = rec.id || (root.crypto && crypto.randomUUID ? crypto.randomUUID() : 'ds-' + Date.now());
       var now = new Date().toISOString();
       var row = {
@@ -166,8 +166,16 @@
       var idx = CLCloud.listCached().filter(function (d) { return d.id !== id; });
       idx.unshift({ id: id, factory_id: row.factory_id, name: row.name, kind: row.kind, created_by: row.created_by, updated_at: now, created_at: now });
       jset(K.dsIndex(profile.factory_id), idx);
-      // 2) đẩy DB (hoặc xếp hàng)
-      return pushOrQueue({ op: 'upsert', row: row }).then(function () { return row; });
+      // 2) đẩy DB — BÁO LỖI THẬT nếu ghi hỏng (RLS...), chỉ xếp hàng khi thực sự offline.
+      if (!configured()) return Promise.resolve(row);
+      if (!online()) { enqueue({ op: 'upsert', row: row }); return Promise.resolve(row); }
+      return ensureClient().then(function (c) {
+        if (!c) { enqueue({ op: 'upsert', row: row }); return row; }
+        return c.from('datasets').upsert(row).select().then(function (r) {
+          if (r.error) throw new Error('Lưu đám mây thất bại: ' + r.error.message);
+          return row;
+        });
+      });
     },
     remove: function (id) {
       jdel(K.dsItem(id));
