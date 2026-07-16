@@ -221,11 +221,21 @@
       permissions: CLOUD_PERMS[profile.role] || CLOUD_PERMS.user
     };
   }
+  var cloudRTChannel = null;
   function startCloudSession(profile) {
     setSession(cloudToSession(profile));
     S.cloud = true;
     try { localStorage.setItem('cl_mode', 'cloud'); } catch (e) {}
     startSession();
+    // REALTIME: máy khác lưu dữ liệu → tự nạp bản mới nhất.
+    try {
+      if (!cloudRTChannel && window.CLCloud && window.CLCloud.subscribe) {
+        window.CLCloud.subscribe(function () {
+          toast('Có dữ liệu mới từ máy khác — đang cập nhật…', 'ok');
+          try { autoLoadLatest(true); } catch (_) {}
+        }).then(function (ch) { cloudRTChannel = ch; });
+      }
+    } catch (e) {}
   }
 
   function doLogout(expired) {
@@ -265,8 +275,8 @@
     if (can('dataset:create')) bar.appendChild(h('button', { class: 'cl-btn sm ghost', title: 'Lưu dữ liệu hiện tại lên server (theo xưởng)', onclick: saveDataset }, ['☁ Lưu']));
     if (can('dataset:read')) bar.appendChild(h('button', { class: 'cl-btn sm ghost', title: 'Nạp dữ liệu đã lưu của xưởng', onclick: openDatasetModal }, ['⭳ Nạp']));
 
-    // Quản lý (User / Factory) — bản cục bộ (CLStore). Ở chế độ ĐÁM MÂY, quản lý user qua Supabase Dashboard (tạm thời).
-    if (!S.cloud && (can('user:read') || can('factory:create'))) bar.appendChild(h('button', { class: 'cl-btn sm', onclick: openAdminModal }, ['⚙ Quản lý']));
+    // Quản lý (User / Factory) — đám mây dùng Supabase, cục bộ dùng CLStore.
+    if (can('user:read') || can('factory:create')) bar.appendChild(h('button', { class: 'cl-btn sm', onclick: (S.cloud ? openCloudAdminModal : openAdminModal) }, ['⚙ Quản lý']));
 
     bar.appendChild(h('button', { class: 'cl-btn sm danger', onclick: function () { doLogout(false); } }, ['Đăng xuất']));
 
@@ -367,6 +377,90 @@
     if (!window.confirm('Xóa bản lưu "' + name + '"?')) return;
     var del = (S.cloud && window.CLCloud) ? window.CLCloud.remove(id) : api('DELETE', '/api/datasets/' + id);
     Promise.resolve(del).then(function () { toast('Đã xóa ✓', 'ok'); openDatasetModal(); }).catch(function (e) { toast(e.message, 'err'); });
+  }
+
+  // ================= QUẢN LÝ (ĐÁM MÂY): xưởng + user + phân quyền =================
+  function cloudDefaultUserPerms() { return { s1:'view', s3:'view', s4:'view', s5:'view', s6:'view', s10:'view', s7:'view', s8:'view', s9:'view' }; }
+  function openCloudAdminModal() {
+    Promise.all([window.CLCloud.listFactories(), window.CLCloud.listProfiles()]).then(function (res) {
+      var facs = res[0] || [], profs = res[1] || [];
+      var pane = h('div', {});
+      var tabU = h('div', { class: 'cl-tab on' }, ['👤 Người dùng']);
+      var tabF = h('div', { class: 'cl-tab' }, ['🏭 Xưởng']);
+      var body = h('div', {});
+      function setTab(w) { tabU.classList.toggle('on', w === 'u'); tabF.classList.toggle('on', w === 'f'); body.innerHTML = ''; body.appendChild(w === 'u' ? usersPane() : facsPane()); }
+      tabU.onclick = function () { setTab('u'); }; tabF.onclick = function () { setTab('f'); };
+
+      function roleOpts(sel) { var s = h('select', { class: 'cl-input', style: 'padding:3px 6px' }); (isSuper() ? ['user','factory_admin','super_admin'] : ['user','factory_admin']).forEach(function (r) { s.appendChild(h('option', { value: r }, [ROLE_LABEL[r] || r])); }); if (sel) s.value = sel; return s; }
+      function facOpts(sel, blank) { var s = h('select', { class: 'cl-input', style: 'padding:3px 6px' }); if (blank) s.appendChild(h('option', { value: '' }, ['—'])); facs.forEach(function (f) { s.appendChild(h('option', { value: f.id }, [f.code + ' · ' + f.name])); }); if (sel) s.value = sel; return s; }
+
+      function usersPane() {
+        var wrap = h('div', {});
+        var em = h('input', { class: 'cl-input', placeholder: 'email' });
+        var pw = h('input', { class: 'cl-input', type: 'text', placeholder: 'mật khẩu (>=6)' });
+        var nm = h('input', { class: 'cl-input', placeholder: 'tên hiển thị' });
+        var rr = roleOpts('user'), ff = facOpts('', false);
+        var add = h('button', { class: 'cl-btn sm', onclick: function () {
+          var e = em.value.trim(), p = pw.value, role = rr.value, fid = (role === 'super_admin' ? null : ff.value);
+          if (!e || !p) return toast('Nhập email và mật khẩu', 'err');
+          add.disabled = true;
+          window.CLCloud.createUser(e, p, { display_name: nm.value.trim() || e })
+            .then(function (u) { return window.CLCloud.updateProfile(u.id, { role: role, factory_id: fid, display_name: nm.value.trim() || e, step_perms: (role === 'user' ? cloudDefaultUserPerms() : null) }); })
+            .then(function () { toast('Đã tạo user ✓', 'ok'); openCloudAdminModal(); })
+            .catch(function (err) { add.disabled = false; toast(err.message, 'err'); });
+        } }, ['+ Thêm']);
+        wrap.appendChild(h('div', { class: 'cl-row-form' }, [
+          h('div', { class: 'cl-field' }, [h('label', {}, ['Email']), em]),
+          h('div', { class: 'cl-field' }, [h('label', {}, ['Mật khẩu']), pw]),
+          h('div', { class: 'cl-field' }, [h('label', {}, ['Tên']), nm]),
+          h('div', { class: 'cl-field' }, [h('label', {}, ['Vai trò']), rr]),
+          h('div', { class: 'cl-field' }, [h('label', {}, ['Xưởng']), ff]), add
+        ]));
+        wrap.appendChild(h('p', { class: 'cl-hint', style: 'margin:0 0 10px' }, ['Lưu ý: cần TẮT xác nhận email trong Supabase (Authentication → Providers → Email → Confirm email = OFF) để tài khoản mới đăng nhập được ngay.']));
+        var rows = profs.map(function (u) {
+          var rs = roleOpts(u.role); rs.onchange = function () { window.CLCloud.updateProfile(u.id, { role: rs.value, step_perms: (rs.value === 'user' ? (u.step_perms || cloudDefaultUserPerms()) : null) }).then(function () { toast('Đã đổi vai trò ✓', 'ok'); }).catch(function (e) { toast(e.message, 'err'); }); };
+          var fs = facOpts(u.factory_id || '', true); fs.onchange = function () { window.CLCloud.updateProfile(u.id, { factory_id: fs.value || null }).then(function () { toast('Đã đổi xưởng ✓', 'ok'); }).catch(function (e) { toast(e.message, 'err'); }); };
+          var acts = [];
+          acts.push(h('button', { class: 'cl-btn sm ghost', onclick: function () { editCloudPerms(u); } }, ['Phân quyền']));
+          acts.push(h('button', { class: 'cl-btn sm ghost', style: 'margin-left:5px', onclick: function () { window.CLCloud.updateProfile(u.id, { active: u.active === false }).then(function () { openCloudAdminModal(); }).catch(function (e) { toast(e.message, 'err'); }); } }, [u.active === false ? 'Mở' : 'Khóa']));
+          return h('tr', { style: u.active === false ? 'opacity:.5' : '' }, [
+            h('td', {}, [h('b', {}, [u.email || ''])]), h('td', {}, [rs]), h('td', {}, [fs]), h('td', { style: 'text-align:right' }, acts)
+          ]);
+        });
+        wrap.appendChild(h('table', { class: 'cl-table' }, [
+          h('thead', {}, [h('tr', {}, [h('th', {}, ['Email']), h('th', {}, ['Vai trò']), h('th', {}, ['Xưởng']), h('th', {}, [''])])]),
+          h('tbody', {}, rows)
+        ]));
+        return wrap;
+      }
+      function editCloudPerms(u) {
+        removeEl('cl-perm-ov');
+        var ed = makeStepPermEditor(u.step_perms || {});
+        var box = h('div', { style: 'background:#fff;border-radius:12px;padding:16px 18px;max-width:420px;width:92%;max-height:86vh;overflow:auto' }, [
+          h('div', { style: 'font-weight:700;color:#E8185C;margin-bottom:10px' }, ['Phân quyền: ' + (u.display_name || u.email)]), ed.el,
+          h('div', { style: 'display:flex;gap:8px;justify-content:flex-end;margin-top:14px' }, [
+            h('button', { class: 'cl-btn sm ghost', onclick: function () { removeEl('cl-perm-ov'); } }, ['Hủy']),
+            h('button', { class: 'cl-btn sm', onclick: function () { window.CLCloud.updateProfile(u.id, { step_perms: ed.get() }).then(function () { removeEl('cl-perm-ov'); toast('Đã lưu phân quyền ✓', 'ok'); }).catch(function (e) { toast(e.message, 'err'); }); } }, ['Lưu'])
+          ])
+        ]);
+        var ov = h('div', { id: 'cl-perm-ov', style: 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center', onclick: function (e) { if (e.target === ov) removeEl('cl-perm-ov'); } }, [box]);
+        document.body.appendChild(ov);
+      }
+      function facsPane() {
+        var wrap = h('div', {});
+        var cc = h('input', { class: 'cl-input', placeholder: 'MÃ (vd NĐ)' });
+        var nn = h('input', { class: 'cl-input', placeholder: 'Tên xưởng' });
+        var add = h('button', { class: 'cl-btn sm', onclick: function () { if (!cc.value.trim() || !nn.value.trim()) return toast('Nhập mã và tên', 'err'); window.CLCloud.createFactory(cc.value.trim(), nn.value.trim()).then(function () { toast('Đã tạo xưởng ✓', 'ok'); openCloudAdminModal(); }).catch(function (e) { toast(e.message, 'err'); }); } }, ['+ Thêm']);
+        wrap.appendChild(h('div', { class: 'cl-row-form' }, [h('div', { class: 'cl-field' }, [h('label', {}, ['Mã']), cc]), h('div', { class: 'cl-field' }, [h('label', {}, ['Tên xưởng']), nn]), add]));
+        wrap.appendChild(h('table', { class: 'cl-table' }, [h('thead', {}, [h('tr', {}, [h('th', {}, ['Mã']), h('th', {}, ['Tên'])])]), h('tbody', {}, facs.map(function (f) { return h('tr', {}, [h('td', {}, [h('b', {}, [f.code])]), h('td', {}, [f.name])]); }))]));
+        return wrap;
+      }
+      pane.appendChild(h('div', { class: 'cl-tabs' }, [tabU, tabF]));
+      pane.appendChild(body);
+      body.appendChild(usersPane());
+      if (!isSuper()) tabF.style.display = 'none';
+      openModal('Quản lý (đám mây)', pane);
+    }).catch(function (e) { toast(e.message, 'err'); });
   }
 
   // ---------- Modal khung ----------

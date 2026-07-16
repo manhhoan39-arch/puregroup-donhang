@@ -178,7 +178,46 @@
 
     // Đẩy toàn bộ hàng đợi (gọi khi có mạng lại)
     flush: flushQueue,
-    pendingCount: function () { return jget(K.queue, []).length; }
+    pendingCount: function () { return jget(K.queue, []).length; },
+
+    // ---------- QUẢN LÝ xưởng / user (super & factory admin) ----------
+    listFactories: function () {
+      return ensureClient().then(function (c) { if (!c) return []; return c.from('factories').select('*').order('code').then(function (r) { return r.error ? [] : (r.data || []); }); });
+    },
+    createFactory: function (code, name) {
+      return ensureClient().then(function (c) { if (!c) return Promise.reject(new Error('offline')); return c.from('factories').insert({ code: code, name: name }).select().single().then(function (r) { if (r.error) throw new Error(r.error.message); return r.data; }); });
+    },
+    listProfiles: function () {
+      return ensureClient().then(function (c) { if (!c) return []; return c.from('profiles').select('*').order('created_at').then(function (r) { return r.error ? [] : (r.data || []); }); });
+    },
+    updateProfile: function (id, patch) {
+      return ensureClient().then(function (c) { if (!c) return Promise.reject(new Error('offline')); return c.from('profiles').update(patch).eq('id', id).then(function (r) { if (r.error) throw new Error(r.error.message); return true; }); });
+    },
+    // Tạo tài khoản đăng nhập bằng client TẠM (không lưu phiên) → không đá admin ra.
+    createUser: function (email, password, meta) {
+      if (!configured()) return Promise.reject(new Error('Chưa cấu hình Supabase'));
+      return ensureClient().then(function () {
+        var tmp = root.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false, storageKey: 'clc_tmp_signup' } });
+        return tmp.auth.signUp({ email: email, password: password, options: { data: { display_name: (meta && meta.display_name) || email } } }).then(function (r) {
+          if (r.error) throw new Error(r.error.message);
+          return r.data.user;  // profiles được trigger tự tạo
+        });
+      });
+    },
+
+    // ---------- REALTIME: theo dõi thay đổi datasets của xưởng ----------
+    subscribe: function (onChange) {
+      return ensureClient().then(function (c) {
+        if (!c || !profile) return null;
+        var flt = profile.factory_id ? ('factory_id=eq.' + profile.factory_id) : undefined;
+        var ch = c.channel('ds-' + (profile.factory_id || 'all'))
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'datasets', filter: flt }, function (payload) {
+            try { onChange && onChange(payload); } catch (_) {}
+          })
+          .subscribe();
+        return ch;
+      });
+    }
   };
 
   // ---------- Hàng đợi offline ----------
