@@ -222,7 +222,18 @@
       });
     },
 
-    // Gửi email đặt lại mật khẩu cho 1 người dùng (dùng khóa công khai, an toàn).
+    // Super/Factory Admin đổi mật khẩu tài khoản khác TRỰC TIẾP qua Edge Function (không cần email).
+    adminSetPassword: function (targetId, newPass) {
+      return ensureClient().then(function (c) {
+        if (!c) return Promise.reject(new Error('Chưa cấu hình Supabase'));
+        return c.functions.invoke('admin-set-password', { body: { target_user_id: targetId, new_password: newPass } }).then(function (r) {
+          if (r.error) throw new Error(r.error.message || 'Gọi hàm đổi mật khẩu thất bại (đã deploy admin-set-password chưa?)');
+          if (r.data && r.data.error) throw new Error(r.data.error);
+          return true;
+        });
+      });
+    },
+    // Gửi email đặt lại mật khẩu (dự phòng).
     resetPassword: function (email) {
       return ensureClient().then(function (c) {
         if (!c) return Promise.reject(new Error('Chưa cấu hình Supabase'));
