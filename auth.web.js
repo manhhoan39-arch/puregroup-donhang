@@ -427,10 +427,10 @@
             h('td', {}, [h('b', {}, [u.email || ''])]), h('td', {}, [pwCell(u)]), h('td', {}, [rs]), h('td', {}, [fs]), h('td', { style: 'text-align:right;white-space:nowrap' }, acts)
           ]);
         });
-        wrap.appendChild(h('table', { class: 'cl-table' }, [
+        wrap.appendChild(h('div', { style: 'max-height:360px;overflow:auto' }, [h('table', { class: 'cl-table' }, [
           h('thead', {}, [h('tr', {}, [h('th', {}, ['Email']), h('th', {}, ['Mật khẩu']), h('th', {}, ['Vai trò']), h('th', {}, ['Xưởng']), h('th', {}, [''])])]),
           h('tbody', {}, rows)
-        ]));
+        ])]));
         return wrap;
       }
       function editCloudPerms(u) {
