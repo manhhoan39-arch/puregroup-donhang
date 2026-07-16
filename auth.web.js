@@ -148,8 +148,10 @@
   function showLogin(prefillMsg) {
     injectStyle();
     removeEl('cl-overlay'); removeEl('cl-bar');
+    // Đã cấu hình Supabase → CHỈ cho đăng nhập bằng email (đám mây), khóa đăng nhập cục bộ để tránh lộ trên web công khai.
+    var cloudOnly = !!(window.CLCloud && window.CLCloud.configured());
     var errBox = h('div', { class: 'cl-err' });
-    var uEl = h('input', { class: 'cl-input', id: 'cl-u', autocomplete: 'username', placeholder: 'username (cục bộ) hoặc email (đám mây)' });
+    var uEl = h('input', { class: 'cl-input', id: 'cl-u', autocomplete: 'username', placeholder: cloudOnly ? 'email đăng nhập' : 'username (cục bộ) hoặc email (đám mây)' });
     var pEl = h('input', { class: 'cl-input', type: 'password', autocomplete: 'current-password', placeholder: '••••••••' });
     var btn = h('button', { class: 'cl-btn', style: 'width:100%;margin-top:6px' }, ['Đăng nhập']);
     var eye = h('button', { type: 'button', title: 'Hiện/ẩn mật khẩu', style: 'position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;font-size:15px;line-height:1' }, ['👁']);
@@ -161,6 +163,8 @@
       errBox.style.display = 'none';
       var u = uEl.value.trim(), p = pEl.value;
       if (!u || !p) return fail('Nhập tài khoản/email và mật khẩu.');
+      // Khi đã cấu hình đám mây: BẮT BUỘC đăng nhập bằng email, chặn đăng nhập cục bộ (bảo mật khi web công khai).
+      if (cloudOnly && u.indexOf('@') < 0) return fail('Vui lòng đăng nhập bằng EMAIL (tài khoản đám mây).');
       btn.disabled = true; btn.textContent = 'Đang kiểm tra…';
       // Có "@" + đã cấu hình Supabase → đăng nhập ĐÁM MÂY; ngược lại → đăng nhập cục bộ (cũ).
       var useCloud = !!(window.CLCloud && window.CLCloud.configured() && u.indexOf('@') >= 0);
