@@ -58,6 +58,15 @@
         client = root.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, {
           auth: { persistSession: true, autoRefreshToken: true }
         });
+        // Xử lý link "đặt lại mật khẩu" từ email → cho người dùng nhập mật khẩu mới.
+        try {
+          client.auth.onAuthStateChange(function (event) {
+            if (event === 'PASSWORD_RECOVERY') {
+              var np = window.prompt('Đặt lại mật khẩu — nhập mật khẩu MỚI (tối thiểu 6 ký tự):');
+              if (np) client.auth.updateUser({ password: np }).then(function (r) { alert(r.error ? ('Lỗi: ' + r.error.message) : 'Đã đổi mật khẩu ✓. Hãy đăng nhập lại.'); });
+            }
+          });
+        } catch (e) {}
         log('client sẵn sàng');
         return client;
       })
@@ -209,6 +218,16 @@
         return tmp.auth.signUp({ email: email, password: password, options: { data: { display_name: (meta && meta.display_name) || email } } }).then(function (r) {
           if (r.error) throw new Error(r.error.message);
           return r.data.user;  // profiles được trigger tự tạo
+        });
+      });
+    },
+
+    // Gửi email đặt lại mật khẩu cho 1 người dùng (dùng khóa công khai, an toàn).
+    resetPassword: function (email) {
+      return ensureClient().then(function (c) {
+        if (!c) return Promise.reject(new Error('Chưa cấu hình Supabase'));
+        return c.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname }).then(function (r) {
+          if (r.error) throw new Error(r.error.message); return true;
         });
       });
     },
