@@ -1,10 +1,10 @@
 /* Service Worker — cho phép mở app OFFLINE sau lần đầu (chỉ chạy trên HTTPS như Vercel).
  * Cache "app shell" (HTML + JS). Các lời gọi Supabase/CDN luôn đi thẳng ra mạng. */
-var CACHE = 'puregroup-nhapdon-v1';
+var CACHE = 'puregroup-nhapdon-v2';
 var ASSETS = [
   './',
   './index.html',
-  './Module1-Mockup-ThietKe-v1.html',
+  './don-hang-v1.html',
   './engine.web.js',
   './auth.store.js',
   './auth.web.js',
