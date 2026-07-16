@@ -210,14 +210,15 @@
     updateProfile: function (id, patch) {
       return ensureClient().then(function (c) { if (!c) return Promise.reject(new Error('offline')); return c.from('profiles').update(patch).eq('id', id).then(function (r) { if (r.error) throw new Error(r.error.message); return true; }); });
     },
-    // Tạo tài khoản đăng nhập bằng client TẠM (không lưu phiên) → không đá admin ra.
-    createUser: function (email, password, meta) {
-      if (!configured()) return Promise.reject(new Error('Chưa cấu hình Supabase'));
-      return ensureClient().then(function () {
-        var tmp = root.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false, storageKey: 'clc_tmp_signup' } });
-        return tmp.auth.signUp({ email: email, password: password, options: { data: { display_name: (meta && meta.display_name) || email } } }).then(function (r) {
-          if (r.error) throw new Error(r.error.message);
-          return r.data.user;  // profiles được trigger tự tạo
+    // Tạo tài khoản QUA Edge Function (service_role): xác nhận email sẵn + gắn role/xưởng/quyền ngay.
+    // info = {email, password, display_name, role, factory_id, step_perms}
+    createUser: function (info) {
+      return ensureClient().then(function (c) {
+        if (!c) return Promise.reject(new Error('Chưa cấu hình Supabase'));
+        return c.functions.invoke('admin-set-password', { body: Object.assign({ op: 'create-user' }, info) }).then(function (r) {
+          if (r.error) throw new Error(r.error.message || 'Tạo user thất bại (đã deploy admin-set-password chưa?)');
+          if (r.data && r.data.error) throw new Error(r.data.error);
+          return r.data; // {ok, id}
         });
       });
     },

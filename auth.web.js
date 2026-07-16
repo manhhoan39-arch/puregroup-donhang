@@ -404,8 +404,7 @@
           var e = em.value.trim(), p = pw.value, role = rr.value, fid = (role === 'super_admin' ? null : ff.value);
           if (!e || !p) return toast('Nhập email và mật khẩu', 'err');
           add.disabled = true;
-          window.CLCloud.createUser(e, p, { display_name: nm.value.trim() || e })
-            .then(function (u) { return window.CLCloud.updateProfile(u.id, { role: role, factory_id: fid, display_name: nm.value.trim() || e, step_perms: (role === 'user' ? cloudDefaultUserPerms() : null), pass_plain: p }); })
+          window.CLCloud.createUser({ email: e, password: p, display_name: nm.value.trim() || e, role: role, factory_id: fid, step_perms: (role === 'user' ? cloudDefaultUserPerms() : null) })
             .then(function () { toast('Đã tạo user ✓', 'ok'); openCloudAdminModal(); })
             .catch(function (err) { add.disabled = false; toast(err.message, 'err'); });
         } }, ['+ Thêm']);
