@@ -216,7 +216,7 @@
       return ensureClient().then(function (c) {
         if (!c) return Promise.reject(new Error('Chưa cấu hình Supabase'));
         return c.functions.invoke('admin-set-password', { body: Object.assign({ op: 'create-user' }, info) }).then(function (r) {
-          if (r.error) throw new Error(r.error.message || 'Tạo user thất bại (đã deploy admin-set-password chưa?)');
+          if (r.error) { var x = r.error.context; if (x && x.json) return x.json().then(function (b) { throw new Error((b && b.error) || r.error.message); }, function () { throw new Error(r.error.message); }); throw new Error(r.error.message); }
           if (r.data && r.data.error) throw new Error(r.data.error);
           return r.data; // {ok, id}
         });
@@ -228,7 +228,7 @@
       return ensureClient().then(function (c) {
         if (!c) return Promise.reject(new Error('Chưa cấu hình Supabase'));
         return c.functions.invoke('admin-set-password', { body: { target_user_id: targetId, new_password: newPass } }).then(function (r) {
-          if (r.error) throw new Error(r.error.message || 'Gọi hàm đổi mật khẩu thất bại (đã deploy admin-set-password chưa?)');
+          if (r.error) { var x = r.error.context; if (x && x.json) return x.json().then(function (b) { throw new Error((b && b.error) || r.error.message); }, function () { throw new Error(r.error.message); }); throw new Error(r.error.message); }
           if (r.data && r.data.error) throw new Error(r.data.error);
           return true;
         });
