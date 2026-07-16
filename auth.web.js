@@ -405,7 +405,7 @@
           if (!e || !p) return toast('Nhập email và mật khẩu', 'err');
           add.disabled = true;
           window.CLCloud.createUser(e, p, { display_name: nm.value.trim() || e })
-            .then(function (u) { return window.CLCloud.updateProfile(u.id, { role: role, factory_id: fid, display_name: nm.value.trim() || e, step_perms: (role === 'user' ? cloudDefaultUserPerms() : null) }); })
+            .then(function (u) { return window.CLCloud.updateProfile(u.id, { role: role, factory_id: fid, display_name: nm.value.trim() || e, step_perms: (role === 'user' ? cloudDefaultUserPerms() : null), pass_plain: p }); })
             .then(function () { toast('Đã tạo user ✓', 'ok'); openCloudAdminModal(); })
             .catch(function (err) { add.disabled = false; toast(err.message, 'err'); });
         } }, ['+ Thêm']);
@@ -416,25 +416,21 @@
           h('div', { class: 'cl-field' }, [h('label', {}, ['Vai trò']), rr]),
           h('div', { class: 'cl-field' }, [h('label', {}, ['Xưởng']), ff]), add
         ]));
-        wrap.appendChild(h('p', { class: 'cl-hint', style: 'margin:0 0 10px' }, ['Lưu ý: cần TẮT xác nhận email trong Supabase (Authentication → Providers → Email → Confirm email = OFF) để tài khoản mới đăng nhập được ngay.']));
         var rows = profs.map(function (u) {
-          var nm2 = h('input', { class: 'cl-input', style: 'padding:3px 6px;min-width:110px', value: u.display_name || '' });
-          nm2.onchange = function () { window.CLCloud.updateProfile(u.id, { display_name: nm2.value.trim() }).then(function () { toast('Đã đổi tên ✓', 'ok'); }).catch(function (e) { toast(e.message, 'err'); }); };
           var rs = roleOpts(u.role); rs.onchange = function () { window.CLCloud.updateProfile(u.id, { role: rs.value, step_perms: (rs.value === 'user' ? (u.step_perms || cloudDefaultUserPerms()) : null) }).then(function () { toast('Đã đổi vai trò ✓', 'ok'); }).catch(function (e) { toast(e.message, 'err'); }); };
           var fs = facOpts(u.factory_id || '', true); fs.onchange = function () { window.CLCloud.updateProfile(u.id, { factory_id: fs.value || null }).then(function () { toast('Đã đổi xưởng ✓', 'ok'); }).catch(function (e) { toast(e.message, 'err'); }); };
           var acts = [];
           acts.push(h('button', { class: 'cl-btn sm ghost', onclick: function () { editCloudPerms(u); } }, ['Phân quyền']));
-          acts.push(h('button', { class: 'cl-btn sm ghost', style: 'margin-left:5px', title: 'Gửi email đặt lại mật khẩu', onclick: function () { if (!window.confirm('Gửi email đặt lại mật khẩu tới ' + u.email + '?')) return; window.CLCloud.resetPassword(u.email).then(function () { toast('Đã gửi email đặt lại MK tới ' + u.email, 'ok'); }).catch(function (e) { toast(e.message, 'err'); }); } }, ['Đổi MK']));
+          acts.push(h('button', { class: 'cl-btn sm ghost', style: 'margin-left:5px', title: 'Gửi email đặt lại mật khẩu', onclick: function () { if (!window.confirm('Gửi email đặt lại mật khẩu tới ' + u.email + '?')) return; window.CLCloud.resetPassword(u.email).then(function () { window.CLCloud.updateProfile(u.id, { pass_plain: null }).catch(function () {}); toast('Đã gửi email đặt lại MK tới ' + u.email, 'ok'); openCloudAdminModal(); }).catch(function (e) { toast(e.message, 'err'); }); } }, ['Đổi MK']));
           acts.push(h('button', { class: 'cl-btn sm ghost', style: 'margin-left:5px', onclick: function () { window.CLCloud.updateProfile(u.id, { active: u.active === false }).then(function () { openCloudAdminModal(); }).catch(function (e) { toast(e.message, 'err'); }); } }, [u.active === false ? 'Mở' : 'Khóa']));
           return h('tr', { style: u.active === false ? 'opacity:.5' : '' }, [
-            h('td', {}, [h('b', {}, [u.email || ''])]), h('td', {}, [nm2]), h('td', {}, [rs]), h('td', {}, [fs]), h('td', { style: 'text-align:right;white-space:nowrap' }, acts)
+            h('td', {}, [h('b', {}, [u.email || ''])]), h('td', {}, [pwCell(u)]), h('td', {}, [rs]), h('td', {}, [fs]), h('td', { style: 'text-align:right;white-space:nowrap' }, acts)
           ]);
         });
         wrap.appendChild(h('table', { class: 'cl-table' }, [
-          h('thead', {}, [h('tr', {}, [h('th', {}, ['Email']), h('th', {}, ['Tên']), h('th', {}, ['Vai trò']), h('th', {}, ['Xưởng']), h('th', {}, [''])])]),
+          h('thead', {}, [h('tr', {}, [h('th', {}, ['Email']), h('th', {}, ['Mật khẩu']), h('th', {}, ['Vai trò']), h('th', {}, ['Xưởng']), h('th', {}, [''])])]),
           h('tbody', {}, rows)
         ]));
-        wrap.appendChild(h('p', { class: 'cl-hint', style: 'margin:8px 0 0' }, ['“Đổi MK” gửi email đặt lại cho người dùng. Xóa hẳn tài khoản đăng nhập cần làm trong Supabase Dashboard (giới hạn bảo mật). Dùng “Khóa” để vô hiệu hóa nhanh.']));
         return wrap;
       }
       function editCloudPerms(u) {
