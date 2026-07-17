@@ -1639,25 +1639,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       sheet.mmList=mmU; sheet.ranges=ranges; sheet.matrix=matrix;
       cd.order.forEach(function(rg){ sheet.colorBlocks[rg]=cd.byR[rg].blocks; });
     }
-    // TÁCH đơn Mix nhiều màu: 1 dòng nhiều code → mỗi màu 1 dòng (phân bổ mm riêng từ bảng Mix Màu)
-    var splitOrders=[], nseri=0;
-    orders.forEach(function(o){
-      var codes=String(o.codeSoi||'').split(/\r?\n/).map(function(x){return x.trim();}).filter(function(x){return x;});
-      var rk=String(o.length||'').toLowerCase().replace(/~/g,'-'); if(rk && !/mm$/.test(rk)) rk+='mm';
-      var blocks=(o.mixSingle!=='Single' && cd.byR[rk]) ? cd.byR[rk].blocks : null;
-      if(codes.length>1 && blocks && blocks.length===codes.length){
-        var mats=String(o.material||o.detail||'').split(/\r?\n/).map(function(x){return x.trim();});
-        var dets=String(o.detail||'').split(/\r?\n/).map(function(x){return x.trim();});
-        codes.forEach(function(code,i){
-          nseri++; var c={}; for(var k in o) c[k]=o[k];
-          c.seri=nseri; c.codeSoi=code; c.material=mats[i]||o.material; c.detail=dets[i]||o.detail;
-          c.mixDist=blocks[i].dist; c.line=blocks[i].lines||o.line; c.lineRaw=(blocks[i].lines||o.line)+' lines';
-          c.curls=JSON.parse(JSON.stringify(o.curls||{}));
-          splitOrders.push(c);
-        });
-      } else { nseri++; o.seri=nseri; splitOrders.push(o); }
-    });
-    orders=splitOrders;
+    // GIỮ đơn Mix nhiều màu là 1 DÒNG (giống upload): Bảng Nhập Đơn hiển thị nhiều code trong 1 ô +
+    // tô cảnh báo; việc TÁCH theo màu (dùng colorBlocks) chỉ xảy ra ở Line Cuốn/Box qua expandOrder.
     var keoRows=buildKeoRows();
     state.orders=orders; state.mixSheets=mixSheets; state.keoRows=keoRows; state.files=[];
     state.source='✍ Nhập thủ công · '+orders.length+' đơn'+(mixSheets.length?' · '+mixSheets.length+' mix':'')+(keoRows.length?' · '+keoRows.length+' keo':''); state.processed=true; state.filters={}; gridQuery='';
