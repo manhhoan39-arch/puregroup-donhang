@@ -1408,7 +1408,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     dz.addEventListener('drop', function(ev){ if(!canUpload()) return blockUpload(); if(ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files.length) readFiles(ev.dataTransfer.files); });
   }
   var bp=document.getElementById('btn-process'); if(bp) bp.addEventListener('click', function(){ if(!canUpload()) return blockUpload(); processFiles(); });
-  var bc=document.getElementById('btn-clear');   if(bc) bc.addEventListener('click', function(){ if(!canUpload()) return blockUpload(); state.files=[]; renderFiles(); logLine('Đã xóa danh sách file'); });
+  var bc=document.getElementById('btn-clear');   if(bc) bc.addEventListener('click', function(){ if(!canUpload()) return blockUpload();
+    if(typeof confirm==='function' && (state.processed||(state.orders&&state.orders.length)) && !confirm('Xóa TOÀN BỘ dữ liệu (file + Bảng Nhập Đơn + Mix + Keo + Line Cuốn + Box)?')) return;
+    state.files=[]; state.orders=[]; state.mixSheets=[]; state.keoRows=[]; state.R=null;
+    state.source='Chưa có dữ liệu'; state.processed=false; state.filters={}; gridQuery='';
+    try{ state.origOrders=[]; state.origKeo=[]; state.origMix=[]; }catch(e){}
+    renderFiles(); render(); logLine('Đã xóa toàn bộ dữ liệu (file + tất cả bảng)'); });
   // Làm mờ/khoá các nút upload khi chỉ-xem (gọi lại khi render/áp quyền).
   window.__syncUploadPerm = function(){ var ok=canUpload(); [chooseBtn,bp,bc].forEach(function(b){ if(b){ b.disabled=!ok; b.style.opacity=ok?'':'.5'; b.style.cursor=ok?'':'not-allowed'; } }); if(dz){ dz.style.opacity=ok?'':'.6'; } };
   try{ window.__syncUploadPerm(); }catch(e){}
@@ -1423,11 +1428,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       CURLS.map(function(k){ return '<th style="width:44px">'+esc(k)+'</th>'; }).join('')+'<th></th></tr>';
     var body=manualRows.map(function(r,idx){
       function inp(f,val,w,c){ return '<td><input data-mf="'+f+'" data-r="'+idx+'" data-c="'+c+'" value="'+esc(val==null?'':val)+'" style="width:'+w+'px;border:1px solid var(--border);border-radius:5px;padding:3px 6px"></td>'; }
+      // ô GIỮ xuống dòng (nhiều code/màu 1 đơn) → textarea để không mất \n như input
+      function ta(f,val,w,c){ var mln=/\r?\n/.test(String(val||'')); var nl=String(val==null?'':val).split(/\r?\n/).length; var rows=Math.min(Math.max(nl,1),8); return '<td><textarea data-mf="'+f+'" data-r="'+idx+'" data-c="'+c+'" rows="'+rows+'" wrap="off" style="width:'+w+'px;resize:vertical;border:1px solid var(--border);border-radius:5px;padding:3px 6px;font:inherit;line-height:1.4;white-space:pre;overflow:auto;vertical-align:top;'+(mln?'background:rgba(232,24,92,.07);box-shadow:inset 3px 0 0 var(--accent)':'')+'">'+esc(val==null?'':val)+'</textarea></td>'; }
       var ms='<td><input data-mf="mixSingle" data-r="'+idx+'" data-c="8" list="dl-mixsingle" placeholder="Mix" value="'+esc(r.mixSingle||'')+'" style="width:80px;border:1px solid var(--border);border-radius:5px;padding:3px 6px"></td>';
       var curl=CURLS.map(function(k,ci){ return '<td><input data-mcurl="'+esc(k)+'" data-r="'+idx+'" data-c="'+(9+ci)+'" value="'+esc((r.curls&&r.curls[k])||'')+'" style="width:40px;border:1px solid var(--border);border-radius:5px;padding:3px 3px;text-align:center"></td>'; }).join('');
       return '<tr data-mi="'+idx+'"><td style="text-align:center">'+(idx+1)+'</td>'+
-        inp('maDon',r.maDon,70,0)+inp('codeSoi',r.codeSoi,120,1)+inp('loaiHang',r.loaiHang,80,2)+inp('line',r.line,55,3)+
-        inp('detail',r.detail,110,4)+inp('material',r.material,120,5)+inp('thickness',r.thickness,65,6)+inp('length',r.length,65,7)+ms+curl+
+        inp('maDon',r.maDon,70,0)+ta('codeSoi',r.codeSoi,140,1)+inp('loaiHang',r.loaiHang,80,2)+inp('line',r.line,55,3)+
+        ta('detail',r.detail,120,4)+ta('material',r.material,130,5)+inp('thickness',r.thickness,65,6)+inp('length',r.length,65,7)+ms+curl+
         '<td><button class="btn sm ghost" data-mdel="'+idx+'" style="color:var(--red-600);padding:2px 7px">✕</button></td></tr>';
     }).join('');
     wrap.innerHTML='<table class="sheet" style="white-space:nowrap"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
@@ -2880,6 +2887,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // cột độ cong chia ĐỀU 50% chiều rộng bảng (table-layout:fixed) — các cột chữ có width riêng
     var cwPct=(50/(PL_CURLS.length||1)).toFixed(2)+'%';
     var today=new Date().toLocaleDateString('vi-VN'), N=order.length;
+    var _d=new Date(), todaySerial=Math.round((Date.UTC(_d.getFullYear(),_d.getMonth(),_d.getDate())-Date.UTC(1899,11,30))/86400000);  // = TODAY() dạng số như Excel
     var pages=order.map(function(b, idx){
       var grp=groups[b], tot=0;
       var body=grp.map(function(r, i){
@@ -2888,7 +2896,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var cur=PL_CURLS.map(function(k){ return '<td>'+(r.curls&&r.curls[k]?r.curls[k]:'')+'</td>'; }).join('');
         return '<tr><td>'+(i+1)+'</td><td class="l">'+esc(r.lineRaw||r.line||'')+'</td><td class="l">'+esc(r.material||'')+'</td><td>'+esc(r.thickness||'')+'</td><td>'+esc(r.length)+'</td><td>'+esc(r.mixSingle)+'</td>'+cur+'<td>'+(oth||'')+'</td><td>'+hop+'</td></tr>';
       }).join('');
-      var mm=grp[0]?grp[0].maDon:'', serial=esc(mm)+'*'+(idx+1)+'\\'+N+'#'+Math.floor(10000+Math.random()*90000);
+      var mm=grp[0]?grp[0].maDon:'', serial=esc(mm)+'*'+(idx+1)+'\\'+N+'#'+todaySerial;
       return '<div class="pl-page">'+
         '<div class="pl-top"><div class="pl-co">PURE GROUP PRODUCTION AND TRADING CO., LTD</div><div class="pl-brand">CHARMLASH</div></div>'+
         '<div class="pl-title">PACKING LIST - '+esc(b)+'</div>'+
