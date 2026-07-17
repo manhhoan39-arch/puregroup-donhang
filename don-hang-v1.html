@@ -446,6 +446,8 @@ tr.flash td{animation:flashbg 1.4s ease}
         <button class="btn sm" id="mn-add">➕ Thêm dòng</button>
       </span>
       <button class="btn sm ghost" id="mn-del" style="color:var(--red-600)">🗑 Xóa dòng chọn</button>
+      <button class="btn sm ghost" id="mn-nolv" title="Xóa các cột độ cong L+/LD/LC+/LC/LB/LJ/Curl 1 (khi dán bị trùng gấp đôi)">➖ Bỏ độ cong L+…</button>
+      <button class="btn sm ghost" id="mn-clear" style="color:var(--red-600)" title="Xóa sạch dữ liệu đã nhập tay (cả 3 tab)">🧹 Xóa nhập tay</button>
       <button class="btn sm ghost" id="mn-back">← Quay lại</button>
       <button class="btn primary sm" id="mn-apply">✔ Áp dụng &amp; Xử lý</button>
     </div>
@@ -1352,10 +1354,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       });
       F.data.keoRows.forEach(function(k){ keoRows.push(k); });
     });
-    state.orders=orders;
+    // GIỮ đơn nhập TAY đã xử lý (đánh dấu _manual) — upload chỉ thay phần đơn upload cũ, không xóa đơn tay
+    var keepMan=(state.orders||[]).filter(function(o){ return o._manual; });
+    var keepManMix=(state.mixSheets||[]).filter(function(s){ return s._manual; });
+    var keepManKeo=(state.keoRows||[]).filter(function(k){ return k._manual; });
+    var allO=orders.concat(keepMan); allO.forEach(function(o,i){ o.seri=i+1; });
+    state.orders=allO;
+    var haveM={}; mixSheets.forEach(function(s){ haveM[s.maDon]=1; }); keepManMix.forEach(function(s){ if(!haveM[s.maDon]) mixSheets.push(s); });
     state.mixSheets=mixSheets;
-    state.keoRows=keoRows;
-    state.source='💾 '+okFiles.length+' file · '+orders.length+' dòng';
+    state.keoRows=keoRows.concat(keepManKeo);
+    state.source='💾 '+okFiles.length+' file · '+orders.length+' dòng'+(keepMan.length?' + ✍ '+keepMan.length+' tay':'');
     state.processed=true;
     state.filters={}; gridQuery='';   // dữ liệu mới → xóa bộ lọc/tìm kiếm cũ
     render();
@@ -1520,7 +1528,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var maCol=-1; for(i=0;i<header.length;i++){ var h2=header[i].toLowerCase(); if(h2.indexOf('mã')>=0||h2.indexOf('ma đơn')>=0||h2.indexOf('ma don')>=0){ maCol=i; break; } }
     if(maCol<0) maCol=(mmCol>0?mmCol-1:0);
     var rangeCols=[]; for(i=mmCol+1;i<header.length;i++){ if(header[i]) rangeCols.push(i); }
-    var ranges=rangeCols.map(function(ci){ return header[ci]; });
+    // CHUẨN HÓA dải giống độ dài đơn (bỏ mm/space, ~→-, thêm mm) để KHỚP resolveMixDist — như bản auto
+    function normRg(x){ var s=String(x==null?'':x).trim().toLowerCase().replace(/\s|mm/g,'').replace(/~/g,'-'); return s?s+'mm':''; }
+    var ranges=rangeCols.map(function(ci){ return normRg(header[ci]); });
     var byO={}, ord=[], curMa=(maCol>=0 && header[maCol] && header[maCol].toLowerCase()!=='mm') ? header[maCol] : '';
     for(var r=1;r<mixGrid.length;r++){ var row=mixGrid[r]||[]; var ma=String(row[maCol]||'').trim(); if(ma) curMa=ma;
       var mmv=parseFloat(String(row[mmCol]||'').replace(',','.')); if(!isFinite(mmv)||!curMa) continue;
@@ -1642,11 +1652,25 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // GIỮ đơn Mix nhiều màu là 1 DÒNG (giống upload): Bảng Nhập Đơn hiển thị nhiều code trong 1 ô +
     // tô cảnh báo; việc TÁCH theo màu (dùng colorBlocks) chỉ xảy ra ở Line Cuốn/Box qua expandOrder.
     var keoRows=buildKeoRows();
-    state.orders=orders; state.mixSheets=mixSheets; state.keoRows=keoRows; state.files=[];
-    state.source='✍ Nhập thủ công · '+orders.length+' đơn'+(mixSheets.length?' · '+mixSheets.length+' mix':'')+(keoRows.length?' · '+keoRows.length+' keo':''); state.processed=true; state.filters={}; gridQuery='';
+    // Đánh dấu nguồn THỦ CÔNG. Áp dụng lại → THAY THẾ batch tay cũ (không nhân đôi), GIỮ NGUYÊN đơn upload.
+    orders.forEach(function(o){ o._manual=true; });
+    mixSheets.forEach(function(s){ s._manual=true; });
+    keoRows.forEach(function(r){ r._manual=true; });
+    var keepOrders=(state.orders||[]).filter(function(o){ return !o._manual; });   // đơn upload (không phải tay)
+    var keepMix=(state.mixSheets||[]).filter(function(s){ return !s._manual; });
+    var keepKeo=(state.keoRows||[]).filter(function(r){ return !r._manual; });
+    var allO=keepOrders.concat(orders); allO.forEach(function(o,i){ o.seri=i+1; });
+    state.orders=allO;
+    var mixAll=keepMix.slice(), haveM={}; mixAll.forEach(function(s){ haveM[s.maDon]=1; });
+    mixSheets.forEach(function(s){ if(!haveM[s.maDon]) mixAll.push(s); });
+    state.mixSheets=mixAll;
+    state.keoRows=keepKeo.concat(keoRows);
+    state.source=(keepOrders.length?'Upload '+keepOrders.length+' đơn + ':'')+'✍ Thủ công '+orders.length+' đơn';
+    state.processed=true; state.filters={}; gridQuery='';
     try{ renderFiles(); }catch(e){}
     render();
     try{ state.origOrders=JSON.parse(JSON.stringify(state.orders)); state.origKeo=JSON.parse(JSON.stringify(state.keoRows||[])); state.origMix=JSON.parse(JSON.stringify(state.mixSheets||[])); }catch(e){}
+    // GIỮ NGUYÊN lưới nhập tay để còn sửa; muốn xóa bấm nút "Xóa nhập tay".
     go('s3');
   }
   function manualPaste(ev){
@@ -1691,6 +1715,18 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     });
     var mb=document.getElementById('mn-back'); if(mb) mb.addEventListener('click', function(){ go('s1'); });
     var mp=document.getElementById('mn-apply'); if(mp) mp.addEventListener('click', applyManual);
+    var mlv=document.getElementById('mn-nolv'); if(mlv) mlv.addEventListener('click', function(){
+      syncManualFromDOM();
+      var LV=['L+','LD','LC+','LC','LB','LJ','Curl 1'], n=0;
+      manualRows.forEach(function(r){ if(r.curls) LV.forEach(function(k){ if(r.curls[k]!=null){ delete r.curls[k]; n++; } }); });
+      renderManual(); commit();
+      if(typeof alert==='function') alert('Đã bỏ '+n+' ô độ cong L-variant (L+/LD/LC+/LC/LB/LJ/Curl 1).');
+    });
+    var mcl=document.getElementById('mn-clear'); if(mcl) mcl.addEventListener('click', function(){
+      if(typeof confirm==='function' && !confirm('Xóa sạch dữ liệu ĐÃ NHẬP TAY (cả 3 tab Đơn/Mix/Keo)?\n(Không ảnh hưởng đơn upload đã xử lý.)')) return;
+      manualRows=[]; keoM=[]; mixGrid=[]; colorM=[];
+      renderManual(); renderMixM(); renderKeoM(); renderColorM(); histInit();
+    });
     var mw=document.getElementById('manual-wrap');
     if(mw){ mw.addEventListener('click', function(ev){ var b=ev.target&&ev.target.closest?ev.target.closest('[data-mdel]'):null; if(b){ syncManualFromDOM(); manualRows.splice(+b.getAttribute('data-mdel'),1); renderManual(); commit(); } });
       mw.addEventListener('paste', manualPaste); mw.addEventListener('change', commit); }
