@@ -67,6 +67,7 @@
       material: String(raw.material != null ? raw.material : (raw.detail || '')).trim(),
       thickness: String(raw.thickness == null ? '' : raw.thickness).trim(),
       label: raw.label == null ? '' : String(raw.label).trim(),
+      mixDist: (raw.mixDist && typeof raw.mixDist === 'object') ? raw.mixDist : null,
     };
   }
   function validateOrder(o, opt) {
@@ -937,6 +938,64 @@
     return { rawOrders: out, mixSheets: mixSheets, keoRows: keoRows, meta: meta };
   }
 
+  /* Parse RAW vùng "Mix Length + cặp (9mm | tên màu)" (dán tay) → mixSheets có colorBlocks.
+     Dùng CHÍNH logic của parseGuiXuongSheet để nhập thủ công Mix nhiều màu khớp 100% auto. */
+  function parseMixColorAOA(aoa, maDon) {
+    if (!aoa || !aoa.length) return [];
+    maDon = maDon || '';
+    var mixSheets = [], r, i, v, q, rw;
+    for (r = 0; r < aoa.length; r++) {
+      var row = aoa[r] || [];
+      for (i = 0; i < row.length; i++) {
+        if (PS(row[i]).toLowerCase() !== 'mix length') continue;
+        var mi = i, ranges = [], rangeCols = [], lineCounts = [], ci;
+        for (ci = mi + 1; ci < row.length; ci++) {
+          v = PS(row[ci]); if (!v) continue;
+          if (v.toLowerCase() === 'mix length') break;
+          var lm = v.match(/\((\d+)\s*lines?\)/i);
+          var rg = v.replace(/\(.*?\)/g, '').trim().toLowerCase().replace('~', '-');
+          if (!parseRange(rg.replace(/mm$/, ''))) continue;
+          ranges.push(rg); rangeCols.push(ci); lineCounts.push(lm ? +lm[1] : null);
+        }
+        if (!ranges.length) continue;
+        var colorCols = {}, colorBlocksByRange = {};
+        ranges.forEach(function (_rg, j) {
+          var cc0 = rangeCols[j];
+          for (var q2 = r + 1; q2 < aoa.length; q2++) {
+            var cell0 = PS((aoa[q2] || [])[cc0]); if (!cell0) continue;
+            if (/^\d+\s*mm$/i.test(cell0) && PS((aoa[q2] || [])[cc0 + 1])) {
+              var cnt = {}, started = false, blocks = [], cur = null;
+              for (var q3 = r + 1; q3 < aoa.length; q3++) {
+                var m2 = PS((aoa[q3] || [])[cc0]).match(/^(\d+)\s*mm$/i);
+                var colr = PS((aoa[q3] || [])[cc0 + 1]).trim();
+                if (m2 && colr) {
+                  cnt[+m2[1]] = (cnt[+m2[1]] || 0) + 1; started = true;
+                  if (!cur || cur.color !== colr) { cur = { color: colr, dist: {}, lines: 0 }; blocks.push(cur); }
+                  cur.dist[+m2[1]] = (cur.dist[+m2[1]] || 0) + 1; cur.lines++;
+                } else if (started) break;
+              }
+              colorCols[j] = cnt; colorBlocksByRange[ranges[j]] = blocks;
+            }
+            break;
+          }
+        });
+        var mmList = [], matrix = [];
+        for (q = r + 1; q < aoa.length; q++) {
+          rw = aoa[q] || [];
+          var mmm = PS(rw[mi]).match(/^(\d+)\s*mm$/i);
+          if (!mmm) { if (mmList.length) break; else continue; }
+          var mmCur = +mmm[1]; mmList.push(mmCur);
+          matrix.push(rangeCols.map(function (cc, j2) { return colorCols[j2] ? (colorCols[j2][mmCur] || 0) : PN(rw[cc]); }));
+        }
+        var allZero = function (arr) { for (var z = 0; z < arr.length; z++) if (arr[z]) return false; return true; };
+        while (mmList.length && allZero(matrix[matrix.length - 1])) { mmList.pop(); matrix.pop(); }
+        if (mmList.length) mixSheets.push({ maDon: maDon, mmList: mmList, matrix: matrix, ranges: ranges, lineCounts: lineCounts, colorBlocks: colorBlocksByRange });
+        i = ci - 1;
+      }
+    }
+    return mixSheets;
+  }
+
   /* ---------------- dữ liệu mẫu 233S ---------------- */
   var MM_233S = [4,5,6,7,8,9,10,11,12,13,14,15,16,17];
   var MIX_233S = [
@@ -1009,7 +1068,7 @@
     runPipeline: runPipeline,
     parseNhapDonRows: parseNhapDonRows, parseLabelRows: parseLabelRows,
     parseKeoRows: parseKeoRows, parseWorkbookData: parseWorkbookData,
-    parseGuiXuongSheet: parseGuiXuongSheet,
+    parseGuiXuongSheet: parseGuiXuongSheet, parseMixColorAOA: parseMixColorAOA,
     sample: { MM_233S: MM_233S, MIX_233S: MIX_233S, ORDERS_233S: ORDERS_233S, KEO_233S: KEO_233S, MIX_SHEETS_233S: MIX_SHEETS_233S },
   };
   if (root) root.NhapDonEngine = api;

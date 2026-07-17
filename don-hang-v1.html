@@ -209,6 +209,7 @@ td.cellsel-anchor,th.cellsel-anchor{box-shadow:inset 0 0 0 2px var(--accent)}
 .cell-sel input,.cell-sel select,input.cell-sel,select.cell-sel{background:var(--accent-soft)!important;outline:1.5px solid var(--accent);outline-offset:-1px}
 .mn-dragging{user-select:none;cursor:cell}
 .mn-dragging input,.mn-dragging select{cursor:cell}
+.mn-tab.on{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important}
 /* Excel-like sheet (IN-Bảng Cuốn-Box) */
 .sheet{border-collapse:separate;border-spacing:0;font-size:11px;white-space:nowrap;width:100%;background:var(--surface)}
 .sheet th,.sheet td{border-right:1px solid var(--border-strong);border-bottom:1px solid var(--border-strong);padding:5px 8px;text-align:center}
@@ -345,10 +346,6 @@ tr.flash td{animation:flashbg 1.4s ease}
 <!-- ============ MAIN ============ -->
 <div class="main">
   <header class="topbar">
-    <div>
-      <div class="crumb">Sản Xuất / <b id="crumb">Upload File</b></div>
-      <div class="page-title" id="ptitle">Upload File Excel</div>
-    </div>
     <div class="spacer"></div>
     <div class="search-top">🔍<input placeholder="Tìm trong Bảng Nhập Đơn…" id="top-search"></div>
     <div class="icon-btn" id="btn-undo" title="Hoàn tác (Ctrl+Z)" style="opacity:.4;pointer-events:none">↶</div>
@@ -435,8 +432,8 @@ tr.flash td{animation:flashbg 1.4s ease}
   <!-- ========== SCREEN: NHẬP ĐƠN THỦ CÔNG ========== -->
   <section class="screen" id="s-manual">
     <div class="tbl-toolbar">
-      <b style="font-size:15px">✍ Nhập đơn thủ công</b>
-      <span style="display:inline-flex;gap:4px;margin-left:14px">
+      <b style="font-size:14px;margin-right:10px">✍ Nhập đơn thủ công</b>
+      <span style="display:inline-flex;gap:4px">
         <button class="btn sm mn-tab on" data-mt="don">1 · Đơn</button>
         <button class="btn sm ghost mn-tab" data-mt="mix">2 · Mix Label</button>
         <button class="btn sm ghost mn-tab" data-mt="keo">3 · Bảng Keo</button>
@@ -452,11 +449,15 @@ tr.flash td{animation:flashbg 1.4s ease}
       <button class="btn sm ghost" id="mn-back">← Quay lại</button>
       <button class="btn primary sm" id="mn-apply">✔ Áp dụng &amp; Xử lý</button>
     </div>
-    <div class="card"><div class="tbl-wrap" style="max-height:66vh">
+    <div class="card"><div class="tbl-wrap" style="max-height:calc(100vh - 190px)">
       <div id="manual-wrap"></div>
       <div id="mix-wrap" style="display:none"></div>
       <div id="keo-wrap" style="display:none"></div>
       <datalist id="dl-mixsingle"><option value="Mix"></option><option value="Single"></option></datalist>
+    </div>
+    <div id="mix-raw-box" style="display:none">
+      <div class="mini" style="margin:10px 2px 4px;font-weight:600">🎨 Bảng Mix Màu (chỉ cho Mix NHIỀU màu) — mỗi sợi 1 dòng: DẢI (đúng tên LABEL, vd 8-12mm) · MM · MÀU. Dán cả vùng được. Để trống nếu là Mix thường.</div>
+      <div class="card"><div class="tbl-wrap" style="max-height:34vh"><div id="mixcolor-wrap"></div></div></div>
     </div></div>
     <p class="mini" id="mn-hint" style="margin-top:8px"></p>
   </section>
@@ -502,7 +503,6 @@ tr.flash td{animation:flashbg 1.4s ease}
       <button class="btn primary sm" onclick="go('s5')">Sinh bảng Keo →</button>
     </div>
     <div class="card">
-      <div class="card-head"><h3>Bảng Mix Label</h3></div>
       <div class="card-body" id="eng-mixlabel">
         <div class="mini">Đang nạp bảng Mix từ engine…</div>
       </div>
@@ -776,8 +776,8 @@ function go(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('active',a.dataset.s===id));
-  document.getElementById('crumb').textContent=titles[id][0];
-  document.getElementById('ptitle').textContent=titles[id][1];
+  var _cr=document.getElementById('crumb'); if(_cr) _cr.textContent=titles[id][0];
+  var _pt=document.getElementById('ptitle'); if(_pt) _pt.textContent=titles[id][1];
   document.getElementById('content').scrollTop=0;
 }
 document.querySelectorAll('#nav a').forEach(a=>a.addEventListener('click',()=>go(a.dataset.s)));
@@ -1444,6 +1444,32 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     manualRows=rows.filter(function(x){ return x; });
   }
   function esci(v){ return esc(v==null?'':v); }
+  // Tách bảng từ clipboard Excel/Sheet: TÔN TRỌNG ô nhiều dòng (bọc trong "..."), tab = cột, xuống dòng = dòng.
+  function parseClipboard(text){
+    text=String(text).replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+    var rows=[], row=[], field='', i=0, inQ=false, ch;
+    while(i<text.length){
+      ch=text[i];
+      if(inQ){
+        if(ch==='"'){ if(text[i+1]==='"'){ field+='"'; i+=2; continue; } inQ=false; i++; continue; }
+        field+=ch; i++; continue;
+      }
+      if(ch==='"'){ inQ=true; i++; continue; }
+      if(ch==='\t'){ row.push(field); field=''; i++; continue; }
+      if(ch==='\n'){ row.push(field); rows.push(row); row=[]; field=''; i++; continue; }
+      field+=ch; i++;
+    }
+    row.push(field); rows.push(row);
+    if(rows.length && rows[rows.length-1].length===1 && rows[rows.length-1][0]==='') rows.pop();
+    return rows;
+  }
+  // Dán 1 giá trị vào toàn bộ vùng đang bôi đen (>=2 ô)
+  function fillSelection(wrap, val){
+    if(!wrap) return false;
+    var cells=wrap.querySelectorAll('.cell-sel'); if(cells.length<2) return false;
+    Array.prototype.forEach.call(cells,function(el){ if(!el.disabled) el.value=val; });
+    return true;
+  }
   var mnTab='don';
   // ----- Tab KEO (bảng phẳng) -----
   var keoM=[], keoLabels=['Mã Đơn','Loại Keo','Loại Sợi','Độ Dày','Độ Dài','Ghi Chú'];
@@ -1461,34 +1487,34 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   var mixGrid=[];
   function renderMixM(){
     var wrap=document.getElementById('mix-wrap'); if(!wrap) return;
-    if(!mixGrid.length){ mixGrid=[['','','','']]; for(var xi=0;xi<15;xi++) mixGrid.push([]); }
-    var maxC=4; mixGrid.forEach(function(r){ if(r.length>maxC) maxC=r.length; });
-    var hdr=mixGrid[0]||[];
-    var head='<tr><th style="width:64px"></th>';
-    for(var c=0;c<maxC;c++){
-      if(c===0) head+='<th>Mã Đơn</th>';
-      else if(c===1) head+='<th>MM</th>';
-      else head+='<th>Dải '+(c-1)+'<br><input data-xr="0" data-xc="'+c+'" data-r="0" data-c="'+c+'" placeholder="tên dải" value="'+esci(hdr[c]||'')+'" style="width:66px;margin-top:3px;border:1px solid var(--border);border-radius:5px;padding:2px 5px;text-align:center;font-weight:400"></th>';
-    }
+    if(!mixGrid.length){ mixGrid=[['','MM','','','','','','']]; for(var xi=0;xi<15;xi++) mixGrid.push([]); }
+    var maxC=8; mixGrid.forEach(function(r){ if(r.length>maxC) maxC=r.length; });
+    var head='<tr><th style="width:44px"></th>';
+    for(var c=0;c<maxC;c++){ head+='<th>'+(c===0?'MÃ ĐƠN':c===1?'ĐỘ DÀI':'LABEL '+(c-1))+'</th>'; }
     head+='</tr>';
     var body='';
-    for(var ri=1;ri<mixGrid.length;ri++){ var row=mixGrid[ri]||[]; var tds='';
-      for(var cc=0;cc<maxC;cc++){ tds+='<td><input data-xr="'+ri+'" data-xc="'+cc+'" data-r="'+ri+'" data-c="'+cc+'" value="'+esci(row[cc]||'')+'" style="width:'+(cc<2?90:66)+'px;border:1px solid var(--border);border-radius:5px;padding:3px 6px"></td>'; }
-      body+='<tr><td style="text-align:center;font-size:10px;color:var(--text-3)">'+ri+'</td>'+tds+'</tr>';
+    for(var ri=0;ri<mixGrid.length;ri++){ var row=mixGrid[ri]||[]; var tds='';
+      for(var cc=0;cc<maxC;cc++){
+        var ph='', dis='', val=(ri===0&&cc===1)?'MM':(row[cc]==null?'':row[cc]);
+        if(ri===0){ if(cc===1) dis=' disabled'; else if(cc===0) ph=' placeholder="Mã Đơn"'; else ph=' placeholder="vd 7-14mm"'; }
+        else if(cc===1) ph=' placeholder="mm"';
+        tds+='<td><input data-xr="'+ri+'" data-xc="'+cc+'" data-r="'+ri+'" data-c="'+cc+'"'+dis+ph+' value="'+esci(val)+'" style="width:'+(cc===0?92:cc===1?70:66)+'px;border:1px solid var(--border);border-radius:5px;padding:3px 6px;text-align:'+(cc<2?'left':'center')+';'+(ri===0?'font-weight:700;background:var(--surface-2)':'')+'"></td>';
+      }
+      body+='<tr><td style="text-align:center;font-size:10px;color:var(--text-3)">'+(ri===0?'Dải':ri)+'</td>'+tds+'</tr>';
     }
     wrap.innerHTML='<table class="sheet" style="white-space:nowrap"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
   }
   function syncMixGrid(){ var out=[]; Array.prototype.forEach.call(document.querySelectorAll('#mix-wrap input[data-xr]'),function(el){ var r=+el.getAttribute('data-xr'),c=+el.getAttribute('data-xc'); if(!out[r]) out[r]=[]; out[r][c]=el.value; }); mixGrid=out.filter(function(x){return x;}); }
   function buildMixSheetsFromGrid(){
     syncMixGrid(); if(mixGrid.length<2) return [];
-    var header=(mixGrid[0]||[]).map(function(x){return String(x||'').trim();}), i;
+    var g0=mixGrid[0]||[], header=[], i; for(i=0;i<g0.length;i++){ header[i]=String(g0[i]==null?'':g0[i]).trim(); }
     var mmCol=-1; for(i=0;i<header.length;i++){ var h=header[i].toLowerCase(); if(h==='mm'||h.indexOf('độ dài')>=0||h.indexOf('do dai')>=0){ mmCol=i; break; } }
     if(mmCol<0) mmCol=(header.length>1?1:0);
     var maCol=-1; for(i=0;i<header.length;i++){ var h2=header[i].toLowerCase(); if(h2.indexOf('mã')>=0||h2.indexOf('ma đơn')>=0||h2.indexOf('ma don')>=0){ maCol=i; break; } }
     if(maCol<0) maCol=(mmCol>0?mmCol-1:0);
     var rangeCols=[]; for(i=mmCol+1;i<header.length;i++){ if(header[i]) rangeCols.push(i); }
     var ranges=rangeCols.map(function(ci){ return header[ci]; });
-    var byO={}, ord=[], curMa='';
+    var byO={}, ord=[], curMa=(maCol>=0 && header[maCol] && header[maCol].toLowerCase()!=='mm') ? header[maCol] : '';
     for(var r=1;r<mixGrid.length;r++){ var row=mixGrid[r]||[]; var ma=String(row[maCol]||'').trim(); if(ma) curMa=ma;
       var mmv=parseFloat(String(row[mmCol]||'').replace(',','.')); if(!isFinite(mmv)||!curMa) continue;
       if(!byO[curMa]){ byO[curMa]={maDon:curMa,mmList:[],matrix:[],ranges:ranges.slice()}; ord.push(curMa); }
@@ -1496,6 +1522,34 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       byO[curMa].matrix.push(rangeCols.map(function(ci){ var n=parseFloat(String(row[ci]||'').replace(',','.')); return isFinite(n)?n:0; }));
     }
     return ord.map(function(m){return byO[m];}).filter(function(s){return s.mmList.length && s.ranges.length;});
+  }
+  // ----- Bảng Mix Màu (DẢI | MM | MÀU) → colorBlocks cho Mix nhiều màu -----
+  var colorM=[];
+  function renderColorM(){
+    var wrap=document.getElementById('mixcolor-wrap'); if(!wrap) return;
+    if(!colorM.length){ for(var ci=0;ci<20;ci++) colorM.push(['','','']); }
+    var ws=[130,70,150], lb=['DẢI (LABEL)','MM','MÀU'], phs=['vd 8-12mm','mm','tên màu'];
+    var head='<tr><th style="width:34px">#</th>'+lb.map(function(l){return '<th>'+l+'</th>';}).join('')+'<th></th></tr>';
+    var body=colorM.map(function(row,ri){ var tds='';
+      for(var c=0;c<3;c++){ tds+='<td><input data-yr="'+ri+'" data-yc="'+c+'" data-r="'+ri+'" data-c="'+c+'" value="'+esci(row[c]||'')+'" placeholder="'+phs[c]+'" style="width:'+ws[c]+'px;border:1px solid var(--border);border-radius:5px;padding:3px 6px"></td>'; }
+      return '<tr><td style="text-align:center">'+(ri+1)+'</td>'+tds+'<td><button class="btn sm ghost" data-ydel="'+ri+'" style="color:var(--red-600);padding:2px 7px">✕</button></td></tr>';
+    }).join('');
+    wrap.innerHTML='<table class="sheet" style="white-space:nowrap"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
+  }
+  function syncColorM(){ var out=[]; Array.prototype.forEach.call(document.querySelectorAll('#mixcolor-wrap input[data-yr]'),function(el){ var r=+el.getAttribute('data-yr'),c=+el.getAttribute('data-yc'); if(!out[r]) out[r]=['','','']; out[r][c]=el.value; }); colorM=out.filter(function(x){return x;}); }
+  function buildColorData(){
+    syncColorM();
+    var byR={}, order=[];
+    colorM.forEach(function(row){
+      var dai=String(row[0]||'').trim().toLowerCase().replace(/~/g,'-'); if(dai && !/mm$/.test(dai)) dai+='mm';
+      var mm=parseInt(String(row[1]||'').trim(),10); var color=String(row[2]||'').trim();
+      if(!dai || !isFinite(mm) || !color) return;
+      if(!byR[dai]){ byR[dai]={blocks:[],cnt:{},cur:null}; order.push(dai); }
+      var d=byR[dai]; d.cnt[mm]=(d.cnt[mm]||0)+1;
+      if(!d.cur || d.cur.color!==color){ d.cur={color:color,dist:{},lines:0}; d.blocks.push(d.cur); }
+      d.cur.dist[mm]=(d.cur.dist[mm]||0)+1; d.cur.lines++;
+    });
+    return { order:order, byR:byR };
   }
   // ----- Tab helpers + paste -----
   function showMnTab(t){
@@ -1505,29 +1559,37 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(mw) mw.style.display=(t==='don')?'':'none';
     if(xw) xw.style.display=(t==='mix')?'':'none';
     if(kw) kw.style.display=(t==='keo')?'':'none';
+    var xrb=document.getElementById('mix-raw-box'); if(xrb){ xrb.style.display=(t==='mix')?'':'none'; if(t==='mix') renderColorM(); }
     var hint=document.getElementById('mn-hint');
-    if(hint) hint.textContent = t==='don' ? 'Đơn: điền hoặc DÁN cả vùng (Ctrl+V) từ Excel/Sheet. Cột độ cong = số lượng hộp.' : t==='mix' ? 'Mix Label: gõ TÊN DẢI vào ô ở tiêu đề cột (Dải 1, Dải 2…); mỗi dòng dưới nhập Mã Đơn | MM | số sợi từng dải (dán cả vùng dữ liệu được). Không có Mix thì bỏ trống.' : 'Keo: Mã Đơn | Loại Keo | Loại Sợi | Độ Dày | Độ Dài | Ghi Chú (dán cả vùng được). Không có thì bỏ trống.';
+    if(hint) hint.textContent = t==='don' ? 'Đơn: điền hoặc DÁN cả vùng (Ctrl+V) từ Excel/Sheet. Cột độ cong = số lượng hộp.' : t==='mix' ? 'Mix Label (giống bảng auto): dòng "Dải" ghi Mã Đơn + tên các dải (vd 7-14mm) ở cột LABEL; các dòng dưới nhập độ dài (mm) và số sợi từng LABEL. Số Line tự tính = tổng cột. Không có Mix thì bỏ trống.' : 'Keo: Mã Đơn | Loại Keo | Loại Sợi | Độ Dày | Độ Dài | Ghi Chú (dán cả vùng được). Không có thì bỏ trống.';
   }
   function gridPaste(ev,kind){
-    var rA=kind==='keo'?'data-kr':'data-xr', cA=kind==='keo'?'data-kc':'data-xc', t=ev.target;
+    var rA=kind==='keo'?'data-kr':kind==='color'?'data-yr':'data-xr', cA=kind==='keo'?'data-kc':kind==='color'?'data-yc':'data-xc', t=ev.target;
     if(!t||!t.hasAttribute||!t.hasAttribute(rA)) return;
     var text=((ev.clipboardData||window.clipboardData)||{}).getData?(ev.clipboardData||window.clipboardData).getData('text'):'';
     if(!text) return;
-    var g=text.replace(/\r/g,'').replace(/\n+$/,'').split('\n').map(function(l){return l.split('\t');});
-    if(g.length===1&&g[0].length===1) return; ev.preventDefault();
-    if(kind==='keo') syncKeoM(); else syncMixGrid();
-    var arr=kind==='keo'?keoM:mixGrid, sr=+t.getAttribute(rA), sc=+t.getAttribute(cA);
+    var syncFn=kind==='keo'?syncKeoM:kind==='color'?syncColorM:syncMixGrid;
+    var renderFn=kind==='keo'?renderKeoM:kind==='color'?renderColorM:renderMixM;
+    var wid=kind==='keo'?'keo-wrap':kind==='color'?'mixcolor-wrap':'mix-wrap';
+    var g=parseClipboard(text);
+    if(g.length===1&&g[0].length===1&&g[0][0].indexOf('\n')<0){
+      if(fillSelection(document.getElementById(wid), g[0][0])){ ev.preventDefault(); syncFn(); commit(); }
+      return;
+    }
+    ev.preventDefault();
+    syncFn();
+    var arr=kind==='keo'?keoM:kind==='color'?colorM:mixGrid, sr=+t.getAttribute(rA), sc=+t.getAttribute(cA);
     g.forEach(function(cells,ri){ var idx=sr+ri; while(arr.length<=idx) arr.push([]); cells.forEach(function(v,ci){ arr[idx][sc+ci]=String(v); }); });
-    if(kind==='keo') renderKeoM(); else renderMixM();
+    renderFn();
     commit();
   }
   // ----- Lịch sử Undo/Redo (chung cho cả 3 tab) -----
   var histStates=[], histPtr=-1, histLock=false;
-  function syncAll(){ syncManualFromDOM(); syncKeoM(); syncMixGrid(); }
-  function snap(){ return JSON.stringify({ d:manualRows, k:keoM, x:mixGrid }); }
+  function syncAll(){ syncManualFromDOM(); syncKeoM(); syncMixGrid(); syncColorM(); }
+  function snap(){ return JSON.stringify({ d:manualRows, k:keoM, x:mixGrid, y:colorM }); }
   function histInit(){ syncAll(); histStates=[snap()]; histPtr=0; updHistBtns(); }
   function commit(){ if(histLock) return; syncAll(); var s=snap(); if(histPtr>=0 && histStates[histPtr]===s) return; histStates=histStates.slice(0,histPtr+1); histStates.push(s); if(histStates.length>80) histStates.shift(); histPtr=histStates.length-1; updHistBtns(); }
-  function histRestore(s){ var o=JSON.parse(s); manualRows=o.d||[]; keoM=o.k||[]; mixGrid=o.x||[]; renderManual(); renderMixM(); renderKeoM(); }
+  function histRestore(s){ var o=JSON.parse(s); manualRows=o.d||[]; keoM=o.k||[]; mixGrid=o.x||[]; colorM=o.y||[]; renderManual(); renderMixM(); renderKeoM(); renderColorM(); }
   function histUndo(){ if(histPtr>0){ histLock=true; histPtr--; histRestore(histStates[histPtr]); histLock=false; updHistBtns(); } }
   function histRedo(){ if(histPtr<histStates.length-1){ histLock=true; histPtr++; histRestore(histStates[histPtr]); histLock=false; updHistBtns(); } }
   function updHistBtns(){ var u=document.getElementById('mn-undo'),r=document.getElementById('mn-redo'); if(u) u.disabled=histPtr<=0; if(r) r.disabled=histPtr>=histStates.length-1; }
@@ -1535,11 +1597,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(!canEditStep('s1')){ alert('Bạn chỉ có quyền XEM — không nhập đơn được.'); return; }
     syncManualFromDOM();
     var orders=[], seri=0;
+    var firstMa=''; for(var fi=0; fi<manualRows.length; fi++){ var mm0=String(manualRows[fi].maDon||'').trim(); if(mm0){ firstMa=mm0; break; } }
+    var lastMa=firstMa;
     manualRows.forEach(function(r){
       var hasCurl=r.curls && Object.keys(r.curls).length;
-      if(!String(r.maDon).trim() && !String(r.codeSoi).trim() && !hasCurl) return;
+      var rowMa=String(r.maDon||'').trim(); if(rowMa) lastMa=rowMa;
+      if(!String(r.codeSoi).trim() && !hasCurl) return;   // không có code sợi & không số lượng → bỏ dòng trống
       seri++;
-      orders.push({ seri:seri, maDon:String(r.maDon||'').trim(), codeSoi:String(r.codeSoi||'').trim(),
+      orders.push({ seri:seri, maDon:lastMa, codeSoi:String(r.codeSoi||'').trim(),
         loaiHang:String(r.loaiHang||'').trim(), detail:String(r.detail||'').trim(),
         material:String(r.material||r.detail||'').trim(), thickness:String(r.thickness||'').trim(),
         length:String(r.length||'').trim(), mixSingle:(r.mixSingle==='Single'?'Single':'Mix'),
@@ -1548,6 +1613,44 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     });
     if(!orders.length){ alert('Chưa nhập dòng nào có dữ liệu ở tab Đơn.'); return; }
     var mixSheets=buildMixSheetsFromGrid();
+    var cd=buildColorData();
+    if(cd.order.length){
+      var sheet=null; for(var si=0;si<mixSheets.length;si++){ if(mixSheets[si].maDon===firstMa){ sheet=mixSheets[si]; break; } }
+      if(!sheet){ sheet={maDon:firstMa, mmList:[], matrix:[], ranges:[], colorBlocks:{}}; mixSheets.push(sheet); }
+      if(!sheet.colorBlocks) sheet.colorBlocks={};
+      var mmSet={}; sheet.mmList.forEach(function(m){ mmSet[m]=1; });
+      cd.order.forEach(function(rg){ Object.keys(cd.byR[rg].cnt).forEach(function(m){ mmSet[+m]=1; }); });
+      var mmU=Object.keys(mmSet).map(Number).sort(function(a,b){return a-b;});
+      var ranges=sheet.ranges.slice(); cd.order.forEach(function(rg){ if(ranges.indexOf(rg)<0) ranges.push(rg); });
+      var oldR={}; sheet.ranges.forEach(function(rg,j){ oldR[rg]=j; });
+      var oldM={}; sheet.mmList.forEach(function(m,i){ oldM[m]=i; });
+      var matrix=mmU.map(function(mm){ return ranges.map(function(rg){
+        if(cd.byR[rg]) return cd.byR[rg].cnt[mm]||0;
+        var oi=oldR[rg], mi=oldM[mm];
+        return (oi!=null && mi!=null && sheet.matrix[mi]) ? (sheet.matrix[mi][oi]||0) : 0;
+      }); });
+      sheet.mmList=mmU; sheet.ranges=ranges; sheet.matrix=matrix;
+      cd.order.forEach(function(rg){ sheet.colorBlocks[rg]=cd.byR[rg].blocks; });
+    }
+    // TÁCH đơn Mix nhiều màu: 1 dòng nhiều code → mỗi màu 1 dòng (phân bổ mm riêng từ bảng Mix Màu)
+    var splitOrders=[], nseri=0;
+    orders.forEach(function(o){
+      var codes=String(o.codeSoi||'').split(/\r?\n/).map(function(x){return x.trim();}).filter(function(x){return x;});
+      var rk=String(o.length||'').toLowerCase().replace(/~/g,'-'); if(rk && !/mm$/.test(rk)) rk+='mm';
+      var blocks=(o.mixSingle!=='Single' && cd.byR[rk]) ? cd.byR[rk].blocks : null;
+      if(codes.length>1 && blocks && blocks.length===codes.length){
+        var mats=String(o.material||o.detail||'').split(/\r?\n/).map(function(x){return x.trim();});
+        var dets=String(o.detail||'').split(/\r?\n/).map(function(x){return x.trim();});
+        codes.forEach(function(code,i){
+          nseri++; var c={}; for(var k in o) c[k]=o[k];
+          c.seri=nseri; c.codeSoi=code; c.material=mats[i]||o.material; c.detail=dets[i]||o.detail;
+          c.mixDist=blocks[i].dist; c.line=blocks[i].lines||o.line; c.lineRaw=(blocks[i].lines||o.line)+' lines';
+          c.curls=JSON.parse(JSON.stringify(o.curls||{}));
+          splitOrders.push(c);
+        });
+      } else { nseri++; o.seri=nseri; splitOrders.push(o); }
+    });
+    orders=splitOrders;
     var keoRows=buildKeoRows();
     state.orders=orders; state.mixSheets=mixSheets; state.keoRows=keoRows; state.files=[];
     state.source='✍ Nhập thủ công · '+orders.length+' đơn'+(mixSheets.length?' · '+mixSheets.length+' mix':'')+(keoRows.length?' · '+keoRows.length+' keo':''); state.processed=true; state.filters={}; gridQuery='';
@@ -1560,8 +1663,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var t=ev.target; if(!t || (!t.hasAttribute('data-mf') && !t.hasAttribute('data-mcurl'))) return;
     var text=((ev.clipboardData||window.clipboardData)||{}).getData ? (ev.clipboardData||window.clipboardData).getData('text') : '';
     if(!text) return;
-    var grid=text.replace(/\r/g,'').replace(/\n+$/,'').split('\n').map(function(l){ return l.split('\t'); });
-    if(grid.length===1 && grid[0].length===1) return;
+    var grid=parseClipboard(text);
+    if(grid.length===1 && grid[0].length===1 && grid[0][0].indexOf('\n')<0){
+      var wEl=document.getElementById('manual-wrap');
+      if(fillSelection(wEl, grid[0][0])){ ev.preventDefault(); syncManualFromDOM(); commit(); }
+      return;
+    }
     ev.preventDefault();
     syncManualFromDOM();
     var cols=['maDon','codeSoi','loaiHang','line','detail','material','thickness','length','mixSingle'].concat(CURLS);
@@ -1582,7 +1689,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   (function(){
     var bm=document.getElementById('btn-manual');
-    if(bm) bm.addEventListener('click', function(){ if(!canEditStep('s1')){ alert('Bạn chỉ có quyền XEM.'); return; } renderManual(); renderMixM(); renderKeoM(); showMnTab('don'); histInit(); go('s-manual'); });
+    if(bm) bm.addEventListener('click', function(){ if(!canEditStep('s1')){ alert('Bạn chỉ có quyền XEM.'); return; } renderManual(); renderMixM(); renderKeoM(); renderColorM(); showMnTab('don'); histInit(); go('s-manual'); });
     Array.prototype.forEach.call(document.querySelectorAll('.mn-tab'), function(b){ b.addEventListener('click', function(){ showMnTab(b.getAttribute('data-mt')); }); });
     var ma=document.getElementById('mn-add'); if(ma) ma.addEventListener('click', function(){
       var cnt=parseInt((document.getElementById('mn-count')||{}).value,10); if(!isFinite(cnt)||cnt<1) cnt=1; if(cnt>500) cnt=500;
@@ -1602,6 +1709,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       kw.addEventListener('paste', function(ev){ gridPaste(ev,'keo'); }); kw.addEventListener('change', commit); }
     var xw=document.getElementById('mix-wrap');
     if(xw){ xw.addEventListener('paste', function(ev){ gridPaste(ev,'mix'); }); xw.addEventListener('change', commit); }
+    var yw=document.getElementById('mixcolor-wrap');
+    if(yw){ yw.addEventListener('click', function(ev){ var b=ev.target&&ev.target.closest?ev.target.closest('[data-ydel]'):null; if(b){ syncColorM(); colorM.splice(+b.getAttribute('data-ydel'),1); renderColorM(); commit(); } });
+      yw.addEventListener('paste', function(ev){ gridPaste(ev,'color'); }); yw.addEventListener('change', commit); }
     var bU=document.getElementById('mn-undo'); if(bU) bU.addEventListener('click', histUndo);
     var bR=document.getElementById('mn-redo'); if(bR) bR.addEventListener('click', histRedo);
     document.addEventListener('keydown', function(ev){
@@ -1620,28 +1730,31 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     function paint(){ clearPaint(); var rg=rangeOf(); if(!rg||!selWrapEl) return; Array.prototype.forEach.call(selWrapEl.querySelectorAll('[data-r]'),function(el){ var r=+el.getAttribute('data-r'),c=+el.getAttribute('data-c'); if(r>=rg.r1&&r<=rg.r2&&c>=rg.c1&&c<=rg.c2) el.classList.add('cell-sel'); }); }
     function cellCoord(el){ if(!el||!el.getAttribute||el.getAttribute('data-r')===null) return null; return { r:+el.getAttribute('data-r'), c:+el.getAttribute('data-c'), el:el }; }
     function cellAt(w,r,c){ return w.querySelector('[data-r="'+r+'"][data-c="'+c+'"]'); }
-    [mw,kw,xw].forEach(function(w){ if(!w) return;
-      w.addEventListener('mousedown', function(ev){ var cc=cellCoord(ev.target); if(!cc) return; if(selWrapEl&&selWrapEl!==w) clearPaint(); selWrapEl=w; anchor=cc; head=cc; hasSel=false; clearPaint(); });
-      w.addEventListener('copy', function(ev){ if(!hasSel) return; var rg=rangeOf(); if(!rg) return; var out=[]; for(var r=rg.r1;r<=rg.r2;r++){ var line=[]; for(var c=rg.c1;c<=rg.c2;c++){ var el=cellAt(w,r,c); line.push(el?el.value:''); } out.push(line.join('\t')); } var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text', out.join('\n')); ev.preventDefault(); } });
-      w.addEventListener('keydown', function(ev){ if(!hasSel||ev.key!=='Delete') return; var rg=rangeOf(); if(!rg) return; ev.preventDefault(); for(var r=rg.r1;r<=rg.r2;r++) for(var c=rg.c1;c<=rg.c2;c++){ var el=cellAt(w,r,c); if(el){ if(el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; } } if(w===mw) syncManualFromDOM(); else if(w===kw) syncKeoM(); else syncMixGrid(); commit(); });
+    var lastXY={x:0,y:0}, edgeTimer=null;
+    function extendTo(x,y){ if(!anchor||!selWrapEl) return; var el=document.elementFromPoint(x,y); if(!el||!selWrapEl.contains(el)) return; var cc=cellCoord(el); if(!cc) return; if(cc.r!==head.r || cc.c!==head.c){ head=cc; if(cc.r!==anchor.r || cc.c!==anchor.c){ hasSel=true; document.body.classList.add('mn-dragging'); try{ window.getSelection().removeAllRanges(); }catch(e){} paint(); } } }
+    function edgeScroll(){ if(!selWrapEl) return; var sc=selWrapEl.closest?selWrapEl.closest('.tbl-wrap'):null; if(!sc) return; var rc=sc.getBoundingClientRect(), m=42, dy=0, dx=0; if(lastXY.y>rc.bottom-m) dy=22; else if(lastXY.y<rc.top+m) dy=-22; if(lastXY.x>rc.right-m) dx=22; else if(lastXY.x<rc.left+m) dx=-22; if(dy||dx){ sc.scrollTop+=dy; sc.scrollLeft+=dx; extendTo(lastXY.x,lastXY.y); } }
+    [mw,kw,xw,yw].forEach(function(w){ if(!w) return;
+      w.addEventListener('mousedown', function(ev){ var cc=cellCoord(ev.target); if(!cc) return; if(selWrapEl&&selWrapEl!==w) clearPaint(); selWrapEl=w; anchor=cc; head=cc; hasSel=false; clearPaint(); lastXY={x:ev.clientX,y:ev.clientY}; if(!edgeTimer) edgeTimer=setInterval(edgeScroll,50); });
+      w.addEventListener('copy', function(ev){ if(!hasSel) return; var rg=rangeOf(); if(!rg) return; function qz(v){ v=String(v==null?'':v); return /[\t\n"]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; } var out=[]; for(var r=rg.r1;r<=rg.r2;r++){ var line=[]; for(var c=rg.c1;c<=rg.c2;c++){ var el=cellAt(w,r,c); line.push(qz(el?el.value:'')); } out.push(line.join('\t')); } var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text', out.join('\n')); ev.preventDefault(); } });
+      w.addEventListener('keydown', function(ev){ if(!hasSel||ev.key!=='Delete') return; var rg=rangeOf(); if(!rg) return; ev.preventDefault(); for(var r=rg.r1;r<=rg.r2;r++) for(var c=rg.c1;c<=rg.c2;c++){ var el=cellAt(w,r,c); if(el && !el.disabled){ if(el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; } } if(w===mw) syncManualFromDOM(); else if(w===kw) syncKeoM(); else if(w===yw) syncColorM(); else syncMixGrid(); commit(); });
     });
     document.addEventListener('mousemove', function(ev){
       if(!anchor || ev.buttons!==1 || !selWrapEl) return;
-      var el=document.elementFromPoint(ev.clientX, ev.clientY); if(!el||!selWrapEl.contains(el)) return;
-      var cc=cellCoord(el); if(!cc) return;
-      if(cc.r!==head.r || cc.c!==head.c){ head=cc; if(cc.r!==anchor.r || cc.c!==anchor.c){ hasSel=true; document.body.classList.add('mn-dragging'); try{ window.getSelection().removeAllRanges(); }catch(e){} paint(); } }
+      lastXY={x:ev.clientX,y:ev.clientY};
+      extendTo(ev.clientX, ev.clientY);
     });
-    document.addEventListener('mouseup', function(){ document.body.classList.remove('mn-dragging'); });
+    document.addEventListener('mouseup', function(){ document.body.classList.remove('mn-dragging'); if(edgeTimer){ clearInterval(edgeTimer); edgeTimer=null; } });
     Array.prototype.forEach.call(document.querySelectorAll('.mn-tab'), function(b){ b.addEventListener('click', function(){ clearPaint(); anchor=head=null; hasSel=false; selWrapEl=tabWrap(); }); });
     var mdel=document.getElementById('mn-del');
     if(mdel) mdel.addEventListener('click', function(){
       var rg=rangeOf();
       if(!rg){ var cc=cellCoord(document.activeElement); if(cc) rg={ r1:cc.r, r2:cc.r }; }
       if(!rg){ alert('Bôi đen các dòng cần xóa trước (hoặc bấm vào 1 ô trong dòng).'); return; }
-      var n=rg.r2-rg.r1+1;
-      if(mnTab==='keo'){ syncKeoM(); keoM.splice(rg.r1,n); renderKeoM(); }
-      else if(mnTab==='mix'){ var start=Math.max(rg.r1,1); if(rg.r2<start) return; syncMixGrid(); mixGrid.splice(start,rg.r2-start+1); renderMixM(); }
-      else { syncManualFromDOM(); manualRows.splice(rg.r1,n); renderManual(); }
+      var w=selWrapEl||tabWrap();
+      if(w===kw){ syncKeoM(); keoM.splice(rg.r1,rg.r2-rg.r1+1); renderKeoM(); }
+      else if(w===yw){ syncColorM(); colorM.splice(rg.r1,rg.r2-rg.r1+1); renderColorM(); }
+      else if(w===xw){ var start=Math.max(rg.r1,1); if(rg.r2<start) return; syncMixGrid(); mixGrid.splice(start,rg.r2-start+1); renderMixM(); }
+      else { syncManualFromDOM(); manualRows.splice(rg.r1,rg.r2-rg.r1+1); renderManual(); }
       anchor=head=null; hasSel=false; commit();
     });
   })();
