@@ -52,9 +52,17 @@
     else if (/^single$/i.test(ms)) ms = 'Single';
     else if (ms === '') ms = r && r.lo === r.hi ? 'Single' : 'Mix';
     var lineNum = Number(raw.line) || 0;
+    // TÁCH mã sợi / nguyên liệu bị NỐI LIỀN (nhiều màu 1 đơn, không có xuống dòng) → chèn \n.
+    //   Mã: tách sau độ dày (thickness) khi theo sau là chữ số (mã kế), đứng sau dấu chấm/chữ.
+    //   NL:  tách trước 1 chữ IN HOA đứng ngay sau chữ số (vd "0.085H. Pink" → "0.085\nH. Pink").
+    var thN = String(raw.thickness == null ? '' : raw.thickness).trim();
+    function splitCodes(s){ s = String(s == null ? '' : s).trim(); if (s.indexOf('\n') >= 0 || !thN) return s;
+      try{ var re = new RegExp('(?<=[.A-Za-z])(' + thN.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')(?=\\d)','g'); var o = s.replace(re,'$1\n'); return o.split('\n').length > 1 ? o : s; }catch(e){ return s; } }
+    function splitMats(s){ s = String(s == null ? '' : s).trim(); if (s.indexOf('\n') >= 0) return s;
+      var o = s.replace(/(0[.,]\d+)(?=[A-ZĐ])/g,'$1\n'); return o.split('\n').length > 1 ? o : s; }
     return {
       seri: raw.seri, maDon: String(raw.maDon || '').trim(),
-      codeSoi: String(raw.codeSoi || '').trim(), detail: raw.detail || '',
+      codeSoi: splitCodes(raw.codeSoi), detail: raw.detail || '',
       length: lenNorm,
       mixSingle: ms,
       curls: curls,
@@ -64,8 +72,8 @@
       loaiHang: String(raw.loaiHang != null ? raw.loaiHang : (ms === 'Single' ? '' : lenNorm)).trim(),
       ghiChu: String(raw.ghiChu == null ? '' : raw.ghiChu).trim(),
       ghiChuKeo: String(raw.ghiChuKeo == null ? '' : raw.ghiChuKeo).trim(),
-      material: String(raw.material != null ? raw.material : (raw.detail || '')).trim(),
-      thickness: String(raw.thickness == null ? '' : raw.thickness).trim(),
+      material: splitMats(raw.material != null ? raw.material : (raw.detail || '')),
+      thickness: thN,
       label: raw.label == null ? '' : String(raw.label).trim(),
       mixDist: (raw.mixDist && typeof raw.mixDist === 'object') ? raw.mixDist : null,
     };
