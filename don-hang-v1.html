@@ -1629,6 +1629,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         label:'', ghiChu:'', ghiChuKeo:'' });
     });
     if(!orders.length){ alert('Chưa nhập dòng nào có dữ liệu ở tab Đơn.'); return; }
+    // TỰ BỎ độ cong bị NHÂN ĐÔI (dán trùng: giá trị gốc lặp sang cột L-variant với SỐ Y HỆT).
+    // Chỉ bỏ khi TRÙNG KHÍT (target === source) nên không đụng dữ liệu L-variant thật khác giá trị.
+    var MIRROR=[['C','L+'],['CC','LD'],['D','LC+'],['DD','LC'],['L','LB'],['M','LJ'],['V','Curl 1'],['B','V']];
+    var stripN=0;
+    orders.forEach(function(o){ if(!o.curls) return; MIRROR.forEach(function(p){ var s=p[0],t=p[1]; if(o.curls[t]!=null && o.curls[s]!=null && Number(o.curls[t])===Number(o.curls[s])){ delete o.curls[t]; stripN++; } }); });
+    if(stripN){ try{ logLine('Tự bỏ '+stripN+' ô độ cong bị nhân đôi (L-variant trùng khít cột gốc).'); }catch(e){} }
     var mixSheets=buildMixSheetsFromGrid();
     var cd=buildColorData();
     if(cd.order.length){
