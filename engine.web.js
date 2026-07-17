@@ -807,7 +807,7 @@
       var soLineRaw = PS(col.soLine >= 0 ? row[col.soLine] : '');
       out.push({
         seri: Math.round(sttN), maDon: maDon, codeSoi: code,
-        detail: PS(col.tenGoi >= 0 ? row[col.tenGoi] : ''),
+        detail: PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''),   // Detail = cột "Danh Mục / Phân Loại"
         length: len, mixSingle: PS(row[col.mix]), curls: curls,
         line: PN(soLineRaw.replace(/lines?/i, '').trim()),
         lineRaw: soLineRaw,
