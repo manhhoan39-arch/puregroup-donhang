@@ -817,6 +817,14 @@
       if (extras.length) curlWarnings.push('Cột độ cong LẠ ngoài cấu trúc: ' + extras.join(', '));
       if (inStruct.join('|') !== expected.join('|')) curlWarnings.push('Thứ tự cột độ cong LỆCH cấu trúc chuẩn (đúng: ' + expected.join(' ') + ')');
     })();
+    // Ký hiệu HÀNG ĐẶC BIỆT (không phân biệt hoa/thường). Quét MỌI cột của từng dòng đơn:
+    //  laser/liigos→LZ · easy fan single→1ES · easy fan double→2ES · <số>D-U (vd 3D-U)→DU
+    var SPECIAL_SYM = [
+      ['LZ',  /laser|liigos/i],
+      ['1ES', /easy\s*fan\s*single/i],
+      ['2ES', /easy\s*fan\s*double/i],
+      ['DU',  /\d\s*d\s*[-\/]\s*u/i]
+    ];
     // 2. đọc dòng đơn (bỏ dòng #REF!/#N/A/trống)
     var out = [];
     for (r = hr + 1; r < aoa.length; r++) {
@@ -827,6 +835,8 @@
       if (!isFinite(sttN) || sttN <= 0) continue;
       var code = PS(row[col.code]), len = PS(row[col.length]);
       if (!code || code.charAt(0) === '#' || len.charAt(0) === '#') continue;
+      var _rowTxt = row.map(PS).join(' ¦ '), _kw = {};
+      SPECIAL_SYM.forEach(function (p) { if (p[1].test(_rowTxt)) _kw[p[0]] = 1; });
       var curls = {};
       CURLS.forEach(function (k) {
         var ci = curlCol[k];
@@ -846,9 +856,20 @@
         material: PS(col.tenGoi >= 0 ? row[col.tenGoi] : ''),
         thickness: PS(col.doDay >= 0 ? row[col.doDay] : ''),
         label: PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''),
+        _kw: _kw,
       });
     }
     if (!out.length) return null;
+    // Áp ký hiệu đặc biệt: XUẤT HIỆN Ở MỌI DÒNG → gắn vào MÃ ĐƠN (676P-LZ);
+    //                      chỉ MỘT SỐ dòng → gắn vào CODE SỢI dòng đó (3.MK.7-LZ).
+    var specialApplied = [];
+    SPECIAL_SYM.forEach(function (p) {
+      var sym = p[0], hit = out.filter(function (o) { return o._kw && o._kw[sym]; });
+      if (!hit.length) return;
+      if (hit.length === out.length) { var suf = '-' + sym; out.forEach(function (o) { o.maDon += suf; }); maDon += suf; specialApplied.push(sym + ' (cả đơn → mã đơn)'); }
+      else { hit.forEach(function (o) { o.codeSoi += '-' + sym; }); specialApplied.push(sym + ' (' + hit.length + ' dòng → code sợi)'); }
+    });
+    out.forEach(function (o) { delete o._kw; });
     // 3. bảng Mix của khách: dòng "Mix Length" + các dòng "4mm".."20mm".
     //    QUÉT TOÀN SHEET, nhận NHIỀU bảng Mix (kể cả nhiều bảng cùng dải khác số line,
     //    hoặc nhiều bảng nằm cạnh nhau trên cùng dòng). Header dải có thể kèm
@@ -964,6 +985,7 @@
     }
     meta.curlWarnings = curlWarnings;   // [] = cấu trúc độ cong khớp chuẩn
     meta.curlNotes = curlNote;          // vd { "L+": "( tem LC)" } — ghi chú độ cong từ header, hiện ở Box
+    meta.specialSym = specialApplied;   // vd ["LZ (cả đơn → mã đơn)"] — ký hiệu hàng đặc biệt đã áp
     return { rawOrders: out, mixSheets: mixSheets, keoRows: keoRows, keoNotes: null, curlNotes: curlNote, meta: meta };
   }
 

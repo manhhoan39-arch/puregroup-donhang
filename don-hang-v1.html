@@ -1273,6 +1273,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
               +(data.mixSheets.length?' · có bảng Mix':' · ⚠ KHÔNG có bảng Mix')
               +(meta&&meta.tongKhay?' · file khai: '+meta.tongKhay+' khay / '+meta.tongDay+' dây':''));
             if(curlWarn) curlWarn.forEach(function(w){ logLine('⚠ '+f.name+': '+w); });
+            if(meta && meta.specialSym && meta.specialSym.length) logLine('🏷️ '+f.name+' — hàng đặc biệt: '+meta.specialSym.join(' · '));
           }
         }catch(err){
           state.files.push({name:f.name, data:null, error:String(err && err.message || err)});
@@ -1344,9 +1345,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(typeof logLine==='function') logLine('Xóa file '+nm);
     var okFiles=state.files.filter(function(F){ return F.data; });
     if(state.processed){
-      // đã Xử lý → dựng lại dữ liệu từ file còn lại (hoặc dọn sạch nếu hết)
-      if(okFiles.length) processFiles();
-      else { state.orders=[]; state.mixSheets=[]; state.keoRows=[]; state.source='Chưa có dữ liệu'; state.processed=false; render(); }
+      // đã Xử lý → dựng lại dữ liệu từ file còn lại IM LẶNG (không popup "Xử lý xong")
+      if(okFiles.length) processFiles(true);
+      else { state.orders=(state.orders||[]).filter(function(o){return o._manual;}); state.mixSheets=(state.mixSheets||[]).filter(function(s){return s._manual;}); state.keoRows=(state.keoRows||[]).filter(function(k){return k._manual;}); state.source=(state.orders.length?'✍ Thủ công '+state.orders.length+' đơn':'Chưa có dữ liệu'); state.processed=!!state.orders.length; render(); }
     }
     renderFiles();
   }
@@ -1356,9 +1357,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       ev.preventDefault(); ev.stopPropagation(); removeFile(+b.getAttribute('data-fileidx'));
     });
   })();
-  function processFiles(){
+  function processFiles(silent){
     var okFiles=state.files.filter(function(F){ return F.data; });
-    if(!okFiles.length){ alert('Chưa có file hợp lệ để xử lý — kéo thả hoặc bấm "Chọn file" trước.'); return; }
+    if(!okFiles.length){ if(!silent) alert('Chưa có file hợp lệ để xử lý — kéo thả hoặc bấm "Chọn file" trước.'); return; }
     var t0 = Date.now();   // đo thời gian xử lý thật
     var orders=[], mixSheets=[], keoRows=[], seenMix={};
     okFiles.forEach(function(F){
@@ -1409,6 +1410,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var khay2=0; state.orders.forEach(function(o){ khay2+=o.sl; });
     var curlWarnAll=[];
     okFiles.forEach(function(F){ if(F.curlWarn) F.curlWarn.forEach(function(w){ curlWarnAll.push(esc(F.name.replace(/\.xlsx?$/i,''))+': '+esc(w)); }); });
+    if(silent) return;   // xóa file → dựng lại im lặng, KHÔNG popup "Xử lý xong"
     showPopup('✅ Xử lý xong',
       okFiles.length+' file · '+orders.length+' dòng đơn<br>'+
       'Tổng sản lượng: <b>'+fmtN(khay2)+' khay</b> · Tổng Dây: <b>'+fmtN(state.R.cuonSheet.summary.day)+'</b><br>'+
