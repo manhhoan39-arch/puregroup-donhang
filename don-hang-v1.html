@@ -223,6 +223,40 @@ td.cellsel-anchor,th.cellsel-anchor{box-shadow:inset 0 0 0 2px var(--accent)}
 .sheet .subtotal td{background:var(--accent-soft);font-weight:700;color:var(--accent)}
 .sheet .grand td{background:var(--accent);color:#fff;font-weight:800}
 .sheet .qty{font-weight:700}
+/* Bảng Hộp (loại hộp đóng gói) */
+.boxtypes-card{display:inline-block;max-width:100%;border:1px solid var(--border);border-radius:9px;overflow:hidden;box-shadow:0 1px 4px rgba(232,24,92,.06);background:var(--surface)}
+.boxtypes{border-collapse:collapse;width:auto;font-size:11.5px}
+.boxtypes th,.boxtypes td{border-bottom:1px solid var(--border);padding:3px 10px;vertical-align:middle;line-height:1.3}
+.boxtypes thead th{font-weight:800;border-bottom:none}
+.boxtypes .bt-h1{background:var(--accent);color:#fff;text-align:left;min-width:160px}
+.boxtypes .bt-h2{background:var(--teal-600);color:#fff;text-align:center;width:70px}
+.boxtypes .bt-h3{background:var(--surface-3);color:var(--text-2);text-align:left;font-weight:700}
+.boxtypes tbody td.bt-name{font-weight:600;color:var(--text);white-space:nowrap;background:var(--accent-soft)}
+.boxtypes tbody tr:hover td{background:rgba(0,207,200,.05)}
+.boxtypes td.bt-qty{text-align:center;width:70px}
+.boxtypes .bt-in{width:52px;text-align:center;border:1px solid var(--border-strong);border-radius:5px;padding:2px 4px;font-weight:800;font-size:12px;color:var(--accent);outline:none;background:var(--surface)}
+.boxtypes .bt-in:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(232,24,92,.12)}
+.boxtypes td.bt-note{color:var(--text-2);font-size:11px;max-width:440px;white-space:normal;line-height:1.3}
+.boxtypes tfoot td{border-bottom:none;border-top:1.5px solid var(--accent);background:var(--accent-soft)}
+.boxtypes tfoot td.bt-foot{font-weight:800;color:var(--accent)}
+.boxtypes tfoot td.bt-fq{font-weight:800;text-align:center;font-size:12.5px}
+.boxtypes-wrap{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:stretch}
+.bt-general{font-size:11px;color:var(--text-2);line-height:1.5;padding:10px 12px;background:var(--surface-3);border:1px solid var(--border);border-radius:9px}
+.bt-general b{color:var(--accent)}
+.bt-gtitle{font-weight:800;color:var(--accent);font-size:12px;margin-bottom:6px}
+.bt-notelist{margin:0;padding-left:22px;list-style:decimal}
+.bt-notelist li{margin:0 0 5px;padding-left:3px;line-height:1.4}
+.bt-notelist li::marker{color:var(--accent);font-weight:700}
+.bt-hint{font-size:12px;color:var(--text-3);padding:10px 14px;background:var(--surface-3);border:1px dashed var(--border-strong);border-radius:9px;display:inline-block}
+.bt-hint b{color:var(--accent)}
+/* Step 1 · 2 cột danh sách file */
+.fcol{border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface-2,var(--surface))}
+.fcol-head{font-weight:700;font-size:12.5px;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.fcol-filter{width:100%;height:30px;padding:4px 10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);color:var(--text);font-size:12px;outline:none;margin-bottom:8px}
+.fcol-filter:focus{border-color:var(--accent)}
+.fcol .file-list{margin:0;max-height:280px;overflow:auto}
+/* Step 5 Bảng Line Cuốn: cột Mã Đơn không tràn đè cột khác */
+#cb-head th:nth-child(2),#eng-cuonbox td:nth-child(2){white-space:normal;word-break:break-word;overflow:hidden}
 .tabbar{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:12px}
 .tabbar .t{padding:8px 15px;border:none;background:none;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--text-3);border-bottom:2px solid transparent}
 .tabbar .t.on{color:var(--accent);border-bottom-color:var(--accent)}
@@ -330,7 +364,7 @@ tr.flash td{animation:flashbg 1.4s ease}
   </div>
   <div class="nav-sec">SẢN XUẤT</div>
   <nav class="nav" id="nav">
-    <a data-s="s1" class="active"><span class="num">1</span> Nhập Đơn (Upload)</a>
+    <a data-s="s1" class="active"><span class="num">1</span> Nhập Đơn</a>
     <a data-s="s3"><span class="num">2</span> Bảng Nhập Đơn</a>
     <a data-s="s4"><span class="num">3</span> Bảng Mix Label</a>
     <a data-s="s5"><span class="num">4</span> Bảng Keo</a>
@@ -402,14 +436,22 @@ tr.flash td{animation:flashbg 1.4s ease}
       </div>
     </div>
 
-    <!-- File đã upload: FULL màn hình, phân trang 20 đơn/trang -->
+    <!-- Danh sách file: 2 cột đối xứng — Đã chọn (chưa xử lý) | Đã nhập (đã xử lý) -->
     <div class="card" style="margin-bottom:14px">
-      <div class="card-head"><h3>File đã upload</h3><span class="chip on" id="file-count">0</span><div class="spacer"></div>
-        <button class="btn sm ghost" id="btn-clear">Xóa</button><button class="btn primary sm" id="btn-process">▶ Xử lý</button></div>
-      <ul class="file-list" id="file-list">
-        <li><span class="mini">Chưa có file — kéo thả file "Đơn gửi xưởng" để bắt đầu</span></li>
-      </ul>
-      <div id="file-pager" style="display:none;align-items:center;justify-content:center;gap:10px;padding:10px 0 4px"></div>
+      <div class="card-head"><h3>Danh sách file</h3><span class="chip on" id="file-count">0</span><div class="spacer"></div>
+        <button class="btn sm ghost" id="btn-clear">Xóa tất cả</button><button class="btn primary sm" id="btn-process">▶ Xử lý</button></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="fcol">
+          <div class="fcol-head">📥 File đã chọn <span class="chip" id="chosen-count">0</span><span class="mini" style="margin-left:6px;color:var(--text-3)">chưa xử lý</span></div>
+          <input class="fcol-filter" id="chosen-madon" list="dl-madon" placeholder="Lọc theo mã đơn…" autocomplete="off">
+          <ul class="file-list" id="file-list-chosen"><li><span class="mini">Chưa có file — kéo thả file "Đơn gửi xưởng" để bắt đầu</span></li></ul>
+        </div>
+        <div class="fcol">
+          <div class="fcol-head">✅ File đã nhập <span class="chip" id="imported-count">0</span><span class="mini" style="margin-left:6px;color:var(--text-3)">đã xử lý</span></div>
+          <input class="fcol-filter" id="imported-madon" list="dl-madon" placeholder="Lọc theo mã đơn…" autocomplete="off">
+          <ul class="file-list" id="file-list-imported"><li><span class="mini">Chưa có file đã xử lý.</span></li></ul>
+        </div>
+      </div>
     </div>
 
     <!-- Error list inline (kết quả kiểm tra ngay sau upload) -->
@@ -470,7 +512,7 @@ tr.flash td{animation:flashbg 1.4s ease}
     <div class="tbl-toolbar">
       <span class="chip on" id="role-chip" title="Bấm để đổi quyền (demo)">🛡️ Admin</span>
       <div class="search-top" style="width:230px">🔍<input id="grid-search" placeholder="Tìm trong bảng…"></div>
-      <input id="s3-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả mã đơn — gõ để tìm" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
+      <input id="s3-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
       <datalist id="dl-madon"></datalist>
       <div class="spacer"></div>
       <span class="badge warn" id="warn-chip" title="Bấm để nhảy đến ô cảnh báo" style="margin-right:6px;display:none;cursor:pointer">—</span>
@@ -496,7 +538,7 @@ tr.flash td{animation:flashbg 1.4s ease}
     <div id="step4"></div>
     <div class="tbl-toolbar">
       <div class="search-top" style="width:230px">🔍<input id="s4-search" placeholder="Tìm trong bảng Mix…"></div>
-      <input id="s4-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả mã đơn — gõ để tìm" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
+      <input id="s4-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
       <button class="btn sm" id="btn-add-mixrow" style="color:var(--teal-600)" title="Thêm dòng MM (chọn Mã Đơn trước)">➕ Thêm dòng</button>
       <button class="btn sm" id="btn-add-mixcol" style="color:var(--teal-600)" title="Thêm cột dải (chọn Mã Đơn trước). Xóa cột: bấm ✕ ngay trên cột đã thêm.">➕ Thêm cột</button>
       <div class="spacer"></div>
@@ -516,7 +558,7 @@ tr.flash td{animation:flashbg 1.4s ease}
     <div id="step5"></div>
     <div class="tbl-toolbar">
       <div class="search-top" style="width:230px">🔍<input id="s5-search" placeholder="Tìm trong bảng Keo…"></div>
-      <input id="s5-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả mã đơn — gõ để tìm" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
+      <input id="s5-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
       <button class="btn sm" id="btn-add-keo" style="color:var(--teal-600)">➕ Thêm dòng</button>
       <button class="btn sm" id="btn-del-keo" style="color:var(--red-600)">🗑️ Xóa dòng chọn</button>
       <div class="spacer"></div>
@@ -547,7 +589,7 @@ tr.flash td{animation:flashbg 1.4s ease}
     <div id="step6"></div>
     <div class="tbl-toolbar">
       <div class="search-top" style="width:200px">🔍<input id="s6-search" placeholder="Tìm trong Bảng Cuốn…"></div>
-      <input id="s6-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả mã đơn — gõ để tìm" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
+      <input id="s6-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
       <div class="spacer"></div>
       <button class="btn sm" id="btn-dl-linecuon">⬇ Xuất LineCuon.xlsx</button>
       <button class="btn sm" onclick="go('s10')">Tổng hợp Box →</button>
@@ -562,20 +604,8 @@ tr.flash td{animation:flashbg 1.4s ease}
         <div class="it">Dây Single<b id="eng-single">540</b></div>
         <div class="it">Dây Mix<b id="eng-mix">3.970</b></div>
       </div>
-      <!-- ĐẦU BẢNG: 3 cột — Σ Code Sợi + Σ Keo (chung ~55%) | Bảng Keo sửa (~45%) -->
-      <div id="s6-top" style="display:grid;grid-template-columns:3fr 2fr 5fr;gap:12px;margin-bottom:12px;align-items:start">
-        <div>
-          <div style="font-weight:700;font-size:12px;margin-bottom:6px">Σ Tổng hợp Code Sợi · Số Dây</div>
-          <div class="tbl-wrap" style="max-height:250px">
-            <table class="sheet" style="width:100%;font-size:11px"><thead><tr><th style="width:44px">Mã Đơn</th><th>Code Sợi</th><th>Tên Gọi NL</th><th style="width:56px">Số Dây</th></tr></thead><tbody id="s6-code-pivot"></tbody></table>
-          </div>
-        </div>
-        <div>
-          <div style="font-weight:700;font-size:12px;margin-bottom:6px">🧷 Σ Tổng hợp Keo</div>
-          <div class="tbl-wrap" style="max-height:250px">
-            <table class="sheet" style="width:100%;font-size:11px"><thead><tr><th style="width:44px">Mã Đơn</th><th>Loại Keo</th><th style="width:58px">SL (dây)</th></tr></thead><tbody id="s6-keo-pivot"></tbody></table>
-          </div>
-        </div>
+      <!-- ĐẦU BẢNG: 2 cột đối xứng — Bảng Keo (của đơn) | Bảng Độ Cong (của đơn) -->
+      <div id="s6-top" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;align-items:start">
         <div>
           <div style="font-weight:700;font-size:12px;margin-bottom:6px">🧪 Bảng Keo - <span id="s6-keo-title">—</span></div>
           <div class="tbl-wrap" style="max-height:250px">
@@ -585,12 +615,16 @@ tr.flash td{animation:flashbg 1.4s ease}
             </table>
           </div>
         </div>
+        <div>
+          <div style="font-weight:700;font-size:12px;margin-bottom:6px">📏 Bảng Độ Cong - <span id="s6-docong-title">—</span></div>
+          <div class="tbl-wrap" style="max-height:250px"><div id="s6-docong"></div></div>
+        </div>
       </div>
       <div class="tbl-wrap">
         <!-- table-layout:fixed — cột chữ cố định, các cột độ cong tự chia ĐỀU phần còn lại → bảng vừa màn hình -->
         <table class="sheet" style="table-layout:fixed;width:100%;min-width:1200px">
           <thead>
-            <tr id="cb-head"><th style="width:40px">STT</th><th style="width:62px">Mã Đơn</th><th style="width:150px">Code Sợi</th><th style="width:52px">S/M</th><th style="width:40px">MM</th>
+            <tr id="cb-head"><th style="width:40px">STT</th><th style="width:135px">Mã Đơn</th><th style="width:150px">Code Sợi</th><th style="width:52px">S/M</th><th style="width:40px">MM</th>
               <th class="curl">J</th><th class="curl">B</th><th class="curl">C</th><th class="curl">CC</th><th class="curl">D</th><th class="curl">DD</th>
               <th style="width:64px">Tổng</th></tr>
           </thead>
@@ -613,6 +647,21 @@ tr.flash td{animation:flashbg 1.4s ease}
           </tbody>
         </table>
       </div>
+      <!-- DƯỚI BẢNG CHI TIẾT: 2 cột đối xứng — Σ Tổng hợp Code Sợi | Σ Tổng hợp Keo -->
+      <div id="s6-bottom" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;align-items:start">
+        <div>
+          <div style="font-weight:700;font-size:12px;margin-bottom:6px">Σ Tổng hợp Code Sợi · Số Dây</div>
+          <div class="tbl-wrap" style="max-height:300px">
+            <table class="sheet" style="width:100%;font-size:11px"><thead><tr><th style="width:44px">Mã Đơn</th><th>Code Sợi</th><th>Tên Gọi NL</th><th style="width:56px">Số Dây</th></tr></thead><tbody id="s6-code-pivot"></tbody></table>
+          </div>
+        </div>
+        <div>
+          <div style="font-weight:700;font-size:12px;margin-bottom:6px">🧷 Σ Tổng hợp Keo</div>
+          <div class="tbl-wrap" style="max-height:300px">
+            <table class="sheet" style="width:100%;font-size:11px"><thead><tr><th style="width:44px">Mã Đơn</th><th>Loại Keo</th><th style="width:58px">SL (dây)</th></tr></thead><tbody id="s6-keo-pivot"></tbody></table>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -621,7 +670,7 @@ tr.flash td{animation:flashbg 1.4s ease}
     <div id="step10"></div>
     <div class="tbl-toolbar">
       <div class="search-top" style="width:200px">🔍<input id="s10-search" placeholder="Tìm trong bảng Box…"></div>
-      <input id="s10-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả mã đơn — gõ để tìm" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
+      <input id="s10-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
       <div class="spacer"></div>
       <button class="btn sm" id="btn-packing" style="color:var(--accent);font-weight:700">📦 Tạo Packing Slip</button>
       <button class="btn sm" id="btn-dl-box">⬇ Xuất TongHopBox.xlsx</button>
@@ -633,8 +682,6 @@ tr.flash td{animation:flashbg 1.4s ease}
       <div class="it" style="margin-left:auto">Số dòng<b id="box-lines">—</b></div>
       <div class="it">Tổng hộp<b id="box-total">—</b></div>
     </div>
-    <!-- Theo Thùng: mỗi Box 1 CỘT (bảng ngang, cuộn được khi nhiều thùng) -->
-    <div id="box-perbox" style="margin-bottom:12px"></div>
     <div class="tbl-wrap">
       <table class="sheet">
         <thead><tr id="box-head">
@@ -646,6 +693,8 @@ tr.flash td{animation:flashbg 1.4s ease}
         <tfoot id="box-foot"></tfoot>
       </table>
     </div>
+    <!-- BẢNG HỘP (loại hộp đóng gói) — đặt DƯỚI bảng tính -->
+    <div id="box-perbox" style="margin-top:14px"></div>
   </section>
 
   <!-- ========== SCREEN 7: SO SÁNH ========== -->
@@ -653,7 +702,7 @@ tr.flash td{animation:flashbg 1.4s ease}
     <div id="step7"></div>
     <div class="tbl-toolbar">
       <div class="search-top" style="width:210px">🔍<input id="s7-search" placeholder="Tìm trong so sánh…"></div>
-      <input id="s7-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả mã đơn — gõ để tìm" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
+      <input id="s7-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
       <span class="chip on" id="s7-onlydiff" title="Bật/tắt: chỉ hiện dòng có khác biệt">Chỉ hiện khác biệt</span>
       <div class="spacer"></div>
       <span class="badge warn" id="s7-stats" style="margin-right:6px;display:none">—</span>
@@ -769,7 +818,8 @@ const stepBar = (cur)=>{
   return h+'</div>';
 };
 const stepMap={step1:0,step3:2,step4:3,step5:4,step6:5,step10:6,step7:7,step8:2,step9:8};
-Object.keys(stepMap).forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=stepBar(stepMap[id]);});
+// Đã bỏ thanh tiến trình (1-2-3…) ở mọi bước theo yêu cầu.
+Object.keys(stepMap).forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});
 
 const titles={s1:["Nhập Đơn","Nhập đơn từ file Excel"],
   s3:["Bảng Nhập Đơn","Bảng Nhập Đơn (DataGrid)"],s4:["Bảng Mix Label","Bảng Mix Label"],
@@ -844,9 +894,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
 
   /* ===== UNDO / REDO — ảnh chụp dữ liệu (orders/keoRows/mixSheets/boxSel) trước mỗi thao tác sửa ===== */
   var undoStack=[], redoStack=[], UNDO_MAX=60;
-  function snapState(){ try{ return JSON.stringify({ orders:state.orders, keoRows:state.keoRows, mixSheets:state.mixSheets, pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}) }); }catch(e){ return null; } }
+  function snapState(){ try{ return JSON.stringify({ orders:state.orders, keoRows:state.keoRows, mixSheets:state.mixSheets, pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{} }); }catch(e){ return null; } }
   function pushUndo(){ var s=snapState(); if(s==null) return; undoStack.push(s); if(undoStack.length>UNDO_MAX) undoStack.shift(); redoStack.length=0; updateUndoBtns(); }
-  function applySnap(s){ try{ var o=JSON.parse(s); state.orders=o.orders||[]; state.keoRows=o.keoRows||[]; state.mixSheets=o.mixSheets||[]; state.pack=o.pack||null; state._packR=null; if(typeof boxSel!=='undefined') boxSel=o.boxSel||{}; try{ render(); }catch(e){} }catch(e){} }
+  function applySnap(s){ try{ var o=JSON.parse(s); state.orders=o.orders||[]; state.keoRows=o.keoRows||[]; state.mixSheets=o.mixSheets||[]; state.pack=o.pack||null; state._packR=null; if(typeof boxSel!=='undefined') boxSel=o.boxSel||{}; state.boxTypes=o.boxTypes||{}; try{ render(); }catch(e){} }catch(e){} }
   function doUndo(){ if(!undoStack.length) return; var cur=snapState(); var prev=undoStack.pop(); if(cur!=null) redoStack.push(cur); applySnap(prev); try{ logLine('↶ Hoàn tác'); }catch(e){} updateUndoBtns(); }
   function doRedo(){ if(!redoStack.length) return; var cur=snapState(); var nxt=redoStack.pop(); if(cur!=null) undoStack.push(cur); applySnap(nxt); try{ logLine('↷ Làm lại'); }catch(e){} updateUndoBtns(); }
   function updateUndoBtns(){ var u=document.getElementById('btn-undo'), r=document.getElementById('btn-redo'); if(u){ u.style.opacity=undoStack.length?'1':'.4'; u.style.pointerEvents=undoStack.length?'':'none'; } if(r){ r.style.opacity=redoStack.length?'1':'.4'; r.style.pointerEvents=redoStack.length?'':'none'; } }
@@ -956,8 +1006,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var cls=(extra||'')+(er?(er.level==='warn'?' cell-warn':' err'):'');
         var ce=(er && canEditStep('s3'))?' contenteditable="true" data-seri="'+o.seri+'" data-madon="'+esc(o.maDon)+'" data-col="'+col+'"':'';
         var ti=er?(' title="'+esc(er.msg)+' — sửa xong bấm ra ngoài để tính lại"'):'';
-        // ô LỖI giữ 1 dòng (contenteditable, textContent phải khớp giá trị); ô thường tách dòng multi-code
-        return '<td class="'+cls.trim()+'"'+ce+ti+'>'+(er?esc(val):nl2br(val))+'</td>'; };
+        // ô LỖI 1 dòng → giữ esc (dễ sửa); ô LỖI nhiều dòng (multi-code) → vẫn tách dòng như ô thường
+        var hasNl=/\r?\n/.test(String(val==null?'':val));
+        return '<td class="'+cls.trim()+'"'+ce+ti+'>'+((er&&!hasNl)?esc(val):nl2br(val))+'</td>'; };
       var curls=CURLS.map(function(k){ return '<td class="qty cw">'+(o.curls&&o.curls[k]?o.curls[k]:'')+'</td>'; }).join('');
       // thứ tự cột đúng sheet "Nhập Đơn" (đến cột W) — Loại Hàng (= Nhóm của đơn khách) sau Code Sợi
       var serr = errKey[o.maDon+'|'+o.seri+'|seri'];   // lỗi cột Seri (E-DUP) cũng phải tô đỏ
@@ -1230,6 +1281,56 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return best ? wb.Sheets[best] : null;
   }
   function aoa(ws){ return ws ? XLSX.utils.sheet_to_json(ws, {header:1, defval:''}) : []; }
+  // Đọc vùng "Bảng Hộp" trong sheet GỬI XƯỞNG: mỗi loại hộp có Tên (C2) · SL (C3) · Ghi Chú (C4); cột Note chung (C11).
+  function parseBoxTable(A){
+    if(!A||!A.length) return null;
+    function cell(r,c){ var row=A[r]||[]; var v=row[c]; return v==null?'':String(v).trim(); }
+    // chuẩn hóa: bỏ dấu tiếng Việt + đ→d + thường (khớp bất kể NFC/NFD, hoa/thường)
+    var low=function(s){ try{ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[Đđ]/g,'d').toLowerCase().replace(/\s+/g,' ').trim(); }catch(e){ return String(s||'').toLowerCase().trim(); } };
+    function findCol(ri,label){ var row=A[ri]||[]; for(var c=0;c<row.length;c++){ if(low(row[c])===label) return c; } return -1; }
+    var hr=-1;
+    for(var r=0;r<A.length;r++){ if(low(cell(r,1)).indexOf('bang hop')===0){ hr=r; break; } }
+    if(hr<0) return null;
+    var gcCol=findCol(hr,'ghi chu'); if(gcCol<0) gcCol=3;      // dò cột "Ghi Chú" (mỗi file có thể khác cột)
+    var noteCol=findCol(hr,'note'); if(noteCol<0) noteCol=10;
+    var total=cell(hr,2), rows=[], notes=[];
+    // (a) danh sách loại hộp: dừng ở "Đã chọn"
+    for(var r2=hr+1;r2<A.length && r2-hr<=25;r2++){
+      var nm=cell(r2,1);
+      if(low(nm).indexOf('da chon')===0) break;
+      if(nm) rows.push({ name:nm, qty:cell(r2,2), note:cell(r2,gcCol) });
+    }
+    // (b) cột "Note" chung chạy DÀI HƠN (có thể xuống dưới "Đã chọn") → quét tới section kế (Bảng Độ Cong/Bảng keo)
+    if(noteCol>=0 && noteCol!==gcCol){
+      for(var r3=hr+1;r3<A.length && r3-hr<=24;r3++){
+        var bn=low(cell(r3,1));
+        if(bn==='bang do cong'||bn.indexOf('bang keo')===0) break;
+        var nv=cell(r3,noteCol); if(nv) notes.push(nv);
+      }
+    }
+    return rows.length ? { total:total, rows:rows, notes:notes } : null;
+  }
+  // Đọc vùng "Bảng Độ Cong" trong sheet GỬI XƯỞNG: mỗi dòng Độ Cong (C2) · Ghi Chú (C3); dừng trước Bảng keo/Bảng Hộp/Đã chọn.
+  function parseDoCongTable(A){
+    if(!A||!A.length) return null;
+    function cell(r,c){ var row=A[r]||[]; var v=row[c]; return v==null?'':String(v).trim(); }
+    var low=function(s){ try{ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[Đđ]/g,'d').toLowerCase().replace(/\s+/g,' ').trim(); }catch(e){ return String(s||'').toLowerCase().trim(); } };
+    function findCol(ri,label){ var row=A[ri]||[]; for(var c=0;c<row.length;c++){ if(low(row[c])===label) return c; } return -1; }
+    // dò tiêu đề "Bảng Độ Cong" ở BẤT KỲ cột nào (khớp bắt đầu, chấp nhận có chữ thêm)
+    var hr=-1, hc=1;
+    for(var r=0;r<A.length && hr<0;r++){ var row0=A[r]||[]; for(var c=0;c<Math.min(row0.length,6);c++){ if(low(row0[c]).indexOf('bang do cong')===0){ hr=r; hc=c; break; } } }
+    if(hr<0) return null;
+    var gcCol=findCol(hr,'ghi chu'); if(gcCol<0) gcCol=hc+1;    // dò cột "Ghi Chú"
+    var rows=[];
+    for(var r2=hr+1;r2<A.length && r2-hr<=12;r2++){
+      var nm=cell(r2,hc), l=low(nm);
+      if(l.indexOf('bang keo')===0||l.indexOf('bang hop')===0||l.indexOf('da chon')===0) break;
+      var nt=cell(r2,gcCol);
+      if(!nt){ var row1=A[r2]||[]; for(var c2=hc+1;c2<Math.min(row1.length,12);c2++){ var vv=cell(r2,c2); if(vv){ nt=vv; break; } } }
+      if(nm||nt) rows.push({ name:nm, note:nt });
+    }
+    return rows.length ? { rows:rows } : null;
+  }
 
   function readFiles(fileList){
     if(typeof XLSX==='undefined'){ alert('Thiếu file xlsx.full.min.js cạnh file HTML — không đọc được Excel.'); return; }
@@ -1253,10 +1354,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           // 2) thử FORMAT ĐƠN KHÁCH (sheet GỬI XƯỞNG — quét mọi sheet)
           if(!data){
             for(var si=0; si<wb.SheetNames.length && !data; si++){
-              var gx=E.parseGuiXuongSheet(aoa(wb.Sheets[wb.SheetNames[si]]), f.name);
+              var gxAOA=aoa(wb.Sheets[wb.SheetNames[si]]);
+              var gx=E.parseGuiXuongSheet(gxAOA, f.name);
               if(gx && gx.rawOrders.length){
                 data={rawOrders:gx.rawOrders, mixSheets:gx.mixSheets, keoRows:gx.keoRows};
                 meta=gx.meta;
+                try{ meta.boxTable=parseBoxTable(gxAOA); }catch(e){ /* bỏ qua nếu không có Bảng Hộp */ }
+                try{ meta.doCong=parseDoCongTable(gxAOA); }catch(e){ /* bỏ qua nếu không có Bảng Độ Cong */ }
                 kind='đơn khách '+gx.meta.maDon+(gx.meta.khach?' · KH '+gx.meta.khach:'');
               }
             }
@@ -1306,36 +1410,22 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '</li>';
   }
   function renderFiles(){
-    var ul=document.getElementById('file-list');
-    var pager=document.getElementById('file-pager');
     setTxt('file-count', state.files.length);
     setTxt('kpi-files', state.files.length);
-    if(!ul) return;
-    if(!state.files.length){
-      ul.innerHTML='<li><span class="mini">Chưa có file — kéo thả file "Đơn gửi xưởng" để bắt đầu</span></li>';
-      if(pager){ pager.style.display='none'; pager.innerHTML=''; }
-      return;
-    }
-    var total=state.files.length;
-    var pages=Math.ceil(total/FILE_PAGE_SIZE);
-    if(filePage>pages-1) filePage=pages-1;
-    if(filePage<0) filePage=0;
-    var start=filePage*FILE_PAGE_SIZE, end=Math.min(start+FILE_PAGE_SIZE, total);
-    var html='';
-    for(var idx=start; idx<end; idx++){ html+=fileLiHtml(state.files[idx], idx); }
-    ul.innerHTML=html;
-    if(pager){
-      if(pages<=1){ pager.style.display='none'; pager.innerHTML=''; }
-      else {
-        pager.style.display='flex';
-        pager.innerHTML='<button class="btn sm ghost" id="fp-prev"'+(filePage===0?' disabled':'')+'>‹ Trước</button>'+
-          '<span class="mini">Trang '+(filePage+1)+' / '+pages+' · file '+(start+1)+'–'+end+' / '+total+'</span>'+
-          '<button class="btn sm ghost" id="fp-next"'+(filePage>=pages-1?' disabled':'')+'>Sau ›</button>';
-        var p=document.getElementById('fp-prev'), n=document.getElementById('fp-next');
-        if(p) p.onclick=function(){ if(filePage>0){ filePage--; renderFiles(); } };
-        if(n) n.onclick=function(){ if(filePage<pages-1){ filePage++; renderFiles(); } };
-      }
-    }
+    var chosenUl=document.getElementById('file-list-chosen');
+    var impUl=document.getElementById('file-list-imported');
+    if(!chosenUl||!impUl) return;
+    function fmd(id){ var v=(getVal(id)||'').trim(); return (v==='Tất cả các đơn')?'':v; }
+    var cMd=fmd('chosen-madon'), iMd=fmd('imported-madon');
+    function match(F, md){ if(!md) return true; return (F.maDons||[]).indexOf(md)>=0; }
+    var chosen=[], imported=[];
+    state.files.forEach(function(F,idx){ (F.imported?imported:chosen).push(idx); });
+    var cHtml=chosen.filter(function(i){ return match(state.files[i], cMd); }).map(function(i){ return fileLiHtml(state.files[i], i); }).join('');
+    var iHtml=imported.filter(function(i){ return match(state.files[i], iMd); }).map(function(i){ return fileLiHtml(state.files[i], i); }).join('');
+    chosenUl.innerHTML = cHtml || '<li><span class="mini">'+(chosen.length?'Không có file khớp mã đơn.':'Chưa có file — kéo thả file "Đơn gửi xưởng" để bắt đầu.')+'</span></li>';
+    impUl.innerHTML = iHtml || '<li><span class="mini">'+(imported.length?'Không có file khớp mã đơn.':'Chưa có file đã xử lý. Bấm "▶ Xử lý".')+'</span></li>';
+    setTxt('chosen-count', chosen.length);
+    setTxt('imported-count', imported.length);
   }
   // Xóa 1 file khỏi danh sách → dựng lại dữ liệu từ các file còn lại
   function removeFile(idx){
@@ -1352,15 +1442,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     }
     renderFiles();
   }
-  (function(){ var fl=document.getElementById('file-list');
-    if(fl&&fl.addEventListener) fl.addEventListener('click', function(ev){
-      var b=ev.target&&ev.target.closest?ev.target.closest('.file-x'):null; if(!b) return;
-      ev.preventDefault(); ev.stopPropagation(); removeFile(+b.getAttribute('data-fileidx'));
-    });
-  })();
+  document.addEventListener('click', function(ev){
+    var b=ev.target&&ev.target.closest?ev.target.closest('.file-x'):null; if(!b) return;
+    ev.preventDefault(); ev.stopPropagation(); removeFile(+b.getAttribute('data-fileidx'));
+  });
+  ['chosen-madon','imported-madon'].forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener('input', renderFiles); el.addEventListener('change', renderFiles); } });
   function processFiles(silent){
     var okFiles=state.files.filter(function(F){ return F.data; });
     if(!okFiles.length){ if(!silent) alert('Chưa có file hợp lệ để xử lý — kéo thả hoặc bấm "Chọn file" trước.'); return; }
+    okFiles.forEach(function(F){ F.imported=true; });   // đã xử lý → chuyển sang cột "File đã nhập"
     var t0 = Date.now();   // đo thời gian xử lý thật
     var orders=[], mixSheets=[], keoRows=[], seenMix={};
     okFiles.forEach(function(F){
@@ -1374,7 +1464,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       F.data.keoRows.forEach(function(k){ keoRows.push(k); });
     });
     // gom GHI CHÚ độ cong từ header các file (vd L+ = "( tem LC)") để hiện ở Box (step 6)
-    var curlNotes={}; okFiles.forEach(function(F){ if(F.meta && F.meta.curlNotes) Object.assign(curlNotes, F.meta.curlNotes); }); state.curlNotes=curlNotes;
+    var curlNotes={}, cnbm={}, btbm={}, dcbm={}; okFiles.forEach(function(F){
+      var seen={}; (F.data.rawOrders||[]).forEach(function(o){ var m=o&&o.maDon; if(m&&!seen[m]){ seen[m]=1;
+        if(F.meta&&F.meta.curlNotes) cnbm[m]=Object.assign(cnbm[m]||{}, F.meta.curlNotes);
+        if(F.meta&&F.meta.boxTable) btbm[m]=F.meta.boxTable;
+        if(F.meta&&F.meta.doCong) dcbm[m]=F.meta.doCong;
+      } });
+      if(F.meta&&F.meta.curlNotes) Object.assign(curlNotes, F.meta.curlNotes);
+    }); state.curlNotes=curlNotes; state.curlNotesByMadon=cnbm; state.boxTableByMadon=btbm; state.doCongByMadon=dcbm;
     // GIỮ đơn nhập TAY đã xử lý (đánh dấu _manual) — upload chỉ thay phần đơn upload cũ, không xóa đơn tay
     var keepMan=(state.orders||[]).filter(function(o){ return o._manual; });
     var keepManMix=(state.mixSheets||[]).filter(function(s){ return s._manual; });
@@ -2236,14 +2333,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var el=document.getElementById(id); if(!el) return;
     // Đổ danh sách gợi ý mã đơn vào datalist dùng chung.
     var dl=document.getElementById('dl-madon');
-    if(dl){ dl.innerHTML=allMaDons(R).map(function(m){ return '<option value="'+esc(m)+'"></option>'; }).join(''); }
+    if(dl){ dl.innerHTML='<option value="Tất cả các đơn"></option>'+allMaDons(R).map(function(m){ return '<option value="'+esc(m)+'"></option>'; }).join(''); }
     // Ô nhập giữ nguyên mã đang chọn; nếu mã đó không còn thì trả về "tất cả".
     if(el.value && allMaDons(R).indexOf(el.value)<0) el.value='';
   }
   // ĐỒNG BỘ mã đơn giữa các bước: chọn đơn ở bất kỳ bảng nào → mọi bảng cùng lọc theo đơn đó.
   var MADON_IDS=['s3-madon','s4-madon','s5-madon','s6-madon','s10-madon','s7-madon'];
   function setGlobalMadon(md){
-    md=String(md||'').trim();
+    md=String(md||'').trim(); if(md==='Tất cả các đơn') md='';
     MADON_IDS.forEach(function(id){ var el=document.getElementById(id); if(el && el.value!==md) el.value=md; });
     gridMadon=md;
     if(typeof applyGridFilter==='function') applyGridFilter();
@@ -2428,7 +2525,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       // cột đúng theo đơn gửi xưởng: STT | Mã Đơn | Số Line | Nguyên liệu | Độ Dày | Nhóm | Phân Loại | Tên Gọi NL | Keo Nhiệt | Ghi Chú | Độ Dài | Single/Mix | độ cong (ĐỘNG theo file) | Tổng Số Hộp
       var UC = state.usedCurls || CURLS;
       head.innerHTML='<th>STT</th><th>Mã Đơn'+fb(1)+'</th><th>Số Line'+fb(2)+'</th><th>Nguyên liệu'+fb(3)+'</th><th>Độ Dày'+fb(4)+'</th><th>Nhóm'+fb(5)+'</th><th>Phân Loại'+fb(6)+'</th><th>Tên Gọi Nguyên Liệu'+fb(7)+'</th><th>Keo Nhiệt'+fb(8)+'</th><th>Ghi Chú'+fb(9)+'</th><th>Độ Dài (mm)'+fb(10)+'</th><th>Single/Mix'+fb(11)+'</th>'+
-        UC.map(function(k){ var nt=(state.curlNotes&&state.curlNotes[k])||''; return '<th class="curl cw"'+(nt?' title="'+esc(k+' '+nt)+'"':'')+'>'+esc(k.replace('Curl-CT','CT'))+(nt?'<br><span style="font-size:9px;font-weight:400;color:var(--accent)">'+esc(nt)+'</span>':'')+'</th>'; }).join('')+
+        UC.map(function(k){ return '<th class="curl cw" data-curl="'+esc(k)+'">'+esc(k.replace('Curl-CT','CT'))+'<div class="curl-note" style="display:none;font-size:9px;font-weight:600;color:var(--accent);line-height:1.15;margin-top:1px"></div></th>'; }).join('')+
         '<th>Tổng Số Hộp</th><th>Chọn Box'+fb(13+UC.length)+'</th>';
     }
     // datalist gợi ý số Box (chọn hoặc gõ tay)
@@ -2467,6 +2564,56 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         '<td class="box-cell txt mini" style="color:var(--text-3)">'+esc(boxSel[key]||'—')+'</td></tr>';
     }).join('') || '<tr data-noflt="1"><td colspan="'+(14+(state.usedCurls||CURLS).length)+'" class="txt mini">Chưa có dữ liệu Box.</td></tr>';
     updateBoxTotals(R);
+    updateBoxCurlNotes();
+  }
+  // Ghi chú độ cong (vd L+ "( tem LC)") CHỈ hiện khi chọn đúng mã đơn có ghi chú đó
+  function updateBoxCurlNotes(){
+    var head=document.getElementById('box-head'); if(!head) return;
+    var md=getVal('s10-madon');
+    var notes=(md && state.curlNotesByMadon && state.curlNotesByMadon[md]) ? state.curlNotesByMadon[md] : {};
+    Array.prototype.forEach.call(head.querySelectorAll('th[data-curl]'), function(th){
+      var k=th.getAttribute('data-curl'), nt=notes[k]||'', d=th.querySelector('.curl-note');
+      if(d){ d.textContent=nt; d.style.display=nt?'':'none'; }
+      th.title = nt ? (k+' '+nt) : '';
+    });
+  }
+  // ==== BẢNG HỘP (loại hộp đóng gói — theo đơn gửi xưởng của khách) ====
+  var BOX_TYPES=[
+    {k:'plastic', name:'Hộp Nhựa thường',          note:''},
+    {k:'heavy',   name:'Hộp Nhựa nặng (chốt sắt)', note:'Hộp xịn cho hàng đơn thường: Hộp đen cho hàng đen và hộp trắng cho hàng màu, độ dài nào không vừa dùng sang hộp nhựa thường với màu tương tự cho từng loại hàng'},
+    {k:'paper',   name:'Hộp Giấy',                 note:''},
+    {k:'bigtray', name:'Hộp Bigtray',              note:'Hộp giấy cho hàng Premade Fan'},
+    {k:'other',   name:'Khác',                     note:''}
+  ];
+  function boxTypesKey(md){ return md||'__all__'; }
+  function renderBoxTypes(tot, md){
+    var pb=document.getElementById('box-perbox'); if(!pb) return;
+    if(!md){ pb.innerHTML='<div class="bt-hint">📦 Chọn 1 mã đơn ở ô "Tất cả các đơn" để xem <b>Bảng Hộp</b> của đơn đó.</div>'; return; }
+    state.boxTypes=state.boxTypes||{};
+    var key=boxTypesKey(md); var cur=state.boxTypes[key]=state.boxTypes[key]||{};
+    // Loại hộp + Ghi Chú LẤY THEO ĐƠN (từ đơn gửi xưởng). Chưa có → dùng mẫu mặc định.
+    var bt=(md && state.boxTableByMadon && state.boxTableByMadon[md]) ? state.boxTableByMadon[md] : null;
+    var defs = bt ? bt.rows.map(function(x){ return {name:x.name, note:x.note||'', fileQty:x.qty||''}; })
+                  : BOX_TYPES.map(function(t){ return {name:t.name, note:t.note, fileQty:''}; });
+    var val=function(t){ return (cur[t.name]!=null && cur[t.name]!=='')?cur[t.name]:(t.fileQty||''); };
+    var chosen=defs.reduce(function(a,t){ return a+(parseInt(String(val(t)||'').replace(/[^0-9]/g,''),10)||0); },0);
+    var rows=defs.map(function(t){
+      return '<tr>'+
+        '<td class="bt-name">'+esc(t.name)+'</td>'+
+        '<td class="bt-qty"><input type="text" inputmode="numeric" class="bt-in" data-btk="'+esc(t.name)+'" value="'+esc(String(val(t)))+'" placeholder="0"></td>'+
+        '<td class="bt-note">'+esc(t.note)+'</td>'+
+      '</tr>';
+    }).join('');
+    var col=chosen>tot?'var(--red-600)':(chosen===tot&&tot>0?'var(--accent)':'var(--text-2)');
+    var fnote=chosen>tot?('⚠ Vượt tổng '+fmtN(chosen-tot)+' hộp'):(tot-chosen>0?('Còn lại '+fmtN(tot-chosen)+' hộp'):(tot>0?'✓ Đã phân bổ đủ':''));
+    var noteItems=[]; if(bt && bt.notes) bt.notes.forEach(function(n){ String(n).split(/\r?\n/).forEach(function(x){ x=x.trim(); if(x) noteItems.push(x); }); });
+    var gen=noteItems.length ? '<div class="bt-general"><div class="bt-gtitle">📝 Note</div><ol class="bt-notelist">'+noteItems.map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('')+'</ol></div>' : '';
+    var card='<div class="boxtypes-card"><table class="boxtypes" data-tot="'+tot+'">'+
+        '<thead><tr><th class="bt-h1">📦 Bảng Hộp'+(md?' · '+esc(md):'')+'</th><th class="bt-h2">'+fmtN(tot)+'</th><th class="bt-h3">Ghi Chú</th></tr></thead>'+
+        '<tbody>'+rows+'</tbody>'+
+        '<tfoot><tr><td class="bt-name bt-foot">Đã chọn</td><td class="bt-qty bt-fq" style="color:'+col+'">'+fmtN(chosen)+'</td><td class="bt-note bt-fn" style="color:'+col+';font-weight:700">'+fnote+'</td></tr></tfoot>'+
+      '</table></div>';
+    pb.innerHTML = gen ? ('<div class="boxtypes-wrap">'+card+gen+'</div>') : card;
   }
   function updateBoxTotals(R){
     R=R||state.R; if(!R) return;
@@ -2475,24 +2622,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     dataRows.forEach(function(r){ var b=boxSel[boxRowKey(r)]||'—', h=boxHop(r); perBox[b]=(perBox[b]||0)+h; tot+=h; });
     setTxt('box-lines', dataRows.length);
     setTxt('box-total', fmtN(tot)+' hộp');
-    var pb=document.getElementById('box-perbox');
-    if(pb){
-      var keys=Object.keys(perBox).sort(function(a,b){ return a.localeCompare(b,'vi',{numeric:true}); });
-      if(!keys.length){ pb.innerHTML=''; }
-      else {
-        var hs='', vs='';
-        keys.forEach(function(b){
-          var nm=(b==='—')?'Chưa gán':b;
-          hs+='<th style="padding:4px 10px;white-space:nowrap'+(b==='—'?';color:var(--text-3)':'')+'">'+esc(nm)+'</th>';
-          vs+='<td style="padding:4px 10px;font-weight:800;text-align:center'+(b==='—'?';color:var(--text-3)':';color:var(--accent)')+'">'+fmtN(perBox[b])+'</td>';
-        });
-        var assigned = tot - (perBox['—']||0);   // Σ chỉ tính số hộp ĐÃ GÁN thùng
-        hs+='<th style="padding:4px 10px;background:var(--accent);color:#fff">Σ Đã gán</th>';
-        vs+='<td style="padding:4px 10px;font-weight:800;text-align:center;color:var(--accent)">'+fmtN(assigned)+'</td>';
-        pb.innerHTML='<div style="font-size:11.5px;color:var(--text-2);font-weight:700;margin-bottom:4px">Theo Thùng</div>'+
-          '<div class="tbl-wrap" style="max-height:none;width:max-content;max-width:100%"><table class="sheet" style="width:auto"><thead><tr>'+hs+'</tr></thead><tbody><tr>'+vs+'</tr></tbody></table></div>';
-      }
-    }
+    renderBoxTypes(tot, md);
     var foot=document.getElementById('box-foot');
     if(foot){
       var nThung=Object.keys(perBox).filter(function(b){ return b!=='—'; }).length;
@@ -2542,12 +2672,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       el.style.display=(!md || m===md)?'':'none';
     });
   }
-  function applyAllFilters(){ Object.keys(TBLS).forEach(applyTable); updateLineSummary(); updateBoxTotals(); renderS6Keo(); applyColorMixFilter(); }
+  function applyAllFilters(){ Object.keys(TBLS).forEach(applyTable); updateLineSummary(); updateBoxTotals(); updateBoxCurlNotes(); renderS6Keo(); applyColorMixFilter(); }
 
   // ĐẦU bước Line Cuốn — 2 cột: (trái) Σ Code Sợi · Số Dây, (phải) Bảng Keo của mã đơn đang chọn
   function renderS6Keo(){
     var R=state.R; if(!R) return;
     var md=getVal('s6-madon');
+    renderDoCong();
     // (1) pivot Code Sợi → tổng Số Dây (lọc theo mã đơn nếu chọn)
     var pv=document.getElementById('s6-code-pivot');
     if(pv && R.cuonSheet){
@@ -2608,6 +2739,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         '</tr>';
     }).join('') : '<tr><td colspan="6" class="txt mini">Đơn '+esc(md)+' không có bảng keo trong file.</td></tr>');
   }
+  // Bảng Độ Cong của đơn (đọc từ đơn gửi xưởng) — chỉ hiện khi chọn 1 Mã Đơn
+  function renderDoCong(){
+    var box=document.getElementById('s6-docong'); if(!box) return;
+    var md=getVal('s6-madon'); setTxt('s6-docong-title', md||'—');
+    if(!md){ box.innerHTML='<div class="txt mini" style="padding:8px;color:var(--text-3)">Chọn Mã Đơn ở bộ lọc phía trên để xem bảng độ cong của đơn.</div>'; return; }
+    var dc=(state.doCongByMadon&&state.doCongByMadon[md])||null;
+    if(!dc||!dc.rows||!dc.rows.length){ box.innerHTML='<div class="txt mini" style="padding:8px;color:var(--text-3)">Đơn '+esc(md)+' không có bảng độ cong riêng trong file.</div>'; return; }
+    var rows=dc.rows.map(function(r){ return '<tr><td class="txt">'+esc(r.name||'')+'</td><td class="txt">'+esc(r.note||'')+'</td></tr>'; }).join('');
+    box.innerHTML='<table class="sheet" style="width:100%;font-size:11px"><thead><tr><th style="width:130px">Độ Cong</th><th>Ghi Chú</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  }
 
   // Tổng hợp Line Cuốn tính theo Mã Đơn đang chọn (Tổng Dây/Single/Mix + dòng GRAND TOTAL)
   function updateLineSummary(){
@@ -2666,6 +2807,26 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   // wire tìm kiếm + lọc mã đơn cho các bảng bổ sung
   ['s4-search','s5-search','s6-search','s10-search'].forEach(function(id){ var el=document.getElementById(id); if(el) el.addEventListener('input', applyAllFilters); });
   ['s4-madon','s5-madon','s6-madon','s10-madon','s7-madon'].forEach(function(id){ var el=document.getElementById(id); if(el) el.addEventListener('change', function(){ setGlobalMadon(String(el.value||'')); }); });
+  // Ô chọn đơn (datalist): bấm vào → tạm xóa chữ để hiện LẠI toàn bộ danh sách (mọi đơn + "Tất cả các đơn").
+  // Rời ô mà chưa chọn gì → khôi phục đơn đang chọn (không mất lựa chọn cũ).
+  document.addEventListener('focusin', function(ev){ var el=ev.target; if(el&&el.classList&&el.classList.contains('madon-pick')){ el.dataset.prev=el.value||''; el.dataset.ch='0'; el.value=''; } });
+  document.addEventListener('change', function(ev){ var el=ev.target; if(el&&el.classList&&el.classList.contains('madon-pick')) el.dataset.ch='1'; }, true);
+  document.addEventListener('focusout', function(ev){ var el=ev.target; if(el&&el.classList&&el.classList.contains('madon-pick')){ if(el.dataset.ch!=='1' && (el.value||'')==='') el.value=el.dataset.prev||''; } });
+  // Nhập số cho Bảng Hộp → lưu theo mã đơn (hoặc "Tất cả") + cập nhật dòng "Đã chọn" ngay
+  document.addEventListener('input', function(ev){
+    var el=ev.target; if(!el||!el.classList||!el.classList.contains('bt-in')) return;
+    var md=getVal('s10-madon'), key=boxTypesKey(md);
+    state.boxTypes=state.boxTypes||{}; var cur=state.boxTypes[key]=state.boxTypes[key]||{};
+    var raw=String(el.value||'').replace(/[^0-9]/g,''); cur[el.getAttribute('data-btk')]=(raw===''?'':(+raw));
+    var tbl=el.closest?el.closest('.boxtypes'):null; if(!tbl) return;
+    var tot=parseInt(tbl.getAttribute('data-tot'),10)||0, chosen=0;
+    Array.prototype.forEach.call(tbl.querySelectorAll('.bt-in'), function(i){ chosen+=parseInt(String(i.value||'').replace(/[^0-9]/g,''),10)||0; });
+    var col=chosen>tot?'var(--red-600)':(chosen===tot&&tot>0?'var(--accent)':'var(--text-2)');
+    var fnote=chosen>tot?('⚠ Vượt tổng '+fmtN(chosen-tot)+' hộp'):(tot-chosen>0?('Còn lại '+fmtN(tot-chosen)+' hộp'):(tot>0?'✓ Đã phân bổ đủ':''));
+    var qc=tbl.querySelector('.bt-fq'), nc=tbl.querySelector('.bt-fn');
+    if(qc){ qc.textContent=fmtN(chosen); qc.style.color=col; }
+    if(nc){ nc.textContent=fnote; nc.style.color=col; }
+  });
   // đổi Box (gõ tay / chọn từ gợi ý; copy-paste Ctrl+C/Ctrl+V hoạt động như ô nhập bình thường)
   var boxTb=document.getElementById('eng-box');
   // Gán Box: chỉ trong Packing Slip (#ps-body). Cập nhật boxSel + làm tươi tổng theo thùng.
@@ -3440,7 +3601,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     },
     getState: function(){
       return { orders:state.orders, mixSheets:state.mixSheets, keoRows:state.keoRows,
-               pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}),
+               pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{},
                files:state.files, log:state.log, source:state.source, processed:state.processed };
     },
     hasData: function(){ return !!(state.files && state.files.length) || !!(state.orders && state.orders.length); },
@@ -3452,7 +3613,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       state.pack      = Array.isArray(p.pack)      ? p.pack      : null;   // lớp packing (nếu đã lưu)
       state._packR    = null;
       if(typeof boxSel!=='undefined') boxSel = (p.boxSel && typeof p.boxSel==='object') ? p.boxSel : {};
+      state.boxTypes = (p.boxTypes && typeof p.boxTypes==='object') ? p.boxTypes : {};
       state.files     = Array.isArray(p.files)     ? p.files     : [];
+      state.files.forEach(function(F){ if(F&&F.data) F.imported=true; });   // project đã lưu = file đã xử lý → cột "File đã nhập"
+      // dựng lại ghi chú độ cong + Bảng Hộp theo mã đơn từ meta các file đã lưu
+      var cnbm={}, btbm={}, dcbm={}; state.files.forEach(function(F){ if(!F||!F.meta||!F.data) return; var seen={}; (F.data.rawOrders||[]).forEach(function(o){ var m=o&&o.maDon; if(m&&!seen[m]){ seen[m]=1; if(F.meta.curlNotes) cnbm[m]=Object.assign(cnbm[m]||{}, F.meta.curlNotes); if(F.meta.boxTable) btbm[m]=F.meta.boxTable; if(F.meta.doCong) dcbm[m]=F.meta.doCong; } }); }); state.curlNotesByMadon=cnbm; state.boxTableByMadon=btbm; state.doCongByMadon=dcbm;
       if(Array.isArray(p.log)) state.log = p.log;
       state.source = p.source || (state.files.length ? ('💾 nạp từ server · '+state.orders.length+' dòng') : 'Chưa có dữ liệu');
       state.processed = !!(state.files.length || state.orders.length);
