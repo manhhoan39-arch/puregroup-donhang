@@ -76,6 +76,7 @@
       thickness: thN,
       label: raw.label == null ? '' : String(raw.label).trim(),
       mixDist: (raw.mixDist && typeof raw.mixDist === 'object') ? raw.mixDist : null,
+      _manual: !!raw._manual,
     };
   }
   function validateOrder(o, opt) {
@@ -780,15 +781,34 @@
         if (v.indexOf('danh mục') >= 0 && v.indexOf('code') < 0) { col.danhMuc = i; break; }
       }
     }
-    var curlCol = {};
-    CURLS.forEach(function (k) { curlCol[k] = findCol(H, k, true); });
+    // Dò cột độ cong: BỎ ghi chú trong ngoặc rồi khớp CHÍNH XÁC lõi tên.
+    //   vd header "L+ ( tem LC)" → lõi "L+" → nhận là cột L+, và GIỮ ghi chú "( tem LC)".
+    var curlCol = {}, curlNote = {};
+    CURLS.forEach(function (k) { curlCol[k] = -1; });
+    (function () {
+      var endIdx = findCol(H, 'Tổng Số Hộp');
+      var end = (endIdx > 0 ? endIdx : H.length);
+      for (var i = (col.mix >= 0 ? col.mix + 1 : 0); i < end; i++) {
+        var raw = PS(H[i]); if (!raw) continue;
+        var core = raw.replace(/\(.*?\)/g, '').trim();          // bỏ "( ... )"
+        var k = null;
+        for (var j = 0; j < CURLS.length; j++) { if (CURLS[j].toLowerCase() === core.toLowerCase()) { k = CURLS[j]; break; } }
+        if (k && curlCol[k] < 0) {
+          curlCol[k] = i;
+          var note = raw.replace(core, '').trim();               // phần ghi chú còn lại
+          if (note) curlNote[k] = note;
+        }
+      }
+    })();
+    // tương thích file cũ: cột nào chưa map thì thử khớp chính xác nguyên header
+    CURLS.forEach(function (k) { if (curlCol[k] < 0) curlCol[k] = findCol(H, k, true); });
     // KIỂM TRA CẤU TRÚC ĐỘ CONG: cột giữa "Single/Mix" và "Tổng Số Hộp" phải khớp chuẩn 16 cột
     var curlWarnings = [];
     (function(){
       var endIdx = findCol(H, 'Tổng Số Hộp');
       var hdr = [], i2, v2;
       for (i2 = col.mix + 1; i2 < (endIdx > 0 ? endIdx : H.length); i2++) {
-        v2 = PS(H[i2]);
+        v2 = PS(H[i2]).replace(/\(.*?\)/g, '').trim();   // bỏ ghi chú "( ... )" trước khi đối chiếu chuẩn
         if (v2) hdr.push(v2);
       }
       var extras = hdr.filter(function (v) { return CURLS.indexOf(v) < 0; });
@@ -943,7 +963,8 @@
       }
     }
     meta.curlWarnings = curlWarnings;   // [] = cấu trúc độ cong khớp chuẩn
-    return { rawOrders: out, mixSheets: mixSheets, keoRows: keoRows, meta: meta };
+    meta.curlNotes = curlNote;          // vd { "L+": "( tem LC)" } — ghi chú độ cong từ header, hiện ở Box
+    return { rawOrders: out, mixSheets: mixSheets, keoRows: keoRows, keoNotes: null, curlNotes: curlNote, meta: meta };
   }
 
   /* Parse RAW vùng "Mix Length + cặp (9mm | tên màu)" (dán tay) → mixSheets có colorBlocks.
