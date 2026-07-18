@@ -234,6 +234,17 @@
         });
       });
     },
+    // XÓA VĨNH VIỄN tài khoản (auth user + profile) qua Edge Function (service_role). Không hồi phục.
+    deleteUser: function (targetId) {
+      return ensureClient().then(function (c) {
+        if (!c) return Promise.reject(new Error('Chưa cấu hình Supabase'));
+        return c.functions.invoke('admin-set-password', { body: { op: 'delete-user', target_user_id: targetId } }).then(function (r) {
+          if (r.error) { var x = r.error.context; if (x && x.json) return x.json().then(function (b) { throw new Error((b && b.error) || r.error.message); }, function () { throw new Error(r.error.message); }); throw new Error(r.error.message); }
+          if (r.data && r.data.error) throw new Error(r.data.error);
+          return true;
+        });
+      });
+    },
     // Gửi email đặt lại mật khẩu (dự phòng).
     resetPassword: function (email) {
       return ensureClient().then(function (c) {

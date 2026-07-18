@@ -422,6 +422,13 @@
           acts.push(h('button', { class: 'cl-btn sm ghost', onclick: function () { editCloudPerms(u); } }, ['Phân quyền']));
           acts.push(h('button', { class: 'cl-btn sm ghost', style: 'margin-left:5px', title: 'Đặt mật khẩu mới trực tiếp (không cần email)', onclick: function () { var np = window.prompt('Đặt mật khẩu MỚI cho ' + u.email + ' (tối thiểu 6 ký tự):'); if (np == null) return; if (String(np).length < 6) return toast('Mật khẩu tối thiểu 6 ký tự', 'err'); window.CLCloud.adminSetPassword(u.id, np).then(function () { toast('Đã đổi mật khẩu ✓', 'ok'); openCloudAdminModal(); }).catch(function (e) { toast(e.message, 'err'); }); } }, ['Đổi MK']));
           acts.push(h('button', { class: 'cl-btn sm ghost', style: 'margin-left:5px', onclick: function () { window.CLCloud.updateProfile(u.id, { active: u.active === false }).then(function () { openCloudAdminModal(); }).catch(function (e) { toast(e.message, 'err'); }); } }, [u.active === false ? 'Mở' : 'Khóa']));
+          if (can('user:delete') && u.id !== (S.user && S.user.id) && window.CLCloud && window.CLCloud.deleteUser) acts.push(h('button', { class: 'cl-btn sm danger', style: 'margin-left:5px', title: 'XÓA VĨNH VIỄN tài khoản (không hồi phục)', onclick: function () {
+            if (!window.confirm('XÓA VĨNH VIỄN tài khoản:\n\n' + (u.email || '') + '\n\nHành động KHÔNG THỂ hoàn tác. Tiếp tục?')) return;
+            var typed = window.prompt('Gõ đúng email để xác nhận XÓA:\n' + (u.email || ''));
+            if (typed == null) return;
+            if (String(typed).trim().toLowerCase() !== String(u.email || '').trim().toLowerCase()) return toast('Email xác nhận không khớp — đã hủy xóa', 'err');
+            window.CLCloud.deleteUser(u.id).then(function () { toast('Đã xóa tài khoản ✓', 'ok'); openCloudAdminModal(); }).catch(function (e) { toast(e.message, 'err'); });
+          } }, ['Xóa']));
           return h('tr', { style: u.active === false ? 'opacity:.5' : '' }, [
             h('td', {}, [h('b', {}, [u.email || ''])]), h('td', {}, [pwCell(u)]), h('td', {}, [rs]), h('td', {}, [fs]), h('td', { style: 'text-align:right;white-space:nowrap' }, acts)
           ]);
