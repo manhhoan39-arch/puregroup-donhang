@@ -958,7 +958,25 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   function cmCodes(o){ return String(o.codeSoi||'').split(/\r?\n/).map(function(x){return x.trim();}).filter(function(x){return x;}); }
   function cmMMs(o){ var pr=E.parseRange(o.length); if(!pr) return []; var a=[]; for(var m=pr.lo;m<=pr.hi;m++) a.push(m); return a; }
-  function cmKey(o){ return o.maDon+'#'+o.seri; }
+  // khóa theo CHỮ KÝ (mã đơn + dải + bộ code) — các dòng/file trùng nhau dùng CHUNG 1 bảng, không lặp
+  function cmKey(o){ return o.maDon+'#'+String(o.length||'').toLowerCase().replace(/~/g,'-')+'#'+cmCodes(o).join(';'); }
+  function cmNormRg(s){ var k=String(s||'').toLowerCase().replace(/~/g,'-').replace(/\s|mm/g,''); return k+'mm'; }
+  // nếu FILE đã có bảng mix màu (colorBlocks) khớp đơn+dải+số màu → lấy làm dữ liệu ban đầu (admin sửa được)
+  function cmSeedFromFile(o,key){
+    state.colorMix=state.colorMix||{}; if(state.colorMix[key]) return;
+    var codes=cmCodes(o);
+    (state.mixSheets||[]).forEach(function(s){
+      if(state.colorMix[key] || s.maDon!==o.maDon || !s.colorBlocks) return;
+      Object.keys(s.colorBlocks).forEach(function(rg){
+        if(state.colorMix[key] || cmNormRg(rg)!==cmNormRg(o.length)) return;
+        var blocks=s.colorBlocks[rg];
+        if(blocks && blocks.length===codes.length){
+          var g={}; blocks.forEach(function(b,i){ var row={}; Object.keys(b.dist||{}).forEach(function(mm){ var v=+b.dist[mm]||0; if(v>0) row[mm]=v; }); g[i]=row; });
+          state.colorMix[key]=g;
+        }
+      });
+    });
+  }
   function colorMixRows(){ return (state.orders||[]).filter(isMixColorRow); }
   function colorMixComplete(o){
     state.colorMix=state.colorMix||{}; var g=state.colorMix[cmKey(o)]||{}, codes=cmCodes(o);
@@ -978,10 +996,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function buildColorMixInputs(){
     var rows=colorMixRows(); if(!rows.length) return '';
     var canEdit=canEditStep('s4');
+    // GOM NHÓM theo chữ ký — mỗi bảng duy nhất 1 lần (nhiều dòng đơn giống nhau dùng chung)
+    var groups=[], seenG={};
+    rows.forEach(function(o){ var k=cmKey(o); if(seenG[k]){ seenG[k].cnt++; return; } var it={o:o,cnt:1}; seenG[k]=it; groups.push(it); });
     var html='<div style="margin-top:20px"><div style="font-weight:800;color:var(--accent);font-size:13px;margin-bottom:2px">🎨 Bảng Mix Màu — BẮT BUỘC điền</div>'+
-      '<div class="mini" style="color:var(--text-2);margin-bottom:8px">Đơn có "Mix Color" nhiều màu: nhập SỐ SỢI từng màu theo từng mm. KHÔNG tự chia đều — điền đủ mới sang bước sau.</div>';
-    rows.forEach(function(o){
+      '<div class="mini" style="color:var(--text-2);margin-bottom:8px">Đơn có "Mix Color" nhiều màu: nhập SỐ SỢI từng màu theo từng mm. KHÔNG tự chia đều — điền đủ mới sang bước sau.</div>'+
+      '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">';
+    groups.forEach(function(it){
+      var o=it.o;
       var key=cmKey(o), codes=cmCodes(o), mms=cmMMs(o);
+      cmSeedFromFile(o,key);
       state.colorMix=state.colorMix||{}; var g=state.colorMix[key]||{}, done=colorMixComplete(o);
       var th=mms.map(function(m){ return '<th style="min-width:36px">'+m+'</th>'; }).join('');
       var body=codes.map(function(c,ci){
@@ -991,12 +1015,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           return '<td class="cw"'+ce+' style="background:rgba(0,207,200,.06)">'+(v||'')+'</td>'; }).join('');
         return '<tr><td class="txt" style="font-weight:600;white-space:nowrap">'+esc(c)+'</td>'+tds+'<td class="qty cm-sum">'+(rsum||'')+'</td></tr>';
       }).join('');
-      html+='<div class="cmix-tbl" data-cmkey="'+esc(key)+'" data-madon="'+esc(o.maDon)+'" style="margin:10px 0;border:1px solid '+(done?'var(--border)':'var(--red-500)')+';border-radius:9px;padding:8px;display:inline-block;max-width:100%;overflow:auto;vertical-align:top">'+
-        '<div class="mini" style="font-weight:700;margin-bottom:5px">'+esc(o.maDon)+' · dải '+esc(o.length||'')+' · '+codes.length+' màu — <span class="cm-st" style="color:'+(done?'var(--green-600)':'var(--red-600)')+'">'+(done?'✓ đã điền':'⚠ chưa hoàn thiện')+'</span></div>'+
+      html+='<div class="cmix-tbl" data-cmkey="'+esc(key)+'" data-madon="'+esc(o.maDon)+'" style="border:1px solid '+(done?'var(--border)':'var(--red-500)')+';border-radius:9px;padding:8px;max-width:100%;overflow:auto;flex:0 0 auto">'+
+        '<div class="mini" style="font-weight:700;margin-bottom:5px">'+esc(o.maDon)+' · dải '+esc(o.length||'')+' · '+codes.length+' màu'+(it.cnt>1?' · dùng cho '+it.cnt+' dòng':'')+' — <span class="cm-st" style="color:'+(done?'var(--green-600)':'var(--red-600)')+'">'+(done?'✓ đã điền':'⚠ chưa hoàn thiện')+'</span></div>'+
         '<table class="sheet" style="width:auto;white-space:nowrap"><thead><tr><th>Màu \\ MM</th>'+th+'<th>Σ</th></tr></thead><tbody>'+body+'</tbody></table>'+
-      '</div><br>';
+      '</div>';
     });
-    return html+'</div>';
+    return html+'</div></div>';
   }
 
   function render(){
@@ -1206,8 +1230,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           mixRows += '<tr data-madon="'+esc(s.maDon)+'"><td class="freeze">'+esc(s.maDon)+'</td>'+
             '<td style="font-weight:700">'+mm+'</td>'+tds+'</tr>';
         }
-        // Bảng MIX MÀU: mỗi dải 1 bảng riêng (2 cột), xếp CẠNH NHAU trên 1 hàng ngang.
-        if(s.colorBlocks){
+        // Bảng MIX MÀU (chỉ xem, từ file): ẨN nếu đơn đã có bảng "BẮT BUỘC điền" (tránh trùng lặp)
+        var cmHas={}; colorMixRows().forEach(function(o){ cmHas[o.maDon]=1; });
+        if(s.colorBlocks && !cmHas[s.maDon]){
           var cards='';
           ranges.forEach(function(rg){ var blocks=s.colorBlocks[rg];
             if(blocks && blocks.length){ cards += buildColorTableOne(s.maDon, rg, blocks); } });
