@@ -256,7 +256,17 @@ td.cellsel-anchor,th.cellsel-anchor{box-shadow:inset 0 0 0 2px var(--accent)}
 .fcol-filter:focus{border-color:var(--accent)}
 .fcol .file-list{margin:0;max-height:280px;overflow:auto}
 /* Step 5 Bảng Line Cuốn: cột Mã Đơn không tràn đè cột khác */
-#cb-head th:nth-child(2),#eng-cuonbox td:nth-child(2){white-space:normal;word-break:break-word;overflow:hidden}
+#cb-head th:nth-child(2),#eng-cuonbox td:nth-child(2){white-space:nowrap;overflow:hidden}
+/* Step 5/6: dữ liệu dài hơn cột → ẨN phần thừa (…), KHÔNG đè sang cột khác, KHÔNG wrap */
+#eng-cuonbox td{overflow:hidden}
+#eng-cuonbox td:nth-child(3){white-space:nowrap;overflow:hidden}                       /* Code Sợi: cột tự giãn đủ 1 dòng */
+#eng-cuonbox td:nth-child(4){white-space:nowrap;overflow:hidden;text-overflow:ellipsis} /* Tên gọi NL: dài quá → … */
+#eng-box td.txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
+#eng-box td:nth-child(4){max-width:none}                                                /* Nguyên liệu: hiển thị đủ 1 dòng */
+/* Dòng Σ subtotal / GRAND TOTAL: số to (5-6 chữ số) → thu nhỏ font để hiện ĐỦ trong cột, không đè */
+#eng-cuonbox tr.subtotal td.cw,#eng-cuonbox tr.grand td.cw,#box-foot td.cw{font-size:9px;letter-spacing:-.3px;padding-left:1px;padding-right:1px}
+/* Thanh thống kê vùng chọn (Sum/Count) kiểu Google Sheets */
+#sel-stats{position:fixed;right:18px;bottom:14px;z-index:99999;background:var(--surface);border:1.5px solid var(--accent);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:var(--text);box-shadow:0 4px 14px rgba(0,0,0,.18);display:none}
 .tabbar{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:12px}
 .tabbar .t{padding:8px 15px;border:none;background:none;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--text-3);border-bottom:2px solid transparent}
 .tabbar .t.on{color:var(--accent);border-bottom-color:var(--accent)}
@@ -1000,9 +1010,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var groups=[], seenG={};
     rows.forEach(function(o){ var k=cmKey(o); if(seenG[k]){ seenG[k].cnt++; return; } var it={o:o,cnt:1}; seenG[k]=it; groups.push(it); });
     var html='<div style="margin-top:20px"><div style="font-weight:800;color:var(--accent);font-size:13px;margin-bottom:2px">🎨 Bảng Mix Màu — BẮT BUỘC điền</div>'+
-      '<div class="mini" style="color:var(--text-2);margin-bottom:8px">Đơn có "Mix Color" nhiều màu: nhập SỐ SỢI từng màu theo từng mm. KHÔNG tự chia đều — điền đủ mới sang bước sau.</div>'+
-      '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">';
-    groups.forEach(function(it){
+      '<div class="mini" style="color:var(--text-2);margin-bottom:8px">Đơn có "Mix Color" nhiều màu: nhập SỐ SỢI từng màu theo từng mm. KHÔNG tự chia đều — điền đủ mới sang bước sau.</div>';
+    // GOM THEO MÃ ĐƠN: mỗi đơn 1 hàng ngang riêng (không lẫn đơn khác)
+    var byMd={}, mdOrder=[];
+    groups.forEach(function(it){ var m=it.o.maDon; if(!byMd[m]){ byMd[m]=[]; mdOrder.push(m); } byMd[m].push(it); });
+    mdOrder.forEach(function(md){
+      html+='<div style="font-weight:700;font-size:12px;margin:10px 0 4px">📌 '+esc(md)+' <span class="mini" style="color:var(--text-3)">('+byMd[md].length+' bảng)</span></div>'+
+        '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">';
+      byMd[md].forEach(function(it){
       var o=it.o;
       var key=cmKey(o), codes=cmCodes(o), mms=cmMMs(o);
       cmSeedFromFile(o,key);
@@ -1019,8 +1034,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         '<div class="mini" style="font-weight:700;margin-bottom:5px">'+esc(o.maDon)+' · dải '+esc(o.length||'')+' · '+codes.length+' màu'+(it.cnt>1?' · dùng cho '+it.cnt+' dòng':'')+' — <span class="cm-st" style="color:'+(done?'var(--green-600)':'var(--red-600)')+'">'+(done?'✓ đã điền':'⚠ chưa hoàn thiện')+'</span></div>'+
         '<table class="sheet" style="width:auto;white-space:nowrap"><thead><tr><th>Màu \\ MM</th>'+th+'<th>Σ</th></tr></thead><tbody>'+body+'</tbody></table>'+
       '</div>';
+      });
+      html+='</div>';
     });
-    return html+'</div></div>';
+    return html+'</div>';
   }
 
   function render(){
@@ -1255,7 +1272,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var fb=function(col){ return ' <span class="fbtn" data-coltbl="eng-cuonbox" data-col="'+col+'">▼</span>'; };
       // cột: STT | Mã Đơn | Code Sợi | Tên Gọi NL | S/M | MM | Keo nhiệt | độ cong (chia đều) | Tổng — table-layout:fixed
       // Keo nhiệt tra theo QUY TẮC (material · độ dày · mm) — cùng dải nhưng mm khác nhau có thể khác keo
-      cbHead.innerHTML = '<th style="width:40px">STT</th><th style="width:62px">Mã Đơn'+fb(1)+'</th><th style="width:130px">Code Sợi'+fb(2)+'</th><th style="width:135px">Tên Gọi Nguyên Liệu'+fb(3)+'</th><th style="width:52px">S/M'+fb(4)+'</th><th style="width:40px">MM'+fb(5)+'</th><th style="width:92px">Keo nhiệt'+fb(6)+'</th>'+
+      // Cột Mã Đơn + Code Sợi TỰ GIÃN theo dữ liệu dài nhất (hiển thị đủ 1 dòng, không xuống hàng)
+      var mdW=62, csW=130;
+      try{ (R.cuonSheet&&R.cuonSheet.rows||[]).forEach(function(r){
+        if(r.maDon){ var w=String(r.maDon).length*6.2+18; if(w>mdW) mdW=w; }   // ≈ độ rộng thực tế cột Mã Đơn ở Step 6 (font 11px, vừa khít nội dung)
+        String(r.codeSoi||'').split(/\r?\n/).forEach(function(ln){ var w2=ln.length*6.8+24; if(w2>csW) csW=w2; });
+      }); }catch(e){}
+      mdW=Math.min(Math.round(mdW),240); csW=Math.min(Math.round(csW),320);
+      cbHead.innerHTML = '<th style="width:40px">STT</th><th style="width:'+mdW+'px">Mã Đơn'+fb(1)+'</th><th style="width:'+csW+'px">Code Sợi'+fb(2)+'</th><th style="width:135px">Tên Gọi Nguyên Liệu'+fb(3)+'</th><th style="width:52px">S/M'+fb(4)+'</th><th style="width:40px">MM'+fb(5)+'</th><th style="width:92px">Keo nhiệt'+fb(6)+'</th>'+
         state.usedCurls.map(function(k){ return '<th class="curl">'+esc(k.replace('Curl-CT','CT'))+'</th>'; }).join('')+
         '<th style="width:64px">Tổng</th>';
     }
@@ -2293,7 +2317,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function cmCellAt(k,r,c){ return document.querySelector('td[data-cmk="'+(window.CSS&&CSS.escape?CSS.escape(k):k)+'"][data-cmci="'+r+'"][data-cmc="'+c+'"]'); }
   function cmRange(){ if(!cmA||!cmH||cmA.k!==cmH.k) return null; return {k:cmA.k,r1:Math.min(cmA.r,cmH.r),r2:Math.max(cmA.r,cmH.r),c1:Math.min(cmA.c,cmH.c),c2:Math.max(cmA.c,cmH.c)}; }
   function cmMulti(){ var rg=cmRange(); return rg&&(rg.r1!==rg.r2||rg.c1!==rg.c2); }
-  function cmPaint(){ Array.prototype.forEach.call(document.querySelectorAll('td[data-cmk].cell-sel'),function(e){e.classList.remove('cell-sel');}); var rg=cmRange(); if(!rg) return; for(var r=rg.r1;r<=rg.r2;r++)for(var c=rg.c1;c<=rg.c2;c++){ var el=cmCellAt(rg.k,r,c); if(el) el.classList.add('cell-sel'); } }
+  function cmPaint(){ Array.prototype.forEach.call(document.querySelectorAll('td[data-cmk].cell-sel'),function(e){e.classList.remove('cell-sel');}); var rg=cmRange(); if(rg){ for(var r=rg.r1;r<=rg.r2;r++)for(var c=rg.c1;c<=rg.c2;c++){ var el=cmCellAt(rg.k,r,c); if(el) el.classList.add('cell-sel'); } } try{ updateSelStats(); }catch(e){} }
   function cmWrite(el,val){ if(!el) return; var k=el.getAttribute('data-cmk'), ci=+el.getAttribute('data-cmci'), mm=el.getAttribute('data-cmmm');
     state.colorMix=state.colorMix||{}; var g=state.colorMix[k]=state.colorMix[k]||{}; var row=g[ci]=g[ci]||{};
     if(val>0) row[mm]=val; else delete row[mm]; }
@@ -2311,6 +2335,61 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     cmDirty=true; cmSync(cc.k);
     logLine('Dán vùng '+g.length+'×'+(g[0]?g[0].length:0)+' vào Bảng Mix Màu '+cc.k); });
   document.addEventListener('keydown', function(ev){ if(ev.key==='Delete'&&cmMulti()){ ev.preventDefault(); var rg=cmRange(); pushUndo(); for(var r=rg.r1;r<=rg.r2;r++)for(var c=rg.c1;c<=rg.c2;c++){ var el=cmCellAt(rg.k,r,c); cmWrite(el,0); if(el) el.textContent=''; } cmDirty=true; cmSync(rg.k); } });
+
+  // ==== THỐNG KÊ VÙNG CHỌN (Σ · Đếm · TB) kiểu Google Sheets — dùng chung mọi bảng ====
+  function updateSelStats(){
+    var bar=document.getElementById('sel-stats');
+    if(!bar){ bar=document.createElement('div'); bar.id='sel-stats'; document.body.appendChild(bar); }
+    var cells=document.querySelectorAll('td.cell-sel');
+    if(cells.length<2){ bar.style.display='none'; return; }
+    var sum=0,nums=0,cnt=0;
+    Array.prototype.forEach.call(cells,function(td){
+      var t=String(td.textContent||'').trim(); if(!t) return; cnt++;
+      if(/^-?[\d.,]+$/.test(t)){ var v=/^\d{1,3}(\.\d{3})+$/.test(t)?parseFloat(t.replace(/\./g,'')):parseFloat(t.replace(',','.')); if(isFinite(v)){ sum+=v; nums++; } }
+    });
+    var f=function(n){ n=Math.round(n*100)/100; return fmtN(n); };
+    bar.innerHTML='Σ <b style="color:var(--accent)">'+f(sum)+'</b> &nbsp;·&nbsp; Đếm: <b>'+cnt+'</b>'+(nums?' &nbsp;·&nbsp; Số: <b>'+nums+'</b> &nbsp;·&nbsp; TB: <b>'+f(sum/nums)+'</b>':'');
+    bar.style.display='';
+  }
+  // ==== CHỌN VÙNG kéo chuột cho các bảng dữ liệu (Step 2·3·4·5·6) ====
+  var gsA=null,gsH=null,gsDrag=false;
+  var GS_TB={'eng-nhapdon':1,'eng-mix-body':1,'eng-keo-full':1,'eng-cuonbox':1,'eng-box':1};
+  function gsCoord(el){ var td=el&&el.closest?el.closest('td'):null; if(!td) return null; var tb=td.closest('tbody'); if(!tb||!GS_TB[tb.id]) return null; var tr=td.parentNode; var r=Array.prototype.indexOf.call(tb.rows,tr); if(r<0) return null; return {tb:tb,r:r,c:td.cellIndex}; }
+  function gsPaint(){
+    Array.prototype.forEach.call(document.querySelectorAll('td.gs-sel'),function(e){ e.classList.remove('gs-sel','cell-sel'); });
+    if(gsA&&gsH&&gsA.tb===gsH.tb){
+      var r1=Math.min(gsA.r,gsH.r),r2=Math.max(gsA.r,gsH.r),c1=Math.min(gsA.c,gsH.c),c2=Math.max(gsA.c,gsH.c);
+      for(var r=r1;r<=r2;r++){ var row=gsA.tb.rows[r]; if(!row) continue; for(var c=c1;c<=c2;c++){ var td=row.cells[c]; if(td) td.classList.add('gs-sel','cell-sel'); } }
+    }
+    updateSelStats();
+  }
+  document.addEventListener('mousedown', function(ev){
+    if(ev.button!==0) return;
+    if(ev.target.closest&&ev.target.closest('input,button,select,a,.fbtn,#sel-stats')) return;
+    var cc=gsCoord(ev.target);
+    if(!cc){ if(gsA){ gsA=gsH=null; gsPaint(); } return; }
+    gsA=cc; gsH=cc; gsDrag=true; gsPaint();
+  });
+  document.addEventListener('mousemove', function(ev){
+    if(!gsDrag||ev.buttons!==1) return;
+    var el=document.elementFromPoint(ev.clientX,ev.clientY); var cc=el?gsCoord(el):null;
+    if(!cc||cc.tb!==gsA.tb) return;
+    if(!gsH||cc.r!==gsH.r||cc.c!==gsH.c){ gsH=cc; if(cc.r!==gsA.r||cc.c!==gsA.c){ try{window.getSelection().removeAllRanges();}catch(e){} } gsPaint(); }
+  });
+  document.addEventListener('mouseup', function(){ gsDrag=false; });
+  // Ô bị cắt "…" → tự gắn tooltip (ghi chú) hiển thị ĐẦY ĐỦ nội dung khi rê chuột
+  document.addEventListener('mouseover', function(ev){
+    var td=ev.target&&ev.target.closest?ev.target.closest('#eng-cuonbox td,#eng-box td,#ps-body td'):null;
+    if(!td||td.__ttChecked) return; td.__ttChecked=true;
+    if(td.scrollWidth>td.clientWidth+2 && !td.getAttribute('title')) td.setAttribute('title', String(td.innerText||'').trim());
+  });
+  // Copy vùng chọn → TSV (dán ra Excel được)
+  document.addEventListener('copy', function(ev){
+    if(!(gsA&&gsH&&gsA.tb===gsH.tb&&(gsA.r!==gsH.r||gsA.c!==gsH.c))) return;
+    var r1=Math.min(gsA.r,gsH.r),r2=Math.max(gsA.r,gsH.r),c1=Math.min(gsA.c,gsH.c),c2=Math.max(gsA.c,gsH.c),out=[];
+    for(var r=r1;r<=r2;r++){ var row=gsA.tb.rows[r],line=[]; for(var c=c1;c<=c2;c++){ var td=row&&row.cells[c]; line.push(td?String(td.innerText||'').replace(/\n/g,' ').trim():''); } out.push(line.join('\t')); }
+    var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text',out.join('\n')); ev.preventDefault(); }
+  });
   /* ---- LỌC THEO CỘT kiểu Google Sheet + TÌM KIẾM ---- */
   var gridQuery = '';
   var gridMadon = '';   // lọc theo Mã Đơn (dropdown toolbar, giống bảng Mix)
@@ -2580,7 +2659,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function psCoord(el){ var td=el&&el.closest?el.closest('#ps-body td[data-c]'):null; return td?{r:+td.getAttribute('data-r'),c:+td.getAttribute('data-c')}:null; }
   function psRange(){ if(!psA||!psH) return null; return {r1:Math.min(psA.r,psH.r),r2:Math.max(psA.r,psH.r),c1:Math.min(psA.c,psH.c),c2:Math.max(psA.c,psH.c)}; }
   function psMulti(){ var rg=psRange(); return rg&&(rg.r1!==rg.r2||rg.c1!==rg.c2); }
-  function psPaint(){ Array.prototype.forEach.call(document.querySelectorAll('#ps-body .cell-sel'),function(e){e.classList.remove('cell-sel');}); var rg=psRange(); if(!rg) return; Array.prototype.forEach.call(document.querySelectorAll('#ps-body td[data-c]'),function(e){var r=+e.getAttribute('data-r'),c=+e.getAttribute('data-c'); if(r>=rg.r1&&r<=rg.r2&&c>=rg.c1&&c<=rg.c2) e.classList.add('cell-sel');}); }
+  function psPaint(){ Array.prototype.forEach.call(document.querySelectorAll('#ps-body .cell-sel'),function(e){e.classList.remove('cell-sel');}); var rg=psRange(); if(rg) Array.prototype.forEach.call(document.querySelectorAll('#ps-body td[data-c]'),function(e){var r=+e.getAttribute('data-r'),c=+e.getAttribute('data-c'); if(r>=rg.r1&&r<=rg.r2&&c>=rg.c1&&c<=rg.c2) e.classList.add('cell-sel');}); try{ updateSelStats(); }catch(e){} }
   function psWrite(el,val){ if(!el)return; var key=el.getAttribute('data-boxkey'),curl=el.getAttribute('data-boxcurl'); var idx=boxFindIdx(key); if(idx<0)return; var o=state.pack[idx]; o.curls=o.curls||{}; if(val>0)o.curls[curl]=val; else delete o.curls[curl]; o.sl=CURLS.reduce(function(a,k){return a+(+((o.curls||{})[k])||0);},0); }
   function psKeyOfRow(r){ var td=psCellAt(r,0); return td?td.getAttribute('data-boxkey'):''; }
   function psDelRows(){
@@ -2765,7 +2844,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var foot=document.getElementById('box-foot');
     if(foot){
       var nThung=Object.keys(perBox).filter(function(b){ return b!=='—'; }).length;
-      foot.innerHTML='<tr class="grand"><td colspan="'+(12+(state.usedCurls||CURLS).length)+'" class="txt">Σ Tổng Số Hộp (từ đơn gửi xưởng)</td><td>'+fmtN(tot)+'</td><td>'+nThung+' thùng</td></tr>';
+      // SUM theo từng ĐỘ CONG (từ các dòng đang hiển thị theo bộ lọc)
+      var UC=state.usedCurls||CURLS, cs={};
+      dataRows.forEach(function(r){ UC.forEach(function(k){ var v=+((r.curls||{})[k])||0; if(v) cs[k]=(cs[k]||0)+v; }); });
+      var curlSumTds=UC.map(function(k){ return '<td class="cw">'+(cs[k]?fmtN(cs[k]):'')+'</td>'; }).join('');
+      foot.innerHTML='<tr class="grand"><td colspan="12" class="txt">Σ Tổng Số Hộp (từ đơn gửi xưởng)</td>'+curlSumTds+'<td>'+fmtN(tot)+'</td><td>'+nThung+' thùng</td></tr>';
     }
   }
 
