@@ -842,6 +842,11 @@ window.__applyStepPerms = function(){
 };
 function go(id){
   if(window.__STEP_PERMS && window.__STEP_PERMS[id]==='none') return;   // không có quyền xem step này
+  // CHẶN sang bước SAU Mix Label khi còn Bảng Mix Màu chưa hoàn thiện
+  if({s5:1,s6:1,s10:1,s7:1,s9:1}[id] && typeof colorMixAllComplete==='function' && !colorMixAllComplete()){
+    alert('⚠ Còn Bảng Mix Màu chưa hoàn thiện (đơn có "Mix Color" nhiều màu).\nHãy điền đủ số sợi từng màu ở bước "Bảng Mix Label" trước khi sang bước tiếp theo.');
+    id='s4';
+  }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('active',a.dataset.s===id));
@@ -894,9 +899,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
 
   /* ===== UNDO / REDO — ảnh chụp dữ liệu (orders/keoRows/mixSheets/boxSel) trước mỗi thao tác sửa ===== */
   var undoStack=[], redoStack=[], UNDO_MAX=60;
-  function snapState(){ try{ return JSON.stringify({ orders:state.orders, keoRows:state.keoRows, mixSheets:state.mixSheets, pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{} }); }catch(e){ return null; } }
+  function snapState(){ try{ return JSON.stringify({ orders:state.orders, keoRows:state.keoRows, mixSheets:state.mixSheets, pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{}, colorMix:state.colorMix||{} }); }catch(e){ return null; } }
   function pushUndo(){ var s=snapState(); if(s==null) return; undoStack.push(s); if(undoStack.length>UNDO_MAX) undoStack.shift(); redoStack.length=0; updateUndoBtns(); }
-  function applySnap(s){ try{ var o=JSON.parse(s); state.orders=o.orders||[]; state.keoRows=o.keoRows||[]; state.mixSheets=o.mixSheets||[]; state.pack=o.pack||null; state._packR=null; if(typeof boxSel!=='undefined') boxSel=o.boxSel||{}; state.boxTypes=o.boxTypes||{}; try{ render(); }catch(e){} }catch(e){} }
+  function applySnap(s){ try{ var o=JSON.parse(s); state.orders=o.orders||[]; state.keoRows=o.keoRows||[]; state.mixSheets=o.mixSheets||[]; state.pack=o.pack||null; state._packR=null; if(typeof boxSel!=='undefined') boxSel=o.boxSel||{}; state.boxTypes=o.boxTypes||{}; state.colorMix=o.colorMix||{}; try{ render(); }catch(e){} }catch(e){} }
   function doUndo(){ if(!undoStack.length) return; var cur=snapState(); var prev=undoStack.pop(); if(cur!=null) redoStack.push(cur); applySnap(prev); try{ logLine('↶ Hoàn tác'); }catch(e){} updateUndoBtns(); }
   function doRedo(){ if(!redoStack.length) return; var cur=snapState(); var nxt=redoStack.pop(); if(cur!=null) undoStack.push(cur); applySnap(nxt); try{ logLine('↷ Làm lại'); }catch(e){} updateUndoBtns(); }
   function updateUndoBtns(){ var u=document.getElementById('btn-undo'), r=document.getElementById('btn-redo'); if(u){ u.style.opacity=undoStack.length?'1':'.4'; u.style.pointerEvents=undoStack.length?'':'none'; } if(r){ r.style.opacity=redoStack.length?'1':'.4'; r.style.pointerEvents=redoStack.length?'':'none'; } }
@@ -944,7 +949,56 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   var nl2br = function(s){ return esc(s).replace(/\r?\n/g,'<br>'); };
   var setTxt = function(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; };
 
+  // ===== BẢNG MIX MÀU cho đơn UPLOAD: dòng có "Mix Color"/"MixColor" + NHIỀU code sợi (mỗi code 1 dòng) =====
+  function isMixColorRow(o){
+    var t=(String(o.material||'')+' '+String(o.detail||'')+' '+String(o.loaiHang||'')+' '+String(o.label||'')).toLowerCase().replace(/\s+/g,'');
+    return t.indexOf('mixcolor')>=0 && /\r?\n/.test(String(o.codeSoi||''));
+  }
+  function cmCodes(o){ return String(o.codeSoi||'').split(/\r?\n/).map(function(x){return x.trim();}).filter(function(x){return x;}); }
+  function cmMMs(o){ var pr=E.parseRange(o.length); if(!pr) return []; var a=[]; for(var m=pr.lo;m<=pr.hi;m++) a.push(m); return a; }
+  function cmKey(o){ return o.maDon+'#'+o.seri; }
+  function colorMixRows(){ return (state.orders||[]).filter(isMixColorRow); }
+  function colorMixComplete(o){
+    state.colorMix=state.colorMix||{}; var g=state.colorMix[cmKey(o)]||{}, codes=cmCodes(o);
+    for(var i=0;i<codes.length;i++){ var sum=0,row=g[i]||{}; for(var mm in row) sum+=(+row[mm]||0); if(sum<=0) return false; }
+    return codes.length>0;
+  }
+  function colorMixAllComplete(){ return colorMixRows().every(colorMixComplete); }
+  function buildColorBlocksFor(o){
+    state.colorMix=state.colorMix||{}; var g=state.colorMix[cmKey(o)]; if(!g) return null;
+    var codes=cmCodes(o);
+    var blocks=codes.map(function(c,i){ var dist={},row=g[i]||{}; for(var mm in row){ var v=+row[mm]||0; if(v>0) dist[mm]=v; } return {color:c,dist:dist}; });
+    return blocks.some(function(b){ return Object.keys(b.dist).length; }) ? blocks : null;
+  }
+  function attachColorMix(orders){
+    (orders||[]).forEach(function(o){ o._colorBlocks = isMixColorRow(o) ? (buildColorBlocksFor(o)||null) : null; });
+  }
+  function buildColorMixInputs(){
+    var rows=colorMixRows(); if(!rows.length) return '';
+    var canEdit=canEditStep('s4');
+    var html='<div style="margin-top:20px"><div style="font-weight:800;color:var(--accent);font-size:13px;margin-bottom:2px">🎨 Bảng Mix Màu — BẮT BUỘC điền</div>'+
+      '<div class="mini" style="color:var(--text-2);margin-bottom:8px">Đơn có "Mix Color" nhiều màu: nhập SỐ SỢI từng màu theo từng mm. KHÔNG tự chia đều — điền đủ mới sang bước sau.</div>';
+    rows.forEach(function(o){
+      var key=cmKey(o), codes=cmCodes(o), mms=cmMMs(o);
+      state.colorMix=state.colorMix||{}; var g=state.colorMix[key]||{}, done=colorMixComplete(o);
+      var th=mms.map(function(m){ return '<th style="min-width:36px">'+m+'</th>'; }).join('');
+      var body=codes.map(function(c,ci){
+        var rowg=g[ci]||{}, rsum=0;
+        var tds=mms.map(function(m){ var v=(rowg[m]!=null&&rowg[m]!=='')?rowg[m]:''; rsum+=(+v||0);
+          var ce=canEdit?' contenteditable="true" data-cmk="'+esc(key)+'" data-cmci="'+ci+'" data-cmmm="'+m+'"':'';
+          return '<td class="cw"'+ce+' style="background:rgba(0,207,200,.06)">'+(v||'')+'</td>'; }).join('');
+        return '<tr><td class="txt" style="font-weight:600;white-space:nowrap">'+esc(c)+'</td>'+tds+'<td class="qty">'+(rsum||'')+'</td></tr>';
+      }).join('');
+      html+='<div class="cmix-tbl" data-madon="'+esc(o.maDon)+'" style="margin:10px 0;border:1px solid '+(done?'var(--border)':'var(--red-500)')+';border-radius:9px;padding:8px;display:inline-block;max-width:100%;overflow:auto;vertical-align:top">'+
+        '<div class="mini" style="font-weight:700;margin-bottom:5px">'+esc(o.maDon)+' · dải '+esc(o.length||'')+' · '+codes.length+' màu — '+(done?'<span style="color:var(--green-600)">✓ đã điền</span>':'<span style="color:var(--red-600)">⚠ chưa hoàn thiện</span>')+'</div>'+
+        '<table class="sheet" style="width:auto;white-space:nowrap"><thead><tr><th>Màu \\ MM</th>'+th+'<th>Σ</th></tr></thead><tbody>'+body+'</tbody></table>'+
+      '</div><br>';
+    });
+    return html+'</div>';
+  }
+
   function render(){
+    attachColorMix(state.orders);
     var R = E.runPipeline({ rawOrders: state.orders, mixSheets: state.mixSheets, keoRows: state.keoRows });
     state.orders = R.orders; // giữ bản đã chuẩn hoá
     state.R = R;
@@ -1163,7 +1217,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         '<thead id="mix-head">'+mixHead+'</thead><tbody id="eng-mix-body">'+mixRows+'</tbody></table></div>'+
         '<div class="ctx-hint">'+
         (mixErrTotal?('<b style="color:var(--red-600)">⚠ '+mixErrTotal+' lỗi bảng Mix</b>'):'<b style="color:var(--green-600)">✓ bảng Mix hợp lệ</b>')+'</div>'+
-        colorTablesHtml;
+        colorTablesHtml + buildColorMixInputs();
       if(typeof applyColorMixFilter==='function') applyColorMixFilter();  // áp lọc mã đơn cho Bảng Mix Màu
       if(typeof window!=='undefined') window.__afMixErrCount = mixErrTotal;
     }
@@ -2170,7 +2224,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     renderSlip();
   });
   document.addEventListener('keydown', function(ev){
-    if(ev.key==='Enter' && ev.target && ev.target.closest && ev.target.closest('td[data-boxcurl]')){ ev.preventDefault(); ev.target.blur(); }
+    if(ev.key==='Enter' && ev.target && ev.target.closest && ev.target.closest('td[data-boxcurl],td[data-cmk]')){ ev.preventDefault(); ev.target.blur(); }
+  });
+  // Nhập Bảng Mix Màu (upload) → lưu vào state.colorMix + tính lại phân bổ
+  document.addEventListener('focusout', function(ev){
+    var td=ev.target&&ev.target.closest?ev.target.closest('td[data-cmk]'):null; if(!td) return;
+    var key=td.getAttribute('data-cmk'), ci=+td.getAttribute('data-cmci'), mm=td.getAttribute('data-cmmm');
+    var raw=String(td.innerText||'').replace(/[^0-9]/g,''); var val=raw===''?0:(+raw||0);
+    state.colorMix=state.colorMix||{}; var g=state.colorMix[key]=state.colorMix[key]||{}; var row=g[ci]=g[ci]||{};
+    var old=+row[mm]||0; if(old===val) return;
+    if(val>0) row[mm]=val; else delete row[mm];
+    pushUndo(); logLine('Mix màu '+key+' [màu '+(ci+1)+' · '+mm+'mm]: '+old+' → '+val); render();
   });
   /* ---- LỌC THEO CỘT kiểu Google Sheet + TÌM KIẾM ---- */
   var gridQuery = '';
@@ -3601,7 +3665,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     },
     getState: function(){
       return { orders:state.orders, mixSheets:state.mixSheets, keoRows:state.keoRows,
-               pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{},
+               pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{}, colorMix:state.colorMix||{},
                files:state.files, log:state.log, source:state.source, processed:state.processed };
     },
     hasData: function(){ return !!(state.files && state.files.length) || !!(state.orders && state.orders.length); },
@@ -3614,6 +3678,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       state._packR    = null;
       if(typeof boxSel!=='undefined') boxSel = (p.boxSel && typeof p.boxSel==='object') ? p.boxSel : {};
       state.boxTypes = (p.boxTypes && typeof p.boxTypes==='object') ? p.boxTypes : {};
+      state.colorMix = (p.colorMix && typeof p.colorMix==='object') ? p.colorMix : {};
       state.files     = Array.isArray(p.files)     ? p.files     : [];
       state.files.forEach(function(F){ if(F&&F.data) F.imported=true; });   // project đã lưu = file đã xử lý → cột "File đã nhập"
       // dựng lại ghi chú độ cong + Bảng Hộp theo mã đơn từ meta các file đã lưu

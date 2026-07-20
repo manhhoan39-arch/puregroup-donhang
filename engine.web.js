@@ -56,9 +56,13 @@
     //   Mã: tách sau độ dày (thickness) khi theo sau là chữ số (mã kế), đứng sau dấu chấm/chữ.
     //   NL:  tách trước 1 chữ IN HOA đứng ngay sau chữ số (vd "0.085H. Pink" → "0.085\nH. Pink").
     var thN = String(raw.thickness == null ? '' : raw.thickness).trim();
-    function splitCodes(s){ s = String(s == null ? '' : s).trim(); if (s.indexOf('\n') >= 0 || !thN) return s;
+    function splitByComma(s){ if (/[,;]/.test(s)) { var ps = s.split(/\s*[,;]\s*/).map(function(x){return x.trim();}).filter(function(x){return x;}); if (ps.length > 1) return ps.join('\n'); } return null; }
+    function splitCodes(s){ s = String(s == null ? '' : s).trim(); if (s.indexOf('\n') >= 0) return s;
+      var byC = splitByComma(s); if (byC) return byC;      // nhiều mã sợi 1 ô ngăn bằng "," hoặc ";" (vd "197.SKV.Orange.7, 187.SKV.SmokBlue.7")
+      if (!thN) return s;
       try{ var re = new RegExp('(?<=[.A-Za-z])(' + thN.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')(?=\\d)','g'); var o = s.replace(re,'$1\n'); return o.split('\n').length > 1 ? o : s; }catch(e){ return s; } }
     function splitMats(s){ s = String(s == null ? '' : s).trim(); if (s.indexOf('\n') >= 0) return s;
+      var byC = splitByComma(s); if (byC) return byC;
       var o = s.replace(/(0[.,]\d+)(?=[A-ZĐ])/g,'$1\n'); return o.split('\n').length > 1 ? o : s; }
     return {
       seri: raw.seri, maDon: String(raw.maDon || '').trim(),
@@ -76,6 +80,7 @@
       thickness: thN,
       label: raw.label == null ? '' : String(raw.label).trim(),
       mixDist: (raw.mixDist && typeof raw.mixDist === 'object') ? raw.mixDist : null,
+      _colorBlocks: (raw._colorBlocks && raw._colorBlocks.length) ? raw._colorBlocks : null,   // phân bổ mix màu do admin nhập (per-dòng)
       _manual: !!raw._manual,
     };
   }
@@ -217,11 +222,13 @@
     var carry = { material: o.material || o.detail || '', thickness: o.thickness || '', ghiChuKeo: o.ghiChuKeo || '' };
     // TÁCH THEO MÀU: dòng Mix có NHIỀU code sợi (mix nhiều màu) → tách MỖI code = 1 component,
     // dùng phân bổ mm RIÊNG của màu đó (colorBlocks theo THỨ TỰ khớp code sợi). Tổng dây bảo toàn.
-    if (o.mixSingle !== 'Single' && !o.mixDist && colorBlocks) {
+    if (o.mixSingle !== 'Single' && !o.mixDist && (colorBlocks || (o._colorBlocks && o._colorBlocks.length))) {
       var codesS = String(o.codeSoi || '').split(/\r?\n/).map(function (x) { return x.trim(); }).filter(function (x) { return x; });
       if (codesS.length > 1) {
         var rk = String(o.length || '').toLowerCase().replace(/~/g, '-'); if (!/mm$/.test(rk)) rk += 'mm';
-        var blocks = colorBlocks[o.maDon] && colorBlocks[o.maDon][rk];
+        // ưu tiên phân bổ mix màu ADMIN NHẬP cho CHÍNH dòng này (_colorBlocks); nếu không có → tra colorBlocks theo dải
+        var blocks = (o._colorBlocks && o._colorBlocks.length === codesS.length) ? o._colorBlocks
+                   : (colorBlocks && colorBlocks[o.maDon] && colorBlocks[o.maDon][rk]);
         if (blocks && blocks.length === codesS.length) {
           var matsS = String(o.material || o.detail || '').split(/\r?\n/).map(function (x) { return x.trim(); });
           var acc = [];
