@@ -797,8 +797,15 @@
         if (v.indexOf('danh mục') >= 0 && v.indexOf('code') < 0) { col.danhMuc = i; break; }
       }
     }
-    // Dò cột độ cong: BỎ ghi chú trong ngoặc rồi khớp CHÍNH XÁC lõi tên.
-    //   vd header "L+ ( tem LC)" → lõi "L+" → nhận là cột L+, và GIỮ ghi chú "( tem LC)".
+    // Nhận diện ĐỘ CONG từ header: bỏ ghi chú "( )", khớp EXACT lõi; nếu không khớp thì lấy TỪ ĐẦU TIÊN.
+    //   vd "L+ ( tem LC)" → "L+" · "B curl Label J" → "B" · "CC Curl Label C" → "CC" (header khách ghi lộn xộn).
+    function curlOf(raw) {
+      var core = PS(raw).replace(/\(.*?\)/g, '').trim(); if (!core) return null;
+      for (var j = 0; j < CURLS.length; j++) if (CURLS[j].toLowerCase() === core.toLowerCase()) return CURLS[j];
+      var first = core.split(/\s+/)[0];
+      for (var j2 = 0; j2 < CURLS.length; j2++) if (CURLS[j2].toLowerCase() === first.toLowerCase()) return CURLS[j2];
+      return null;
+    }
     var curlCol = {}, curlNote = {};
     CURLS.forEach(function (k) { curlCol[k] = -1; });
     (function () {
@@ -806,13 +813,11 @@
       var end = (endIdx > 0 ? endIdx : H.length);
       for (var i = (col.mix >= 0 ? col.mix + 1 : 0); i < end; i++) {
         var raw = PS(H[i]); if (!raw) continue;
-        var core = raw.replace(/\(.*?\)/g, '').trim();          // bỏ "( ... )"
-        var k = null;
-        for (var j = 0; j < CURLS.length; j++) { if (CURLS[j].toLowerCase() === core.toLowerCase()) { k = CURLS[j]; break; } }
+        var k = curlOf(raw);
         if (k && curlCol[k] < 0) {
           curlCol[k] = i;
-          var note = raw.replace(core, '').trim();               // phần ghi chú còn lại
-          if (note) curlNote[k] = note;
+          var coreExact = raw.replace(/\(.*?\)/g, '').trim();
+          if (coreExact.toLowerCase() === k.toLowerCase()) { var note = raw.replace(coreExact, '').trim(); if (note) curlNote[k] = note; }
         }
       }
     })();
@@ -835,8 +840,8 @@
       var endIdx = findCol(H, 'Tổng Số Hộp');
       var hdr = [], i2, v2;
       for (i2 = col.mix + 1; i2 < (endIdx > 0 ? endIdx : H.length); i2++) {
-        v2 = PS(H[i2]).replace(/\(.*?\)/g, '').trim();   // bỏ ghi chú "( ... )" trước khi đối chiếu chuẩn
-        if (v2) hdr.push(v2);
+        v2 = PS(H[i2]); if (!v2) continue;
+        hdr.push(curlOf(v2) || v2.replace(/\(.*?\)/g, '').trim());   // quy về tên độ cong chuẩn nếu nhận diện được
       }
       var extras = hdr.filter(function (v) { return CURLS.indexOf(v) < 0; });
       var inStruct = hdr.filter(function (v) { return CURLS.indexOf(v) >= 0; });

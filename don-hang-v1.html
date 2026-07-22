@@ -1082,7 +1082,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(el){
       el.innerHTML = R.errors.length ? R.errors.map(function(e){
         var lv = e.level==='warn'?'warn':'fail';
-        return '<tr><td>'+(e.maDon||'—')+'</td><td>'+e.seri+'</td><td>'+e.col+'</td>'+
+        return '<tr data-seri="'+esc(e.seri)+'" data-madon="'+esc(e.maDon||'')+'" data-col="'+esc(e.col)+'" style="cursor:pointer" title="Bấm để sang Bảng Nhập Đơn và sửa ô này">'+
+          '<td>'+(e.maDon||'—')+'</td><td>'+e.seri+'</td><td>'+e.col+'</td>'+
           '<td><span class="badge '+lv+'">'+e.code+'</span></td><td class="txt">'+esc(e.msg)+'</td></tr>';
       }).join('') : '<tr><td colspan="5" class="txt" style="color:var(--green-600);font-weight:600">✓ Không còn lỗi — dữ liệu sạch</td></tr>';
     }
@@ -2506,22 +2507,28 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
 
   /* ---- CHIP lỗi / cảnh báo: bấm nhảy đến đúng ô ---- */
+  function jumpToError(seri, mdon, col){
+    if(typeof go==='function') go('s3');   // sang Bảng Nhập Đơn
+    state.filters={}; gridQuery=''; try{ applyGridFilter(); }catch(e){}   // bỏ lọc để chắc chắn thấy dòng
+    if(!grid || !grid.querySelector) return;
+    var tr = grid.querySelector('tr[data-seri="'+seri+'"][data-madon="'+(mdon||'')+'"]') || grid.querySelector('tr[data-seri="'+seri+'"]');
+    if(!tr) return;
+    if(tr.scrollIntoView) tr.scrollIntoView({block:'center', behavior:'smooth'});
+    if(tr.classList){ tr.classList.add('flash'); setTimeout(function(){ tr.classList.remove('flash'); }, 1500); }
+    var td = col ? tr.querySelector('td[data-col="'+col+'"]') : null;
+    if(td){ if(td.scrollIntoView) td.scrollIntoView({block:'center',inline:'center'}); if(td.focus) setTimeout(function(){ td.focus(); try{var r=document.createRange();r.selectNodeContents(td);var s=getSelection();s.removeAllRanges();s.addRange(r);}catch(e){} }, 250); }
+  }
   function jumpToFirst(level){
     var R = state.R; if(!R) return;
     var e = null;
     R.errors.forEach(function(x){ if(!e && (level==='error' ? x.level==='error' : x.level==='warn')) e = x; });
     if(!e) return;
-    if(typeof go==='function') go('s3');
-    state.filters={}; gridQuery=''; applyGridFilter();   // bỏ lọc để chắc chắn thấy dòng
-    if(!grid || !grid.querySelector) return;
-    var tr = grid.querySelector('tr[data-seri="'+e.seri+'"][data-madon="'+e.maDon+'"]');
-    if(!tr) return;
-    if(tr.scrollIntoView) tr.scrollIntoView({block:'center', behavior:'smooth'});
-    if(tr.classList){ tr.classList.add('flash'); setTimeout(function(){ tr.classList.remove('flash'); }, 1500); }
-    var td = tr.querySelector ? tr.querySelector('td[data-col="'+e.col+'"]') : null;
-    if(td && td.focus) setTimeout(function(){ td.focus(); }, 250);
+    jumpToError(e.seri, e.maDon, e.col);
   }
   var ecEl=document.getElementById('err-chip');  if(ecEl && ecEl.addEventListener) ecEl.addEventListener('click', function(){ jumpToFirst('error'); });
+  // Step 1: bấm 1 dòng trong "Danh sách lỗi/cảnh báo" → sang Bảng Nhập Đơn, nhảy tới đúng ô đỏ để sửa
+  var elErr=document.getElementById('eng-errlist');
+  if(elErr && elErr.addEventListener) elErr.addEventListener('click', function(ev){ var tr=ev.target&&ev.target.closest?ev.target.closest('tr[data-seri]'):null; if(!tr) return; jumpToError(tr.getAttribute('data-seri'), tr.getAttribute('data-madon'), tr.getAttribute('data-col')); });
   var kec=document.getElementById('kpi-err-card'); if(kec && kec.addEventListener) kec.addEventListener('click', function(){ if(state.R && state.R.stats && state.R.stats.errorCells){ jumpToFirst('error'); } else { go('s3'); } });
   var wcEl=document.getElementById('warn-chip'); if(wcEl && wcEl.addEventListener) wcEl.addEventListener('click', function(){ jumpToFirst('warn'); });
 
