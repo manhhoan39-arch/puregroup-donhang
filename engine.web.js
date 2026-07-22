@@ -18,7 +18,10 @@
   // Thứ tự độ cong CHUẨN — CỐ ĐỊNH 16 cột theo cấu trúc đơn gửi xưởng (chốt 10/07)
   var CURLS = ['J','B','C','CC','D','DD','L','M','V','L+','LD','LC+','LC','LB','LJ','Curl 1'];
   var RANGES = ['5-7mm','4-7mm','13-17mm','6-14mm','13-16mm','6-13mm','4-12mm','4-13mm','5-13mm','7-14mm','8-14mm','7-13mm','4-8mm'];
-  var MM_MIN = 4, MM_MAX = 17, SOI_PER_LINE = 2;
+  var MM_MIN = 4, MM_MAX = 20, SOI_PER_LINE = 2;
+  // TIÊU CHUẨN ĐỘ CONG 2026 — dải size (mm) cho phép theo TỪNG NHÓM độ cong:
+  //   J·B·C·CC·D·DD: 4–20mm · L·M·V·L+·LD: 5–16mm · LJ·LB·LC·LC+: 5–18mm
+  var CURL_RANGE = { J:[4,20],B:[4,20],C:[4,20],CC:[4,20],D:[4,20],DD:[4,20], L:[5,16],M:[5,16],V:[5,16],'L+':[5,16],LD:[5,16], LJ:[5,18],LB:[5,18],LC:[5,18],'LC+':[5,18], 'Curl 1':[4,20] };
   var round2 = function (n) { return Math.round((n + Number.EPSILON) * 100) / 100; };
 
   function normalizeLength(len) {
@@ -90,8 +93,14 @@
     if (!/\.\d+$/.test(o.codeSoi)) push('codeSoi', 'E-CODE', 'error', '"' + o.codeSoi + '" thiếu độ dài — kỳ vọng <mã>.<số>');
     var rg = parseRange(o.length);
     if (!rg) push('length', 'E-LEN', 'error', 'Độ dài "' + o.length + '" không đọc được');
-    else if (rg.lo < minMM || rg.hi > maxMM || rg.lo > rg.hi) push('length', 'E-LEN', 'error', '"' + o.length + '" vượt dải cho phép (' + minMM + '-' + maxMM + 'mm)');
-    else if (/^\*/.test(o.length)) push('length', 'E-STAR', 'error', '"' + o.length + '" sai cấu trúc chuẩn (đúng: ' + o.length.replace(/^\*/, '') + ') — thừa dấu *');
+    else {
+      // Dải cho phép = HỢP các nhóm độ cong CÓ trong dòng (tiêu chuẩn 2026)
+      var _ck = Object.keys(o.curls || {}), _vlo = minMM, _vhi = maxMM;
+      if (_ck.length) { _vlo = 99; _vhi = 0; _ck.forEach(function (k) { var cr = CURL_RANGE[k] || [minMM, maxMM]; if (cr[0] < _vlo) _vlo = cr[0]; if (cr[1] > _vhi) _vhi = cr[1]; }); }
+      if (rg.lo > rg.hi) push('length', 'E-LEN', 'error', '"' + o.length + '" dải không hợp lệ (đầu > cuối)');
+      else if (rg.lo < _vlo || rg.hi > _vhi) push('length', 'E-LEN', 'error', '"' + o.length + '" vượt dải cho phép (' + _vlo + '-' + _vhi + 'mm) theo tiêu chuẩn độ cong 2026');
+      else if (/^\*/.test(o.length)) push('length', 'E-STAR', 'error', '"' + o.length + '" sai cấu trúc chuẩn (đúng: ' + o.length.replace(/^\*/, '') + ') — thừa dấu *');
+    }
     // Mix/Single: giá trị hợp lệ + kiểm tra CHÉO với độ dài
     if (o.mixSingle !== 'Mix' && o.mixSingle !== 'Single') {
       push('mixSingle', 'E-MIX', 'error', 'Giá trị "' + o.mixSingle + '" không hợp lệ — chỉ nhận Mix hoặc Single');
