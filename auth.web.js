@@ -330,6 +330,35 @@
       .catch(function (e) { toast(e.message, 'err'); });
   }
 
+  // ---------- TỰ ĐỘNG LƯU bản làm việc (không cần bấm ☁ Lưu) ----------
+  // Lưu vào 1 slot CỐ ĐỊNH theo xưởng (upsert đè) → đăng xuất/đăng nhập lại KHÔNG mất đơn đã xử lý.
+  var _autoSaveT = null;
+  function autoSaveId() {
+    var fid = S.factory && S.factory.id; if (!fid) return null;
+    var key = 'cl_autosave_' + fid, id = null;
+    try { id = localStorage.getItem(key); } catch (_) {}
+    if (!id) { id = (root.crypto && crypto.randomUUID ? crypto.randomUUID() : ('ds-auto-' + Date.now())); try { localStorage.setItem(key, id); } catch (_) {} }
+    return id;
+  }
+  function doAutoSave() {
+    try {
+      if (!S.token || !can('dataset:create')) return;
+      if (!window.__CLAPP || !window.__CLAPP.hasData || !window.__CLAPP.hasData()) return;
+      var id = autoSaveId(); if (!id) return;
+      var payload = window.__CLAPP.getState();
+      var rec = { id: id, name: '⚙ Bản làm việc (tự động)', payload: payload };
+      if (S.cloud && window.CLCloud) {
+        window.CLCloud.save(rec).then(function () {
+          try { var ind = document.getElementById('cl-autosave-ind'); if (ind) { ind.textContent = '✓ Đã tự lưu ' + new Date().toLocaleTimeString('vi-VN'); } } catch (_) {}
+        }).catch(function () {});
+      } else {
+        var fid = targetFactoryForWrite(); if (fid) api('POST', '/api/datasets', { id: id, name: rec.name, factory_id: fid, payload: payload }).catch(function () {});
+      }
+    } catch (_) {}
+  }
+  function scheduleAutoSave() { if (_autoSaveT) clearTimeout(_autoSaveT); _autoSaveT = setTimeout(doAutoSave, 2500); }
+  window.__CLAUTOSAVE = scheduleAutoSave;   // Module HTML gọi khi dữ liệu thay đổi
+
   // Nghe tín hiệu "có dữ liệu mới" từ tab/tài khoản khác (cùng máy) → tự nạp lại bản mới nhất.
   // (Chỉ đồng bộ trong cùng một máy/trình duyệt — bản offline không có server để đồng bộ qua mạng.)
   window.addEventListener('storage', function (e) {
