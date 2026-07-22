@@ -860,6 +860,11 @@ function go(id){
     alert('⛔ Có cột ĐỘ CONG không nhận diện được (có số liệu nhưng máy không hiểu tên header).\nXem mục "MẤT ĐỘ CONG" trong Danh sách lỗi/cảnh báo ở bước Nhập Đơn — hãy sửa tên header trong file gốc cho đúng chuẩn rồi đọc lại. Chưa sửa thì KHÔNG sang bước sau (số liệu sẽ sai).');
     id='s1'; // về Nhập Đơn để xem danh sách lỗi
   }
+  // CHẶN sang bước sau khi còn cột độ cong ĐÃ QUY ĐỔI nhưng CHƯA DUYỆT (admin phải kiểm tra)
+  else if({s4:1,s5:1,s6:1,s10:1,s7:1,s9:1}[id] && window.__remapPending && window.__remapPending()>0){
+    alert('⛔ Còn '+window.__remapPending()+' cột độ cong máy đã TỰ QUY ĐỔI nhưng CHƯA được DUYỆT.\nVào "Danh sách lỗi/cảnh báo" ở bước Nhập Đơn, kiểm tra rồi bấm "✓ Duyệt" (hoặc "Duyệt tất cả") mới được sang bước sau.');
+    id='s1';
+  }
   // CHẶN sang bước SAU Mix Label khi còn Bảng Mix Màu chưa hoàn thiện
   if({s5:1,s6:1,s10:1,s7:1,s9:1}[id] && window.__cmGate && !window.__cmGate()){
     alert('⚠ Còn Bảng Mix Màu chưa hoàn thiện (đơn có "Mix Color" nhiều màu).\nHãy điền đủ số sợi từng màu ở bước "Bảng Mix Label" trước khi sang bước tiếp theo.');
@@ -919,9 +924,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
 
   /* ===== UNDO / REDO — ảnh chụp dữ liệu (orders/keoRows/mixSheets/boxSel) trước mỗi thao tác sửa ===== */
   var undoStack=[], redoStack=[], UNDO_MAX=60;
-  function snapState(){ try{ return JSON.stringify({ orders:state.orders, keoRows:state.keoRows, mixSheets:state.mixSheets, pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{}, colorMix:state.colorMix||{} }); }catch(e){ return null; } }
+  function snapState(){ try{ return JSON.stringify({ orders:state.orders, keoRows:state.keoRows, mixSheets:state.mixSheets, pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{}, colorMix:state.colorMix||{}, remapApproved:state.remapApproved||{} }); }catch(e){ return null; } }
   function pushUndo(){ var s=snapState(); if(s==null) return; undoStack.push(s); if(undoStack.length>UNDO_MAX) undoStack.shift(); redoStack.length=0; updateUndoBtns(); try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){} }
-  function applySnap(s){ try{ var o=JSON.parse(s); state.orders=o.orders||[]; state.keoRows=o.keoRows||[]; state.mixSheets=o.mixSheets||[]; state.pack=o.pack||null; state._packR=null; if(typeof boxSel!=='undefined') boxSel=o.boxSel||{}; state.boxTypes=o.boxTypes||{}; state.colorMix=o.colorMix||{}; try{ render(); }catch(e){} }catch(e){} }
+  function applySnap(s){ try{ var o=JSON.parse(s); state.orders=o.orders||[]; state.keoRows=o.keoRows||[]; state.mixSheets=o.mixSheets||[]; state.pack=o.pack||null; state._packR=null; if(typeof boxSel!=='undefined') boxSel=o.boxSel||{}; state.boxTypes=o.boxTypes||{}; state.colorMix=o.colorMix||{}; state.remapApproved=o.remapApproved||{}; try{ render(); }catch(e){} }catch(e){} }
   function doUndo(){ if(!undoStack.length) return; var cur=snapState(); var prev=undoStack.pop(); if(cur!=null) redoStack.push(cur); applySnap(prev); try{ logLine('↶ Hoàn tác'); }catch(e){} updateUndoBtns(); }
   function doRedo(){ if(!redoStack.length) return; var cur=snapState(); var nxt=redoStack.pop(); if(cur!=null) undoStack.push(cur); applySnap(nxt); try{ logLine('↷ Làm lại'); }catch(e){} updateUndoBtns(); }
   function updateUndoBtns(){ var u=document.getElementById('btn-undo'), r=document.getElementById('btn-redo'); if(u){ u.style.opacity=undoStack.length?'1':'.4'; u.style.pointerEvents=undoStack.length?'':'none'; } if(r){ r.style.opacity=redoStack.length?'1':'.4'; r.style.pointerEvents=redoStack.length?'':'none'; } }
@@ -1086,17 +1091,24 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var el = document.getElementById('eng-errlist');
     if(el){
       // (a) DÒNG QUY ĐỔI header độ cong lộn xộn → để admin KIỂM TRA máy quy đổi đúng chưa
-      var remapRows='';
+      state.remapApproved=state.remapApproved||{};
+      var remapRows='', remapPending=0;
       (state.files||[]).forEach(function(F){
         var rm=F && F.meta && F.meta.curlRemap; if(!rm||!rm.length) return;
         var md=(F.maDons&&F.maDons[0])||F.name||'—';
         rm.forEach(function(x){
-          remapRows += '<tr title="Header cột độ cong ghi lộn xộn — máy đã tự quy đổi, hãy kiểm tra">'+
+          var key=md+'|'+x.col+'|'+x.curl, appr=!!state.remapApproved[key];
+          if(!appr) remapPending++;
+          remapRows += '<tr title="Header cột độ cong ghi lộn xộn — máy đã tự quy đổi, hãy KIỂM TRA rồi bấm Duyệt">'+
             '<td>'+esc(md)+'</td><td>header</td><td><b>'+esc(x.curl)+'</b></td>'+
-            '<td><span class="badge warn">QUY ĐỔI</span></td>'+
-            '<td class="txt">Cột "'+esc(x.header)+'" → nhận là độ cong <b style="color:var(--accent)">'+esc(x.curl)+'</b> — kiểm tra lại</td></tr>';
+            '<td><span class="badge '+(appr?'pass':'warn')+'">'+(appr?'✓ ĐÃ DUYỆT':'QUY ĐỔI')+'</span></td>'+
+            '<td class="txt">Cột "'+esc(x.header)+'" → nhận là độ cong <b style="color:var(--accent)">'+esc(x.curl)+'</b>'+
+              (appr ? ' <span style="color:var(--green-600);font-weight:700">✓ đã duyệt</span>'
+                    : ' <button class="btn sm rm-approve" data-remapkey="'+esc(key)+'" style="color:var(--accent);border-color:var(--accent);font-weight:700;margin-left:6px">✓ Duyệt</button>')+
+            '</td></tr>';
         });
       });
+      if(remapPending>0) remapRows='<tr style="background:var(--accent-soft)"><td colspan="4" class="txt" style="font-weight:700;color:var(--accent)">⚠ '+remapPending+' cột độ cong đã tự quy đổi — cần DUYỆT trước khi sang bước sau</td><td><button class="btn sm rm-approve-all" style="background:var(--accent);color:#fff;font-weight:700">✓ Duyệt tất cả</button></td></tr>'+remapRows;
       // (a2) CỘT ĐỘ CONG KHÔNG NHẬN DIỆN ĐƯỢC nhưng CÓ SỐ → lỗi ĐỎ, CHẶN sang bước sau (tránh mất dữ liệu)
       var unmapRows='';
       (state.files||[]).forEach(function(F){
@@ -1639,6 +1651,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     state.source='💾 '+okFiles.length+' file · '+orders.length+' dòng'+(keepMan.length?' + ✍ '+keepMan.length+' tay':'');
     resetPack();   // nguồn đổi → reset lớp packing
     state.processed=true;
+    if(!silent) state.remapApproved={};   // đọc file mới → phải duyệt lại các quy đổi độ cong
     state.filters={}; gridQuery='';   // dữ liệu mới → xóa bộ lọc/tìm kiếm cũ
     render();
     try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){}   // tự lưu bản làm việc
@@ -2355,6 +2368,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   window.__cmGate = colorMixAllComplete;
   // Có cột độ cong CÓ SỐ nhưng KHÔNG nhận diện được (nguy cơ mất số liệu) → dùng để CHẶN bước sau
   window.__hasUnmappedCurl = function(){ return (state.files||[]).some(function(F){ return F && F.meta && F.meta.curlUnmapped && F.meta.curlUnmapped.length; }); };
+  // Còn cột QUY ĐỔI chưa DUYỆT → chặn bước sau (bắt admin kiểm tra quy đổi độ cong)
+  window.__remapPending = function(){ state.remapApproved=state.remapApproved||{}; var n=0; (state.files||[]).forEach(function(F){ var rm=F&&F.meta&&F.meta.curlRemap; if(!rm) return; var md=(F.maDons&&F.maDons[0])||F.name||'—'; rm.forEach(function(x){ if(!state.remapApproved[md+'|'+x.col+'|'+x.curl]) n++; }); }); return n; };
   window.__cmFlush = function(){ if(!cmDirty) return; cmDirty=false; try{ render(); }catch(e){} };
   // ==== Bảng Mix Màu: chọn vùng kéo chuột · copy/cut/paste NHIỀU Ô · Delete xóa vùng ====
   var cmA=null, cmH=null, cmDrag=false;
@@ -2561,7 +2576,18 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   var ecEl=document.getElementById('err-chip');  if(ecEl && ecEl.addEventListener) ecEl.addEventListener('click', function(){ jumpToFirst('error'); });
   // Step 1: bấm 1 dòng trong "Danh sách lỗi/cảnh báo" → sang Bảng Nhập Đơn, nhảy tới đúng ô đỏ để sửa
   var elErr=document.getElementById('eng-errlist');
-  if(elErr && elErr.addEventListener) elErr.addEventListener('click', function(ev){ var tr=ev.target&&ev.target.closest?ev.target.closest('tr[data-seri]'):null; if(!tr) return; jumpToError(tr.getAttribute('data-seri'), tr.getAttribute('data-madon'), tr.getAttribute('data-col')); });
+  if(elErr && elErr.addEventListener) elErr.addEventListener('click', function(ev){
+    // Duyệt 1 dòng quy đổi
+    var b=ev.target&&ev.target.closest?ev.target.closest('.rm-approve'):null;
+    if(b){ ev.stopPropagation(); state.remapApproved=state.remapApproved||{}; state.remapApproved[b.getAttribute('data-remapkey')]=true; try{render();}catch(e){} return; }
+    // Duyệt tất cả
+    var ba=ev.target&&ev.target.closest?ev.target.closest('.rm-approve-all'):null;
+    if(ba){ ev.stopPropagation(); state.remapApproved=state.remapApproved||{};
+      (state.files||[]).forEach(function(F){ var rm=F&&F.meta&&F.meta.curlRemap; if(!rm) return; var md=(F.maDons&&F.maDons[0])||F.name||'—'; rm.forEach(function(x){ state.remapApproved[md+'|'+x.col+'|'+x.curl]=true; }); });
+      try{render();}catch(e){} return; }
+    // Bấm dòng lỗi thường → nhảy tới ô sửa
+    var tr=ev.target&&ev.target.closest?ev.target.closest('tr[data-seri]'):null; if(tr) jumpToError(tr.getAttribute('data-seri'), tr.getAttribute('data-madon'), tr.getAttribute('data-col'));
+  });
   var kec=document.getElementById('kpi-err-card'); if(kec && kec.addEventListener) kec.addEventListener('click', function(){ if(state.R && state.R.stats && state.R.stats.errorCells){ jumpToFirst('error'); } else { go('s3'); } });
   var wcEl=document.getElementById('warn-chip'); if(wcEl && wcEl.addEventListener) wcEl.addEventListener('click', function(){ jumpToFirst('warn'); });
 
@@ -3875,7 +3901,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     },
     getState: function(){
       return { orders:state.orders, mixSheets:state.mixSheets, keoRows:state.keoRows,
-               pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{}, colorMix:state.colorMix||{},
+               pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{}, colorMix:state.colorMix||{}, remapApproved:state.remapApproved||{},
                files:state.files, log:state.log, source:state.source, processed:state.processed };
     },
     hasData: function(){ return !!(state.files && state.files.length) || !!(state.orders && state.orders.length); },
@@ -3889,6 +3915,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(typeof boxSel!=='undefined') boxSel = (p.boxSel && typeof p.boxSel==='object') ? p.boxSel : {};
       state.boxTypes = (p.boxTypes && typeof p.boxTypes==='object') ? p.boxTypes : {};
       state.colorMix = (p.colorMix && typeof p.colorMix==='object') ? p.colorMix : {};
+      state.remapApproved = (p.remapApproved && typeof p.remapApproved==='object') ? p.remapApproved : {};
       state.files     = Array.isArray(p.files)     ? p.files     : [];
       state.files.forEach(function(F){ if(F&&F.data) F.imported=true; });   // project đã lưu = file đã xử lý → cột "File đã nhập"
       // dựng lại ghi chú độ cong + Bảng Hộp theo mã đơn từ meta các file đã lưu
