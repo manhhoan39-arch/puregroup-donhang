@@ -856,13 +856,13 @@ window.__applyStepPerms = function(){
 function go(id){
   if(window.__STEP_PERMS && window.__STEP_PERMS[id]==='none') return;   // không có quyền xem step này
   // CHẶN sang bước sau khi có CỘT ĐỘ CONG KHÔNG NHẬN DIỆN ĐƯỢC (có số nhưng máy không hiểu) → tránh SAI/MẤT số liệu
-  if({s4:1,s5:1,s6:1,s10:1,s7:1,s9:1}[id] && window.__hasUnmappedCurl && window.__hasUnmappedCurl()){
+  if({s3:1,s4:1,s5:1,s6:1,s10:1,s7:1,s9:1}[id] && window.__hasUnmappedCurl && window.__hasUnmappedCurl()){
     alert('⛔ Có cột ĐỘ CONG không nhận diện được (có số liệu nhưng máy không hiểu tên header).\nXem mục "MẤT ĐỘ CONG" trong Danh sách lỗi/cảnh báo ở bước Nhập Đơn — hãy sửa tên header trong file gốc cho đúng chuẩn rồi đọc lại. Chưa sửa thì KHÔNG sang bước sau (số liệu sẽ sai).');
     id='s1'; // về Nhập Đơn để xem danh sách lỗi
   }
-  // CHẶN sang bước sau khi còn cột độ cong ĐÃ QUY ĐỔI nhưng CHƯA DUYỆT (admin phải kiểm tra)
-  else if({s4:1,s5:1,s6:1,s10:1,s7:1,s9:1}[id] && window.__remapPending && window.__remapPending()>0){
-    alert('⛔ Còn '+window.__remapPending()+' cột độ cong máy đã TỰ QUY ĐỔI nhưng CHƯA được DUYỆT.\nVào "Danh sách lỗi/cảnh báo" ở bước Nhập Đơn, kiểm tra rồi bấm "✓ Duyệt" (hoặc "Duyệt tất cả") mới được sang bước sau.');
+  // CHẶN sang Bảng Nhập Đơn & bước sau khi còn cột độ cong ĐÃ QUY ĐỔI nhưng CHƯA DUYỆT (admin phải kiểm tra)
+  else if({s3:1,s4:1,s5:1,s6:1,s10:1,s7:1,s9:1}[id] && window.__remapPending && window.__remapPending()>0){
+    alert('⛔ Còn '+window.__remapPending()+' cột độ cong máy đã TỰ QUY ĐỔI nhưng CHƯA được DUYỆT.\nVào "Danh sách lỗi/cảnh báo" ở bước Nhập Đơn (bước 1), kiểm tra rồi bấm "✓ Duyệt" (hoặc "Duyệt tất cả") mới được sang Bảng Nhập Đơn.');
     id='s1';
   }
   // CHẶN sang bước SAU Mix Label khi còn Bảng Mix Màu chưa hoàn thiện
@@ -2119,11 +2119,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       ov.innerHTML='<div style="background:var(--surface);border-radius:14px;box-shadow:var(--shadow-lg);padding:22px 26px;max-width:430px;text-align:center;border:1px solid var(--border)">'+
         '<div style="font-size:17px;font-weight:800;margin-bottom:9px">'+title+'</div>'+
         '<div style="font-size:13px;color:var(--text-2);line-height:1.8">'+html+'</div>'+
-        '<button class="btn primary" style="margin-top:15px" id="af-popup-ok">OK · Xem Bảng Nhập Đơn →</button></div>';
+        '<button class="btn primary" style="margin-top:15px" id="af-popup-ok"></button></div>';
       document.body.appendChild(ov);
-      document.getElementById('af-popup-ok').addEventListener('click', function(){
+      var _blocked = (window.__hasUnmappedCurl && window.__hasUnmappedCurl()) || (window.__remapPending && window.__remapPending()>0);
+      var _okBtn=document.getElementById('af-popup-ok');
+      _okBtn.textContent = _blocked ? 'OK · Xem & DUYỆT Danh sách lỗi ↓' : 'OK · Xem Bảng Nhập Đơn →';
+      _okBtn.addEventListener('click', function(){
         ov.parentNode.removeChild(ov);
-        if(typeof go==='function') go('s3');
+        // Còn quy đổi chưa duyệt / cột không nhận diện → Ở LẠI bước Nhập Đơn (bước 1) để duyệt, KHÔNG qua Bảng Nhập Đơn
+        var blocked = (window.__hasUnmappedCurl && window.__hasUnmappedCurl()) || (window.__remapPending && window.__remapPending()>0);
+        if(blocked){ if(typeof go==='function') go('s1'); var el=document.getElementById('eng-errlist'); if(el&&el.scrollIntoView) el.scrollIntoView({behavior:'smooth',block:'center'}); }
+        else if(typeof go==='function') go('s3');
       });
       ov.addEventListener('click', function(ev){ if(ev.target===ov) ov.parentNode.removeChild(ov); });
     }catch(e){ console.warn('popup:', e); }
@@ -2728,8 +2734,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var bxs=Object.keys(perBox).sort(function(a,b){return String(a).localeCompare(String(b),'vi',{numeric:true});});
     var th='<th style="background:var(--accent-soft);color:var(--accent)">CHƯA GÁN</th><th style="background:var(--surface-3)">Σ TỔNG</th>'+bxs.map(function(b){return '<th>'+esc(b)+'</th>';}).join('');
     var td='<td class="qty" style="color:'+(un?'var(--red-600)':'var(--text-3)')+'">'+fmtN(un)+'</td><td class="qty"><b>'+fmtN(tot)+'</b></td>'+bxs.map(function(b){return '<td class="qty">'+fmtN(perBox[b])+'</td>';}).join('');
-    box.innerHTML='<span style="font-weight:800;font-size:13px;color:var(--accent);margin-right:10px">📦 Theo Thùng ('+bxs.length+' box)</span>'+
-      '<table class="sheet" style="width:auto;display:inline-table;font-size:11px"><thead><tr>'+th+'</tr></thead><tbody><tr>'+td+'</tr></tbody></table>';
+    box.innerHTML='<div style="display:flex;align-items:center;gap:10px;max-width:100%">'+
+      '<span style="font-weight:800;font-size:13px;color:var(--accent);white-space:nowrap;flex:0 0 auto">📦 Theo Thùng ('+bxs.length+' box)</span>'+
+      '<div style="overflow-x:auto;flex:1 1 auto;min-width:0"><table class="sheet" style="width:auto;font-size:11px;white-space:nowrap"><thead><tr>'+th+'</tr></thead><tbody><tr>'+td+'</tr></tbody></table></div>'+
+      '</div>';
   }
   // ==== Bảng tính Packing Slip: chọn vùng · copy/cut/paste · Delete · xóa/thêm/nhân bản dòng ====
   var psCurKey='', psA=null, psH=null, psDrag=false;
