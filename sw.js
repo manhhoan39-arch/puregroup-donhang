@@ -4,7 +4,7 @@ var CACHE = 'puregroup-nhapdon-v2';
 var ASSETS = [
   './',
   './index.html',
-  './don-hang-v1.html',
+  './don-hang-v1',
   './engine.web.js',
   './auth.store.js',
   './auth.web.js',
