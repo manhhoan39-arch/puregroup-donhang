@@ -818,6 +818,17 @@
     })();
     // tương thích file cũ: cột nào chưa map thì thử khớp chính xác nguyên header
     CURLS.forEach(function (k) { if (curlCol[k] < 0) curlCol[k] = findCol(H, k, true); });
+    // CỨU ĐƠN LỆCH HEADER: nếu vùng độ cong (giữa Single/Mix và Tổng Số Hộp) có ĐÚNG 16 cột
+    // mà khớp-theo-tên còn THIẾU → map theo VỊ TRÍ chuẩn (J B C CC D DD L M V L+ LD LC+ LC LB LJ Curl 1)
+    // → KHÔNG mất số độ cong dù header ghi sai/lệch.
+    (function () {
+      var endIdx = findCol(H, 'Tổng Số Hộp'); if (endIdx <= 0 || col.mix < 0) return;
+      var region = endIdx - (col.mix + 1), mapped = 0;
+      CURLS.forEach(function (k) { if (curlCol[k] >= 0) mapped++; });
+      if (region === CURLS.length && mapped < CURLS.length) {
+        CURLS.forEach(function (k, j) { curlCol[k] = col.mix + 1 + j; });
+      }
+    })();
     // KIỂM TRA CẤU TRÚC ĐỘ CONG: cột giữa "Single/Mix" và "Tổng Số Hộp" phải khớp chuẩn 16 cột
     var curlWarnings = [];
     (function(){
@@ -858,7 +869,9 @@
         var ci = curlCol[k];
         if (ci >= 0) { var q2 = PN(row[ci]); if (q2) curls[k] = q2; }
       });
-      if (!Object.keys(curls).length) continue;
+      // KHÔNG bỏ dòng có Mã + Độ dài dù chưa dò được ô độ cong (đơn lệch cấu trúc) → GIỮ để hiện & sửa.
+      // Chỉ bỏ dòng RỖNG thật (không có cả mã lẫn độ dài).
+      if (!Object.keys(curls).length && !code && !len) continue;
       var soLineRaw = PS(col.soLine >= 0 ? row[col.soLine] : '');
       out.push({
         seri: Math.round(sttN), maDon: maDon, codeSoi: code,

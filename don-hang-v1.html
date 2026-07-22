@@ -269,7 +269,8 @@ body.gs-selecting{user-select:none}
 /* Dòng Σ subtotal / GRAND TOTAL: số to (5-6 chữ số) → thu nhỏ font để hiện ĐỦ trong cột, không đè */
 #eng-cuonbox tr.subtotal td.cw,#eng-cuonbox tr.grand td.cw,#box-foot td.cw{font-size:9px;letter-spacing:-.3px;padding-left:1px;padding-right:1px;white-space:normal;word-break:break-all;overflow:visible;max-width:none}
 /* Thanh thống kê vùng chọn (Sum/Count) kiểu Google Sheets */
-#sel-stats{position:fixed;right:18px;bottom:14px;z-index:99999;background:var(--surface);border:1.5px solid var(--accent);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:var(--text);box-shadow:0 4px 14px rgba(0,0,0,.18);display:none}
+#sel-stats{position:fixed;right:18px;bottom:14px;z-index:1000001;background:var(--surface);border:1.5px solid var(--accent);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:var(--accent);box-shadow:0 4px 14px rgba(0,0,0,.18);display:none}
+#sel-stats b{color:var(--accent)}
 .tabbar{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:12px}
 .tabbar .t{padding:8px 15px;border:none;background:none;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--text-3);border-bottom:2px solid transparent}
 .tabbar .t.on{color:var(--accent);border-bottom-color:var(--accent)}
@@ -408,7 +409,7 @@ tr.flash td{animation:flashbg 1.4s ease}
     <div class="kpi-grid">
       <div class="kpi"><div class="ic b">📁</div><div class="lbl">Tổng file</div><div class="val" id="kpi-files">0</div><div class="sub"><span class="mini">file Excel đã nạp</span></div></div>
       <div class="kpi"><div class="ic g">✓</div><div class="lbl">Dòng hợp lệ</div><div class="val" id="kpi-valid">183</div><div class="sub up">▲ realtime</div></div>
-      <div class="kpi"><div class="ic r">✕</div><div class="lbl">Ô sai chuẩn</div><div class="val" id="kpi-err">7</div><div class="sub down">▼ sửa trực tiếp</div></div>
+      <div class="kpi" id="kpi-err-card" style="cursor:pointer" title="Bấm để sang Bảng Nhập Đơn và nhảy tới ô sai chuẩn đầu tiên"><div class="ic r">✕</div><div class="lbl">Ô sai chuẩn</div><div class="val" id="kpi-err">7</div><div class="sub down" style="color:var(--accent);font-weight:700">▼ Bấm để sửa trực tiếp</div></div>
       <div class="kpi"><div class="ic v">🧾</div><div class="lbl">Tổng số đơn</div><div class="val" id="kpi-orders">1</div><div class="sub"><span class="mini">mã đơn (1 file khách = 1 đơn)</span></div></div>
       <div class="kpi"><div class="ic t">📦</div><div class="lbl">Tổng sản lượng</div><div class="val" id="kpi-sl">32.4K</div><div class="sub"><span class="mini">khay mi</span></div></div>
       <div class="kpi"><div class="ic a">⏱️</div><div class="lbl">Thời gian xử lý</div><div class="val" id="kpi-time">—</div><div class="sub"><span class="mini">engine chạy trong trình duyệt</span></div></div>
@@ -501,7 +502,6 @@ tr.flash td{animation:flashbg 1.4s ease}
         <button class="btn sm" id="mn-add">➕ Thêm dòng</button>
       </span>
       <button class="btn sm ghost" id="mn-del" style="color:var(--red-600)">🗑 Xóa dòng chọn</button>
-      <button class="btn sm ghost" id="mn-nolv" title="Xóa các cột độ cong L+/LD/LC+/LC/LB/LJ/Curl 1 (khi dán bị trùng gấp đôi)">➖ Bỏ độ cong L+…</button>
       <button class="btn sm ghost" id="mn-clear" style="color:var(--red-600)" title="Xóa sạch dữ liệu đã nhập tay (cả 3 tab)">🧹 Xóa nhập tay</button>
       <button class="btn sm ghost" id="mn-back">← Quay lại</button>
       <button class="btn primary sm" id="mn-apply">✔ Áp dụng &amp; Xử lý</button>
@@ -1109,7 +1109,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         // ô LỖI 1 dòng → giữ esc (dễ sửa); ô LỖI nhiều dòng (multi-code) → vẫn tách dòng như ô thường
         var hasNl=/\r?\n/.test(String(val==null?'':val));
         return '<td class="'+cls.trim()+'"'+ce+ti+'>'+((er&&!hasNl)?esc(val):nl2br(val))+'</td>'; };
-      var curls=CURLS.map(function(k){ return '<td class="qty cw">'+(o.curls&&o.curls[k]?o.curls[k]:'')+'</td>'; }).join('');
+      var curls=CURLS.map(function(k){ var cv=(o.curls&&o.curls[k])?o.curls[k]:''; var ce=canEditStep('s3')?' contenteditable="true" data-seri="'+o.seri+'" data-madon="'+esc(o.maDon)+'" data-col="curl:'+esc(k)+'" title="Sửa số lượng độ cong '+esc(k)+'"':''; return '<td class="qty cw"'+ce+' style="background:rgba(0,207,200,.05)">'+cv+'</td>'; }).join('');
       // thứ tự cột đúng sheet "Nhập Đơn" (đến cột W) — Loại Hàng (= Nhóm của đơn khách) sau Code Sợi
       var serr = errKey[o.maDon+'|'+o.seri+'|seri'];   // lỗi cột Seri (E-DUP) cũng phải tô đỏ
       // Trường hợp đặc biệt: 1 ô chứa NHIỀU DÒNG (nhiều code/màu/nguyên liệu trong 1 dòng đơn khách) → tô màu.
@@ -1344,7 +1344,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       state.orders.forEach(function(o,i){ if(String(o.seri)===seri && (!mdon || o.maDon===mdon)) idx=i; });
       if(idx<0) return;
       var val = td.textContent.trim();
-      var oldVal = String(state.orders[idx][col]==null?'':state.orders[idx][col]);
+      var oldVal;
+      if(col.indexOf('curl:')===0){ var _ck=col.slice(5); oldVal=String((state.orders[idx].curls&&state.orders[idx].curls[_ck])||''); }
+      else oldVal = String(state.orders[idx][col]==null?'':state.orders[idx][col]);
       if(val === oldVal) return; // không đổi
       pushUndo();
       var res = E.editCell(state.orders[idx], col, val);
@@ -1962,13 +1964,6 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     });
     var mb=document.getElementById('mn-back'); if(mb) mb.addEventListener('click', function(){ go('s1'); });
     var mp=document.getElementById('mn-apply'); if(mp) mp.addEventListener('click', applyManual);
-    var mlv=document.getElementById('mn-nolv'); if(mlv) mlv.addEventListener('click', function(){
-      syncManualFromDOM();
-      var LV=['L+','LD','LC+','LC','LB','LJ','Curl 1'], n=0;
-      manualRows.forEach(function(r){ if(r.curls) LV.forEach(function(k){ if(r.curls[k]!=null){ delete r.curls[k]; n++; } }); });
-      renderManual(); commit();
-      if(typeof alert==='function') alert('Đã bỏ '+n+' ô độ cong L-variant (L+/LD/LC+/LC/LB/LJ/Curl 1).');
-    });
     var mcl=document.getElementById('mn-clear'); if(mcl) mcl.addEventListener('click', function(){
       if(typeof confirm==='function' && !confirm('Xóa sạch dữ liệu ĐÃ NHẬP TAY (cả 3 tab Đơn/Mix/Keo)?\n(Không ảnh hưởng đơn upload đã xử lý.)')) return;
       manualRows=[]; keoM=[]; mixGrid=[]; colorM=[];
@@ -2363,8 +2358,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(/^-?[\d.,]+$/.test(t)){ var v=/^\d{1,3}(\.\d{3})+$/.test(t)?parseFloat(t.replace(/\./g,'')):parseFloat(t.replace(',','.')); if(isFinite(v)){ sum+=v; nums++; } }
     });
     var f=function(n){ n=Math.round(n*100)/100; return fmtN(n); };
-    bar.innerHTML='Σ <b style="color:var(--accent)">'+f(sum)+'</b> &nbsp;·&nbsp; Đếm: <b>'+cnt+'</b>'+(nums?' &nbsp;·&nbsp; Số: <b>'+nums+'</b> &nbsp;·&nbsp; TB: <b>'+f(sum/nums)+'</b>':'');
-    bar.style.display='';
+    bar.innerHTML='Σ <b>'+f(sum)+'</b> &nbsp;·&nbsp; Đếm: <b>'+cnt+'</b>'+(nums?' &nbsp;·&nbsp; TB: <b>'+f(sum/nums)+'</b>':'');
+    bar.style.display='block';   // CSS #sel-stats mặc định display:none → phải set 'block' mới hiện
   }
   // ==== CHỌN VÙNG kéo chuột cho các bảng dữ liệu (Step 2·3·4·5·6) ====
   var gsA=null,gsH=null,gsDrag=false;
@@ -2526,6 +2521,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(td && td.focus) setTimeout(function(){ td.focus(); }, 250);
   }
   var ecEl=document.getElementById('err-chip');  if(ecEl && ecEl.addEventListener) ecEl.addEventListener('click', function(){ jumpToFirst('error'); });
+  var kec=document.getElementById('kpi-err-card'); if(kec && kec.addEventListener) kec.addEventListener('click', function(){ if(state.R && state.R.stats && state.R.stats.errorCells){ jumpToFirst('error'); } else { go('s3'); } });
   var wcEl=document.getElementById('warn-chip'); if(wcEl && wcEl.addEventListener) wcEl.addEventListener('click', function(){ jumpToFirst('warn'); });
 
   function wireSearch(id){
@@ -2705,7 +2701,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var trs=rows.map(function(o){ no++; var key=boxRowKey(o); if(boxSel[key]==null) boxSel[key]=''; var hp=boxHop(o);
       var curlTds=UC.map(function(k,ci){ var v=o.curls&&o.curls[k]?o.curls[k]:''; return '<td class="cw" contenteditable="true" data-r="'+(no-1)+'" data-c="'+ci+'" data-boxkey="'+esc(key)+'" data-boxcurl="'+esc(k)+'" style="background:rgba(0,207,200,.07);min-width:32px;font-weight:700">'+(v||'')+'</td>'; }).join('');
       var mlc = (/\r?\n/.test(String(o.material||''))||/\r?\n/.test(String(o.codeSoi||''))) ? ' cl-mlcell' : '';
-      return '<tr class="'+(mlc?'cl-multiline':'')+'" data-key="'+esc(key)+'" data-madon="'+esc(o.maDon)+'" title="Chuột phải: thêm / nhân bản (tách box) / xóa dòng">'+
+      return '<tr class="'+(mlc?'cl-multiline':'')+'" data-key="'+esc(key)+'" data-madon="'+esc(o.maDon)+'">'+
         '<td>'+no+'</td><td>'+esc(o.maDon)+'</td><td class="txt'+mlc+'">'+nl2br(o.material||o.codeSoi||'')+'</td><td>'+esc(o.length||'')+'</td><td>'+esc(o.mixSingle||'')+'</td>'+
         curlTds+'<td class="qty">'+hp+'</td>'+
         '<td class="box-cell"><input class="box-pick" list="box-datalist" data-key="'+esc(key)+'" value="'+esc(boxSel[key]||'')+'" placeholder="— box —" style="width:82px"></td></tr>';
