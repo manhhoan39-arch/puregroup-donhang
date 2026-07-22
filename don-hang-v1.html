@@ -744,16 +744,23 @@ tr.flash td{animation:flashbg 1.4s ease}
     <!-- ===== SO SÁNH 2 ĐƠN HÀNG (chọn 2 mã đơn) ===== -->
     <div style="margin-top:22px;border-top:2px dashed var(--border-strong);padding-top:14px">
       <div class="card-head"><h3 style="color:var(--accent)">🔀 So sánh chi tiết 2 đơn hàng</h3></div>
+      <div class="mini" style="margin:2px 0 8px;color:var(--text-2)">Chọn từ đơn ĐÃ NHẬP, hoặc <b>tải 2 file bất kỳ từ máy</b> để so sánh độc lập (không liên quan dữ liệu đã nhập).</div>
       <div class="tbl-toolbar" style="gap:8px;flex-wrap:wrap">
         <span class="mini" style="font-weight:700">Đơn A</span>
-        <input id="cmp-a" class="madon-pick" list="dl-madon" placeholder="chọn mã đơn A" autocomplete="off" style="width:150px">
+        <input id="cmp-a" class="madon-pick" list="dl-madon" placeholder="chọn mã đơn A" autocomplete="off" style="width:130px">
+        <button class="btn sm" id="cmp-file-a" title="Tải file đơn A từ máy">📂 File A</button>
         <span class="mini" style="font-weight:700;color:var(--accent)">Đơn B</span>
-        <input id="cmp-b" class="madon-pick" list="dl-madon" placeholder="chọn mã đơn B" autocomplete="off" style="width:150px">
+        <input id="cmp-b" class="madon-pick" list="dl-madon" placeholder="chọn mã đơn B" autocomplete="off" style="width:130px">
+        <button class="btn sm" id="cmp-file-b" title="Tải file đơn B từ máy">📂 File B</button>
+        <button class="btn sm ghost" id="cmp-clear-files" title="Bỏ file đã tải, quay lại chọn từ đơn đã nhập" style="display:none;color:var(--red-600)">✕ Bỏ file</button>
         <span class="chip on" id="cmp-onlydiff" title="Bật/tắt: chỉ hiện dòng khác biệt">Chỉ hiện khác biệt</span>
         <div class="spacer"></div>
         <button class="btn sm" id="cmp-swap" title="Đổi chỗ A ↔ B">⇄ Đổi A/B</button>
         <button class="btn sm" id="cmp-dl">⬇ Xuất SoSanh2Don.xlsx</button>
       </div>
+      <input type="file" id="cmp-file-a-input" accept=".xlsx,.xlsm,.xls" style="display:none">
+      <input type="file" id="cmp-file-b-input" accept=".xlsx,.xlsm,.xls" style="display:none">
+      <div id="cmp-files-info" class="mini" style="margin:4px 0"></div>
       <div id="cmp-summary" style="margin:8px 0"></div>
       <div id="cmp-table" class="tbl-wrap"></div>
     </div>
@@ -3641,20 +3648,38 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return [['Code Sợi',function(o){return o.codeSoi||'';},true],['Length',fL,false],['S/M',function(o){return o.mixSingle||'';},false],
       ['Lines',function(o){return o.lineRaw||o.line||'';},false],['Material',function(o){return o.material||'';},true],['Độ cong (hộp)',curlStr,true]];
   }
+  function remapNote(rm){ return (rm&&rm.length) ? (' · <span style="color:var(--accent)">quy đổi độ cong: '+rm.map(function(x){return esc(x.header)+'→'+esc(x.curl);}).join(', ')+'</span>') : ''; }
   function renderCompare2(){
     var sumBox=document.getElementById('cmp-summary'), tbl=document.getElementById('cmp-table'); if(!sumBox||!tbl) return;
-    var all=state.orders||[];
-    // tự gợi ý A,B = 2 mã đơn đầu tiên nếu chưa chọn
-    var mds=[]; all.forEach(function(o){ if(o.maDon && mds.indexOf(o.maDon)<0) mds.push(o.maDon); });
-    var ea=document.getElementById('cmp-a'), eb=document.getElementById('cmp-b');
-    if(ea && !ea.value && mds[0]) ea.value=mds[0];
-    if(eb && !eb.value && mds[1]) eb.value=mds[1];
-    var A=(ea&&ea.value||'').trim(), B=(eb&&eb.value||'').trim();
-    if(!A||!B){ sumBox.innerHTML=''; tbl.innerHTML='<div class="mini txt" style="padding:12px">Chọn Mã Đơn A và B để so sánh (cần nạp ≥2 đơn).</div>'; return; }
+    var infoBox=document.getElementById('cmp-files-info');
+    var fa=state.cmpFileA, fb=state.cmpFileB;
+    var fileMode=!!((fa&&fa.orders&&fa.orders.length)||(fb&&fb.orders&&fb.orders.length));
+    var clr=document.getElementById('cmp-clear-files'); if(clr) clr.style.display=fileMode?'':'none';
     var FL=cmp2Fields();
     var nc=function(c){return String(c||'').replace(/\s+/g,'').toLowerCase();};
     var nl=function(l){return (E.normalizeLength?E.normalizeLength(l):String(l||''));};
-    var rowsA=all.filter(function(o){return o.maDon===A;}), rowsB=all.filter(function(o){return o.maDon===B;});
+    var rowsA, rowsB, labelA, labelB, fileTotA=false;
+    if(fileMode){
+      rowsA=(fa&&fa.orders)||[]; rowsB=(fb&&fb.orders)||[];
+      labelA=(fa&&fa.name)||'(chưa tải A)'; labelB=(fb&&fb.name)||'(chưa tải B)';
+      fileTotA=true;
+      if(infoBox) infoBox.innerHTML=
+        '<div>📂 A: '+(fa?('<b>'+esc(fa.name)+'</b> ('+rowsA.length+' dòng)'+remapNote(fa.remap)):'chưa tải — bấm "📂 File A"')+'</div>'+
+        '<div>📂 B: '+(fb?('<b style="color:var(--accent)">'+esc(fb.name)+'</b> ('+rowsB.length+' dòng)'+remapNote(fb.remap)):'chưa tải — bấm "📂 File B"')+'</div>';
+      if(!rowsA.length||!rowsB.length){ sumBox.innerHTML=''; tbl.innerHTML='<div class="mini txt" style="padding:12px">Hãy tải ĐỦ CẢ 2 file (A và B) từ máy để so sánh.</div>'; return; }
+    } else {
+      if(infoBox) infoBox.innerHTML='';
+      var all=state.orders||[];
+      var mds=[]; all.forEach(function(o){ if(o.maDon && mds.indexOf(o.maDon)<0) mds.push(o.maDon); });
+      var ea=document.getElementById('cmp-a'), eb=document.getElementById('cmp-b');
+      if(ea && !ea.value && mds[0]) ea.value=mds[0];
+      if(eb && !eb.value && mds[1]) eb.value=mds[1];
+      var A=(ea&&ea.value||'').trim(), B=(eb&&eb.value||'').trim();
+      if(!A||!B){ sumBox.innerHTML=''; tbl.innerHTML='<div class="mini txt" style="padding:12px">Chọn Mã Đơn A và B — hoặc bấm "📂 File A/B" để tải 2 file từ máy.</div>'; return; }
+      rowsA=all.filter(function(o){return o.maDon===A;}); rowsB=all.filter(function(o){return o.maDon===B;});
+      labelA=A; labelB=B;
+    }
+    var A=labelA, B=labelB;
     var grp=function(rows){ var m={},order=[]; rows.forEach(function(o){ var k=nc(o.codeSoi)+'|'+nl(o.length); if(!m[k]){m[k]=[];order.push(k);} m[k].push(o); }); return {m:m,order:order}; };
     var gA=grp(rowsA), gB=grp(rowsB), keys=[], seen={};
     gA.order.concat(gB.order).forEach(function(k){ if(!seen[k]){seen[k]=1;keys.push(k);} });
@@ -3675,29 +3700,65 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var hd='<tr><th colspan="'+FL.length+'" style="background:var(--surface-3)">📄 ĐƠN A · '+esc(A)+'</th><th rowspan="2" style="width:64px">TT</th><th colspan="'+FL.length+'" style="background:var(--accent-soft);color:var(--accent)">📄 ĐƠN B · '+esc(B)+'</th></tr>';
     tbl.innerHTML='<table class="sheet" style="width:100%;white-space:nowrap"><thead>'+hd+'<tr>'+hdrCells+hdrCells+'</tr></thead><tbody>'+(body||'<tr><td colspan="'+(FL.length*2+1)+'" class="mini txt">'+(onlyDiff?'✓ 2 đơn GIỐNG NHAU hoàn toàn.':'Không có dòng.')+'</td></tr>')+'</tbody></table>';
     var dayA=0,dayB=0,hopA=0,hopB=0;
-    (state.R&&state.R.data1||[]).forEach(function(r){ if(r.maDon===A) dayA+=r.sl; else if(r.maDon===B) dayB+=r.sl; });
+    if(!fileMode) (state.R&&state.R.data1||[]).forEach(function(r){ if(r.maDon===A) dayA+=r.sl; else if(r.maDon===B) dayB+=r.sl; });
     rowsA.forEach(function(o){hopA+=(o.sl||0);}); rowsB.forEach(function(o){hopB+=(o.sl||0);});
     var tot=nDiff+nOnlyA+nOnlyB;
     sumBox.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px">'+
       '<span class="badge '+(tot?'warn':'pass')+'" style="font-weight:700">'+(tot?(tot+' KHÁC BIỆT'):'✓ 2 đơn GIỐNG NHAU')+'</span>'+
       '<span class="badge warn">Khác: '+nDiff+'</span><span class="badge fail">Chỉ ở A: '+nOnlyA+'</span><span class="badge fail">Chỉ ở B: '+nOnlyB+'</span><span class="badge pass">Giống: '+nSame+'</span>'+
-      '<span class="badge '+(dayA===dayB?'pass':'fail')+'">Tổng dây: A='+fmtN(dayA)+' · B='+fmtN(dayB)+(dayA===dayB?' ✓':' (lệch '+fmtN(dayB-dayA)+')')+'</span>'+
+      (fileMode?'':'<span class="badge '+(dayA===dayB?'pass':'fail')+'">Tổng dây: A='+fmtN(dayA)+' · B='+fmtN(dayB)+(dayA===dayB?' ✓':' (lệch '+fmtN(dayB-dayA)+')')+'</span>')+
       '<span class="badge '+(hopA===hopB?'pass':'fail')+'">Tổng hộp: A='+fmtN(hopA)+' · B='+fmtN(hopB)+(hopA===hopB?' ✓':'')+'</span>'+
       '</div>';
+  }
+  // Tải 1 file đơn từ máy → parse ĐỘC LẬP (GỬI XƯỞNG hoặc nội bộ) → lưu vào slot A/B để so sánh
+  function parseCompareFile(file, which){
+    if(typeof XLSX==='undefined') return alert('Thiếu xlsx.full.min.js');
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      try{
+        var wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array'});
+        var data=null, remap=[];
+        var nbWs=pickSheet(wb,'Nhập Đơn');
+        if(nbWs){ var nb=E.parseWorkbookData({nhapDon:aoa(nbWs),label:aoa(pickSheet(wb,'Label')),keo:aoa(pickSheet(wb,'Bảng Keo'))}); if(nb.rawOrders.length){ data={rawOrders:nb.rawOrders}; } }
+        if(!data){ for(var si=0;si<wb.SheetNames.length&&!data;si++){ var gx=E.parseGuiXuongSheet(aoa(wb.Sheets[wb.SheetNames[si]]),file.name); if(gx&&gx.rawOrders.length){ data={rawOrders:gx.rawOrders}; remap=(gx.meta&&gx.meta.curlRemap)||[]; } } }
+        if(!data){ alert('Không đọc được đơn trong file "'+file.name+'".'); return; }
+        var s1=E.runStep1(data.rawOrders);
+        var slot={ name:file.name.replace(/\.xlsx?$/i,''), orders:s1.orders, remap:remap };
+        if(which==='a') state.cmpFileA=slot; else state.cmpFileB=slot;
+        try{ logLine('So sánh: tải file '+which.toUpperCase()+' = '+file.name+' ('+s1.orders.length+' dòng)'); }catch(e){}
+        renderCompare2();
+      }catch(e){ alert('Lỗi đọc file: '+(e&&e.message||e)); }
+    };
+    reader.readAsArrayBuffer(file);
   }
   (function(){
     ['cmp-a','cmp-b'].forEach(function(id){ var e=document.getElementById(id); if(e&&e.addEventListener) e.addEventListener('change', renderCompare2); });
     var od=document.getElementById('cmp-onlydiff'); if(od) od.addEventListener('click', function(){ od.classList.toggle('on'); renderCompare2(); });
-    var sw=document.getElementById('cmp-swap'); if(sw) sw.addEventListener('click', function(){ var a=document.getElementById('cmp-a'),b=document.getElementById('cmp-b'); if(a&&b){ var t=a.value; a.value=b.value; b.value=t; renderCompare2(); } });
+    var sw=document.getElementById('cmp-swap'); if(sw) sw.addEventListener('click', function(){
+      if(state.cmpFileA||state.cmpFileB){ var t=state.cmpFileA; state.cmpFileA=state.cmpFileB; state.cmpFileB=t; renderCompare2(); return; }
+      var a=document.getElementById('cmp-a'),b=document.getElementById('cmp-b'); if(a&&b){ var v=a.value; a.value=b.value; b.value=v; renderCompare2(); } });
     var dl=document.getElementById('cmp-dl'); if(dl) dl.addEventListener('click', dlCompare2);
+    // nút tải file A / B
+    var fbA=document.getElementById('cmp-file-a'), fbB=document.getElementById('cmp-file-b');
+    var fiA=document.getElementById('cmp-file-a-input'), fiB=document.getElementById('cmp-file-b-input');
+    if(fbA&&fiA){ fbA.addEventListener('click',function(){ fiA.click(); }); fiA.addEventListener('change',function(){ if(fiA.files&&fiA.files[0]) parseCompareFile(fiA.files[0],'a'); fiA.value=''; }); }
+    if(fbB&&fiB){ fbB.addEventListener('click',function(){ fiB.click(); }); fiB.addEventListener('change',function(){ if(fiB.files&&fiB.files[0]) parseCompareFile(fiB.files[0],'b'); fiB.value=''; }); }
+    var cf=document.getElementById('cmp-clear-files'); if(cf) cf.addEventListener('click',function(){ state.cmpFileA=null; state.cmpFileB=null; renderCompare2(); });
   })();
   function dlCompare2(){
     if(typeof XLSX==='undefined') return alert('Thiếu xlsx.full.min.js');
-    var A=(document.getElementById('cmp-a')||{}).value||'', B=(document.getElementById('cmp-b')||{}).value||'';
-    if(!A||!B) return alert('Chọn 2 mã đơn trước.');
-    var FL=cmp2Fields(), all=state.orders||[];
+    var fa=state.cmpFileA, fb=state.cmpFileB, fileMode=!!((fa&&fa.orders&&fa.orders.length)||(fb&&fb.orders&&fb.orders.length));
+    var A, B, rowsA, rowsB;
+    var FL=cmp2Fields();
     var nc=function(c){return String(c||'').replace(/\s+/g,'').toLowerCase();}, nl=function(l){return (E.normalizeLength?E.normalizeLength(l):String(l||''));};
-    var rowsA=all.filter(function(o){return o.maDon===A;}), rowsB=all.filter(function(o){return o.maDon===B;});
+    if(fileMode){
+      if(!(fa&&fa.orders&&fa.orders.length)||!(fb&&fb.orders&&fb.orders.length)) return alert('Hãy tải đủ 2 file A và B trước.');
+      A=fa.name; B=fb.name; rowsA=fa.orders; rowsB=fb.orders;
+    } else {
+      A=(document.getElementById('cmp-a')||{}).value||''; B=(document.getElementById('cmp-b')||{}).value||'';
+      if(!A||!B) return alert('Chọn 2 mã đơn trước (hoặc tải 2 file).');
+      var all=state.orders||[]; rowsA=all.filter(function(o){return o.maDon===A;}); rowsB=all.filter(function(o){return o.maDon===B;});
+    }
     var grp=function(rows){ var m={},order=[]; rows.forEach(function(o){ var k=nc(o.codeSoi)+'|'+nl(o.length); if(!m[k]){m[k]=[];order.push(k);} m[k].push(o); }); return {m:m,order:order}; };
     var gA=grp(rowsA), gB=grp(rowsB), keys=[], seen={}; gA.order.concat(gB.order).forEach(function(k){ if(!seen[k]){seen[k]=1;keys.push(k);} });
     var head=FL.map(function(f){return 'A·'+f[0];}).concat(['Trạng thái']).concat(FL.map(function(f){return 'B·'+f[0];}));
