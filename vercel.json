@@ -3,5 +3,13 @@
   "buildCommand": null,
   "outputDirectory": ".",
   "framework": null,
-  "cleanUrls": true
+  "cleanUrls": true,
+
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/don-hang-v1",
+      "permanent": false
+    }
+  ]
 }
