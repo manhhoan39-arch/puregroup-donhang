@@ -855,6 +855,11 @@ window.__applyStepPerms = function(){
 };
 function go(id){
   if(window.__STEP_PERMS && window.__STEP_PERMS[id]==='none') return;   // không có quyền xem step này
+  // CHẶN sang bước sau khi có CỘT ĐỘ CONG KHÔNG NHẬN DIỆN ĐƯỢC (có số nhưng máy không hiểu) → tránh SAI/MẤT số liệu
+  if({s4:1,s5:1,s6:1,s10:1,s7:1,s9:1}[id] && window.__hasUnmappedCurl && window.__hasUnmappedCurl()){
+    alert('⛔ Có cột ĐỘ CONG không nhận diện được (có số liệu nhưng máy không hiểu tên header).\nXem mục "MẤT ĐỘ CONG" trong Danh sách lỗi/cảnh báo ở bước Nhập Đơn — hãy sửa tên header trong file gốc cho đúng chuẩn rồi đọc lại. Chưa sửa thì KHÔNG sang bước sau (số liệu sẽ sai).');
+    id='s1'; // về Nhập Đơn để xem danh sách lỗi
+  }
   // CHẶN sang bước SAU Mix Label khi còn Bảng Mix Màu chưa hoàn thiện
   if({s5:1,s6:1,s10:1,s7:1,s9:1}[id] && window.__cmGate && !window.__cmGate()){
     alert('⚠ Còn Bảng Mix Màu chưa hoàn thiện (đơn có "Mix Color" nhiều màu).\nHãy điền đủ số sợi từng màu ở bước "Bảng Mix Label" trước khi sang bước tiếp theo.');
@@ -1080,12 +1085,38 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // --- Danh sách lỗi / cảnh báo ---
     var el = document.getElementById('eng-errlist');
     if(el){
-      el.innerHTML = R.errors.length ? R.errors.map(function(e){
+      // (a) DÒNG QUY ĐỔI header độ cong lộn xộn → để admin KIỂM TRA máy quy đổi đúng chưa
+      var remapRows='';
+      (state.files||[]).forEach(function(F){
+        var rm=F && F.meta && F.meta.curlRemap; if(!rm||!rm.length) return;
+        var md=(F.maDons&&F.maDons[0])||F.name||'—';
+        rm.forEach(function(x){
+          remapRows += '<tr title="Header cột độ cong ghi lộn xộn — máy đã tự quy đổi, hãy kiểm tra">'+
+            '<td>'+esc(md)+'</td><td>header</td><td><b>'+esc(x.curl)+'</b></td>'+
+            '<td><span class="badge warn">QUY ĐỔI</span></td>'+
+            '<td class="txt">Cột "'+esc(x.header)+'" → nhận là độ cong <b style="color:var(--accent)">'+esc(x.curl)+'</b> — kiểm tra lại</td></tr>';
+        });
+      });
+      // (a2) CỘT ĐỘ CONG KHÔNG NHẬN DIỆN ĐƯỢC nhưng CÓ SỐ → lỗi ĐỎ, CHẶN sang bước sau (tránh mất dữ liệu)
+      var unmapRows='';
+      (state.files||[]).forEach(function(F){
+        var um=F && F.meta && F.meta.curlUnmapped; if(!um||!um.length) return;
+        var md=(F.maDons&&F.maDons[0])||F.name||'—';
+        um.forEach(function(x){
+          unmapRows += '<tr title="Cột độ cong có số liệu nhưng KHÔNG nhận diện được — sửa header trong file gốc rồi đọc lại">'+
+            '<td>'+esc(md)+'</td><td>header</td><td>cột '+(x.col+1)+'</td>'+
+            '<td><span class="badge fail">MẤT ĐỘ CONG</span></td>'+
+            '<td class="txt">Cột "'+esc(x.header||'(trống)')+'" có <b>'+x.count+'</b> ô số nhưng KHÔNG nhận ra độ cong → sửa tên header trong file gốc cho đúng chuẩn (J B C CC D DD L M V L+ LD LC+ LC LB LJ Curl 1) rồi đọc lại.</td></tr>';
+        });
+      });
+      // (b) lỗi/cảnh báo theo dòng (bấm để nhảy tới ô sửa)
+      var errRows = R.errors.map(function(e){
         var lv = e.level==='warn'?'warn':'fail';
         return '<tr data-seri="'+esc(e.seri)+'" data-madon="'+esc(e.maDon||'')+'" data-col="'+esc(e.col)+'" style="cursor:pointer" title="Bấm để sang Bảng Nhập Đơn và sửa ô này">'+
           '<td>'+(e.maDon||'—')+'</td><td>'+e.seri+'</td><td>'+e.col+'</td>'+
           '<td><span class="badge '+lv+'">'+e.code+'</span></td><td class="txt">'+esc(e.msg)+'</td></tr>';
-      }).join('') : '<tr><td colspan="5" class="txt" style="color:var(--green-600);font-weight:600">✓ Không còn lỗi — dữ liệu sạch</td></tr>';
+      }).join('');
+      el.innerHTML = (unmapRows + remapRows + errRows) || '<tr><td colspan="5" class="txt" style="color:var(--green-600);font-weight:600">✓ Không còn lỗi — dữ liệu sạch</td></tr>';
     }
 
     // --- Bảng Nhập Đơn: header động (18 độ cong + cột xóa khi admin) ---
@@ -2322,6 +2353,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   });
   // Khi RỜI bước Mix Label (hoặc bất kỳ điều hướng nào) → áp dữ liệu mix màu vào tính toán 1 lần
   window.__cmGate = colorMixAllComplete;
+  // Có cột độ cong CÓ SỐ nhưng KHÔNG nhận diện được (nguy cơ mất số liệu) → dùng để CHẶN bước sau
+  window.__hasUnmappedCurl = function(){ return (state.files||[]).some(function(F){ return F && F.meta && F.meta.curlUnmapped && F.meta.curlUnmapped.length; }); };
   window.__cmFlush = function(){ if(!cmDirty) return; cmDirty=false; try{ render(); }catch(e){} };
   // ==== Bảng Mix Màu: chọn vùng kéo chuột · copy/cut/paste NHIỀU Ô · Delete xóa vùng ====
   var cmA=null, cmH=null, cmDrag=false;

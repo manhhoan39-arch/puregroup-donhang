@@ -806,7 +806,7 @@
       for (var j2 = 0; j2 < CURLS.length; j2++) if (CURLS[j2].toLowerCase() === first.toLowerCase()) return CURLS[j2];
       return null;
     }
-    var curlCol = {}, curlNote = {};
+    var curlCol = {}, curlNote = {}, curlRemap = [];
     CURLS.forEach(function (k) { curlCol[k] = -1; });
     (function () {
       var endIdx = findCol(H, 'Tổng Số Hộp');
@@ -818,6 +818,7 @@
           curlCol[k] = i;
           var coreExact = raw.replace(/\(.*?\)/g, '').trim();
           if (coreExact.toLowerCase() === k.toLowerCase()) { var note = raw.replace(coreExact, '').trim(); if (note) curlNote[k] = note; }
+          else curlRemap.push({ col: i, header: raw, curl: k });   // header ghi lộn xộn → GHI LẠI để kiểm tra
         }
       }
     })();
@@ -1017,7 +1018,25 @@
         if (h === 'LINES CLS' && meta.tongDay == null) meta.tongDay = PN(below);
       }
     }
+    // CỘT trong vùng độ cong CÓ SỐ LIỆU nhưng KHÔNG nhận diện được độ cong → NGUY CƠ MẤT DỮ LIỆU (sẽ chặn bước sau)
+    meta.curlUnmapped = (function () {
+      var mappedSet = {}; CURLS.forEach(function (k) { if (curlCol[k] >= 0) mappedSet[curlCol[k]] = 1; });
+      var endU = findCol(H, 'Tổng Số Hộp'); endU = endU > 0 ? endU : H.length;
+      var res = [];
+      for (var ci = (col.mix >= 0 ? col.mix + 1 : 0); ci < endU; ci++) {
+        if (mappedSet[ci]) continue;
+        var cnt = 0;
+        for (var rr = hr + 1; rr < aoa.length; rr++) {
+          var st = aoa[rr] && aoa[rr][col.stt]; if (st == null || PS(st) === '') continue;
+          var nn = Number(st); if (!isFinite(nn) || nn <= 0) continue;
+          if (PN(aoa[rr][ci])) cnt++;
+        }
+        if (cnt > 0) res.push({ col: ci, header: PS(H[ci]), count: cnt });
+      }
+      return res;
+    })();
     meta.curlWarnings = curlWarnings;   // [] = cấu trúc độ cong khớp chuẩn
+    meta.curlRemap = curlRemap;         // [{col,header,curl}] — header lộn xộn đã quy đổi (để kiểm tra ở Danh sách lỗi)
     meta.curlNotes = curlNote;          // vd { "L+": "( tem LC)" } — ghi chú độ cong từ header, hiện ở Box
     meta.specialSym = specialApplied;   // vd ["LZ (cả đơn → mã đơn)"] — ký hiệu hàng đặc biệt đã áp
     return { rawOrders: out, mixSheets: mixSheets, keoRows: keoRows, keoNotes: null, curlNotes: curlNote, meta: meta };
