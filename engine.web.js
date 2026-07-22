@@ -806,7 +806,7 @@
       for (var j2 = 0; j2 < CURLS.length; j2++) if (CURLS[j2].toLowerCase() === first.toLowerCase()) return CURLS[j2];
       return null;
     }
-    var curlCol = {}, curlNote = {}, curlRemap = [];
+    var curlCol = {}, curlNote = {}, curlRemap = [], curlHeaders = {};
     CURLS.forEach(function (k) { curlCol[k] = -1; });
     (function () {
       var endIdx = findCol(H, 'Tổng Số Hộp');
@@ -816,6 +816,7 @@
         var k = curlOf(raw);
         if (k && curlCol[k] < 0) {
           curlCol[k] = i;
+          curlHeaders[k] = raw;   // GIỮ tiêu đề GỐC của cột độ cong (để so sánh tiêu đề giữa 2 đơn)
           var coreExact = raw.replace(/\(.*?\)/g, '').trim();
           if (coreExact.toLowerCase() === k.toLowerCase()) { var note = raw.replace(coreExact, '').trim(); if (note) curlNote[k] = note; }
           else curlRemap.push({ col: i, header: raw, curl: k });   // header ghi lộn xộn → GHI LẠI để kiểm tra
@@ -1037,6 +1038,7 @@
     })();
     meta.curlWarnings = curlWarnings;   // [] = cấu trúc độ cong khớp chuẩn
     meta.curlRemap = curlRemap;         // [{col,header,curl}] — header lộn xộn đã quy đổi (để kiểm tra ở Danh sách lỗi)
+    meta.curlHeaders = curlHeaders;     // { độ cong: tiêu đề GỐC } — để so sánh tiêu đề độ cong giữa 2 đơn
     meta.curlNotes = curlNote;          // vd { "L+": "( tem LC)" } — ghi chú độ cong từ header, hiện ở Box
     meta.specialSym = specialApplied;   // vd ["LZ (cả đơn → mã đơn)"] — ký hiệu hàng đặc biệt đã áp
     return { rawOrders: out, mixSheets: mixSheets, keoRows: keoRows, keoNotes: null, curlNotes: curlNote, meta: meta };
