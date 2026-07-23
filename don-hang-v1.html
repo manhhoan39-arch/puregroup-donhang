@@ -266,13 +266,13 @@ body.gs-selecting{user-select:none}
 .fcol-filter:focus{border-color:var(--accent)}
 .fcol .file-list{margin:0;max-height:280px;overflow:auto}
 /* Step 5 Bảng Line Cuốn: cột Mã Đơn không tràn đè cột khác */
-#cb-head th:nth-child(2),#eng-cuonbox td:nth-child(2){white-space:nowrap;overflow:hidden}
+#cb-head th:nth-child(3),#eng-cuonbox td:nth-child(3){white-space:nowrap;overflow:hidden}
 /* Step 5/6: dữ liệu dài hơn cột → ẨN phần thừa (…), KHÔNG đè sang cột khác, KHÔNG wrap */
 #eng-cuonbox td{overflow:hidden}
-#eng-cuonbox td:nth-child(3){white-space:nowrap;overflow:hidden}                       /* Code Sợi: cột tự giãn đủ 1 dòng */
-#eng-cuonbox td:nth-child(4){white-space:nowrap;overflow:hidden;text-overflow:ellipsis} /* Tên gọi NL: dài quá → … */
+#eng-cuonbox td:nth-child(4){white-space:nowrap;overflow:hidden}                       /* Code Sợi: cột tự giãn đủ 1 dòng */
+#eng-cuonbox td:nth-child(5){white-space:nowrap;overflow:hidden;text-overflow:ellipsis} /* Tên gọi NL: dài quá → … */
 #eng-box td.txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
-#eng-box td:nth-child(4){max-width:none}                                                /* Nguyên liệu: hiển thị đủ 1 dòng */
+#eng-box td:nth-child(5){max-width:none}                                                /* Nguyên liệu: hiển thị đủ 1 dòng */
 /* Dòng Σ subtotal / GRAND TOTAL: số to (5-6 chữ số) → thu nhỏ font để hiện ĐỦ trong cột, không đè */
 #eng-cuonbox tr.subtotal td.cw,#eng-cuonbox tr.grand td.cw,#box-foot td.cw{font-size:9px;letter-spacing:-.3px;padding-left:1px;padding-right:1px;white-space:normal;word-break:break-all;overflow:visible;max-width:none}
 /* Thanh thống kê vùng chọn (Sum/Count) kiểu Google Sheets */
@@ -532,8 +532,9 @@ tr.flash td{animation:flashbg 1.4s ease}
     <div class="tbl-toolbar">
       <span class="chip on" id="role-chip" title="Bấm để đổi quyền (demo)">🛡️ Admin</span>
       <div class="search-top" style="width:230px">🔍<input id="grid-search" placeholder="Tìm trong bảng…"></div>
+      <input id="s3-makh" class="madon-pick" list="dl-makh" placeholder="Tất cả KH" title="Lọc theo Mã KH — đồng bộ mọi bước" autocomplete="off" style="min-width:120px;margin-right:6px">
       <input id="s3-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
-      <datalist id="dl-madon"></datalist>
+      <datalist id="dl-madon"></datalist><datalist id="dl-makh"></datalist>
       <div class="spacer"></div>
       <span class="badge warn" id="warn-chip" title="Bấm để nhảy đến ô cảnh báo" style="margin-right:6px;display:none;cursor:pointer">—</span>
       <span class="badge fail" id="err-chip" title="Bấm để nhảy đến ô sai chuẩn" style="margin-right:6px;display:none;cursor:pointer">—</span>
@@ -558,6 +559,7 @@ tr.flash td{animation:flashbg 1.4s ease}
     <div id="step4"></div>
     <div class="tbl-toolbar">
       <div class="search-top" style="width:230px">🔍<input id="s4-search" placeholder="Tìm trong bảng Mix…"></div>
+      <input id="s4-makh" class="madon-pick" list="dl-makh" placeholder="Tất cả KH" title="Lọc theo Mã KH — đồng bộ mọi bước" autocomplete="off" style="min-width:120px;margin-right:6px">
       <input id="s4-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
       <button class="btn sm" id="btn-add-mixrow" style="color:var(--teal-600)" title="Thêm dòng MM (chọn Mã Đơn trước)">➕ Thêm dòng</button>
       <button class="btn sm" id="btn-add-mixcol" style="color:var(--teal-600)" title="Thêm cột dải (chọn Mã Đơn trước). Xóa cột: bấm ✕ ngay trên cột đã thêm.">➕ Thêm cột</button>
@@ -578,6 +580,7 @@ tr.flash td{animation:flashbg 1.4s ease}
     <div id="step5"></div>
     <div class="tbl-toolbar">
       <div class="search-top" style="width:230px">🔍<input id="s5-search" placeholder="Tìm trong bảng Keo…"></div>
+      <input id="s5-makh" class="madon-pick" list="dl-makh" placeholder="Tất cả KH" title="Lọc theo Mã KH — đồng bộ mọi bước" autocomplete="off" style="min-width:120px;margin-right:6px">
       <input id="s5-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
       <button class="btn sm" id="btn-add-keo" style="color:var(--teal-600)">➕ Thêm dòng</button>
       <button class="btn sm" id="btn-del-keo" style="color:var(--red-600)">🗑️ Xóa dòng chọn</button>
@@ -590,12 +593,13 @@ tr.flash td{animation:flashbg 1.4s ease}
       <table class="prev-table has-chk">
         <thead><tr>
           <th class="chkcol"><input type="checkbox" id="keo-checkall" title="Chọn tất cả"></th>
-          <th class="freeze">Mã Đơn <span class="fbtn" data-coltbl="eng-keo-full" data-col="1">▼</span></th>
-          <th>Loại Keo <span class="fbtn" data-coltbl="eng-keo-full" data-col="2">▼</span></th>
-          <th>Loại Sợi <span class="fbtn" data-coltbl="eng-keo-full" data-col="3">▼</span></th>
-          <th>Độ dày <span class="fbtn" data-coltbl="eng-keo-full" data-col="4">▼</span></th>
-          <th>Độ Dài <span class="fbtn" data-coltbl="eng-keo-full" data-col="5">▼</span></th>
-          <th>Ghi Chú <span class="fbtn" data-coltbl="eng-keo-full" data-col="6">▼</span></th>
+          <th class="freeze">Mã KH <span class="fbtn" data-coltbl="eng-keo-full" data-col="1">▼</span></th>
+          <th>Mã Đơn <span class="fbtn" data-coltbl="eng-keo-full" data-col="2">▼</span></th>
+          <th>Loại Keo <span class="fbtn" data-coltbl="eng-keo-full" data-col="3">▼</span></th>
+          <th>Loại Sợi <span class="fbtn" data-coltbl="eng-keo-full" data-col="4">▼</span></th>
+          <th>Độ dày <span class="fbtn" data-coltbl="eng-keo-full" data-col="5">▼</span></th>
+          <th>Độ Dài <span class="fbtn" data-coltbl="eng-keo-full" data-col="6">▼</span></th>
+          <th>Ghi Chú <span class="fbtn" data-coltbl="eng-keo-full" data-col="7">▼</span></th>
         </tr></thead>
         <tbody id="eng-keo-full">
           <tr data-noflt="1"><td colspan="7" class="txt mini">Đang nạp bảng Keo từ engine…</td></tr>
@@ -609,6 +613,7 @@ tr.flash td{animation:flashbg 1.4s ease}
     <div id="step6"></div>
     <div class="tbl-toolbar">
       <div class="search-top" style="width:200px">🔍<input id="s6-search" placeholder="Tìm trong Bảng Cuốn…"></div>
+      <input id="s6-makh" class="madon-pick" list="dl-makh" placeholder="Tất cả KH" title="Lọc theo Mã KH — đồng bộ mọi bước" autocomplete="off" style="min-width:120px;margin-right:6px">
       <input id="s6-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
       <button class="btn sm" id="btn-th-line" style="color:var(--accent);font-weight:700" title="In bảng Tổng hợp Line (theo code sợi × mm)">🖨 Tổng hợp Line</button>
       <button class="btn sm" id="btn-th-cuon" style="color:var(--accent);font-weight:700" title="In bảng Tổng hợp Cuốn (code × S/M × mm × độ cong)">🖨 Tổng hợp Cuốn</button>
@@ -632,7 +637,7 @@ tr.flash td{animation:flashbg 1.4s ease}
           <div style="font-weight:700;font-size:12px;margin-bottom:6px">🧪 Bảng Keo - <span id="s6-keo-title">—</span></div>
           <div class="tbl-wrap" style="max-height:250px">
             <table class="sheet" style="width:100%;font-size:11px">
-              <thead><tr><th style="width:52px">Mã Đơn</th><th>Loại Keo</th><th>Loại Sợi</th><th style="width:64px">Độ dày</th><th style="width:56px">Độ Dài</th><th>Ghi Chú</th></tr></thead>
+              <thead><tr><th style="width:48px">Mã KH</th><th style="width:52px">Mã Đơn</th><th>Loại Keo</th><th>Loại Sợi</th><th style="width:64px">Độ dày</th><th style="width:56px">Độ Dài</th><th>Ghi Chú</th></tr></thead>
               <tbody id="eng-keo"></tbody>
             </table>
           </div>
@@ -674,13 +679,13 @@ tr.flash td{animation:flashbg 1.4s ease}
         <div>
           <div style="font-weight:700;font-size:12px;margin-bottom:6px">Σ Tổng hợp Code Sợi · Số Dây</div>
           <div class="tbl-wrap" style="max-height:300px">
-            <table class="sheet" style="width:100%;font-size:11px"><thead><tr><th style="width:44px">Mã Đơn</th><th>Code Sợi</th><th>Tên Gọi NL</th><th style="width:56px">Số Dây</th></tr></thead><tbody id="s6-code-pivot"></tbody></table>
+            <table class="sheet" style="width:100%;font-size:11px"><thead><tr><th style="width:44px">Mã KH</th><th style="width:56px">Mã Đơn</th><th>Code Sợi</th><th>Tên Gọi NL</th><th style="width:56px">Số Dây</th></tr></thead><tbody id="s6-code-pivot"></tbody></table>
           </div>
         </div>
         <div>
           <div style="font-weight:700;font-size:12px;margin-bottom:6px">🧷 Σ Tổng hợp Keo</div>
           <div class="tbl-wrap" style="max-height:300px">
-            <table class="sheet" style="width:100%;font-size:11px"><thead><tr><th style="width:44px">Mã Đơn</th><th>Loại Keo</th><th style="width:58px">SL (dây)</th></tr></thead><tbody id="s6-keo-pivot"></tbody></table>
+            <table class="sheet" style="width:100%;font-size:11px"><thead><tr><th style="width:44px">Mã KH</th><th style="width:56px">Mã Đơn</th><th>Loại Keo</th><th style="width:58px">SL (dây)</th></tr></thead><tbody id="s6-keo-pivot"></tbody></table>
           </div>
         </div>
       </div>
@@ -692,6 +697,7 @@ tr.flash td{animation:flashbg 1.4s ease}
     <div id="step10"></div>
     <div class="tbl-toolbar">
       <div class="search-top" style="width:200px">🔍<input id="s10-search" placeholder="Tìm trong bảng Box…"></div>
+      <input id="s10-makh" class="madon-pick" list="dl-makh" placeholder="Tất cả KH" title="Lọc theo Mã KH — đồng bộ mọi bước" autocomplete="off" style="min-width:120px;margin-right:6px">
       <input id="s10-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
       <div class="spacer"></div>
       <button class="btn sm" id="btn-packing" style="color:var(--accent);font-weight:700">📦 Tạo Packing Slip</button>
@@ -974,6 +980,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   // ô nhiều giá trị (nhiều code sợi/màu trong 1 ô, khách ngăn bằng xuống dòng) → giữ xuống dòng trong ô
   var nl2br = function(s){ return esc(s).replace(/\r?\n/g,'<br>'); };
   var setTxt = function(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; };
+  // Tách Mã Đơn "CS206-697P-LZ" → Mã KH = "CS206" (trước dấu '-' đầu), Mã đơn = "697P-LZ" (phần còn lại)
+  function khOf(md){ md=String(md==null?'':md); var i=md.indexOf('-'); return i>0 ? md.slice(0,i) : ''; }
+  function donOf(md){ md=String(md==null?'':md); var i=md.indexOf('-'); return i>0 ? md.slice(i+1) : md; }
 
   // ===== BẢNG MIX MÀU cho đơn UPLOAD: dòng có "Mix Color"/"MixColor" + NHIỀU code sợi (mỗi code 1 dòng) =====
   function isMixColorRow(o){
@@ -1143,8 +1152,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       ndHead.innerHTML = '<th class="chkcol"><input type="checkbox" id="nd-checkall" title="Chọn tất cả"></th>'+
         FCOLS.map(function(c){
         var on = state.filters[c.key] ? ' on' : '';
-        return '<th'+(c.cls?' class="'+c.cls+'"':'')+'>'+c.label+
+        var th='<th'+(c.cls?' class="'+c.cls+'"':'')+'>'+c.label+
           ' <span class="fbtn'+on+'" data-fcol="'+c.key+'" title="Lọc cột '+esc(c.label)+'">▼</span></th>';
+        if(c.key==='maDon') th='<th>Mã KH</th>'+th;   // chèn cột Mã KH trước Mã Đơn
+        return th;
       }).join('')+
         CURLS.map(function(k){ return '<th class="grp-spec cw">'+esc(k.replace('Curl-CT','CT'))+'</th>'; }).join('');
     }
@@ -1164,10 +1175,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       // Trường hợp đặc biệt: 1 ô chứa NHIỀU DÒNG (nhiều code/màu/nguyên liệu trong 1 dòng đơn khách) → tô màu.
       var multi = /\r?\n/.test(String(o.codeSoi||'')) || /\r?\n/.test(String(o.detail||'')) || /\r?\n/.test(String(o.material||''));
       var mlc = multi ? ' cl-mlcell' : '';
-      return '<tr class="'+(multi?'cl-multiline':'')+'" data-seri="'+o.seri+'" data-madon="'+esc(o.maDon)+'">'+
+      return '<tr class="'+(multi?'cl-multiline':'')+'" data-seri="'+o.seri+'" data-madon="'+esc(o.maDon)+'" data-makh="'+esc(khOf(o.maDon))+'">'+
         '<td class="chkcol"><input type="checkbox" class="nd-chk"></td>'+
         '<td class="freeze'+(serr?' err':'')+'"'+(serr?' title="'+esc(serr.msg)+'"':'')+'>'+o.seri+'</td>'+
-        '<td>'+o.maDon+'</td>'+
+        '<td class="txt">'+esc(khOf(o.maDon))+'</td>'+
+        '<td>'+esc(donOf(o.maDon))+'</td>'+
         cell('codeSoi',o.codeSoi,'txt'+mlc)+
         '<td class="txt">'+esc(o.loaiHang||'')+'</td>'+
         '<td>'+esc(o.lineRaw||'')+'</td>'+
@@ -1239,10 +1251,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(maxN===0) maxN = 1;
       // header: Mã Đơn · Độ Dài · Label1..N (mỗi cột có nút lọc ▼)
       var labelCols = '';
-      for(var li=1; li<=maxN; li++){ labelCols += '<th>Label'+li+' <span class="fbtn" data-coltbl="eng-mix-body" data-col="'+(1+li)+'" title="Lọc Label'+li+'">▼</span></th>'; }
+      for(var li=1; li<=maxN; li++){ labelCols += '<th>Label'+li+' <span class="fbtn" data-coltbl="eng-mix-body" data-col="'+(2+li)+'" title="Lọc Label'+li+'">▼</span></th>'; }
       var mixHead = '<tr>'+
-        '<th class="freeze" style="background:var(--green-500);color:#fff">Mã Đơn <span class="fbtn" data-coltbl="eng-mix-body" data-col="0" title="Lọc Mã Đơn">▼</span></th>'+
-        '<th style="background:var(--green-500);color:#fff">Độ Dài <span class="fbtn" data-coltbl="eng-mix-body" data-col="1" title="Lọc Độ Dài">▼</span></th>'+
+        '<th class="freeze" style="background:var(--green-500);color:#fff">Mã KH <span class="fbtn" data-coltbl="eng-mix-body" data-col="0" title="Lọc Mã KH">▼</span></th>'+
+        '<th style="background:var(--green-500);color:#fff">Mã Đơn <span class="fbtn" data-coltbl="eng-mix-body" data-col="1" title="Lọc Mã Đơn">▼</span></th>'+
+        '<th style="background:var(--green-500);color:#fff">Độ Dài <span class="fbtn" data-coltbl="eng-mix-body" data-col="2" title="Lọc Độ Dài">▼</span></th>'+
         labelCols+'</tr>';
       var mixRows = '', colorTablesHtml = '';
       // Bảng MIX MÀU: hiển thị TỪNG LINE đúng như label thật — mỗi dòng = 1 line [mm | màu],
@@ -1279,7 +1292,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           var dLbl = i<ranges.length ? (esc(ranges[i]) + (rInfo&&rInfo.lines[i]?'<br><span class="mini" style="font-weight:600">('+rInfo.lines[i]+' Lines)</span>':'') + addMark) : '';
           defTds += '<td style="font-weight:700;color:var(--accent)'+(added?';background:rgba(0,207,200,.08)':'')+'">'+dLbl+'</td>';
         }
-        mixRows += '<tr data-madon="'+esc(s.maDon)+'"><td class="freeze" style="font-weight:800">'+esc(s.maDon)+'</td>'+
+        mixRows += '<tr data-madon="'+esc(s.maDon)+'" data-makh="'+esc(khOf(s.maDon))+'"><td class="freeze" style="font-weight:800">'+esc(khOf(s.maDon))+'</td>'+
+          '<td style="font-weight:800">'+esc(donOf(s.maDon))+'</td>'+
           '<td style="font-weight:800;background:var(--surface-3)">MM</td>'+defTds+'</tr>';
         // dòng theo từng MM — bỏ dòng độ dài trống (tổng = 0)
         for(var mm=MIX_MM_MIN; mm<=MIX_MM_MAX; mm++){
@@ -1296,7 +1310,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           }
           // ẩn dòng độ dài trống — NHƯNG giữ dòng mm đã có trong mmList (để admin thêm/sửa)
           if(rowSum===0 && s.mmList.indexOf(mm)<0) continue;
-          mixRows += '<tr data-madon="'+esc(s.maDon)+'"><td class="freeze">'+esc(s.maDon)+'</td>'+
+          mixRows += '<tr data-madon="'+esc(s.maDon)+'" data-makh="'+esc(khOf(s.maDon))+'"><td class="freeze">'+esc(khOf(s.maDon))+'</td>'+
+            '<td>'+esc(donOf(s.maDon))+'</td>'+
             '<td style="font-weight:700">'+mm+'</td>'+tds+'</tr>';
         }
         // Bảng MIX MÀU (chỉ xem, từ file): ẨN nếu đơn đã có bảng "BẮT BUỘC điền" (tránh trùng lặp)
@@ -1308,7 +1323,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           if(cards) colorTablesHtml += '<div class="cmix-row" style="display:flex;gap:18px;align-items:flex-start;flex-wrap:nowrap;overflow-x:auto;margin-top:16px">'+cards+'</div>';
         }
       });
-      if(!mixRows) mixRows = '<tr data-noflt="1"><td colspan="'+(2+maxN)+'" class="txt mini">Chưa có bảng Mix — upload file có sheet Label / bảng Mix khách.</td></tr>';
+      if(!mixRows) mixRows = '<tr data-noflt="1"><td colspan="'+(3+maxN)+'" class="txt mini">Chưa có bảng Mix — upload file có sheet Label / bảng Mix khách.</td></tr>';
       ml.innerHTML = '<div class="tbl-wrap"><table class="sheet prev-table" id="mix-table">'+
         '<thead id="mix-head">'+mixHead+'</thead><tbody id="eng-mix-body">'+mixRows+'</tbody></table></div>'+
         '<div class="ctx-hint">'+
@@ -1331,7 +1346,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         String(r.codeSoi||'').split(/\r?\n/).forEach(function(ln){ var w2=ln.length*6.8+24; if(w2>csW) csW=w2; });
       }); }catch(e){}
       mdW=Math.min(Math.round(mdW),240); csW=Math.min(Math.round(csW),320);
-      cbHead.innerHTML = '<th style="width:40px">STT</th><th style="width:'+mdW+'px">Mã Đơn'+fb(1)+'</th><th style="width:'+csW+'px">Code Sợi'+fb(2)+'</th><th style="width:135px">Tên Gọi Nguyên Liệu'+fb(3)+'</th><th style="width:52px">S/M'+fb(4)+'</th><th style="width:40px">MM'+fb(5)+'</th><th style="width:92px">Keo nhiệt'+fb(6)+'</th>'+
+      cbHead.innerHTML = '<th style="width:40px">STT</th><th style="width:70px">Mã KH'+fb(1)+'</th><th style="width:'+mdW+'px">Mã Đơn'+fb(2)+'</th><th style="width:'+csW+'px">Code Sợi'+fb(3)+'</th><th style="width:135px">Tên Gọi Nguyên Liệu'+fb(4)+'</th><th style="width:52px">S/M'+fb(5)+'</th><th style="width:40px">MM'+fb(6)+'</th><th style="width:92px">Keo nhiệt'+fb(7)+'</th>'+
         state.usedCurls.map(function(k){ return '<th class="curl">'+esc(k.replace('Curl-CT','CT'))+'</th>'; }).join('')+
         '<th style="width:64px">Tổng</th>';
     }
@@ -1344,15 +1359,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var mc=r.multiMat?' cl-multimat':'';
         var ovr=r.ovrRow?' cl-ovrrow':'';   // dòng độ cong ĐẶC BIỆT (LB/LC/LJ/LC+) đã tách → chữ hồng đỏ
         var keoTd='<td class="txt" style="font-size:10px"'+(r.ovrRow?' title="Độ cong đặc biệt '+esc(OVR.join('/'))+' → Keo 2mm"':'')+'>'+esc(r.keo||'')+'</td>';
-        return '<tr class="'+(mc+ovr).trim()+'" data-madon="'+esc(r.maDon)+'"><td>'+r.stt+'</td><td>'+esc(r.maDon)+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'" style="font-size:10px">'+nl2br(r.material||'')+'</td><td>'+r.mixSingle+'</td><td>'+r.mm+'</td>'+keoTd+
+        return '<tr class="'+(mc+ovr).trim()+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'" style="font-size:10px">'+nl2br(r.material||'')+'</td><td>'+r.mixSingle+'</td><td>'+r.mm+'</td>'+keoTd+
           UC.map(function(k){ return '<td class="cw">'+q(r.curls[k])+'</td>'; }).join('')+
           '<td class="qty">'+r.tong+'</td></tr>';
       }
       if(r.type==='subtotal'){
-        return '<tr class="subtotal" data-madon="'+esc(r.maDon)+'"><td></td><td>'+esc(r.maDon)+'</td><td class="txt">Σ '+r.codeSoi+'</td><td></td><td></td><td></td><td></td>'+
+        return '<tr class="subtotal" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td></td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt">Σ '+r.codeSoi+'</td><td></td><td></td><td></td><td></td>'+
           curlTds(r.curls)+'<td>'+fmtN(r.tong)+'</td></tr>';
       }
-      return '<tr class="grand"><td></td><td></td><td class="txt">Σ GRAND TOTAL</td><td></td><td></td><td></td><td></td>'+
+      return '<tr class="grand"><td></td><td></td><td></td><td class="txt">Σ GRAND TOTAL</td><td></td><td></td><td></td><td></td>'+
         curlTds(r.curls)+'<td>'+fmtN(r.tong)+'</td></tr>';
     }).join(''); }
 
@@ -2463,6 +2478,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   /* ---- LỌC THEO CỘT kiểu Google Sheet + TÌM KIẾM ---- */
   var gridQuery = '';
   var gridMadon = '';   // lọc theo Mã Đơn (dropdown toolbar, giống bảng Mix)
+  var gridMakh = '';    // lọc theo Mã KH (phần trước dấu '-' của Mã Đơn)
   function matchFilters(o){
     for(var k in state.filters){
       var set = state.filters[k];
@@ -2483,7 +2499,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(txt.normalize) txt = txt.normalize('NFC');
       txt = txt.toLowerCase();
       var okMadon = !gridMadon || o.maDon===gridMadon;
-      tr.style.display = (okMadon && matchFilters(o) && (!q || txt.indexOf(q)>=0)) ? '' : 'none';
+      var okKH = !gridMakh || khOf(o.maDon)===gridMakh;
+      tr.style.display = (okMadon && okKH && matchFilters(o) && (!q || txt.indexOf(q)>=0)) ? '' : 'none';
     }
   }
   function setFilter(key, valsOrNull){
@@ -2583,7 +2600,21 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(!e) return;
     jumpToError(e.seri, e.maDon, e.col);
   }
-  var ecEl=document.getElementById('err-chip');  if(ecEl && ecEl.addEventListener) ecEl.addEventListener('click', function(){ jumpToFirst('error'); });
+  // Bấm nhiều lần → lần lượt nhảy qua TỪNG ô cảnh báo / sai chuẩn (xoay vòng)
+  var _errI=0,_warnI=0,_errN=-1,_warnN=-1;
+  function jumpCycle(level){
+    var R=state.R; if(!R||!R.errors) return;
+    var isErr=(level==='error');
+    var list=R.errors.filter(function(x){ return isErr?x.level==='error':x.level==='warn'; });
+    if(!list.length) return;
+    if(isErr){ if(list.length!==_errN){ _errI=0; _errN=list.length; } } else { if(list.length!==_warnN){ _warnI=0; _warnN=list.length; } }
+    var i=isErr?_errI:_warnI; if(i>=list.length) i=0;
+    var e=list[i]; jumpToError(e.seri,e.maDon,e.col);
+    var chip=document.getElementById(isErr?'err-chip':'warn-chip');
+    if(chip){ chip.textContent=list.length+(isErr?' ô sai chuẩn':' cảnh báo dữ liệu')+'  ('+(i+1)+'/'+list.length+')'; }
+    i=(i+1)%list.length; if(isErr) _errI=i; else _warnI=i;
+  }
+  var ecEl=document.getElementById('err-chip');  if(ecEl && ecEl.addEventListener) ecEl.addEventListener('click', function(){ jumpCycle('error'); });
   // Nút "Duyệt tất cả" (nằm ở dòng tiêu đề cột) — duyệt mọi quy đổi độ cong
   document.addEventListener('click', function(ev){ var ba=ev.target&&ev.target.closest?ev.target.closest('.rm-approve-all'):null; if(!ba) return; ev.preventDefault(); ev.stopPropagation();
     state.remapApproved=state.remapApproved||{};
@@ -2604,7 +2635,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var tr=ev.target&&ev.target.closest?ev.target.closest('tr[data-seri]'):null; if(tr) jumpToError(tr.getAttribute('data-seri'), tr.getAttribute('data-madon'), tr.getAttribute('data-col'));
   });
   var kec=document.getElementById('kpi-err-card'); if(kec && kec.addEventListener) kec.addEventListener('click', function(){ if(state.R && state.R.stats && state.R.stats.errorCells){ jumpToFirst('error'); } else { go('s3'); } });
-  var wcEl=document.getElementById('warn-chip'); if(wcEl && wcEl.addEventListener) wcEl.addEventListener('click', function(){ jumpToFirst('warn'); });
+  var wcEl=document.getElementById('warn-chip'); if(wcEl && wcEl.addEventListener) wcEl.addEventListener('click', function(){ jumpCycle('warn'); });
 
   function wireSearch(id){
     var inp=document.getElementById(id);
@@ -2619,6 +2650,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   // lọc Mã Đơn cho Bảng Nhập Đơn (giống dropdown bảng Mix)
   var s3madon=document.getElementById('s3-madon');
   if(s3madon) s3madon.addEventListener('change', function(){ setGlobalMadon(String(s3madon.value||'')); });
+  ['s3-makh','s4-makh','s5-makh','s6-makh','s10-makh','s7-makh'].forEach(function(id){ var el=document.getElementById(id); if(el) el.addEventListener('change', function(){ setGlobalMakh(String(el.value||'')); }); });
 
   var roleChip=document.getElementById('role-chip');
   if(roleChip){
@@ -2657,6 +2689,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(typeof applyGridFilter==='function') applyGridFilter();
     if(typeof applyAllFilters==='function') applyAllFilters();
   }
+  // ===== Lọc theo Mã KH (đồng bộ mọi bước) =====
+  var MAKH_IDS=['s3-makh','s4-makh','s5-makh','s6-makh','s10-makh','s7-makh'];
+  function allMaKHs(R){ var out=[],seen={}; ((R&&R.orders)||[]).forEach(function(o){ var k=khOf(o.maDon); if(k&&!seen[k]){seen[k]=1;out.push(k);} }); return out; }
+  function fillMakhList(R){ var dl=document.getElementById('dl-makh'); if(dl){ dl.innerHTML='<option value="Tất cả KH"></option>'+allMaKHs(R).map(function(k){ return '<option value="'+esc(k)+'"></option>'; }).join(''); } }
+  function setGlobalMakh(kh){
+    kh=String(kh||'').trim(); if(kh==='Tất cả KH') kh='';
+    MAKH_IDS.forEach(function(id){ var el=document.getElementById(id); if(el && el.value!==kh) el.value=kh; });
+    gridMakh=kh;
+    if(typeof applyGridFilter==='function') applyGridFilter();
+    if(typeof applyAllFilters==='function') applyAllFilters();
+  }
   // lọc chung cho bảng có <tr data-madon> (ưu tiên data-search nếu có)
   function filterRows(tbodyId, qStr, madon){
     var tb=document.getElementById(tbodyId); if(!tb) return;
@@ -2687,16 +2730,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var ce=canEdit?' contenteditable="true" data-keoedit="'+field+'" data-keoidx="'+idx+'" style="white-space:pre-wrap"':'';
         return '<td class="'+cls+'"'+ce+'>'+esc(val==null?'':val)+'</td>';
       };
-      rows.push('<tr data-madon="'+esc(k.maDon)+'" data-keoidx="'+idx+'">'+
+      rows.push('<tr data-madon="'+esc(k.maDon)+'" data-makh="'+esc(khOf(k.maDon))+'" data-keoidx="'+idx+'">'+
         '<td class="chkcol"><input type="checkbox" class="keo-chk"></td>'+
-        '<td class="freeze">'+esc(k.maDon)+'</td>'+
+        '<td class="freeze">'+esc(khOf(k.maDon))+'</td>'+
+        '<td class="txt">'+esc(donOf(k.maDon))+'</td>'+
         ed('loaiKeo',k.loaiKeo,'txt')+
         ed('loaiSoi',k.loaiSoi,wc)+
         ed('doDay',k.doDay,wc)+
         ed('doDai',k.doDai,wc)+
         ed('ghiChu',k.ghiChu,'txt')+'</tr>');
     });
-    tb.innerHTML=rows.length?rows.join(''):'<tr data-noflt="1"><td colspan="7" class="txt mini">Chưa có dữ liệu Keo.</td></tr>';
+    tb.innerHTML=rows.length?rows.join(''):'<tr data-noflt="1"><td colspan="8" class="txt mini">Chưa có dữ liệu Keo.</td></tr>';
     var chip=document.getElementById('keo-warn-chip');
     if(chip){ chip.style.display=warn?'':'none'; chip.textContent=warn+' dòng thiếu thông tin'; }
   }
@@ -2837,7 +2881,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var fb=function(col){ return ' <span class="fbtn" data-coltbl="eng-box" data-col="'+col+'">▼</span>'; };
       // cột đúng theo đơn gửi xưởng: STT | Mã Đơn | Số Line | Nguyên liệu | Độ Dày | Nhóm | Phân Loại | Tên Gọi NL | Keo Nhiệt | Ghi Chú | Độ Dài | Single/Mix | độ cong (ĐỘNG theo file) | Tổng Số Hộp
       var UC = state.usedCurls || CURLS;
-      head.innerHTML='<th>STT</th><th>Mã Đơn'+fb(1)+'</th><th>Số Line'+fb(2)+'</th><th>Nguyên liệu'+fb(3)+'</th><th>Độ Dày'+fb(4)+'</th><th>Nhóm'+fb(5)+'</th><th>Phân Loại'+fb(6)+'</th><th>Tên Gọi Nguyên Liệu'+fb(7)+'</th><th>Keo Nhiệt'+fb(8)+'</th><th>Ghi Chú'+fb(9)+'</th><th>Độ Dài (mm)'+fb(10)+'</th><th>Single/Mix'+fb(11)+'</th>'+
+      head.innerHTML='<th>STT</th><th>Mã KH'+fb(1)+'</th><th>Mã Đơn'+fb(2)+'</th><th>Số Line'+fb(3)+'</th><th>Nguyên liệu'+fb(4)+'</th><th>Độ Dày'+fb(5)+'</th><th>Nhóm'+fb(6)+'</th><th>Phân Loại'+fb(7)+'</th><th>Tên Gọi Nguyên Liệu'+fb(8)+'</th><th>Keo Nhiệt'+fb(9)+'</th><th>Ghi Chú'+fb(10)+'</th><th>Độ Dài (mm)'+fb(11)+'</th><th>Single/Mix'+fb(12)+'</th>'+
         UC.map(function(k){ return '<th class="curl cw" data-curl="'+esc(k)+'">'+esc(k.replace('Curl-CT','CT'))+'<div class="curl-note" style="display:none;font-size:9px;font-weight:600;color:var(--accent);line-height:1.15;margin-top:1px"></div></th>'; }).join('')+
         '<th>Tổng Số Hộp</th>';
     }
@@ -2861,8 +2905,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       // Trường hợp đặc biệt: ô nhiều dòng (nhiều code/màu/nguyên liệu trong 1 dòng) → tô màu (giống Step 3)
       var multi = /\r?\n/.test(String(o.codeSoi||'')) || /\r?\n/.test(String(o.material||'')) || /\r?\n/.test(String(o.label||''));
       var mlc = multi ? ' cl-mlcell' : '';
-      return '<tr class="'+(multi?'cl-multiline':'')+'" data-madon="'+esc(o.maDon)+'" data-key="'+esc(key)+'" data-search="'+esc(hay)+'" title="Chuột phải: thêm/xóa/nhân bản dòng · Bấm ô độ cong để sửa số hộp (tách packing)">'+
-        '<td>'+no+'</td><td>'+esc(o.maDon)+'</td>'+
+      return '<tr class="'+(multi?'cl-multiline':'')+'" data-madon="'+esc(o.maDon)+'" data-makh="'+esc(khOf(o.maDon))+'" data-key="'+esc(key)+'" data-search="'+esc(hay)+'" title="Chuột phải: thêm/xóa/nhân bản dòng · Bấm ô độ cong để sửa số hộp (tách packing)">'+
+        '<td>'+no+'</td><td>'+esc(khOf(o.maDon))+'</td><td>'+esc(donOf(o.maDon))+'</td>'+
         '<td>'+esc(o.lineRaw||o.line||'')+'</td>'+
         '<td class="txt'+mlc+'">'+nl2br(o.codeSoi||'')+'</td>'+
         '<td>'+esc(o.thickness||'')+'</td>'+
@@ -2874,7 +2918,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         '<td>'+esc(o.length||'')+'</td><td>'+esc(o.mixSingle)+'</td>'+
         curlTds+
         '<td class="qty">'+hop+'</td></tr>';
-    }).join('') || '<tr data-noflt="1"><td colspan="'+(13+(state.usedCurls||CURLS).length)+'" class="txt mini">Chưa có dữ liệu Box.</td></tr>';
+    }).join('') || '<tr data-noflt="1"><td colspan="'+(14+(state.usedCurls||CURLS).length)+'" class="txt mini">Chưa có dữ liệu Box.</td></tr>';
     updateBoxTotals(R);
     updateBoxCurlNotes();
   }
@@ -2942,7 +2986,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var UC=state.usedCurls||CURLS, cs={};
       dataRows.forEach(function(r){ UC.forEach(function(k){ var v=+((r.curls||{})[k])||0; if(v) cs[k]=(cs[k]||0)+v; }); });
       var curlSumTds=UC.map(function(k){ return '<td class="cw">'+(cs[k]?fmtN(cs[k]):'')+'</td>'; }).join('');
-      foot.innerHTML='<tr class="grand"><td colspan="12" class="txt">Σ Tổng Số Hộp (từ đơn gửi xưởng)</td>'+curlSumTds+'<td>'+fmtN(tot)+'</td><td>'+nThung+' thùng</td></tr>';
+      foot.innerHTML='<tr class="grand"><td colspan="13" class="txt">Σ Tổng Số Hộp (từ đơn gửi xưởng)</td>'+curlSumTds+'<td>'+fmtN(tot)+'</td><td>'+nThung+' thùng</td></tr>';
     }
   }
 
@@ -2950,6 +2994,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function renderExtras(R){
     R=R||state.R; if(!R) return;
     ['s3-madon','s4-madon','s5-madon','s6-madon','s7-madon','s10-madon'].forEach(function(id){ fillMadonSelect(id, R); });
+    fillMakhList(R);
     renderKeoFull(R);
     renderBox(R); try{ updateBoxTotals(R); }catch(e){}   // Box step 6 = CHỈ XEM (đơn gốc)
     try{ if(document.getElementById('ps-ov')) renderSlip(); }catch(e){}   // nếu đang mở Packing Slip → làm tươi
@@ -2961,23 +3006,25 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   // ---- LỌC THEO CỘT (▼) dùng chung + tìm kiếm + lọc Mã Đơn cho mọi bảng ----
   var colFilters = {};   // tbodyId -> { colIdx -> {value:1,...} }
   var TBLS = {
-    'eng-mix-body': { search:'s4-search',  madon:'s4-madon'  },
-    'eng-keo-full': { search:'s5-search',  madon:'s5-madon'  },
-    'eng-cuonbox':  { search:'s6-search',  madon:'s6-madon'  },
-    'eng-box':      { search:'s10-search', madon:'s10-madon' }
+    'eng-mix-body': { search:'s4-search',  madon:'s4-madon',  makh:'s4-makh'  },
+    'eng-keo-full': { search:'s5-search',  madon:'s5-madon',  makh:'s5-makh'  },
+    'eng-cuonbox':  { search:'s6-search',  madon:'s6-madon',  makh:'s6-makh'  },
+    'eng-box':      { search:'s10-search', madon:'s10-madon', makh:'s10-makh' }
   };
   function cellText(tr, idx){ var td=tr.children[idx]; if(!td) return ''; var f=td.querySelector?td.querySelector('select,input'):null; return (f?f.value:(td.textContent||'')).trim(); }
   function applyTable(tbodyId){
     var cfg=TBLS[tbodyId]||{}, tb=document.getElementById(tbodyId); if(!tb) return;
-    var nq=nrm(getVal(cfg.search||'')), md=getVal(cfg.madon||''), cf=colFilters[tbodyId]||{};
+    var nq=nrm(getVal(cfg.search||'')), md=getVal(cfg.madon||''), kh=getVal(cfg.makh||''), cf=colFilters[tbodyId]||{};
     Array.prototype.forEach.call(tb.querySelectorAll('tr'), function(tr){
       if(tr.getAttribute('data-noflt')){ tr.style.display=''; return; }
       var mv=tr.getAttribute('data-madon');
       var okM=!md || mv==null || mv===md;
+      var kv=tr.getAttribute('data-makh');
+      var okKH=!kh || kv==null || kv===kh;
       var hay=tr.getAttribute('data-search'); if(hay==null) hay=tr.textContent;
       var okQ=!nq || nrm(hay).indexOf(nq)>=0;
       var okC=true; for(var ci in cf){ var set=cf[ci]; if(set && !set[cellText(tr,+ci)]){ okC=false; break; } }
-      tr.style.display=(okM&&okQ&&okC)?'':'none';
+      tr.style.display=(okM&&okKH&&okQ&&okC)?'':'none';
     });
   }
   // Ẩn/hiện Bảng Mix Màu (.cmix-tbl) theo mã đơn đang chọn (giống các bảng khác).
@@ -2993,14 +3040,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   // ĐẦU bước Line Cuốn — 2 cột: (trái) Σ Code Sợi · Số Dây, (phải) Bảng Keo của mã đơn đang chọn
   function renderS6Keo(){
     var R=state.R; if(!R) return;
-    var md=getVal('s6-madon');
+    var md=getVal('s6-madon'), kh=getVal('s6-makh');
     renderDoCong();
     // (1) pivot Code Sợi → tổng Số Dây (lọc theo mã đơn nếu chọn)
     var pv=document.getElementById('s6-code-pivot');
     if(pv && R.cuonSheet){
       var agg={}, order=[], tot=0;
       R.cuonSheet.rows.forEach(function(r){
-        if(r.type!=='row' || (md && r.maDon!==md)) return;
+        if(r.type!=='row' || (md && r.maDon!==md) || (kh && khOf(r.maDon)!==kh)) return;
         // gom theo Mã Đơn | Code Sợi | Tên gọi nguyên liệu (cùng code khác material tách dòng)
         var k=r.maDon+'|'+r.codeSoi+'|'+(r.material||'');
         if(agg[k]==null){ agg[k]={maDon:r.maDon, code:r.codeSoi, material:r.material||'', day:0, multiMat:r.multiMat}; order.push(k); }
@@ -3009,8 +3056,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       order.sort(function(a,b){ return a.localeCompare(b,'vi',{numeric:true}); });
       pv.innerHTML = order.map(function(k){
         var g=agg[k];
-        return '<tr class="'+(g.multiMat?'cl-multimat':'')+'"><td>'+esc(g.maDon)+'</td><td class="txt'+(g.multiMat?' cl-matcell':'')+'">'+nl2br(g.code)+'</td><td class="txt'+(g.multiMat?' cl-matcell':'')+'">'+nl2br(g.material||'')+'</td><td class="qty">'+fmtN(g.day)+'</td></tr>';
-      }).join('')+'<tr class="grand"><td colspan="3" class="txt">Grand Total</td><td>'+fmtN(tot)+'</td></tr>';
+        return '<tr class="'+(g.multiMat?'cl-multimat':'')+'"><td>'+esc(khOf(g.maDon))+'</td><td>'+esc(donOf(g.maDon))+'</td><td class="txt'+(g.multiMat?' cl-matcell':'')+'">'+nl2br(g.code)+'</td><td class="txt'+(g.multiMat?' cl-matcell':'')+'">'+nl2br(g.material||'')+'</td><td class="qty">'+fmtN(g.day)+'</td></tr>';
+      }).join('')+'<tr class="grand"><td colspan="4" class="txt">Grand Total</td><td>'+fmtN(tot)+'</td></tr>';
     }
     // (1b) Tổng hợp KEO: gộp theo Mã Đơn + Loại Keo (đã gán ở Line Cuốn) → tổng số dây
     var pk=document.getElementById('s6-keo-pivot');
@@ -3019,30 +3066,30 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       function kadd(maDon,keo,qty){ if(!qty) return; keo=(keo&&String(keo).trim())?keo:'(chưa gán keo)'; var k=maDon+'||'+keo; if(kagg[k]==null){ kagg[k]={maDon:maDon, keo:keo, qty:0}; korder.push(k); } kagg[k].qty+=qty; ktot+=qty; }
       // Dòng Line Cuốn đã TÁCH độ cong đặc biệt sang keo 2mm → mỗi dòng 1 keo, chỉ cần gộp theo r.keo
       R.cuonSheet.rows.forEach(function(r){
-        if(r.type!=='row' || (md && r.maDon!==md)) return;
+        if(r.type!=='row' || (md && r.maDon!==md) || (kh && khOf(r.maDon)!==kh)) return;
         kadd(r.maDon, r.keo, r.tong||0);
       });
       korder.sort(function(a,b){ return a.localeCompare(b,'vi',{numeric:true}); });
       pk.innerHTML = korder.length
         ? (korder.map(function(k){ var g=kagg[k];
             var em=(g.keo==='(chưa gán keo)')?' style="color:var(--red-600)"':'';
-            return '<tr><td>'+esc(g.maDon)+'</td><td class="txt"'+em+'>'+esc(g.keo)+'</td><td class="qty">'+fmtN(g.qty)+'</td></tr>';
-          }).join('')+'<tr class="grand"><td colspan="2" class="txt">Grand Total</td><td>'+fmtN(ktot)+'</td></tr>')
-        : '<tr><td colspan="3" class="txt mini">Chưa có dữ liệu keo.</td></tr>';
+            return '<tr><td>'+esc(khOf(g.maDon))+'</td><td>'+esc(donOf(g.maDon))+'</td><td class="txt"'+em+'>'+esc(g.keo)+'</td><td class="qty">'+fmtN(g.qty)+'</td></tr>';
+          }).join('')+'<tr class="grand"><td colspan="3" class="txt">Grand Total</td><td>'+fmtN(ktot)+'</td></tr>')
+        : '<tr><td colspan="4" class="txt mini">Chưa có dữ liệu keo.</td></tr>';
     }
     // (2) bảng keo: chỉ có dữ liệu khi chọn 1 Mã Đơn
     var tbody=document.getElementById('eng-keo');
     if(!tbody) return;
     setTxt('s6-keo-title', md||'—');
     if(!md){
-      tbody.innerHTML='<tr><td colspan="6" class="txt mini">Chọn Mã Đơn ở bộ lọc phía trên để xem bảng keo của đơn.</td></tr>';
+      tbody.innerHTML='<tr><td colspan="7" class="txt mini">Chọn Mã Đơn ở bộ lọc phía trên để xem bảng keo của đơn.</td></tr>';
       return;
     }
     var keo=(R.keoByOrder&&R.keoByOrder[md])||[];
     var malformed = R.keoMalformed && R.keoMalformed[md];
     var canEdit = canEditStep('s6');
     var warnRow = malformed
-      ? '<tr data-noflt="1"><td colspan="6" style="background:var(--red-50);color:var(--red-700);font-weight:600;font-size:11px;white-space:normal">⚠ Bảng keo đơn '+esc(md)+' SAI CẤU TRÚC — cột "Keo nhiệt" đã để TRỐNG. Sửa các ô bên dưới cho đúng (Độ Dày = số như 0.07; hoặc để trống và ghi điều kiện vào Ghi Chú) → keo tự tính lại.</td></tr>'
+      ? '<tr data-noflt="1"><td colspan="7" style="background:var(--red-50);color:var(--red-700);font-weight:600;font-size:11px;white-space:normal">⚠ Bảng keo đơn '+esc(md)+' SAI CẤU TRÚC — cột "Keo nhiệt" đã để TRỐNG. Sửa các ô bên dưới cho đúng (Độ Dày = số như 0.07; hoặc để trống và ghi điều kiện vào Ghi Chú) → keo tự tính lại.</td></tr>'
       : '';
     tbody.innerHTML = warnRow + (keo.length ? keo.map(function(k){
       var idx = state.keoRows.indexOf(k);
@@ -3051,9 +3098,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         return '<td class="txt"'+ce+'>'+esc(val==null?'':val)+'</td>';
       };
       return '<tr'+(malformed?' class="cell-warn"':'')+' data-keoidx="'+idx+'" title="Chuột phải để thêm/xóa/nhân bản dòng">'+
-        '<td>'+esc(k.maDon)+'</td>'+ed('loaiKeo',k.loaiKeo)+ed('loaiSoi',k.loaiSoi)+ed('doDay',k.doDay)+ed('doDai',k.doDai)+ed('ghiChu',k.ghiChu)+
+        '<td>'+esc(khOf(k.maDon))+'</td><td>'+esc(donOf(k.maDon))+'</td>'+ed('loaiKeo',k.loaiKeo)+ed('loaiSoi',k.loaiSoi)+ed('doDay',k.doDay)+ed('doDai',k.doDai)+ed('ghiChu',k.ghiChu)+
         '</tr>';
-    }).join('') : '<tr><td colspan="6" class="txt mini">Đơn '+esc(md)+' không có bảng keo trong file.</td></tr>');
+    }).join('') : '<tr><td colspan="7" class="txt mini">Đơn '+esc(md)+' không có bảng keo trong file.</td></tr>');
   }
   // Bảng Độ Cong của đơn (đọc từ đơn gửi xưởng) — chỉ hiện khi chọn 1 Mã Đơn
   function renderDoCong(){
@@ -3273,7 +3320,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     function redo(){ if(hi<hist.length-1){ hi++; restore(hist[hi]); updBtns(); } }
     window.__rzUndo=undo; window.__rzRedo=redo;
     // ---- Chọn cột (header) + chọn khối ô (thân bảng) + copy/paste ngoài như Google Sheets ----
-    var selecting=null, selTable=null, selColIdx=[], selRowIdx=[], block=null, anchor=null, hp=null;
+    var selecting=null, selTable=null, selColIdx=[], selRowIdx=[], block=null, anchor=null, hp=null, statsBar=null;
     function thsOf(t){ return [].slice.call(t.querySelectorAll('thead th')); }
     function rowsOf(t){ return [].slice.call(t.querySelectorAll('tbody tr')); }
     function grid(t){
@@ -3291,7 +3338,18 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     function isOrigin(g,r,c){ var cell=g[r][c]; return (r===0||g[r-1][c]!==cell)&&(c===0||g[r][c-1]!==cell); }
     function posOf(t,cell){ var g=grid(t); for(var r=0;r<g.length;r++){ var row=g[r]||[]; for(var c=0;c<row.length;c++){ if(row[c]===cell && isOrigin(g,r,c)) return {r:r,c:c}; } } return null; }
     function clr(cls){ var x=document.querySelectorAll('.'+cls),i; for(i=0;i<x.length;i++) x[i].classList.remove(cls); }
-    function clearAll(){ clr('rz-selcol'); clr('rz-selcell'); selColIdx=[]; selRowIdx=[]; block=null; selTable=null; }
+    function clearAll(){ clr('rz-selcol'); clr('rz-selcell'); selColIdx=[]; selRowIdx=[]; block=null; selTable=null; if(statsBar) statsBar.style.display='none'; }
+    function fmtN(n){ n=Math.round(n*100)/100; try{ return n.toLocaleString('vi-VN'); }catch(e){ return ''+n; } }
+    function updateStats(){
+      if(!statsBar) return;
+      if(!block){ statsBar.style.display='none'; return; }
+      var g=grid(block.t), seen=[], sum=0, cnt=0, num=0, r, c;
+      for(r=block.r0;r<=block.r1;r++){ for(c=block.c0;c<=block.c1;c++){ var cell=g[r]&&g[r][c]; if(!cell||!isOrigin(g,r,c)) continue; if(seen.indexOf(cell)>=0) continue; seen.push(cell);
+        var t=cellText(cell); if(t!==''){ cnt++; if(/^-?[\d., ]+$/.test(t)){ var v=parseFloat(t.replace(/[, ]/g,'')); if(!isNaN(v)){ sum+=v; num++; } } } } }
+      if(seen.length<=1){ statsBar.style.display='none'; return; }
+      var parts=[]; if(num) parts.push('Σ '+fmtN(sum)); parts.push('Đếm '+cnt); if(num) parts.push('TB '+fmtN(sum/num));
+      statsBar.textContent=parts.join('   ·   '); statsBar.style.display='block';
+    }
     function setCols(t,a,b){
       clr('rz-selcol'); clr('rz-selcell'); block=null;
       var lo=Math.min(a,b),hi=Math.max(a,b),ths=thsOf(t); selColIdx=[]; selRowIdx=[]; selTable=t;
@@ -3304,6 +3362,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var g=grid(t), rowset={}, colset={}, r,c;
       for(r=R0;r<=R1;r++){ rowset[r]=1; for(c=C0;c<=C1;c++){ colset[c]=1; var cell=g[r]&&g[r][c]; if(cell) cell.classList.add('rz-selcell'); } }
       selRowIdx=Object.keys(rowset).map(Number); selColIdx=Object.keys(colset).map(Number);
+      updateStats();
     }
     function cellText(cell){ return (cell.textContent||'').replace(/ /g,' ').replace(/\s+/g,' ').trim(); }
     function commitHp(){ // đổ nội dung khối vào textarea ẩn để Ctrl+C copy ra ngoài
@@ -3317,6 +3376,24 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var seen=[], i,j;
       for(i=0;i<data.length;i++){ var cols=data[i].split('\t'); for(j=0;j<cols.length;j++){ var R=block.r0+i, C=block.c0+j; var cell=g[R]&&g[R][C]; if(!cell) continue; if(seen.indexOf(cell)>=0) continue; seen.push(cell); cell.textContent=cols[j]; } }
       push(); commitHp();
+    }
+    // ---- Kéo chọn tới mép màn hình → tự cuộn để chọn được dữ liệu ngoài vùng nhìn ----
+    var dragX=0, dragY=0, scrollRAF=null;
+    function extendToPoint(x,y){
+      if(!selTable) return;
+      var xx=Math.max(2,Math.min(window.innerWidth-2,x)), yy=Math.max(2,Math.min(window.innerHeight-2,y));
+      var el=document.elementFromPoint(xx,yy); if(!el) return;
+      var td=el.closest?el.closest('td'):null;
+      if(!td || !selTable.contains(td)) return;
+      var p=posOf(selTable,td); if(p && anchor) setBlock(selTable,anchor.r,anchor.c,p.r,p.c);
+    }
+    function edgeScroll(){
+      if(selecting!=='cell'){ scrollRAF=null; return; }
+      var m=32, sp=20, dx=0, dy=0, W=window.innerWidth, H=window.innerHeight;
+      if(dragY<m) dy=-sp; else if(dragY>H-m) dy=sp;
+      if(dragX<m) dx=-sp; else if(dragX>W-m) dx=sp;
+      if(dx||dy){ window.scrollBy(dx,dy); extendToPoint(dragX,dragY); }
+      scrollRAF=requestAnimationFrame(edgeScroll);
     }
     function initTable(t){
       t.style.tableLayout='fixed'; t.__grid=null;
@@ -3361,12 +3438,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     }
     function init(){
       hp=document.createElement('textarea'); hp.style.cssText='position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0'; document.body.appendChild(hp);
+      statsBar=document.createElement('div'); statsBar.className='rz-stats noprint'; document.body.appendChild(statsBar);
       hp.addEventListener('paste', function(e){ var cd=(e.clipboardData||window.clipboardData); if(!cd) return; var txt=cd.getData('text'); if(txt==null) return; e.preventDefault(); doPaste(txt); });
       var ts=document.querySelectorAll('table'), i; for(i=0;i<ts.length;i++) initTable(ts[i]);
       var eds=document.querySelectorAll('[contenteditable]'), k;
       for(k=0;k<eds.length;k++){ eds[k].addEventListener('blur', function(){ push(); }); }
       push(); // trạng thái gốc
-      document.addEventListener('mouseup', function(){ if(selecting){ if(selecting==='cell') commitHp(); selecting=null; document.body.classList.remove('rz-sel'); } });
+      document.addEventListener('mousemove', function(e){ if(selecting==='cell'){ dragX=e.clientX; dragY=e.clientY; extendToPoint(dragX,dragY); if(!scrollRAF) scrollRAF=requestAnimationFrame(edgeScroll); } });
+      document.addEventListener('mouseup', function(){ if(selecting){ if(selecting==='cell') commitHp(); selecting=null; document.body.classList.remove('rz-sel'); if(scrollRAF){ cancelAnimationFrame(scrollRAF); scrollRAF=null; } } });
       window.addEventListener('beforeprint', function(){ clr('rz-selcol'); clr('rz-selcell'); });
       document.addEventListener('keydown', function(e){ var m=e.ctrlKey||e.metaKey;
         if(e.key==='Escape'){ clearAll(); return; }
@@ -3377,7 +3456,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     }
     if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded', init);
   }
-  var RZ_CSS='th{position:relative;cursor:cell}.rz-col{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;z-index:5}.rz-row{position:absolute;left:0;bottom:-4px;height:8px;width:100%;cursor:row-resize;z-index:5}body.rz-active{cursor:col-resize}body.rz-active,body.rz-sel{user-select:none}.rz-selcol{background:rgba(0,207,200,.22);box-shadow:inset 0 0 0 2px #00CFC8}.rz-selcell{background:rgba(0,207,200,.20);box-shadow:inset 0 0 0 1px #00CFC8}.rz-hint{font-size:11px;color:#888;margin:0 10px}.rz-btn{margin-left:4px;padding:3px 9px;cursor:pointer}.rz-btn:disabled{opacity:.4;cursor:default}@media print{.rz-col,.rz-row{display:none!important}.noprint{display:none!important}.rz-selcol,.rz-selcell{background:none!important;box-shadow:none!important}}';
+  var RZ_CSS='th{position:relative;cursor:cell}.rz-col{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;z-index:5}.rz-row{position:absolute;left:0;bottom:-4px;height:8px;width:100%;cursor:row-resize;z-index:5}body.rz-active{cursor:col-resize}body.rz-active,body.rz-sel{user-select:none}.rz-selcol{background:rgba(0,207,200,.22);box-shadow:inset 0 0 0 2px #00CFC8}.rz-selcell{background:rgba(0,207,200,.20);box-shadow:inset 0 0 0 1px #00CFC8}.rz-stats{position:fixed;right:16px;bottom:14px;display:none;background:#fff;border:1.5px solid #E8185C;color:#E8185C;font-weight:800;font-size:13px;padding:7px 14px;border-radius:7px;box-shadow:0 2px 10px rgba(0,0,0,.18);z-index:100}.rz-hint{font-size:11px;color:#888;margin:0 10px}.rz-btn{margin-left:4px;padding:3px 9px;cursor:pointer}.rz-btn:disabled{opacity:.4;cursor:default}@media print{.rz-col,.rz-row{display:none!important}.noprint{display:none!important}.rz-selcol,.rz-selcell{background:none!important;box-shadow:none!important}}';
   var RZ_BAR='<button id="rz-undo" class="rz-btn" onclick="__rzUndo()" title="Hoàn tác (Ctrl+Z)">↶ Undo</button><button id="rz-redo" class="rz-btn" onclick="__rzRedo()" title="Làm lại (Ctrl+Y)">↷ Redo</button>';
   var RZ_JS_TAG='<scr'+'ipt>('+__rzInit.toString()+')();</scr'+'ipt>';
 
@@ -3398,33 +3477,35 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '</tbody></table>';
   }
   function printTongHopCuon(){
-    var md=getVal('s6-madon'), mds=thMdList(md); if(!mds.length) return alert('Chưa có dữ liệu Cuốn.');
+    var md=getVal('s6-madon');
+    if(!md) return alert('Hãy CHỌN 1 mã đơn ở ô lọc trước khi in "Tổng hợp Cuốn".');
+    var mds=thMdList(md); if(!mds.length) return alert('Đơn "'+md+'" chưa có dữ liệu Cuốn.');
     var html='';
     mds.forEach(function(m){
       var rows=thRows(md).filter(function(r){return r.maDon===m;}), UC=thUsedCurls(rows);
       // gom theo code, sắp xếp keo → S/M → mm để merge như bảng Line
       var byCode={}, codeOrder=[];
       rows.forEach(function(r){ var code=r.codeSoi||''; if(!byCode[code]){byCode[code]=[];codeOrder.push(code);} byCode[code].push({keo:r.keo||'', sm:r.mixSingle||'', mm:+r.mm, tong:r.tong||0, curls:r.curls||{}}); });
-      var body='', grand=0;
+      var body='', grand=0, grandCurl={};
       codeOrder.forEach(function(code){
         var list=byCode[code].slice();
         list.sort(function(a,b){ return (a.keo<b.keo?-1:a.keo>b.keo?1:0)||(a.sm<b.sm?-1:a.sm>b.sm?1:0)||(a.mm-b.mm); });
-        var codeTot=0;
+        var codeTot=0, codeCurl={};
         for(var i=0;i<list.length;i++){ var e=list[i]; codeTot+=e.tong; grand+=e.tong;
           var cells='';
           if(i===0) cells+='<td class="l edit" contenteditable="true" rowspan="'+list.length+'"><b>'+esc(code)+'</b></td>';
           if(i===0 || list[i-1].keo!==e.keo){ var ks=1; while(i+ks<list.length && list[i+ks].keo===e.keo) ks++; cells+='<td class="l edit" contenteditable="true" rowspan="'+ks+'">'+esc(e.keo)+'</td>'; }
           if(i===0 || list[i-1].keo!==e.keo || list[i-1].sm!==e.sm){ var ss=1; while(i+ss<list.length && list[i+ss].keo===e.keo && list[i+ss].sm===e.sm) ss++; cells+='<td rowspan="'+ss+'">'+esc(e.sm)+'</td>'; }
-          cells+='<td>'+e.mm+'</td>'+UC.map(function(k){var v=e.curls[k]||0;return '<td class="l" style="font-weight:700">'+(v||'')+'</td>';}).join('')+'<td class="tot">'+e.tong+'</td>';
+          cells+='<td>'+e.mm+'</td>'+UC.map(function(k){var v=e.curls[k]||0; if(v){ codeCurl[k]=(codeCurl[k]||0)+v; grandCurl[k]=(grandCurl[k]||0)+v; } return '<td class="l" style="font-weight:700">'+(v||'')+'</td>';}).join('')+'<td class="tot">'+e.tong+'</td>';
           body+='<tr>'+cells+'</tr>';
         }
-        body+='<tr class="tot" style="color:#E8185C"><td class="l" colspan="'+(4+UC.length)+'">Tổng số '+esc(code)+'</td><td>'+codeTot+'</td></tr>';
+        body+='<tr class="tot" style="color:#E8185C"><td class="l" colspan="4">Tổng số '+esc(code)+'</td>'+UC.map(function(k){return '<td>'+(codeCurl[k]||'')+'</td>';}).join('')+'<td>'+codeTot+'</td></tr>';
       });
       var thead='<tr><th class="l" style="width:120px">Code Sợi</th><th class="l" style="width:120px">Mã keo</th><th style="width:52px">S/M</th><th style="width:46px">MM</th>'+
         UC.map(function(k){return '<th>'+esc(k.replace('Curl-CT','CT'))+'</th>';}).join('')+'<th style="width:64px">Tổng</th></tr>';
       html+='<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin:16px 0 6px"><h2 style="margin:0">'+esc(m)+' · TỔNG HỢP CUỐN</h2><div style="flex:0 0 auto">'+thDocongHead(m)+'</div></div>'+
         '<table style="table-layout:fixed"><thead>'+thead+'</thead><tbody>'+body+
-        '<tr class="tot" style="color:#E8185C"><td class="l" colspan="'+(4+UC.length)+'">Σ TỔNG '+esc(m)+'</td><td>'+grand+'</td></tr></tbody></table>';
+        '<tr class="tot" style="color:#E8185C;font-size:13px"><td class="l" colspan="4">Σ TỔNG SỐ LƯỢNG '+esc(m)+'</td>'+UC.map(function(k){return '<td>'+(grandCurl[k]||'')+'</td>';}).join('')+'<td>'+grand+'</td></tr></tbody></table>';
     });
     thPrint('Tổng hợp Cuốn · '+(md||(mds.length?mds.join(', '):'Tất cả đơn')), html);
   }
