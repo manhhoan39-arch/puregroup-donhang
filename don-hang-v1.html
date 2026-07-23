@@ -992,8 +992,25 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function donOf(md){ md=String(md==null?'':md); var i=md.indexOf('-'); return i>0 ? md.slice(i+1) : md; }
   // Bóc tách Ghi Chú keo (chữ tự do, mỗi DÒNG = 1 điều kiện) → Loại Sợi · Độ Dày · Độ Dài (giữ nhiều dòng, không đổi ghi chú gốc)
   // vd "0.06/0.07/0.085/0.10 Faux Mink tất cả độ dài\n0.06 Super Silk tất cả độ dài"
-  function parseKeoNote(note){
-    var lines=String(note==null?'':note).split(/\r?\n/).map(function(s){return s.replace(/\s+/g,' ').trim();}).filter(Boolean);
+  // Danh sách TÊN GỌI NGUYÊN LIỆU thật của đơn (bỏ số độ dày) — để đối chiếu khi bóc tách "Loại Sợi"
+  function keoMatVocab(){
+    var set={}, out=[];
+    ((typeof state!=='undefined'&&state.orders)||[]).forEach(function(o){
+      var m=String(o.material||'').replace(/\d+(?:[.,]\d+)?/g,' ').replace(/\bmm\b/gi,' ').replace(/\s+/g,' ').trim();
+      if(m && !set[m.toLowerCase()]){ set[m.toLowerCase()]=1; out.push(m); }
+    });
+    out.sort(function(a,b){ return b.length-a.length; });   // dài trước: "Premium Faux Mink" khớp trước "Faux Mink"
+    return out;
+  }
+  function parseKeoNote(note, vocab){
+    vocab = vocab || keoMatVocab();
+    var t=String(note==null?'':note).replace(/\r/g,'');
+    // TÁCH ĐIỀU KIỆN kể cả khi khách viết liền 1 dòng (mất xuống dòng):
+    //  · sau "tất cả độ dài/dai" (kết thúc 1 điều kiện) → xuống dòng
+    t=t.replace(/(tất\s*cả\s*độ\s*d\S*)/gi,'$1\n');
+    //  · trước cụm ĐỘ DÀI dẫn đầu + có ĐỘ DÀY theo sau (vd "5~8mm 0.07…") → điều kiện mới
+    t=t.replace(/\s+((?:\d+\s*[~\-–]\s*\d+\s*mm|(?:từ|đến|dưới|trên|tối\s*đa)\s*\d+\s*mm)\s+\d+[.,]\d+)/gi,'\n$1');
+    var lines=t.split(/\n/).map(function(s){return s.replace(/\s+/g,' ').trim();}).filter(Boolean);
     if(!lines.length) return null;
     var soi=[], day=[], dai=[], any=false;
     lines.forEach(function(ln){
@@ -1006,7 +1023,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       else if((m=s.match(/(\d+)\s*mm/i))){ L=m[1]+'mm'; s=s.replace(m[0],' '); }
       var th=[];
       s=s.replace(/\d+[.,]\d+(?:\s*[\/,]\s*\d+[.,]\d+)*/g, function(m0){ (m0.match(/\d+[.,]\d+/g)||[]).forEach(function(t){ th.push(t); }); return ' '; });
-      var mat=s.replace(/[,;]/g,' ').replace(/\s+/g,' ').trim();   // giữ '/' giữa 2 loại sợi (vd "Premium Faux Mink/Super Silk")
+      // LOẠI SỢI: chỉ nhận tên có TRONG danh sách nguyên liệu thật (đối chiếu Tên Gọi NL) — bỏ mọi chữ ghi chú khác
+      var rest=' '+String(ln).toLowerCase().replace(/\s+/g,' ')+' ', mats=[];
+      vocab.forEach(function(v){ var vn=' '+String(v).toLowerCase().replace(/\s+/g,' ').trim()+' '; if(vn.trim() && rest.indexOf(vn.trim())>=0){ mats.push(v); rest=rest.split(vn.trim()).join(' '); } });
+      var mat=mats.join('/');
       if(th.length||L||mat) any=true;
       soi.push(mat); day.push(th.join('/')); dai.push(L);
     });

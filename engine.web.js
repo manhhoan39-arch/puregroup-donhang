@@ -517,12 +517,15 @@
       CURLS.forEach(function (k) { subCurls[k] = 0; });
       // Sắp trong 1 code sợi: theo TÊN GỌI NGUYÊN LIỆU trước (để cùng code khác material
       // KHÔNG lẫn lộn), rồi độ dài, rồi mm.
+      var smOf = function (g) { var m = meta[c.maDon + '|' + c.codeSoi + '|' + g.length] || {}; return /single/i.test(m.mixSingle || '') ? 0 : 1; };
       c.order.sort(function (a, b) {
         var A = c.rows[a], B = c.rows[b];
         var ma = A.material || '', mb = B.material || '';
-        if (ma !== mb) return ma < mb ? -1 : 1;
-        if (A.length !== B.length) return A.length < B.length ? -1 : 1;
-        return A.mm - B.mm;
+        if (ma !== mb) return ma < mb ? -1 : 1;      // giữ: cùng code khác nguyên liệu không lẫn
+        var sa = smOf(A), sb = smOf(B);
+        if (sa !== sb) return sa - sb;               // Single trước, Mix sau
+        if (A.mm !== B.mm) return A.mm - B.mm;        // mm bé → lớn
+        return A.length < B.length ? -1 : (A.length > B.length ? 1 : 0);
       });
       // Trường hợp đặc biệt: 1 code sợi có ≥2 tên gọi nguyên liệu khác nhau → cờ để tô màu.
       var matSet = {};
