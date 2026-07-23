@@ -275,6 +275,9 @@ body.gs-selecting{user-select:none}
 #eng-box td:nth-child(5){max-width:none}                                                /* Nguyên liệu: hiển thị đủ 1 dòng */
 /* Dòng Σ subtotal / GRAND TOTAL: số to (5-6 chữ số) → thu nhỏ font để hiện ĐỦ trong cột, không đè */
 #eng-cuonbox tr.subtotal td.cw,#eng-cuonbox tr.grand td.cw,#box-foot td.cw{font-size:9px;letter-spacing:-.3px;padding-left:1px;padding-right:1px;white-space:normal;word-break:break-all;overflow:visible;max-width:none}
+/* Bảng Keo (Step 5): mỗi ô 1 dòng, chiều cao dòng cố định; nội dung dài → ẩn (…) + tooltip khi rê chuột */
+#eng-keo td{white-space:nowrap!important;overflow:hidden;text-overflow:ellipsis;max-width:160px;vertical-align:middle}
+#eng-keo td[contenteditable="true"]:focus{white-space:normal!important;overflow:visible;max-width:none;background:#fffef2}
 /* Thanh thống kê vùng chọn (Sum/Count) kiểu Google Sheets */
 #sel-stats{position:fixed;right:18px;bottom:14px;z-index:1000001;background:var(--surface);border:1.5px solid var(--accent);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:var(--accent);box-shadow:0 4px 14px rgba(0,0,0,.18);display:none}
 #sel-stats b{color:var(--accent)}
@@ -334,6 +337,8 @@ kbd{background:var(--surface-3);border:1px solid var(--border);border-bottom-wid
 .fmenu-list label:hover{background:var(--surface-3)}
 tr.flash td{animation:flashbg 1.4s ease}
 @keyframes flashbg{0%{background:var(--accent-soft)}70%{background:var(--accent-soft)}100%{background:transparent}}
+td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:inset 0 0 0 3px rgba(232,24,92,.28);animation:jumphit 1.8s ease}
+@keyframes jumphit{0%{background:rgba(232,24,92,.35)}70%{background:rgba(232,24,92,.18)}100%{background:transparent}}
 /* context menu kiểu Google Sheet */
 .ctx-menu{position:fixed;z-index:1000;background:var(--surface);border:1px solid var(--border);border-radius:10px;
   box-shadow:var(--shadow-lg);padding:5px;min-width:200px;font-size:12.5px;animation:fade .12s ease}
@@ -1204,11 +1209,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       });
       renderFiles();
     }
-    // chip cảnh báo / lỗi động trên toolbar
-    var wc=document.getElementById('warn-chip');
-    if(wc){ wc.style.display = R.stats.warnCells?'':'none'; wc.textContent = R.stats.warnCells+' cảnh báo dữ liệu'; }
-    var ec=document.getElementById('err-chip');
-    if(ec){ ec.style.display = R.stats.errorCells?'':'none'; ec.textContent = R.stats.errorCells+' ô sai chuẩn'; }
+    // chip cảnh báo / lỗi động trên toolbar — CHỈ đếm theo đơn/KH đang lọc
+    if(typeof updateErrChips==='function') updateErrChips();
     // áp lại bộ lọc tìm kiếm sau khi render lại lưới
     applyGridFilter();
 
@@ -2591,21 +2593,42 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(tr.scrollIntoView) tr.scrollIntoView({block:'center', behavior:'smooth'});
     if(tr.classList){ tr.classList.add('flash'); setTimeout(function(){ tr.classList.remove('flash'); }, 1500); }
     var td = col ? tr.querySelector('td[data-col="'+col+'"]') : null;
-    if(td){ if(td.scrollIntoView) td.scrollIntoView({block:'center',inline:'center'}); if(td.focus) setTimeout(function(){ td.focus(); try{var r=document.createRange();r.selectNodeContents(td);var s=getSelection();s.removeAllRanges();s.addRange(r);}catch(e){} }, 250); }
+    // BỎ highlight ô cũ, tô đậm đúng ô đang xem (kể cả khi nhiều lỗi cùng 1 dòng)
+    Array.prototype.forEach.call(grid.querySelectorAll('td.jump-hit'), function(e){ e.classList.remove('jump-hit'); });
+    if(td){
+      if(td.scrollIntoView) td.scrollIntoView({block:'center',inline:'center'});
+      td.classList.add('jump-hit');
+      setTimeout(function(){ td.classList.remove('jump-hit'); }, 1800);
+      if(td.focus) setTimeout(function(){ td.focus(); try{var r=document.createRange();r.selectNodeContents(td);var s=getSelection();s.removeAllRanges();s.addRange(r);}catch(e){} }, 250);
+    }
+  }
+  // Lỗi/cảnh báo THUỘC đơn/KH đang lọc (nếu không lọc → tất cả)
+  function filteredErrors(){
+    var R=state.R; if(!R||!R.errors) return [];
+    return R.errors.filter(function(e){
+      if(gridMadon && e.maDon!==gridMadon) return false;
+      if(gridMakh && khOf(e.maDon)!==gridMakh) return false;
+      return true;
+    });
+  }
+  // Cập nhật chip cảnh báo / ô sai chuẩn theo phạm vi lọc + reset bộ đếm nhảy
+  function updateErrChips(){
+    var list=filteredErrors(), w=0, er=0;
+    list.forEach(function(e){ if(e.level==='error') er++; else w++; });
+    var wc=document.getElementById('warn-chip'); if(wc){ wc.style.display=w?'':'none'; wc.textContent=w+' cảnh báo dữ liệu'; }
+    var ec=document.getElementById('err-chip'); if(ec){ ec.style.display=er?'':'none'; ec.textContent=er+' ô sai chuẩn'; }
+    _errI=0; _warnI=0; _errN=-1; _warnN=-1;
   }
   function jumpToFirst(level){
-    var R = state.R; if(!R) return;
-    var e = null;
-    R.errors.forEach(function(x){ if(!e && (level==='error' ? x.level==='error' : x.level==='warn')) e = x; });
-    if(!e) return;
-    jumpToError(e.seri, e.maDon, e.col);
+    var list=filteredErrors().filter(function(x){ return level==='error'?x.level==='error':x.level==='warn'; });
+    if(!list.length) return;
+    var e=list[0]; jumpToError(e.seri, e.maDon, e.col);
   }
   // Bấm nhiều lần → lần lượt nhảy qua TỪNG ô cảnh báo / sai chuẩn (xoay vòng)
   var _errI=0,_warnI=0,_errN=-1,_warnN=-1;
   function jumpCycle(level){
-    var R=state.R; if(!R||!R.errors) return;
     var isErr=(level==='error');
-    var list=R.errors.filter(function(x){ return isErr?x.level==='error':x.level==='warn'; });
+    var list=filteredErrors().filter(function(x){ return isErr?x.level==='error':x.level==='warn'; });
     if(!list.length) return;
     if(isErr){ if(list.length!==_errN){ _errI=0; _errN=list.length; } } else { if(list.length!==_warnN){ _warnI=0; _warnN=list.length; } }
     var i=isErr?_errI:_warnI; if(i>=list.length) i=0;
@@ -2688,6 +2711,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     gridMadon=md;
     if(typeof applyGridFilter==='function') applyGridFilter();
     if(typeof applyAllFilters==='function') applyAllFilters();
+    if(typeof updateErrChips==='function') updateErrChips();
   }
   // ===== Lọc theo Mã KH (đồng bộ mọi bước) =====
   var MAKH_IDS=['s3-makh','s4-makh','s5-makh','s6-makh','s10-makh','s7-makh'];
@@ -2699,6 +2723,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     gridMakh=kh;
     if(typeof applyGridFilter==='function') applyGridFilter();
     if(typeof applyAllFilters==='function') applyAllFilters();
+    if(typeof updateErrChips==='function') updateErrChips();
   }
   // lọc chung cho bảng có <tr data-madon> (ưu tiên data-search nếu có)
   function filterRows(tbodyId, qStr, madon){
