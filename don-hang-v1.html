@@ -3415,7 +3415,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           if(i===0) cells+='<td class="l edit" contenteditable="true" rowspan="'+list.length+'"><b>'+esc(code)+'</b></td>';
           if(i===0 || list[i-1].keo!==e.keo){ var ks=1; while(i+ks<list.length && list[i+ks].keo===e.keo) ks++; cells+='<td class="l edit" contenteditable="true" rowspan="'+ks+'">'+esc(e.keo)+'</td>'; }
           if(i===0 || list[i-1].keo!==e.keo || list[i-1].sm!==e.sm){ var ss=1; while(i+ss<list.length && list[i+ss].keo===e.keo && list[i+ss].sm===e.sm) ss++; cells+='<td rowspan="'+ss+'">'+esc(e.sm)+'</td>'; }
-          cells+='<td>'+e.mm+'</td>'+UC.map(function(k){var v=e.curls[k]||0;return '<td>'+(v||'')+'</td>';}).join('')+'<td class="tot">'+e.tong+'</td>';
+          cells+='<td>'+e.mm+'</td>'+UC.map(function(k){var v=e.curls[k]||0;return '<td class="l" style="font-weight:700">'+(v||'')+'</td>';}).join('')+'<td class="tot">'+e.tong+'</td>';
           body+='<tr>'+cells+'</tr>';
         }
         body+='<tr class="tot" style="color:#E8185C"><td class="l" colspan="'+(4+UC.length)+'">Tổng số '+esc(code)+'</td><td>'+codeTot+'</td></tr>';
@@ -3426,7 +3426,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         '<table style="table-layout:fixed"><thead>'+thead+'</thead><tbody>'+body+
         '<tr class="tot" style="color:#E8185C"><td class="l" colspan="'+(4+UC.length)+'">Σ TỔNG '+esc(m)+'</td><td>'+grand+'</td></tr></tbody></table>';
     });
-    thPrint('Tổng hợp Cuốn', html);
+    thPrint('Tổng hợp Cuốn · '+(md||(mds.length?mds.join(', '):'Tất cả đơn')), html);
   }
   function printTongHopLine(){
     var md=getVal('s6-madon');
