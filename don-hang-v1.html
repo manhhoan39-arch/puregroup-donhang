@@ -278,6 +278,8 @@ body.gs-selecting{user-select:none}
 /* Bảng Keo (Step 5): mỗi ô 1 dòng, chiều cao dòng cố định; nội dung dài → ẩn (…) + tooltip khi rê chuột */
 #eng-keo td{white-space:nowrap!important;overflow:hidden;text-overflow:ellipsis;max-width:160px;vertical-align:middle}
 #eng-keo td[contenteditable="true"]:focus{white-space:normal!important;overflow:visible;max-width:none;background:#fffef2}
+/* Ô tự bóc tách từ Ghi Chú (chỉ xem) — phân biệt với ô nhập tay */
+td.keo-der{color:#0a8a86;background:rgba(0,207,200,.06);white-space:pre-line;font-size:11px}
 /* Thanh thống kê vùng chọn (Sum/Count) kiểu Google Sheets */
 #sel-stats{position:fixed;right:18px;bottom:14px;z-index:1000001;background:var(--surface);border:1.5px solid var(--accent);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:var(--accent);box-shadow:0 4px 14px rgba(0,0,0,.18);display:none}
 #sel-stats b{color:var(--accent)}
@@ -988,6 +990,28 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   // Tách Mã Đơn "CS206-697P-LZ" → Mã KH = "CS206" (trước dấu '-' đầu), Mã đơn = "697P-LZ" (phần còn lại)
   function khOf(md){ md=String(md==null?'':md); var i=md.indexOf('-'); return i>0 ? md.slice(0,i) : ''; }
   function donOf(md){ md=String(md==null?'':md); var i=md.indexOf('-'); return i>0 ? md.slice(i+1) : md; }
+  // Bóc tách Ghi Chú keo (chữ tự do, mỗi DÒNG = 1 điều kiện) → Loại Sợi · Độ Dày · Độ Dài (giữ nhiều dòng, không đổi ghi chú gốc)
+  // vd "0.06/0.07/0.085/0.10 Faux Mink tất cả độ dài\n0.06 Super Silk tất cả độ dài"
+  function parseKeoNote(note){
+    var lines=String(note==null?'':note).split(/\r?\n/).map(function(s){return s.replace(/\s+/g,' ').trim();}).filter(Boolean);
+    if(!lines.length) return null;
+    var soi=[], day=[], dai=[], any=false;
+    lines.forEach(function(ln){
+      var s=' '+ln+' ', L='', m;
+      if(/tất\s*cả/i.test(s)){ L='tất cả'; s=s.replace(/tất\s*cả(\s*độ\s*d\S*)?/i,' '); }
+      else if((m=s.match(/(\d+)\s*[~\-–]\s*(\d+)\s*mm/i))){ L=m[1]+'~'+m[2]+'mm'; s=s.replace(m[0],' '); }
+      else if((m=s.match(/(?:từ|>=|≥)\s*(\d+)\s*mm?/i))){ L='từ '+m[1]+'mm'; s=s.replace(m[0],' '); }
+      else if((m=s.match(/(?:đến|tối\s*đa|<=|≤)\s*(\d+)\s*mm?/i))){ L='đến '+m[1]+'mm'; s=s.replace(m[0],' '); }
+      else if((m=s.match(/(?:dưới|<)\s*(\d+)\s*mm?/i))){ L='dưới '+m[1]+'mm'; s=s.replace(m[0],' '); }
+      else if((m=s.match(/(\d+)\s*mm/i))){ L=m[1]+'mm'; s=s.replace(m[0],' '); }
+      var th=[];
+      s=s.replace(/\d+[.,]\d+(?:\s*[\/,]\s*\d+[.,]\d+)*/g, function(m0){ (m0.match(/\d+[.,]\d+/g)||[]).forEach(function(t){ th.push(t); }); return ' '; });
+      var mat=s.replace(/[,;]/g,' ').replace(/\s+/g,' ').trim();   // giữ '/' giữa 2 loại sợi (vd "Premium Faux Mink/Super Silk")
+      if(th.length||L||mat) any=true;
+      soi.push(mat); day.push(th.join('/')); dai.push(L);
+    });
+    return any?{ loaiSoi:soi.join('\n'), doDay:day.join('\n'), doDai:dai.join('\n') }:null;
+  }
 
   // ===== BẢNG MIX MÀU cho đơn UPLOAD: dòng có "Mix Color"/"MixColor" + NHIỀU code sợi (mỗi code 1 dòng) =====
   function isMixColorRow(o){
@@ -1342,13 +1366,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       // cột: STT | Mã Đơn | Code Sợi | Tên Gọi NL | S/M | MM | Keo nhiệt | độ cong (chia đều) | Tổng — table-layout:fixed
       // Keo nhiệt tra theo QUY TẮC (material · độ dày · mm) — cùng dải nhưng mm khác nhau có thể khác keo
       // Cột Mã Đơn + Code Sợi TỰ GIÃN theo dữ liệu dài nhất (hiển thị đủ 1 dòng, không xuống hàng)
-      var mdW=62, csW=130;
+      var mdW=44, csW=88, khW=44;
       try{ (R.cuonSheet&&R.cuonSheet.rows||[]).forEach(function(r){
-        if(r.maDon){ var w=String(r.maDon).length*6.2+18; if(w>mdW) mdW=w; }   // ≈ độ rộng thực tế cột Mã Đơn ở Step 6 (font 11px, vừa khít nội dung)
-        String(r.codeSoi||'').split(/\r?\n/).forEach(function(ln){ var w2=ln.length*6.8+24; if(w2>csW) csW=w2; });
+        var dd=donOf(r.maDon), kk=khOf(r.maDon);
+        var w=dd.length*6.4+16; if(w>mdW) mdW=w;              // vừa khít nội dung hiển thị (giống Step 6)
+        var wk=kk.length*6.4+16; if(wk>khW) khW=wk;
+        String(r.codeSoi||'').split(/\r?\n/).forEach(function(ln){ var w2=ln.length*6.6+18; if(w2>csW) csW=w2; });
       }); }catch(e){}
-      mdW=Math.min(Math.round(mdW),240); csW=Math.min(Math.round(csW),320);
-      cbHead.innerHTML = '<th style="width:40px">STT</th><th style="width:70px">Mã KH'+fb(1)+'</th><th style="width:'+mdW+'px">Mã Đơn'+fb(2)+'</th><th style="width:'+csW+'px">Code Sợi'+fb(3)+'</th><th style="width:135px">Tên Gọi Nguyên Liệu'+fb(4)+'</th><th style="width:52px">S/M'+fb(5)+'</th><th style="width:40px">MM'+fb(6)+'</th><th style="width:92px">Keo nhiệt'+fb(7)+'</th>'+
+      mdW=Math.min(Math.round(mdW),150); csW=Math.min(Math.round(csW),200); khW=Math.min(Math.round(khW),90);
+      cbHead.innerHTML = '<th style="width:40px">STT</th><th style="width:'+khW+'px">Mã KH'+fb(1)+'</th><th style="width:'+mdW+'px">Mã Đơn'+fb(2)+'</th><th style="width:'+csW+'px">Code Sợi'+fb(3)+'</th><th style="width:135px">Tên Gọi Nguyên Liệu'+fb(4)+'</th><th style="width:52px">S/M'+fb(5)+'</th><th style="width:40px">MM'+fb(6)+'</th><th style="width:92px">Keo nhiệt'+fb(7)+'</th>'+
         state.usedCurls.map(function(k){ return '<th class="curl">'+esc(k.replace('Curl-CT','CT'))+'</th>'; }).join('')+
         '<th style="width:64px">Tổng</th>';
     }
@@ -2470,13 +2496,37 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(!td||td.__ttChecked) return; td.__ttChecked=true;
     if(td.scrollWidth>td.clientWidth+2 && !td.getAttribute('title')) td.setAttribute('title', String(td.innerText||'').trim());
   });
-  // Copy vùng chọn → TSV (dán ra Excel được)
+  // Copy vùng chọn → TSV (dán ra Excel được). Hỗ trợ cả 1 ô (copy cả ô) lẫn nhiều ô.
   document.addEventListener('copy', function(ev){
-    if(!(gsA&&gsH&&gsA.tb===gsH.tb&&(gsA.r!==gsH.r||gsA.c!==gsH.c))) return;
+    if(!(gsA&&gsH&&gsA.tb===gsH.tb)) return;
+    var single=(gsA.r===gsH.r&&gsA.c===gsH.c);
+    if(single){ try{ if(String(window.getSelection()||'').length) return; }catch(e){} }   // đang bôi text trong ô → để copy mặc định
     var r1=Math.min(gsA.r,gsH.r),r2=Math.max(gsA.r,gsH.r),c1=Math.min(gsA.c,gsH.c),c2=Math.max(gsA.c,gsH.c),out=[];
     for(var r=r1;r<=r2;r++){ var row=gsA.tb.rows[r],line=[]; for(var c=c1;c<=c2;c++){ var td=row&&row.cells[c]; line.push(td?String(td.innerText||'').replace(/\n/g,' ').trim():''); } out.push(line.join('\t')); }
     var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text',out.join('\n')); ev.preventDefault(); }
   });
+  // PASTE vào Bảng Keo (Step 4): dán 1 ô / khối ô từ Excel hoặc từ trong bảng, ghi vào state.keoRows
+  (function(){
+    var keoTb=document.getElementById('eng-keo-full'); if(!keoTb) return;
+    var colField={3:'loaiKeo',4:'loaiSoi',5:'doDay',6:'doDai',7:'ghiChu'};
+    keoTb.addEventListener('paste', function(ev){
+      if(typeof canEditStep==='function' && !canEditStep('s5')) return;
+      var cd=ev.clipboardData||window.clipboardData; var text=cd&&cd.getData?cd.getData('text'):''; if(text==null||text==='') return;
+      // ô góc trên-trái: ưu tiên vùng đang bôi đen; nếu không thì ô đang focus
+      var ar=-1, ac=-1;
+      if(gsA&&gsH&&gsA.tb===keoTb){ ar=Math.min(gsA.r,gsH.r); ac=Math.min(gsA.c,gsH.c); }
+      else { var td=ev.target&&ev.target.closest?ev.target.closest('td'):null; if(td&&td.parentNode){ ar=Array.prototype.indexOf.call(keoTb.rows,td.parentNode); ac=td.cellIndex; } }
+      if(ar<0||ac<0) return;
+      if(ac<3) ac=3;                 // dán từ cột Mã KH/Mã Đơn → dồn về cột sửa đầu tiên
+      if(!colField[ac]) return;      // cột không sửa được
+      var data=String(text).replace(/\r/g,'').split('\n'); while(data.length>1&&data[data.length-1]==='') data.pop();
+      ev.preventDefault();
+      if(typeof pushUndo==='function') pushUndo();   // chụp trạng thái TRƯỚC khi ghi
+      var changed=false;
+      for(var i=0;i<data.length;i++){ var cols=data[i].split('\t'); for(var j=0;j<cols.length;j++){ var field=colField[ac+j]; if(!field) continue; var tr=keoTb.rows[ar+i]; if(!tr) continue; var ki=+tr.getAttribute('data-keoidx'); if(isNaN(ki)||!state.keoRows[ki]) continue; state.keoRows[ki][field]=cols[j].trim(); changed=true; } }
+      if(changed){ if(typeof resetPack==='function') resetPack(); render(); }
+    });
+  })();
   /* ---- LỌC THEO CỘT kiểu Google Sheet + TÌM KIẾM ---- */
   var gridQuery = '';
   var gridMadon = '';   // lọc theo Mã Đơn (dropdown toolbar, giống bảng Mix)
@@ -2755,14 +2805,21 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var ce=canEdit?' contenteditable="true" data-keoedit="'+field+'" data-keoidx="'+idx+'" style="white-space:pre-wrap"':'';
         return '<td class="'+cls+'"'+ce+'>'+esc(val==null?'':val)+'</td>';
       };
+      // Nếu cột thuộc tính trống nhưng Ghi Chú có nội dung → BÓC TÁCH hiển thị (chỉ xem, giữ nguyên ghi chú gốc)
+      var pn=parseKeoNote(k.ghiChu);
+      var col=function(field,val,extra){
+        if(String(val==null?'':val).trim()) return ed(field,val,extra);
+        if(pn && String(pn[field]||'').trim()) return '<td class="txt keo-der" title="Tự bóc tách từ Ghi Chú (giữ nguyên ghi chú gốc)">'+nl2br(pn[field])+'</td>';
+        return ed(field,val,extra);
+      };
       rows.push('<tr data-madon="'+esc(k.maDon)+'" data-makh="'+esc(khOf(k.maDon))+'" data-keoidx="'+idx+'">'+
         '<td class="chkcol"><input type="checkbox" class="keo-chk"></td>'+
         '<td class="freeze">'+esc(khOf(k.maDon))+'</td>'+
         '<td class="txt">'+esc(donOf(k.maDon))+'</td>'+
         ed('loaiKeo',k.loaiKeo,'txt')+
-        ed('loaiSoi',k.loaiSoi,wc)+
-        ed('doDay',k.doDay,wc)+
-        ed('doDai',k.doDai,wc)+
+        col('loaiSoi',k.loaiSoi,wc)+
+        col('doDay',k.doDay,wc)+
+        col('doDai',k.doDai,wc)+
         ed('ghiChu',k.ghiChu,'txt')+'</tr>');
     });
     tb.innerHTML=rows.length?rows.join(''):'<tr data-noflt="1"><td colspan="8" class="txt mini">Chưa có dữ liệu Keo.</td></tr>';
@@ -3122,8 +3179,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var ce = (canEdit && idx>=0) ? ' contenteditable="true" data-keoedit="'+field+'" data-keoidx="'+idx+'" style="white-space:pre-wrap"' : '';
         return '<td class="txt"'+ce+'>'+esc(val==null?'':val)+'</td>';
       };
+      var pn=parseKeoNote(k.ghiChu);
+      var col=function(field,val){ if(String(val==null?'':val).trim()) return ed(field,val); if(pn&&String(pn[field]||'').trim()) return '<td class="txt keo-der" title="Tự bóc tách từ Ghi Chú">'+nl2br(pn[field])+'</td>'; return ed(field,val); };
       return '<tr'+(malformed?' class="cell-warn"':'')+' data-keoidx="'+idx+'" title="Chuột phải để thêm/xóa/nhân bản dòng">'+
-        '<td>'+esc(khOf(k.maDon))+'</td><td>'+esc(donOf(k.maDon))+'</td>'+ed('loaiKeo',k.loaiKeo)+ed('loaiSoi',k.loaiSoi)+ed('doDay',k.doDay)+ed('doDai',k.doDai)+ed('ghiChu',k.ghiChu)+
+        '<td>'+esc(khOf(k.maDon))+'</td><td>'+esc(donOf(k.maDon))+'</td>'+ed('loaiKeo',k.loaiKeo)+col('loaiSoi',k.loaiSoi)+col('doDay',k.doDay)+col('doDai',k.doDai)+ed('ghiChu',k.ghiChu)+
         '</tr>';
     }).join('') : '<tr><td colspan="7" class="txt mini">Đơn '+esc(md)+' không có bảng keo trong file.</td></tr>');
   }

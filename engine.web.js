@@ -357,7 +357,10 @@
       var len = parseKeoCond(k.doDai || '');
       var soi = parseKeoCond(k.loaiSoi || '');   // Loại Sợi có thể nhúng độ dày ("0,07; 0,085")
       var ghi = parseKeoCond(k.ghiChu || '');    // Ghi Chú thường chứa điều kiện ĐỘ DÀI (vd "dưới 10mm", "từ 10mm")
-      var thicks = parseKeoCond(k.doDay || '').thicks.concat(soi.thicks);
+      // Cột Độ Dày = chỉ chứa độ dày → trích TẤT CẢ số (gộp "0.07/0.08/0.10" hoặc "0.06,0.07,0.010",
+      // kể cả có kèm "mm"). KHÔNG dùng parseKeoCond để tránh hiểu nhầm 1 giá trị thành điều kiện độ dài.
+      var dayThicks = (String(k.doDay || '').match(/\d+(?:[.,]\d+)?/g) || []).map(thickKey).filter(function (x) { return x; });
+      var thicks = dayThicks.concat(soi.thicks);
       // Điều kiện ĐỘ DÀI: ưu tiên cột Độ Dài; nếu trống lấy từ Loại Sợi, rồi Ghi Chú.
       if (len.lo == null && soi.lo != null) { len = soi; }
       if (len.lo == null && ghi.lo != null) { len = ghi; }
@@ -379,7 +382,9 @@
   function glueFor(rules, comp) {
     var mat = normTxt(comp.material).replace(/\d+(?:[.,]\d+)?/g, ' ').replace(/\s+/g, ' ').trim();
     var mm = Number(comp.mm);
-    var tk = thickKey(comp.thickness);
+    // Code sợi có thể mang NHIỀU độ dày (vd "0.07/0.08") → khớp nếu BẤT KỲ độ dày nào nằm trong rule
+    var compThicks = (String(comp.thickness == null ? '' : comp.thickness).match(/\d+(?:[.,]\d+)?/g) || []).map(thickKey).filter(function (x) { return x; });
+    var tk = compThicks[0] || '';
     var best = null, bestScore = -1;
     (rules || []).forEach(function (r) {
       if (comp.maDon && r.maDon && r.maDon !== comp.maDon) return;
@@ -387,7 +392,11 @@
       if (!hasMat && !hasThick && r.lo == null) return;   // quy tắc rỗng → bỏ
       // ---- ĐIỀU KIỆN LỌC CỨNG: vi phạm bất kỳ → LOẠI ----
       if (r.lo != null) { if (!isFinite(mm) || mm < r.lo || mm > r.hi) return; }
-      if (hasThick) { if (!tk || r.thick.indexOf(tk) < 0) return; }
+      if (hasThick) {
+        var thit = false;
+        for (var _t = 0; _t < compThicks.length; _t++) { if (r.thick.indexOf(compThicks[_t]) >= 0) { thit = true; break; } }
+        if (!thit) return;
+      }
       var matHit = 0;
       if (hasMat) {
         if (!mat) return;
