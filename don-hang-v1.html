@@ -1012,25 +1012,53 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     t=t.replace(/\s+((?:\d+\s*[~\-–]\s*\d+\s*mm|(?:từ|đến|dưới|trên|tối\s*đa)\s*\d+\s*mm)\s+\d+[.,]\d+)/gi,'\n$1');
     var lines=t.split(/\n/).map(function(s){return s.replace(/\s+/g,' ').trim();}).filter(Boolean);
     if(!lines.length) return null;
-    var soi=[], day=[], dai=[], any=false;
-    lines.forEach(function(ln){
+    // Dấu hiệu note KHÔNG phải điều kiện chuẩn (nhắc keo khác, câu hướng dẫn, dấu ngoặc…) → KHÔNG bóc tách
+    var BAD=/keo|trở\s*lên|khách|duyệt|phương\s*án|đổi|các\s*mã|[;()&]|cho\s*của\s*cả/i;
+    var inR=function(n){ return n>=4 && n<=20; };   // độ dài hợp lệ 4–20mm; ngoài dải → KHÔNG lấy
+    // tách cụm ĐỘ DÀI (có "mm") ra khỏi dòng → trả về {L: nhãn độ dài, s: phần còn lại để lấy độ dày}
+    function parseLen(ln){
       var s=' '+ln+' ', L='', m;
       if(/tất\s*cả/i.test(s)){ L='tất cả'; s=s.replace(/tất\s*cả(\s*độ\s*d\S*)?/i,' '); }
-      else if((m=s.match(/(\d+)\s*[~\-–]\s*(\d+)\s*mm/i))){ L=m[1]+'~'+m[2]+'mm'; s=s.replace(m[0],' '); }
-      else if((m=s.match(/(?:từ|>=|≥)\s*(\d+)\s*mm?/i))){ L='từ '+m[1]+'mm'; s=s.replace(m[0],' '); }
-      else if((m=s.match(/(?:đến|tối\s*đa|<=|≤)\s*(\d+)\s*mm?/i))){ L='đến '+m[1]+'mm'; s=s.replace(m[0],' '); }
-      else if((m=s.match(/(?:dưới|<)\s*(\d+)\s*mm?/i))){ L='dưới '+m[1]+'mm'; s=s.replace(m[0],' '); }
-      else if((m=s.match(/(\d+)\s*mm/i))){ L=m[1]+'mm'; s=s.replace(m[0],' '); }
-      var th=[];
-      s=s.replace(/\d+[.,]\d+(?:\s*[\/,]\s*\d+[.,]\d+)*/g, function(m0){ (m0.match(/\d+[.,]\d+/g)||[]).forEach(function(t){ th.push(t); }); return ' '; });
-      // LOẠI SỢI: chỉ nhận tên có TRONG danh sách nguyên liệu thật (đối chiếu Tên Gọi NL) — bỏ mọi chữ ghi chú khác
+      else if((m=s.match(/(\d+)\s*[~\-–]\s*(\d+)\s*mm/i))){ var a=+m[1],b=+m[2]; if(inR(a)&&inR(b)&&a<=b) L=a+'~'+b+'mm'; s=s.replace(m[0],' '); }
+      else if((m=s.match(/(?:từ|>=|≥)\s*(\d+)\s*mm/i))){ if(inR(+m[1])) L='từ '+m[1]+'mm'; s=s.replace(m[0],' '); }
+      else if((m=s.match(/(?:đến|tối\s*đa|<=|≤)\s*(\d+)\s*mm/i))){ if(inR(+m[1])) L='đến '+m[1]+'mm'; s=s.replace(m[0],' '); }
+      else if((m=s.match(/(?:dưới|<)\s*(\d+)\s*mm/i))){ if(inR(+m[1])) L='dưới '+m[1]+'mm'; s=s.replace(m[0],' '); }
+      else if((m=s.match(/(\d+)\s*mm/i))){ if(inR(+m[1])) L=m[1]+'mm'; s=s.replace(m[0],' '); }
+      return { L:L, s:s };
+    }
+    var soi=[], day=[], dai=[], any=false;
+    lines.forEach(function(ln){
+      // 1) Đối chiếu NGUYÊN LIỆU thật — không có tên nào khớp → KHÔNG chắc → giữ nguyên trong Ghi Chú
       var rest=' '+String(ln).toLowerCase().replace(/\s+/g,' ')+' ', mats=[];
-      vocab.forEach(function(v){ var vn=' '+String(v).toLowerCase().replace(/\s+/g,' ').trim()+' '; if(vn.trim() && rest.indexOf(vn.trim())>=0){ mats.push(v); rest=rest.split(vn.trim()).join(' '); } });
-      var mat=mats.join('/');
-      if(th.length||L||mat) any=true;
-      soi.push(mat); day.push(th.join('/')); dai.push(L);
+      vocab.forEach(function(v){ var vn=String(v).toLowerCase().replace(/\s+/g,' ').trim(); if(vn && rest.indexOf(vn)>=0){ mats.push(v); rest=rest.split(vn).join(' '); } });
+      // 2) Note phức tạp / có dấu hiệu không chắc → KHÔNG bóc tách
+      if(!mats.length || BAD.test(ln)) return;
+      // 3) Tách độ dài (mm) ra trước; phần còn lại → Độ dày = số thập phân HOẶC số tự nhiên
+      var pl=parseLen(ln);
+      var th=pl.s.match(/\d+(?:[.,]\d+)?/g)||[];
+      any=true; soi.push(mats.join('/')); day.push(th.join('/')); dai.push(pl.L);
     });
     return any?{ loaiSoi:soi.join('\n'), doDay:day.join('\n'), doDai:dai.join('\n') }:null;
+  }
+  // Ghi chú kiểu "MÃ KEO cho độ dài X; MÃ KEO2 cho độ dài Y" → NHÂN BẢN dòng: mỗi mã keo 1 dòng (Loại Keo + Độ Dài)
+  function parseKeoByLength(note){
+    var t=String(note==null?'':note).replace(/\r/g,'');
+    var segs=t.split(/[;\n]/).map(function(s){return s.replace(/\s+/g,' ').trim();}).filter(Boolean);
+    var out=[];
+    segs.forEach(function(seg){
+      var mk=seg.match(/([A-Za-zÀ-ỹ][A-Za-zÀ-ỹ0-9]*\.\d+)/);   // mã keo dạng "XanhBLu150.2"
+      if(!mk) return;
+      var s=' '+seg+' ', L='', m;
+      if((m=s.match(/(\d+)\s*[~\-–]\s*(\d+)\s*mm/i))) L=(+m[1])+'~'+(+m[2])+'mm';
+      else if((m=s.match(/(?:từ|>=|≥)\s*(\d+)\s*mm/i))) L='từ '+m[1]+'mm';
+      else if((m=s.match(/(?:đến|tối\s*đa|<=|≤)\s*(\d+)\s*mm/i))) L='đến '+m[1]+'mm';
+      else if((m=s.match(/(?:dưới|<)\s*(\d+)\s*mm/i))) L='dưới '+m[1]+'mm';
+      else if((m=s.match(/(\d+)\s*mm/i))) L=m[1]+'mm';
+      if(!L) return;
+      out.push({ keo:mk[1], doDai:L });
+    });
+    // chỉ áp dụng khi CHẮC là "keo theo độ dài" (≥2 mã keo, hoặc 1 mã + có chữ "độ dài")
+    return (out.length>=2 || (out.length>=1 && /độ\s*d[àa]i/i.test(t))) ? out : null;
   }
 
   // ===== BẢNG MIX MÀU cho đơn UPLOAD: dòng có "Mix Color"/"MixColor" + NHIỀU code sợi (mỗi code 1 dòng) =====
