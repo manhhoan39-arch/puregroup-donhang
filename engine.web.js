@@ -301,6 +301,9 @@
   //   1 Material có thể nhiều keo theo khoảng chiều dài (5~8mm → Nau155C.2 · 9~13mm → Nau155C.3),
   //   1 quy tắc có thể chỉ ghi Độ dày (0,07; 0,085) hoặc chỉ ghi Material.
   var normTxt = function (s) { return PS(s).toLowerCase().replace(/\s+/g, ' '); };
+  // "hàng màu / sợi màu / màu" = lớp sợi MÀU = MỌI loại sợi KHÔNG chứa "Mink"/"Silk"
+  var isColorMat = function (a) { var s = normTxt(a).replace(/hàng|sợi|loại/g, '').replace(/[.,;:]/g, ' ').replace(/\s+/g, ' ').trim(); return s === 'màu' || s === 'mầu' || s === 'mau'; };
+  var isColorComp = function (matTxt) { return !/mink|silk/i.test(String(matTxt || '')); };
   /**
    * Chuẩn hoá ĐỘ DÀY về "khóa chữ số" để so khớp 2 cách ghi của khách:
    * dòng đơn ghi 5 / 6 / 7 / 85 / 10 — bảng keo ghi 0.05 / 0.06 / 0.07 / 0.085 / 0.10.
@@ -411,6 +414,8 @@
         if (!mat) return;
         var hit = -1;
         r.mats.forEach(function (a) {
+          // "hàng màu/sợi màu/màu" → khớp mọi sợi MÀU (không chứa Mink/Silk)
+          if (isColorMat(a)) { if (isColorComp(comp.material)) hit = Math.max(hit, 30); return; }
           var an = normTxt(a).replace(/\d+(?:[.,]\d+)?/g, ' ').replace(/\s+/g, ' ').trim();
           if (!an) return;
           if (mat === an) hit = Math.max(hit, an.length + 50);        // khớp chính xác
