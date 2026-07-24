@@ -357,16 +357,25 @@
       var len = parseKeoCond(k.doDai || '');
       var soi = parseKeoCond(k.loaiSoi || '');   // Loại Sợi có thể nhúng độ dày ("0,07; 0,085")
       var ghi = parseKeoCond(k.ghiChu || '');    // Ghi Chú thường chứa điều kiện ĐỘ DÀI (vd "dưới 10mm", "từ 10mm")
-      // Cột Độ Dày = chỉ chứa độ dày → trích TẤT CẢ số (gộp "0.07/0.08/0.10" hoặc "0.06,0.07,0.010",
-      // kể cả có kèm "mm"). KHÔNG dùng parseKeoCond để tránh hiểu nhầm 1 giá trị thành điều kiện độ dài.
-      var dayThicks = (String(k.doDay || '').match(/\d+(?:[.,]\d+)?/g) || []).map(thickKey).filter(function (x) { return x; });
+      // Cột Độ Dày = chỉ chứa độ dày. Xử lý 2 kiểu ghi (tránh nhập nhằng dấu phẩy):
+      //  · số THẬP PHÂN "0.07 / 0,085 / 0.10" → giữ nguyên (dấu phẩy là dấu thập phân)
+      //  · MÃ độ dày NGUYÊN "6,7,85,10" hoặc "7,10" → dấu phẩy là dấu tách LIST (không phải thập phân)
+      var _dd = String(k.doDay || ''), dayThicks = [];
+      (_dd.match(/0[.,]\d+/g) || []).forEach(function (d) { var t = thickKey(d); if (t) dayThicks.push(t); });
+      _dd = _dd.replace(/0[.,]\d+/g, ' ');
+      (_dd.match(/\d+/g) || []).forEach(function (n) { var t = thickKey(n); if (t) dayThicks.push(t); });
       var thicks = dayThicks.concat(soi.thicks);
       // Điều kiện ĐỘ DÀI: ưu tiên cột Độ Dài; nếu trống lấy từ Loại Sợi, rồi Ghi Chú.
       if (len.lo == null && soi.lo != null) { len = soi; }
       if (len.lo == null && ghi.lo != null) { len = ghi; }
+      // NGUYÊN LIỆU: ưu tiên cột Loại Sợi; nếu TRỐNG thì lấy từ Ghi Chú (khách hay ghi "chỉ dùng cho ... Cashmere Silk")
+      // → giữ ràng buộc nguyên liệu để không khớp nhầm keo giữa các loại sợi khác nhau.
+      var mats = soi.mats.length ? soi.mats : ghi.mats;
+      // Độ dày: ưu tiên cột Độ Dày; nếu cột này trống thì lấy từ Ghi Chú.
+      if (!dayThicks.length && !soi.thicks.length && ghi.thicks.length) { thicks = ghi.thicks; }
       rules.push({
         maDon: k.maDon, glue: PS(k.loaiKeo),
-        mats: soi.mats, thick: thicks,
+        mats: mats, thick: thicks,
         lo: len.lo, hi: len.hi, spec: len.spec,
       });
     });

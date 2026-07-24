@@ -283,10 +283,10 @@ td.keo-der{color:#0a8a86;background:rgba(0,207,200,.06);white-space:pre-line;fon
 /* Thanh thống kê vùng chọn (Sum/Count) kiểu Google Sheets */
 #sel-stats{position:fixed;right:18px;bottom:14px;z-index:1000001;background:var(--surface);border:1.5px solid var(--accent);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:var(--accent);box-shadow:0 4px 14px rgba(0,0,0,.18);display:none}
 #sel-stats b{color:var(--accent)}
-/* Ô vừa sửa nhưng CHƯA áp dụng (chờ bấm nút) + nút Áp dụng thay đổi */
+/* Ô vừa sửa nhưng CHƯA lưu (chờ bấm nút) + nút Lưu trong toolbar của bảng đang sửa */
 .pending-edit{background:#fff3cd!important;box-shadow:inset 0 0 0 2px #E8185C}
-#apply-edits-btn{position:fixed;right:20px;bottom:20px;z-index:1000002;background:var(--accent,#E8185C);color:#fff;border:none;border-radius:24px;padding:12px 22px;font-size:14px;font-weight:800;box-shadow:0 6px 18px rgba(232,24,92,.42);cursor:pointer;display:none}
-#apply-edits-btn:hover{filter:brightness(.93)}
+.pending-save{background:var(--accent,#E8185C)!important;color:#fff!important;font-weight:800!important;border:none;box-shadow:0 2px 8px rgba(232,24,92,.35);animation:pendpulse 1.2s ease-in-out infinite}
+@keyframes pendpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
 .tabbar{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:12px}
 .tabbar .t{padding:8px 15px;border:none;background:none;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--text-3);border-bottom:2px solid transparent}
 .tabbar .t.on{color:var(--accent);border-bottom-color:var(--accent)}
@@ -1146,18 +1146,22 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
 
   // ===== Chế độ "Áp dụng thay đổi": sửa ô ở step 2-6 CHỜ xác nhận, bấm nút mới tính lại =====
   var __pendN=0;
-  function ensureApplyBtn(){
-    var b=document.getElementById('apply-edits-btn');
-    if(!b){ b=document.createElement('button'); b.id='apply-edits-btn'; b.type='button'; b.title='Bấm để tính lại toàn bộ theo các ô vừa sửa'; b.addEventListener('click', function(){ try{ render(); }catch(e){} }); document.body.appendChild(b); }
+  // Nút "💾 Lưu" nằm NGAY trong toolbar của bảng đang sửa (hiện khi có ô chờ)
+  function saveBtnFor(cell){
+    var sec=cell&&cell.closest?cell.closest('section.screen'):null; if(!sec) return null;
+    var tb=sec.querySelector('.tbl-toolbar'); if(!tb) return null;
+    var b=tb.querySelector('.pending-save');
+    if(!b){ b=document.createElement('button'); b.type='button'; b.className='btn sm pending-save'; b.addEventListener('click', function(){ try{ render(); }catch(e){} }); tb.appendChild(b); }
     return b;
   }
   function markPending(cell){
     if(cell&&cell.classList) cell.classList.add('pending-edit');
     __pendN++;
-    var b=ensureApplyBtn(); b.textContent='✓ Áp dụng thay đổi ('+__pendN+')'; b.style.display='block';
+    var b=saveBtnFor(cell); if(b) b.style.display='';
+    Array.prototype.forEach.call(document.querySelectorAll('.pending-save'), function(x){ if(x.style.display!=='none') x.textContent='💾 Lưu ('+__pendN+')'; });
   }
   function render(){
-    __pendN=0; var _ab=document.getElementById('apply-edits-btn'); if(_ab) _ab.style.display='none';   // render lại → xóa mọi pending
+    __pendN=0; Array.prototype.forEach.call(document.querySelectorAll('.pending-save'), function(x){ x.style.display='none'; });   // render lại → xóa mọi pending
     attachColorMix(state.orders);
     var R = E.runPipeline({ rawOrders: state.orders, mixSheets: state.mixSheets, keoRows: state.keoRows });
     state.orders = R.orders; // giữ bản đã chuẩn hoá
