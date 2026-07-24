@@ -2633,6 +2633,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   function applyGridFilter(){
     if(!grid || !grid.querySelectorAll) return;
+    // TỰ ĐỒNG BỘ: mã đơn / KH đang lọc KHÔNG còn trong dữ liệu (vd nạp file mới) → bỏ lọc, tránh lưới TRỐNG
+    try{ var _R=state.R; if(_R){ var _mds=allMaDons(_R);
+      if(gridMadon && _mds.indexOf(gridMadon)<0){ gridMadon=''; if(typeof MADON_IDS!=='undefined') MADON_IDS.forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; }); }
+      if(gridMakh){ var _khs={}; _mds.forEach(function(m){ _khs[khOf(m)]=1; }); if(!_khs[gridMakh]){ gridMakh=''; if(typeof MAKH_IDS!=='undefined') MAKH_IDS.forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; }); } }
+    } }catch(e){}
     var q = gridQuery.normalize ? gridQuery.normalize('NFC').toLowerCase() : gridQuery.toLowerCase();
     var trs = grid.querySelectorAll('tr');
     for(var i=0; i<trs.length; i++){
@@ -2859,7 +2864,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   // ===== Lọc theo Mã KH (đồng bộ mọi bước) =====
   var MAKH_IDS=['s3-makh','s4-makh','s5-makh','s6-makh','s10-makh','s7-makh'];
   function allMaKHs(R){ var out=[],seen={}; ((R&&R.orders)||[]).forEach(function(o){ var k=khOf(o.maDon); if(k&&!seen[k]){seen[k]=1;out.push(k);} }); return out; }
-  function fillMakhList(R){ var dl=document.getElementById('dl-makh'); if(dl){ dl.innerHTML='<option value="Tất cả KH"></option>'+allMaKHs(R).map(function(k){ return '<option value="'+esc(k)+'"></option>'; }).join(''); } }
+  function fillMakhList(R){ var khs=allMaKHs(R); var dl=document.getElementById('dl-makh'); if(dl){ dl.innerHTML='<option value="Tất cả KH"></option>'+khs.map(function(k){ return '<option value="'+esc(k)+'"></option>'; }).join(''); } (typeof MAKH_IDS!=='undefined'?MAKH_IDS:[]).forEach(function(id){ var el=document.getElementById(id); if(el && el.value && khs.indexOf(el.value)<0) el.value=''; }); }
   function setGlobalMakh(kh){
     kh=String(kh||'').trim(); if(kh==='Tất cả KH') kh='';
     MAKH_IDS.forEach(function(id){ var el=document.getElementById(id); if(el && el.value!==kh) el.value=kh; });
