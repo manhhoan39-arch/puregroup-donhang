@@ -283,6 +283,10 @@ td.keo-der{color:#0a8a86;background:rgba(0,207,200,.06);white-space:pre-line;fon
 /* Thanh thống kê vùng chọn (Sum/Count) kiểu Google Sheets */
 #sel-stats{position:fixed;right:18px;bottom:14px;z-index:1000001;background:var(--surface);border:1.5px solid var(--accent);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;color:var(--accent);box-shadow:0 4px 14px rgba(0,0,0,.18);display:none}
 #sel-stats b{color:var(--accent)}
+/* Ô vừa sửa nhưng CHƯA áp dụng (chờ bấm nút) + nút Áp dụng thay đổi */
+.pending-edit{background:#fff3cd!important;box-shadow:inset 0 0 0 2px #E8185C}
+#apply-edits-btn{position:fixed;right:20px;bottom:20px;z-index:1000002;background:var(--accent,#E8185C);color:#fff;border:none;border-radius:24px;padding:12px 22px;font-size:14px;font-weight:800;box-shadow:0 6px 18px rgba(232,24,92,.42);cursor:pointer;display:none}
+#apply-edits-btn:hover{filter:brightness(.93)}
 .tabbar{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:12px}
 .tabbar .t{padding:8px 15px;border:none;background:none;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--text-3);border-bottom:2px solid transparent}
 .tabbar .t.on{color:var(--accent);border-bottom-color:var(--accent)}
@@ -1140,7 +1144,20 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return html+'</div>';
   }
 
+  // ===== Chế độ "Áp dụng thay đổi": sửa ô ở step 2-6 CHỜ xác nhận, bấm nút mới tính lại =====
+  var __pendN=0;
+  function ensureApplyBtn(){
+    var b=document.getElementById('apply-edits-btn');
+    if(!b){ b=document.createElement('button'); b.id='apply-edits-btn'; b.type='button'; b.title='Bấm để tính lại toàn bộ theo các ô vừa sửa'; b.addEventListener('click', function(){ try{ render(); }catch(e){} }); document.body.appendChild(b); }
+    return b;
+  }
+  function markPending(cell){
+    if(cell&&cell.classList) cell.classList.add('pending-edit');
+    __pendN++;
+    var b=ensureApplyBtn(); b.textContent='✓ Áp dụng thay đổi ('+__pendN+')'; b.style.display='block';
+  }
   function render(){
+    __pendN=0; var _ab=document.getElementById('apply-edits-btn'); if(_ab) _ab.style.display='none';   // render lại → xóa mọi pending
     attachColorMix(state.orders);
     var R = E.runPipeline({ rawOrders: state.orders, mixSheets: state.mixSheets, keoRows: state.keoRows });
     state.orders = R.orders; // giữ bản đã chuẩn hoá
@@ -1493,7 +1510,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       state.orders[idx] = res.order;
       resetPack();   // nguồn Nhập Đơn đổi → reset lớp packing
       logLine('Sửa ô '+mdon+'#'+seri+' ['+col+']: "'+oldVal+'" → "'+String(res.order[col])+'"');
-      render(); // tính lại toàn bộ: lỗi, KPI, Line, Cuốn·Box realtime
+      markPending(td); // CHỜ bấm "Áp dụng thay đổi" mới tính lại
     });
     // Enter = xác nhận (blur) thay vì xuống dòng
     grid.addEventListener('keydown', function(ev){
@@ -1516,7 +1533,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       pushUndo();
       state.keoRows[idx][field]=val;
       logLine('Sửa bảng keo '+(state.keoRows[idx].maDon||'')+' ['+field+']: "'+oldVal+'" → "'+val+'"');
-      render();  // tính lại: keoMalformed, Keo nhiệt Line Cuốn + Box
+      markPending(td);  // CHỜ bấm "Áp dụng thay đổi" mới tính lại (keoMalformed, Keo nhiệt Line Cuốn + Box)
     });
     // Enter (không Shift) = xác nhận; Shift+Enter = xuống dòng (ghi chú nhiều điều kiện)
     document.addEventListener('keydown', function(ev){
@@ -2854,6 +2871,21 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         return '<td class="'+cls+'"'+ce+'>'+esc(val==null?'':val)+'</td>';
       };
       // Nếu cột thuộc tính trống nhưng Ghi Chú có nội dung → BÓC TÁCH hiển thị (chỉ xem, giữ nguyên ghi chú gốc)
+      // Ghi chú "keo A cho độ dài X; keo B cho độ dài Y" → NHÂN BẢN dòng (Loại Keo + Độ Dài)
+      var kbl=parseKeoByLength(k.ghiChu);
+      if(kbl){
+        kbl.forEach(function(seg,si){
+          rows.push('<tr data-madon="'+esc(k.maDon)+'" data-makh="'+esc(khOf(k.maDon))+'" data-keoidx="'+idx+'">'+
+            '<td class="chkcol">'+(si===0?'<input type="checkbox" class="keo-chk">':'')+'</td>'+
+            '<td class="freeze">'+esc(khOf(k.maDon))+'</td>'+
+            '<td class="txt">'+esc(donOf(k.maDon))+'</td>'+
+            '<td class="txt keo-der" title="Tự bóc tách từ Ghi Chú — nhân bản theo độ dài">'+esc(seg.keo)+'</td>'+
+            '<td></td><td class="txt">'+esc(k.doDay||'')+'</td>'+
+            '<td class="txt keo-der">'+esc(seg.doDai)+'</td>'+
+            (si===0?ed('ghiChu',k.ghiChu,'txt'):'<td class="txt"></td>')+'</tr>');
+        });
+        return;
+      }
       var pn=parseKeoNote(k.ghiChu);
       var col=function(field,val,extra){
         if(String(val==null?'':val).trim()) return ed(field,val,extra);
@@ -3227,6 +3259,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var ce = (canEdit && idx>=0) ? ' contenteditable="true" data-keoedit="'+field+'" data-keoidx="'+idx+'" style="white-space:pre-wrap"' : '';
         return '<td class="txt"'+ce+'>'+esc(val==null?'':val)+'</td>';
       };
+      var kbl=parseKeoByLength(k.ghiChu);
+      if(kbl){
+        return kbl.map(function(seg,si){
+          return '<tr'+(malformed?' class="cell-warn"':'')+' data-keoidx="'+idx+'">'+
+            '<td>'+esc(khOf(k.maDon))+'</td><td>'+esc(donOf(k.maDon))+'</td>'+
+            '<td class="txt keo-der">'+esc(seg.keo)+'</td><td></td><td class="txt">'+esc(k.doDay||'')+'</td>'+
+            '<td class="txt keo-der">'+esc(seg.doDai)+'</td>'+
+            (si===0?ed('ghiChu',k.ghiChu):'<td class="txt"></td>')+'</tr>';
+        }).join('');
+      }
       var pn=parseKeoNote(k.ghiChu);
       var col=function(field,val){ if(String(val==null?'':val).trim()) return ed(field,val); if(pn&&String(pn[field]||'').trim()) return '<td class="txt keo-der" title="Tự bóc tách từ Ghi Chú">'+nl2br(pn[field])+'</td>'; return ed(field,val); };
       return '<tr'+(malformed?' class="cell-warn"':'')+' data-keoidx="'+idx+'" title="Chuột phải để thêm/xóa/nhân bản dòng">'+
@@ -3736,7 +3778,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     pushUndo();
     s.matrix[mmIdx][col]=val;
     logLine('Sửa Mix '+mad+' MM'+mm+' cột '+(col+1)+': '+old+' → '+val);
-    render();
+    markPending(td);
   });
   document.addEventListener('keydown', function(ev){
     if(ev.key==='Enter' && ev.target && ev.target.closest && ev.target.closest('td[data-mixmm]')){ ev.preventDefault(); ev.target.blur(); }
