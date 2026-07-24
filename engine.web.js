@@ -414,7 +414,9 @@
       if (!hasMat && !hasThick && r.lo == null) return;   // quy tắc rỗng → bỏ
       // ---- ĐIỀU KIỆN LỌC CỨNG: vi phạm bất kỳ → LOẠI ----
       if (r.lo != null) { if (!isFinite(mm) || mm < r.lo || mm > r.hi) return; }
-      if (hasThick) {
+      // Sợi MÀU khớp quy tắc keo màu theo ĐỘ DÀI, BỎ ràng buộc độ dày (điều kiện độ dày trong ghi chú là cho Super Silk).
+      var ruleColor = !!(r.mats && r.mats.some(isColorMat)), compColor = ruleColor && isColorComp(comp);
+      if (hasThick && !compColor) {
         var thit = false;
         for (var _t = 0; _t < compThicks.length; _t++) { if (r.thick.indexOf(compThicks[_t]) >= 0) { thit = true; break; } }
         if (!thit) return;
