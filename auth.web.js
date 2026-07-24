@@ -413,6 +413,7 @@
   function openCloudAdminModal() {
     Promise.all([window.CLCloud.listFactories(), window.CLCloud.listProfiles()]).then(function (res) {
       var facs = res[0] || [], profs = res[1] || [];
+      var myFid = S.factory && S.factory.id;   // Super Admin: mọi xưởng · Factory Admin: chỉ xưởng mình
       var pane = h('div', {});
       var tabU = h('div', { class: 'cl-tab on' }, ['👤 Người dùng']);
       var tabF = h('div', { class: 'cl-tab' }, ['🏭 Xưởng']);
@@ -421,7 +422,7 @@
       tabU.onclick = function () { setTab('u'); }; tabF.onclick = function () { setTab('f'); };
 
       function roleOpts(sel) { var s = h('select', { class: 'cl-input', style: 'padding:3px 6px' }); (isSuper() ? ['user','factory_admin','super_admin'] : ['user','factory_admin']).forEach(function (r) { s.appendChild(h('option', { value: r }, [ROLE_LABEL[r] || r])); }); if (sel) s.value = sel; return s; }
-      function facOpts(sel, blank) { var s = h('select', { class: 'cl-input', style: 'padding:3px 6px' }); if (blank) s.appendChild(h('option', { value: '' }, ['—'])); facs.forEach(function (f) { s.appendChild(h('option', { value: f.id }, [f.code + ' · ' + f.name])); }); if (sel) s.value = sel; return s; }
+      function facOpts(sel, blank) { var s = h('select', { class: 'cl-input', style: 'padding:3px 6px' }); if (blank) s.appendChild(h('option', { value: '' }, ['—'])); var list = isSuper() ? facs : facs.filter(function (f) { return f.id === myFid; }); list.forEach(function (f) { s.appendChild(h('option', { value: f.id }, [f.code + ' · ' + f.name])); }); if (sel && !isSuper() && sel !== myFid) sel = myFid; if (sel) s.value = sel; return s; }
 
       function usersPane() {
         var wrap = h('div', {});
@@ -444,7 +445,8 @@
           h('div', { class: 'cl-field' }, [h('label', {}, ['Vai trò']), rr]),
           h('div', { class: 'cl-field' }, [h('label', {}, ['Xưởng']), ff]), add
         ]));
-        var rows = profs.map(function (u) {
+        var visProfs = isSuper() ? profs : profs.filter(function (u) { return u.factory_id === myFid; });   // Factory Admin chỉ quản lý user xưởng mình
+        var rows = visProfs.map(function (u) {
           var rs = roleOpts(u.role); rs.onchange = function () { window.CLCloud.updateProfile(u.id, { role: rs.value, step_perms: (rs.value === 'user' ? (u.step_perms || cloudDefaultUserPerms()) : null) }).then(function () { toast('Đã đổi vai trò ✓', 'ok'); }).catch(function (e) { toast(e.message, 'err'); }); };
           var fs = facOpts(u.factory_id || '', true); fs.onchange = function () { window.CLCloud.updateProfile(u.id, { factory_id: fs.value || null }).then(function () { toast('Đã đổi xưởng ✓', 'ok'); }).catch(function (e) { toast(e.message, 'err'); }); };
           var acts = [];
