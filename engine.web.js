@@ -301,9 +301,19 @@
   //   1 Material có thể nhiều keo theo khoảng chiều dài (5~8mm → Nau155C.2 · 9~13mm → Nau155C.3),
   //   1 quy tắc có thể chỉ ghi Độ dày (0,07; 0,085) hoặc chỉ ghi Material.
   var normTxt = function (s) { return PS(s).toLowerCase().replace(/\s+/g, ' '); };
-  // "hàng màu / sợi màu / màu" = lớp sợi MÀU = MỌI loại sợi KHÔNG chứa "Mink"/"Silk"
+  // "hàng màu / sợi màu / màu" (trong bảng keo) = lớp sợi MÀU
   var isColorMat = function (a) { var s = normTxt(a).replace(/hàng|sợi|loại/g, '').replace(/[.,;:]/g, ' ').replace(/\s+/g, ' ').trim(); return s === 'màu' || s === 'mầu' || s === 'mau'; };
-  var isColorComp = function (matTxt) { return !/mink|silk/i.test(String(matTxt || '')); };
+  // Nhận diện 1 dòng đơn có phải "hàng màu" không: xét Code Sợi · Tên Gọi NL · Phân Loại · Ghi Chú
+  //  → có từ "màu/color" HOẶC tên màu tiếng Anh (Blue/Pink/Violet/Mocha/Espresso/Chocolate…).
+  //  (Tên màu CHỈ xét ở Code Sợi + Tên Gọi NL để TRÁNH nhầm "Black Mink" ở cột Phân Loại.)
+  var COLOR_KW = /(màu|mầu|mau|colou?r)/i;
+  var COLOR_NAME = /\b(blue|pink|hpink|h\.?pink|violet|purple|lilac|brown|green|yellow|orange|navy|teal|beige|cream|mocha|espresso|esp|chocolate|coffee|caramel|wine|burgundy|nude|red)\b/i;
+  var isColorComp = function (comp) {
+    var f = comp || {};
+    var kw = [f.codeSoi, f.material, f.detail, f.loaiHang, f.label, f.ghiChu].join(' ');
+    if (COLOR_KW.test(kw)) return true;
+    return COLOR_NAME.test([f.codeSoi, f.material].join(' '));
+  };
   /**
    * Chuẩn hoá ĐỘ DÀY về "khóa chữ số" để so khớp 2 cách ghi của khách:
    * dòng đơn ghi 5 / 6 / 7 / 85 / 10 — bảng keo ghi 0.05 / 0.06 / 0.07 / 0.085 / 0.10.
@@ -415,7 +425,7 @@
         var hit = -1;
         r.mats.forEach(function (a) {
           // "hàng màu/sợi màu/màu" → khớp mọi sợi MÀU (không chứa Mink/Silk)
-          if (isColorMat(a)) { if (isColorComp(comp.material)) hit = Math.max(hit, 30); return; }
+          if (isColorMat(a)) { if (isColorComp(comp)) hit = Math.max(hit, 30); return; }
           var an = normTxt(a).replace(/\d+(?:[.,]\d+)?/g, ' ').replace(/\s+/g, ' ').trim();
           if (!an) return;
           if (mat === an) hit = Math.max(hit, an.length + 50);        // khớp chính xác
@@ -442,7 +452,7 @@
   /** "Keo 2mm" cho (material, thickness): keo áp cho DẢI NGẮN NHẤT — tra tại mm nhỏ nhất có rule khớp. */
   function glueForShort(rules, comp) {
     for (var mm = 1; mm <= 30; mm++) {
-      var g = glueFor(rules, { maDon: comp.maDon, material: comp.material || comp.detail || '', thickness: comp.thickness, mm: mm });
+      var g = glueFor(rules, { maDon: comp.maDon, material: comp.material || comp.detail || '', thickness: comp.thickness, mm: mm, codeSoi: comp.codeSoi, detail: comp.detail, loaiHang: comp.loaiHang, label: comp.label, ghiChu: comp.ghiChu });
       if (g) return g;
     }
     return glueFor(rules, comp);   // fallback: theo mm thật
@@ -452,7 +462,7 @@
     var rg = parseRange(o.length); if (!rg) return [];
     var seen = {}, out = [];
     for (var mm = rg.lo; mm <= rg.hi; mm++) {
-      var g = glueFor(rules, { maDon: o.maDon, material: o.material || o.detail || '', thickness: o.thickness, mm: mm });
+      var g = glueFor(rules, { maDon: o.maDon, material: o.material || o.detail || '', thickness: o.thickness, mm: mm, codeSoi: o.codeSoi, detail: o.detail, loaiHang: o.loaiHang, label: o.label, ghiChu: o.ghiChu });
       if (g && !seen[g]) { seen[g] = 1; out.push(g); }
     }
     return out;
@@ -514,9 +524,9 @@
         k1 = ''; k2 = '';
       } else {
         if (keoRules && keoRules.length) {
-          k1 = glueFor(keoRules, { maDon: r.maDon, material: r.material || '', thickness: r.thickness, mm: r.mm });
+          k1 = glueFor(keoRules, { maDon: r.maDon, material: r.material || '', thickness: r.thickness, mm: r.mm, codeSoi: r.codeSoi, detail: r.detail, loaiHang: r.loaiHang, label: r.label, ghiChu: r.ghiChu });
           // OVERRIDE: "Keo 2mm" (keo dải ngắn nhất) cho các độ cong LB/LC/LJ/LC+
-          k2 = glueForShort(keoRules, { maDon: r.maDon, material: r.material || '', thickness: r.thickness, mm: r.mm });
+          k2 = glueForShort(keoRules, { maDon: r.maDon, material: r.material || '', thickness: r.thickness, mm: r.mm, codeSoi: r.codeSoi, detail: r.detail, loaiHang: r.loaiHang, label: r.label, ghiChu: r.ghiChu });
         }
         if (!k1) k1 = r.ghiChuKeo || '';
         if (!k2) k2 = k1;
