@@ -3030,6 +3030,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function openPackingSlip(){
     if(!state.R){ alert('Chưa có dữ liệu Box — hãy xử lý đơn trước.'); return; }
     ensurePack();
+    // Chụp trạng thái TRƯỚC khi chỉnh → đóng mà không lưu thì trả về nguyên trạng (không vào Tổng hợp Packing)
+    var _psSnap={ bs:JSON.stringify(boxSel), pk:(state.pack?JSON.stringify(state.pack):null), pt:JSON.stringify(state.packTimeByMd||{}) };
     var old=document.getElementById('ps-ov'); if(old) old.parentNode.removeChild(old);
     var ov=document.createElement('div'); ov.id='ps-ov';
     ov.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center';
@@ -3051,8 +3053,27 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '<div id="ps-body" style="overflow:auto;flex:1 1 auto;padding:6px 12px 12px"></div>'+
     '</div>';
     document.body.appendChild(ov);
-    ov.addEventListener('click', function(e){ if(e.target===ov) ov.parentNode.removeChild(ov); });
-    document.getElementById('ps-close').addEventListener('click', function(){ ov.parentNode.removeChild(ov); });
+    function closePacking(){
+      var changed = JSON.stringify(boxSel)!==_psSnap.bs || (state.pack?JSON.stringify(state.pack):null)!==_psSnap.pk;
+      if(changed){
+        var ok=confirm('Lưu Packing Slip vừa tạo?\n\n• OK = LƯU (hiện trong "Tổng hợp Packing Slip")\n• Cancel = KHÔNG lưu (bỏ mọi thay đổi packing lần này)');
+        if(ok){
+          var now=new Date().toLocaleString('vi-VN'); state.packTimeByMd=state.packTimeByMd||{};
+          try{ var oldBs=JSON.parse(_psSnap.bs||'{}'), seen={}; Object.keys(boxSel).forEach(function(k){ if(String(boxSel[k]||'')!==String(oldBs[k]||'')){ var md=String(k).split('|')[0]; if(md&&!seen[md]){ seen[md]=1; state.packTimeByMd[md]=now; } } }); }catch(e){}
+          logLine('Lưu Packing Slip'+(getVal('ps-madon')?(' · '+getVal('ps-madon')):''));
+        } else {
+          try{ boxSel=JSON.parse(_psSnap.bs||'{}'); }catch(e){ boxSel={}; }
+          try{ state.pack=_psSnap.pk?JSON.parse(_psSnap.pk):null; }catch(e){}
+          try{ state.packTimeByMd=JSON.parse(_psSnap.pt||'{}'); }catch(e){}
+          state._packR=null;
+        }
+      }
+      if(ov.parentNode) ov.parentNode.removeChild(ov);
+      try{ renderBoxAll(); }catch(e){}
+      try{ var pv=document.getElementById('pack-summary-view'); if(pv&&pv.style.display!=='none') renderPackSummary(); }catch(e){}
+    }
+    ov.addEventListener('click', function(e){ if(e.target===ov) closePacking(); });
+    document.getElementById('ps-close').addEventListener('click', closePacking);
     document.getElementById('ps-madon').addEventListener('change', renderSlip);
     document.getElementById('ps-print').addEventListener('click', printPacking);
     document.getElementById('ps-xlsx').addEventListener('click', dlPacking);
