@@ -287,6 +287,8 @@ td.keo-der{color:#0a8a86;background:rgba(0,207,200,.06);white-space:pre-line;fon
 .pending-edit{background:#fff3cd!important;box-shadow:inset 0 0 0 2px #E8185C}
 .pending-save{background:var(--accent,#E8185C)!important;color:#fff!important;font-weight:800!important;border:none;box-shadow:0 2px 8px rgba(232,24,92,.35);animation:pendpulse 1.2s ease-in-out infinite}
 @keyframes pendpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+#btn-pack-sum.on,#btn-box-detail.on{background:var(--accent,#E8185C)!important;color:#fff!important;border-color:var(--accent,#E8185C)!important}
+tr.psum-row:hover td{background:rgba(232,24,92,.06)}
 .tabbar{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:12px}
 .tabbar .t{padding:8px 15px;border:none;background:none;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--text-3);border-bottom:2px solid transparent}
 .tabbar .t.on{color:var(--accent);border-bottom-color:var(--accent)}
@@ -706,16 +708,19 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   <!-- ========== SCREEN 10: TỔNG HỢP BOX (Packing List — sau bước 5) ========== -->
   <section class="screen" id="s10">
     <div id="step10"></div>
-    <div class="tbl-toolbar">
-      <div class="search-top" style="width:200px">🔍<input id="s10-search" placeholder="Tìm trong bảng Box…"></div>
-      <input id="s10-makh" class="madon-pick" list="dl-makh" placeholder="Tất cả KH" title="Lọc theo Mã KH — đồng bộ mọi bước" autocomplete="off" style="min-width:120px;margin-right:6px">
-      <input id="s10-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
+    <div class="tbl-toolbar" style="flex-wrap:nowrap;overflow-x:auto">
+      <div class="search-top" style="width:150px;flex:0 0 auto">🔍<input id="s10-search" placeholder="Tìm bảng Box…"></div>
+      <input id="s10-makh" class="madon-pick" list="dl-makh" placeholder="Tất cả KH" title="Lọc theo Mã KH — đồng bộ mọi bước" autocomplete="off" style="min-width:auto;width:100px;flex:0 0 auto;margin-right:4px">
+      <input id="s10-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off" style="min-width:auto;width:140px;flex:0 0 auto">
       <div class="spacer"></div>
-      <button class="btn sm" id="btn-packing" style="color:var(--accent);font-weight:700">📦 Tạo Packing Slip</button>
-      <button class="btn sm" id="btn-dl-box">⬇ Xuất TongHopBox.xlsx</button>
-      <button class="btn primary sm" onclick="go('s9')">Xuất dữ liệu →</button>
+      <button class="btn sm on" id="btn-box-detail" style="flex:0 0 auto" title="Xem bảng Tổng hợp Box chi tiết">📋 Tổng hợp Box</button>
+      <button class="btn sm" id="btn-pack-sum" style="flex:0 0 auto" title="Xem lại packing slip đã tạo (bản sau cùng)">📦 Tổng hợp Packing Slip</button>
+      <button class="btn sm" id="btn-packing" style="color:var(--accent);font-weight:700;flex:0 0 auto">📦 Tạo Packing Slip</button>
+      <button class="btn sm" id="btn-dl-box" style="flex:0 0 auto">⬇ Xuất xlsx</button>
+      <button class="btn primary sm" onclick="go('s9')" style="flex:0 0 auto">Xuất dữ liệu →</button>
     </div>
     <datalist id="box-datalist"></datalist>
+    <div id="box-detail-view">
     <div class="summary-bar sm" id="box-summary" style="margin-top:0;align-items:center;flex-wrap:wrap">
       <div class="it" style="font-size:13px;font-weight:800;color:var(--accent)">📦 Bảng Tổng Hợp Box · Packing List</div>
       <div class="it" style="margin-left:auto">Số dòng<b id="box-lines">—</b></div>
@@ -734,6 +739,8 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
     </div>
     <!-- BẢNG HỘP (loại hộp đóng gói) — đặt DƯỚI bảng tính -->
     <div id="box-perbox" style="margin-top:14px"></div>
+    </div><!-- /box-detail-view -->
+    <div id="pack-summary-view" style="display:none;margin-top:8px"></div>
   </section>
 
   <!-- ========== SCREEN 7: SO SÁNH ========== -->
@@ -790,8 +797,8 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
     </div>
     <div class="tbl-wrap">
       <table class="sheet" style="width:100%">
-        <thead><tr><th style="width:44px">#</th><th style="width:150px">Thời gian</th><th>Thao tác</th></tr></thead>
-        <tbody id="eng-log"><tr><td colspan="3" class="txt mini">Chưa có thao tác nào.</td></tr></tbody>
+        <thead><tr><th style="width:44px">#</th><th style="width:150px">Thời gian</th><th style="width:170px">Tài khoản</th><th>Thao tác</th></tr></thead>
+        <tbody id="eng-log"><tr><td colspan="4" class="txt mini">Chưa có thao tác nào.</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -873,6 +880,7 @@ window.__applyStepPerms = function(){
 };
 function go(id){
   if(window.__STEP_PERMS && window.__STEP_PERMS[id]==='none') return;   // không có quyền xem step này
+  if(window.__discardPending) window.__discardPending();   // chuyển step: HỦY mọi ô sửa chưa lưu → dữ liệu về nguyên gốc
   // CHẶN sang bước sau khi có CỘT ĐỘ CONG KHÔNG NHẬN DIỆN ĐƯỢC (có số nhưng máy không hiểu) → tránh SAI/MẤT số liệu
   if({s3:1,s4:1,s5:1,s6:1,s10:1,s7:1,s9:1}[id] && window.__hasUnmappedCurl && window.__hasUnmappedCurl()){
     alert('⛔ Có cột ĐỘ CONG không nhận diện được (có số liệu nhưng máy không hiểu tên header).\nXem mục "MẤT ĐỘ CONG" trong Danh sách lỗi/cảnh báo ở bước Nhập Đơn — hãy sửa tên header trong file gốc cho đúng chuẩn rồi đọc lại. Chưa sửa thì KHÔNG sang bước sau (số liệu sẽ sai).');
@@ -1145,23 +1153,32 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
 
   // ===== Chế độ "Áp dụng thay đổi": sửa ô ở step 2-6 CHỜ xác nhận, bấm nút mới tính lại =====
-  var __pendN=0;
-  // Nút "💾 Lưu" nằm NGAY trong toolbar của bảng đang sửa (hiện khi có ô chờ)
+  // ==== Hàng CHỜ LƯU: sửa ô KHÔNG đụng state (chỉ lưu closure vào buffer); bấm "Lưu" mới áp dụng ====
+  var __pendBuf=[];
   function saveBtnFor(cell){
     var sec=cell&&cell.closest?cell.closest('section.screen'):null; if(!sec) return null;
     var tb=sec.querySelector('.tbl-toolbar'); if(!tb) return null;
     var b=tb.querySelector('.pending-save');
-    if(!b){ b=document.createElement('button'); b.type='button'; b.className='btn sm pending-save'; b.addEventListener('click', function(){ try{ render(); }catch(e){} }); tb.appendChild(b); }
+    if(!b){ b=document.createElement('button'); b.type='button'; b.className='btn sm pending-save'; b.addEventListener('click', function(){ applyPendingEdits(); }); tb.appendChild(b); }
     return b;
   }
-  function markPending(cell){
+  function markPending(cell, applyFn){
     if(cell&&cell.classList) cell.classList.add('pending-edit');
-    __pendN++;
+    if(typeof applyFn==='function') __pendBuf.push(applyFn);
     var b=saveBtnFor(cell); if(b) b.style.display='';
-    Array.prototype.forEach.call(document.querySelectorAll('.pending-save'), function(x){ if(x.style.display!=='none') x.textContent='💾 Lưu ('+__pendN+')'; });
+    Array.prototype.forEach.call(document.querySelectorAll('.pending-save'), function(x){ if(x.style.display!=='none') x.textContent='💾 Lưu ('+__pendBuf.length+')'; });
   }
+  function applyPendingEdits(){
+    if(!__pendBuf.length) return;
+    try{ pushUndo(); }catch(e){}
+    var buf=__pendBuf; __pendBuf=[];
+    buf.forEach(function(fn){ try{ fn(); }catch(e){} });   // áp dụng mọi ô đã sửa vào state
+    render();   // tính lại toàn bộ + vẽ lại (các bước khác cập nhật theo dữ liệu mới)
+  }
+  // Chuyển step khi CHƯA lưu → HỦY toàn bộ ô đang chờ: dữ liệu về nguyên gốc, vẽ lại (bỏ giá trị vừa gõ + highlight)
+  window.__discardPending = function(){ if(__pendBuf.length){ __pendBuf=[]; try{ render(); }catch(e){} } };
   function render(){
-    __pendN=0; Array.prototype.forEach.call(document.querySelectorAll('.pending-save'), function(x){ x.style.display='none'; });   // render lại → xóa mọi pending
+    __pendBuf=[]; Array.prototype.forEach.call(document.querySelectorAll('.pending-save'), function(x){ x.style.display='none'; });   // render lại → hủy mọi ô chờ chưa lưu
     attachColorMix(state.orders);
     var R = E.runPipeline({ rawOrders: state.orders, mixSheets: state.mixSheets, keoRows: state.keoRows });
     state.orders = R.orders; // giữ bản đã chuẩn hoá
@@ -1509,12 +1526,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(col.indexOf('curl:')===0){ var _ck=col.slice(5); oldVal=String((state.orders[idx].curls&&state.orders[idx].curls[_ck])||''); }
       else oldVal = String(state.orders[idx][col]==null?'':state.orders[idx][col]);
       if(val === oldVal) return; // không đổi
-      pushUndo();
-      var res = E.editCell(state.orders[idx], col, val);
-      state.orders[idx] = res.order;
-      resetPack();   // nguồn Nhập Đơn đổi → reset lớp packing
-      logLine('Sửa ô '+mdon+'#'+seri+' ['+col+']: "'+oldVal+'" → "'+String(res.order[col])+'"');
-      markPending(td); // CHỜ bấm "Áp dụng thay đổi" mới tính lại
+      // CHỜ LƯU: chưa đụng state; bấm "Lưu" mới áp dụng
+      markPending(td, function(){
+        var res = E.editCell(state.orders[idx], col, val);
+        state.orders[idx] = res.order;
+        resetPack();   // nguồn Nhập Đơn đổi → reset lớp packing
+        logLine('Sửa ô '+mdon+'#'+seri+' ['+col+']: "'+oldVal+'" → "'+String(res.order[col])+'"');
+      });
     });
     // Enter = xác nhận (blur) thay vì xuống dòng
     grid.addEventListener('keydown', function(ev){
@@ -1534,10 +1552,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var val = String(td.innerText==null?'':td.innerText).replace(/ /g,' ').replace(/\n+$/,'').trim();
       var oldVal = String(state.keoRows[idx][field]==null?'':state.keoRows[idx][field]);
       if(val===oldVal) return;
-      pushUndo();
-      state.keoRows[idx][field]=val;
-      logLine('Sửa bảng keo '+(state.keoRows[idx].maDon||'')+' ['+field+']: "'+oldVal+'" → "'+val+'"');
-      markPending(td);  // CHỜ bấm "Áp dụng thay đổi" mới tính lại (keoMalformed, Keo nhiệt Line Cuốn + Box)
+      // CHỜ LƯU: chưa đụng state; bấm "Lưu" mới áp dụng (keoMalformed, Keo nhiệt Line Cuốn + Box)
+      markPending(td, function(){
+        state.keoRows[idx][field]=val;
+        logLine('Sửa bảng keo '+(state.keoRows[idx].maDon||'')+' ['+field+']: "'+oldVal+'" → "'+val+'"');
+      });
     });
     // Enter (không Shift) = xác nhận; Shift+Enter = xuống dòng (ghi chú nhiều điều kiện)
     document.addEventListener('keydown', function(ev){
@@ -1552,8 +1571,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
    *  Kéo thả / Chọn file → đọc sheet Nhập Đơn + Label + Bảng Keo →
    *  Xử lý → toàn bộ màn hình tính từ dữ liệu file thật.
    * ================================================================= */
+  // Tài khoản đang đăng nhập (đọc từ phiên auth trong localStorage) → gắn vào từng dòng lịch sử
+  function curUser(){
+    try{ var u=JSON.parse(localStorage.getItem('cl_user')||'null'); if(u) return String(u.email||u.username||u.display_name||'').trim(); }catch(e){}
+    return '';
+  }
   var logLine = function(msg){
-    state.log.push('['+new Date().toLocaleString('vi-VN')+'] '+msg);
+    state.log.push('['+new Date().toLocaleString('vi-VN')+']['+curUser()+'] '+msg);
     try{ renderS8(); }catch(e){}   // cập nhật màn Lịch sử realtime
   };
   function pickSheet(wb, name){
@@ -2990,17 +3014,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var md=getVal('ps-madon'), UC=state.usedCurls||CURLS;
     var rows=boxDataRows(boxR()).filter(function(o){ return !md || o.maDon===md; });
     var curlH=UC.map(function(k){ var nt=(state.curlNotes&&state.curlNotes[k])||''; return '<th class="curl cw"'+(nt?' title="'+esc(k+' '+nt)+'"':'')+'>'+esc(k)+'</th>'; }).join('');
-    var head='<tr><th style="width:34px">#</th><th>Mã Đơn</th><th>Nguyên liệu</th><th style="width:70px">Độ Dài</th><th style="width:52px">S/M</th>'+curlH+'<th>Tổng</th><th style="width:90px">Box</th></tr>';
+    var head='<tr><th style="width:34px">#</th><th class="l" style="width:70px">Mã KH</th><th class="l">Mã Đơn</th><th>Nguyên liệu</th><th style="width:70px">Độ Dài</th><th style="width:52px">S/M</th>'+curlH+'<th>Tổng</th><th style="width:90px">Box</th></tr>';
     var no=0;
     var trs=rows.map(function(o){ no++; var key=boxRowKey(o); if(boxSel[key]==null) boxSel[key]=''; var hp=boxHop(o);
       var curlTds=UC.map(function(k,ci){ var v=o.curls&&o.curls[k]?o.curls[k]:''; return '<td class="cw" contenteditable="true" data-r="'+(no-1)+'" data-c="'+ci+'" data-boxkey="'+esc(key)+'" data-boxcurl="'+esc(k)+'" style="background:rgba(0,207,200,.07);min-width:32px;font-weight:700">'+(v||'')+'</td>'; }).join('');
       var mlc = (/\r?\n/.test(String(o.material||''))||/\r?\n/.test(String(o.codeSoi||''))) ? ' cl-mlcell' : '';
       return '<tr class="'+(mlc?'cl-multiline':'')+'" data-key="'+esc(key)+'" data-madon="'+esc(o.maDon)+'">'+
-        '<td>'+no+'</td><td>'+esc(o.maDon)+'</td><td class="txt'+mlc+'">'+nl2br(o.material||o.codeSoi||'')+'</td><td>'+esc(o.length||'')+'</td><td>'+esc(o.mixSingle||'')+'</td>'+
+        '<td>'+no+'</td><td class="l">'+esc(khOf(o.maDon))+'</td><td class="l">'+esc(donOf(o.maDon))+'</td><td class="txt'+mlc+'">'+nl2br(o.material||o.codeSoi||'')+'</td><td>'+esc(o.length||'')+'</td><td>'+esc(o.mixSingle||'')+'</td>'+
         curlTds+'<td class="qty">'+hp+'</td>'+
         '<td class="box-cell"><input class="box-pick" list="box-datalist" data-key="'+esc(key)+'" value="'+esc(boxSel[key]||'')+'" placeholder="— box —" style="width:82px"></td></tr>';
     }).join('');
-    body.innerHTML='<table class="sheet" style="width:100%;white-space:nowrap"><thead>'+head+'</thead><tbody>'+(trs||'<tr><td colspan="'+(UC.length+7)+'" class="mini txt">Không có dòng.</td></tr>')+'</tbody></table>';
+    body.innerHTML='<table class="sheet" style="width:100%;white-space:nowrap"><thead>'+head+'</thead><tbody>'+(trs||'<tr><td colspan="'+(UC.length+8)+'" class="mini txt">Không có dòng.</td></tr>')+'</tbody></table>';
     renderSlipSummary();
   }
   function openPackingSlip(){
@@ -3201,7 +3225,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       el.style.display=(!md || m===md)?'':'none';
     });
   }
-  function applyAllFilters(){ Object.keys(TBLS).forEach(applyTable); updateLineSummary(); updateBoxTotals(); updateBoxCurlNotes(); renderS6Keo(); applyColorMixFilter(); try{ if(document.getElementById('s7')&&document.getElementById('s7').classList.contains('active')) renderS7(); }catch(e){} }
+  function applyAllFilters(){ Object.keys(TBLS).forEach(applyTable); updateLineSummary(); updateBoxTotals(); updateBoxCurlNotes(); renderS6Keo(); applyColorMixFilter(); try{ if(document.getElementById('s7')&&document.getElementById('s7').classList.contains('active')) renderS7(); }catch(e){} try{ var pv=document.getElementById('pack-summary-view'); if(pv&&pv.style.display!=='none'&&typeof renderPackSummary==='function') renderPackSummary(); }catch(e){} }
 
   // ĐẦU bước Line Cuốn — 2 cột: (trái) Σ Code Sợi · Số Dây, (phải) Bảng Keo của mã đơn đang chọn
   function renderS6Keo(){
@@ -3374,7 +3398,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   document.addEventListener('input', function(ev){
     var s=ev.target&&ev.target.closest?ev.target.closest('#ps-body .box-pick'):null;
     if(!s) return;
-    boxSel[s.getAttribute('data-key')]=String(s.value||'').trim();
+    var key=s.getAttribute('data-key'); boxSel[key]=String(s.value||'').trim();
+    try{ var mdk=String(key).split('|')[0]; state.packTimeByMd=state.packTimeByMd||{}; state.packTimeByMd[mdk]=new Date().toLocaleString('vi-VN'); }catch(e){}
     try{ renderSlipSummary(); }catch(e){}
   });
 
@@ -3644,13 +3669,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function thUsedCurls(rows){ var UC=state.usedCurls||CURLS; return UC.filter(function(k){ return rows.some(function(r){ return (r.curls&&r.curls[k])>0; }); }); }
   function thPrint(title, body){
     var w=window.open('','_blank'); if(!w) return alert('Trình duyệt chặn cửa sổ in — cho phép popup rồi thử lại.');
-    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Calibri,Arial,sans-serif;padding:14px;color:#111}h2{margin:16px 0 6px;font-size:16px}table{border-collapse:collapse;width:100%;margin-bottom:14px;font-size:12px}th,td{border:1px solid #333;padding:3px 6px;text-align:center}th{background:#f0f0f0}td.l,th.l{text-align:left}.tot{font-weight:800;background:#ffe6ef}.edit{background:#fffef2;word-break:break-word;white-space:normal;outline:none;cursor:text}.edit:focus{background:#fff8c4;box-shadow:inset 0 0 0 2px #E8185C}@media print{.noprint{display:none}.edit{background:transparent!important;box-shadow:none!important}}'+RZ_CSS+'</style></head><body><div class="noprint" style="text-align:right;margin-bottom:8px"><span class="rz-hint">Kéo tiêu đề chọn cột · kéo trên ô chọn khối · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V copy-dán ngoài · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+body+RZ_JS_TAG+'</body></html>');
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Calibri,Arial,sans-serif;padding:6px 14px 14px;color:#111}h2{margin:4px 0 6px;font-size:16px}table{border-collapse:collapse;width:100%;margin-bottom:14px;font-size:12px}th,td{border:1px solid #333;padding:3px 6px;text-align:center}th{background:#f0f0f0}td.l,th.l{text-align:left}.tot{font-weight:800;background:#ffe6ef}.edit{background:#fffef2;word-break:break-word;white-space:normal;outline:none;cursor:text}.edit:focus{background:#fff8c4;box-shadow:inset 0 0 0 2px #E8185C}@media print{.noprint{display:none}.edit{background:transparent!important;box-shadow:none!important}}'+RZ_CSS+'</style></head><body><div class="noprint" style="text-align:right;margin-bottom:8px"><span class="rz-hint">Kéo tiêu đề chọn cột · kéo trên ô chọn khối · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V copy-dán ngoài · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+body+RZ_JS_TAG+'</body></html>');
     w.document.close();
   }
   function thDocongHead(m){
     var d=state.doCongByMadon&&state.doCongByMadon[m];
     if(!d||!d.rows||!d.rows.length) return '';
-    return '<table style="width:auto;min-width:320px;margin:0"><thead><tr><th class="l">📏 Bảng Độ Cong</th><th class="l">Ghi chú</th></tr></thead><tbody>'+
+    return '<table style="width:100%;margin:0"><thead><tr><th class="l" style="width:110px;white-space:nowrap">📏 Bảng Độ Cong</th><th class="l">Ghi chú</th></tr></thead><tbody>'+
       d.rows.map(function(x){ return '<tr><td class="l">'+esc(x.name||'')+'</td><td class="l">'+esc(x.note||'')+'</td></tr>'; }).join('')+
       '</tbody></table>';
   }
@@ -3681,7 +3706,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       });
       var thead='<tr><th class="l" style="width:120px">Code Sợi</th><th class="l" style="width:120px">Mã keo</th><th style="width:52px">S/M</th><th style="width:46px">MM</th>'+
         UC.map(function(k){return '<th>'+esc(k.replace('Curl-CT','CT'))+'</th>';}).join('')+'<th style="width:64px">Tổng</th></tr>';
-      html+='<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin:16px 0 6px"><h2 style="margin:0">'+esc(m)+' · TỔNG HỢP CUỐN</h2><div style="flex:0 0 auto">'+thDocongHead(m)+'</div></div>'+
+      html+='<div style="display:flex;align-items:center;gap:24px;margin:4px 0 8px"><h2 style="margin:0;white-space:nowrap;flex:0 0 auto">'+esc(m)+' · TỔNG HỢP CUỐN</h2><div style="flex:1 1 auto;min-width:0">'+thDocongHead(m)+'</div></div>'+
         '<table style="table-layout:fixed"><thead>'+thead+'</thead><tbody>'+body+
         '<tr class="tot" style="color:#E8185C;font-size:13px"><td class="l" colspan="4">Σ TỔNG SỐ LƯỢNG '+esc(m)+'</td>'+UC.map(function(k){return '<td>'+(grandCurl[k]||'')+'</td>';}).join('')+'<td>'+grand+'</td></tr></tbody></table>';
     });
@@ -3721,7 +3746,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       });
       body+='<tr class="tot" style="color:#E8185C"><td class="l" colspan="2">Tổng số '+esc(code)+'</td><td></td><td>'+codeTot+'</td><td></td></tr>';
     });
-    var html='<h2>'+esc(md)+' · TỔNG HỢP LINE</h2>'+
+    var html='<h2 style="margin:4px 0 8px">'+esc(md)+' · TỔNG HỢP LINE</h2>'+
       '<table style="width:100%;table-layout:fixed"><thead><tr>'+
       '<th class="l" style="width:130px">Code sợi</th>'+
       '<th class="l" style="width:160px">Mã keo</th>'+
@@ -3773,16 +3798,18 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var td=ev.target&&ev.target.closest?ev.target.closest('td[data-mixmm]'):null; if(!td) return;
     var mad=td.getAttribute('data-mixmadon'), mm=+td.getAttribute('data-mixmm'), col=+td.getAttribute('data-mixcol');
     var s=(state.mixSheets||[]).filter(function(x){return x.maDon===mad;})[0]; if(!s) return;
-    var mmIdx=s.mmList.indexOf(mm);
-    if(mmIdx<0){ s.mmList.push(mm); mmIdx=s.mmList.length-1; s.matrix[mmIdx]=(s.ranges||RANGES).map(function(){return 0;}); }
-    if(!s.matrix[mmIdx]) s.matrix[mmIdx]=[];
     var raw=String(td.innerText||'').replace(/[^0-9.\-]/g,'').trim();
     var val=raw===''?0:(Number(raw)||0);
-    var old=Number(s.matrix[mmIdx][col])||0; if(old===val) return;
-    pushUndo();
-    s.matrix[mmIdx][col]=val;
-    logLine('Sửa Mix '+mad+' MM'+mm+' cột '+(col+1)+': '+old+' → '+val);
-    markPending(td);
+    var mmIdx0=s.mmList.indexOf(mm);
+    var old=(mmIdx0>=0 && s.matrix[mmIdx0])?(Number(s.matrix[mmIdx0][col])||0):0; if(old===val) return;
+    // CHỜ LƯU: chưa đụng state; bấm "Lưu" mới áp dụng
+    markPending(td, function(){
+      var mi=s.mmList.indexOf(mm);
+      if(mi<0){ s.mmList.push(mm); mi=s.mmList.length-1; s.matrix[mi]=(s.ranges||RANGES).map(function(){return 0;}); }
+      if(!s.matrix[mi]) s.matrix[mi]=[];
+      s.matrix[mi][col]=val;
+      logLine('Sửa Mix '+mad+' MM'+mm+' cột '+(col+1)+': '+old+' → '+val);
+    });
   });
   document.addEventListener('keydown', function(ev){
     if(ev.key==='Enter' && ev.target && ev.target.closest && ev.target.closest('td[data-mixmm]')){ ev.preventDefault(); ev.target.blur(); }
@@ -4000,6 +4027,67 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   })();
 
   /* ================= IN PACKING LIST TỪNG BOX (mẫu như ảnh) ================= */
+  // ===== "Tổng hợp Packing Slip" (Step 6): summary theo đơn → bấm dòng xem chi tiết từng thùng (bản sau cùng) =====
+  function packDetailHtml(rowsMd){
+    var groups={}, order=[];
+    rowsMd.forEach(function(r){ var b=(boxSel[boxRowKey(r)]||'').trim(); if(!b) return; if(!groups[b]){groups[b]=[];order.push(b);} groups[b].push(r); });
+    if(!order.length) return '<div class="txt mini" style="padding:8px;color:var(--text-3)">Chưa gán thùng nào cho đơn này.</div>';
+    order.sort(function(a,b){ return String(a).localeCompare(String(b),'vi',{numeric:true}); });
+    var UC=(state.usedCurls||CURLS).slice(), N=order.length, html='';
+    order.forEach(function(b){ var grp=groups[b], tot=0;
+      var body=grp.map(function(r,i){ var hop=boxHop(r); tot+=hop;
+        var cur=UC.map(function(k){ return '<td class="cw">'+(r.curls&&r.curls[k]?r.curls[k]:'')+'</td>'; }).join('');
+        return '<tr><td>'+(i+1)+'</td><td class="txt">'+esc(r.lineRaw||r.line||'')+'</td><td class="txt">'+esc(r.material||'')+'</td><td>'+esc(r.thickness||'')+'</td><td>'+esc(r.length)+'</td><td>'+esc(r.mixSingle)+'</td>'+cur+'<td class="qty">'+hop+'</td></tr>'; }).join('');
+      html+='<div style="margin:6px 0 12px"><div style="display:inline-block;background:#000;color:#fff;font-weight:700;padding:3px 12px;border-radius:4px">'+esc(b)+' · of '+N+' · Total '+tot+'</div>'+
+        '<div class="tbl-wrap" style="margin-top:4px"><table class="sheet" style="width:100%;font-size:11px"><thead><tr><th style="width:34px">#</th><th style="width:60px">Lines</th><th>Nguyên liệu</th><th style="width:56px">Độ dày</th><th style="width:70px">Độ dài</th><th style="width:50px">S/M</th>'+
+        UC.map(function(k){ return '<th class="cw">'+esc(k.replace('Curl-CT','CT'))+'</th>'; }).join('')+'<th style="width:56px">Tổng</th></tr></thead><tbody>'+body+'</tbody></table></div></div>';
+    });
+    return html;
+  }
+  function renderPackSummary(){
+    var box=document.getElementById('pack-summary-view'); if(!box) return;
+    var R=boxR(); if(!R){ box.innerHTML='<div class="txt mini" style="padding:14px;color:var(--text-3)">Chưa có dữ liệu.</div>'; return; }
+    var md=getVal('s10-madon'), kh=getVal('s10-makh');
+    var rows=boxDataRows(R).filter(function(r){ return (!md||r.maDon===md)&&(!kh||khOf(r.maDon)===kh); });
+    var byOrd={}, ordList=[];
+    rows.forEach(function(r){ var m=r.maDon; if(!byOrd[m]){byOrd[m]={boxes:{},asg:0,un:0};ordList.push(m);} var o=byOrd[m]; var b=(boxSel[boxRowKey(r)]||'').trim(); var hp=boxHop(r); if(b){o.boxes[b]=1;o.asg+=hp;} else o.un+=hp; });
+    ordList=ordList.filter(function(m){ return Object.keys(byOrd[m].boxes).length>0 || byOrd[m].un>0; });
+    if(!ordList.length){ box.innerHTML='<div class="txt mini" style="padding:16px;color:var(--text-3)">Chưa tạo Packing Slip. Bấm <b>📦 Tạo Packing Slip</b> và gán Box cho các dòng.</div>'; return; }
+    var head='<tr><th class="l" style="width:90px">Mã KH</th><th class="l">Mã Đơn</th><th style="width:110px">Tổng số thùng</th><th style="width:120px">Hộp đã đóng</th><th style="width:120px">Hộp chưa đóng</th><th style="width:170px">Thời gian lưu</th></tr>';
+    var body=ordList.map(function(m){ var o=byOrd[m]; var nBox=Object.keys(o.boxes).length; var t=(state.packTimeByMd&&state.packTimeByMd[m])||'—'; var warn=o.un>0;
+      return '<tr class="psum-row" data-md="'+esc(m)+'" style="cursor:pointer" title="Bấm để xem chi tiết từng thùng">'+
+        '<td class="l" style="font-weight:700"><span class="psum-caret">▸</span> '+esc(khOf(m))+'</td>'+
+        '<td class="l" style="font-weight:700">'+esc(donOf(m))+'</td>'+
+        '<td>'+nBox+'</td><td style="color:var(--green-600);font-weight:700">'+o.asg+'</td>'+
+        '<td'+(warn?' style="color:var(--red-600);font-weight:700"':'')+'>'+o.un+'</td>'+
+        '<td class="mini">'+esc(t)+'</td></tr>'+
+        '<tr class="psum-detail" data-md="'+esc(m)+'" style="display:none"><td colspan="6" style="background:rgba(232,24,92,.03);padding:6px 10px"><div class="psum-detail-inner"></div></td></tr>';
+    }).join('');
+    box.innerHTML='<div style="font-weight:800;color:var(--accent);font-size:13px;margin-bottom:8px">📦 Tổng hợp Packing Slip (bản sau cùng) — bấm 1 dòng để xem chi tiết</div>'+
+      '<div class="tbl-wrap"><table class="sheet" style="width:100%"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>';
+  }
+  (function(){ var pv=document.getElementById('pack-summary-view'); if(!pv) return;
+    pv.addEventListener('click', function(ev){
+      var tr=ev.target&&ev.target.closest?ev.target.closest('.psum-row'):null; if(!tr) return;
+      var md=tr.getAttribute('data-md');
+      var det=null, all=pv.querySelectorAll('.psum-detail'); for(var i=0;i<all.length;i++){ if(all[i].getAttribute('data-md')===md){ det=all[i]; break; } }
+      if(!det) return;
+      var caret=tr.querySelector('.psum-caret');
+      if(det.style.display!=='none'){ det.style.display='none'; if(caret) caret.textContent='▸'; }
+      else { var inner=det.querySelector('.psum-detail-inner');
+        if(inner && !inner.getAttribute('data-filled')){ var R=boxR(); var rowsMd=R?boxDataRows(R).filter(function(r){return r.maDon===md;}):[]; inner.innerHTML=packDetailHtml(rowsMd); inner.setAttribute('data-filled','1'); }
+        det.style.display=''; if(caret) caret.textContent='▾';
+      }
+    });
+  })();
+  function showPackSummary(on){
+    var dv=document.getElementById('box-detail-view'), pv=document.getElementById('pack-summary-view'), bp=document.getElementById('btn-pack-sum'), bd=document.getElementById('btn-box-detail');
+    if(on){ if(dv)dv.style.display='none'; if(pv)pv.style.display=''; if(bp)bp.classList.add('on'); if(bd)bd.classList.remove('on'); renderPackSummary(); }
+    else { if(dv)dv.style.display=''; if(pv)pv.style.display='none'; if(bp)bp.classList.remove('on'); if(bd)bd.classList.add('on'); }
+  }
+  (function(){ var bp=document.getElementById('btn-pack-sum'), bd=document.getElementById('btn-box-detail');
+    if(bp) bp.addEventListener('click', function(){ showPackSummary(true); });
+    if(bd) bd.addEventListener('click', function(){ showPackSummary(false); }); })();
   function printPacking(){
     var R=boxR(); if(!R) return alert('Chưa có dữ liệu Box.');
     var md=pkMadon();
@@ -4023,7 +4111,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         return '<tr><td>'+(i+1)+'</td><td class="l">'+esc(r.lineRaw||r.line||'')+'</td><td class="l">'+esc(r.material||'')+'</td><td>'+esc(r.thickness||'')+'</td><td>'+esc(r.length)+'</td><td>'+esc(r.mixSingle)+'</td>'+cur+'<td>'+(oth||'')+'</td><td>'+hop+'</td></tr>';
       }).join('');
       var mm=grp[0]?grp[0].maDon:'', serial=esc(mm)+'*'+(idx+1)+'\\'+N+'#'+todaySerial;
-      return '<div class="pl-page">'+
+      return '<div class="pl-page'+(idx===order.length-1?' pl-last':'')+'">'+
         '<div class="pl-top"><div class="pl-co">PURE GROUP PRODUCTION AND TRADING CO., LTD</div><div class="pl-brand">CHARMLASH</div></div>'+
         '<div class="pl-title">PACKING LIST - '+esc(b)+'</div>'+
         '<div class="pl-row1"><span class="pl-boxof">'+esc(b)+' &nbsp; of &nbsp; '+N+'</span></div>'+
@@ -4035,7 +4123,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var css='@page{size:A4 landscape;margin:10mm}'+
       '*{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}'+
       'body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0}'+
-      '.pl-page{page-break-after:always;padding:4px 6px 16px}.pl-page:last-child{page-break-after:auto}'+
+      '.pl-page{page-break-after:always;padding:4px 6px 16px}.pl-page.pl-last{page-break-after:auto}'+
       '.pl-top{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #E8185C;padding-bottom:4px}'+
       '.pl-co{color:#E8185C;font-weight:800;font-size:19px}.pl-brand{color:#E8185C;font-weight:800;font-size:24px}'+
       '.pl-title{text-align:center;font-size:30px;font-weight:800;margin:16px 0 10px}'+
@@ -4113,7 +4201,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(outH) outH.textContent='🆚 Kết quả: Đơn gốc ↔ Hiện tại';
       if(sumFile) sumFile.innerHTML='<span class="mini" style="color:var(--text-3)">— đang xem: Đơn gốc↔Hiện tại —</span>';
       if(info) info.innerHTML='';
-      var md=getVal('s7-madon'), byMd=function(a){ return md?(a||[]).filter(function(o){return o.maDon===md;}):(a||[]); };
+      var md=getVal('s7-madon');
+      // CHƯA chọn mã đơn → để TRỐNG, không so sánh
+      if(!md){ if(sumOrig) sumOrig.innerHTML='<span class="mini" style="color:var(--text-3)">— Chọn 1 mã đơn ở ô "Lọc mã đơn" để so sánh Đơn gốc ↔ Hiện tại —</span>'; out.innerHTML='<div class="mini txt" style="padding:14px;color:var(--text-3)">Chọn mã đơn để xem so sánh.</div>'; return; }
+      var byMd=function(a){ return (a||[]).filter(function(o){return o.maDon===md;}); };
       var orig={ name:'ĐƠN GỐC'+(md?' · '+md:''), orders:byMd(state.origOrders), keoRows:byMd(state.origKeo), mixSheets:byMd(state.origMix), meta:{maDon:md||'(tất cả)'} };
       var cur ={ name:'HIỆN TẠI'+(md?' · '+md:''), orders:byMd(state.orders),     keoRows:byMd(state.keoRows), mixSheets:byMd(state.mixSheets), meta:{maDon:md||'(tất cả)'} };
       renderCmpSections(out, sumOrig, orig, cur, s7Only);
@@ -4317,16 +4408,19 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var entries=(state.log||[]).slice().reverse();   // mới nhất lên đầu
     var rows='', shown=0;
     entries.forEach(function(line, i){
-      var m=String(line).match(/^\[([^\]]+)\]\s*(.*)$/);
-      var time=m?m[1]:'', msg=m?m[2]:String(line);
-      if(q && nrm(time+' '+msg).indexOf(q)<0) return;
+      var time='', user='', msg='';
+      var m2=String(line).match(/^\[([^\]]+)\]\[([^\]]*)\]\s*([\s\S]*)$/);   // [thời gian][tài khoản] msg
+      if(m2){ time=m2[1]; user=m2[2]; msg=m2[3]; }
+      else { var m=String(line).match(/^\[([^\]]+)\]\s*([\s\S]*)$/); time=m?m[1]:''; msg=m?m[2]:String(line); }   // dòng cũ (chưa có tài khoản)
+      if(q && nrm(time+' '+user+' '+msg).indexOf(q)<0) return;
       shown++;
       var isEdit = msg.indexOf('Sửa ô')===0 || msg.indexOf('Xóa')===0 || msg.indexOf('Thêm')===0 || msg.indexOf('Khôi phục')===0 || msg.indexOf('Nhân bản')===0 || msg.indexOf('Dán')===0;
       var isWarn = msg.indexOf('⚠')>=0 || msg.indexOf('LỆCH')>=0 || msg.indexOf('Lỗi')===0;
       rows+='<tr><td>'+(entries.length-i)+'</td><td class="mini">'+esc(time)+'</td>'+
+        '<td class="txt mini"'+(user?'':' style="color:var(--text-3)"')+'>'+esc(user||'—')+'</td>'+
         '<td class="txt"'+(isWarn?' style="color:var(--red-600);font-weight:600"':(isEdit?' style="font-weight:600"':''))+'>'+esc(msg)+'</td></tr>';
     });
-    tb.innerHTML = rows || '<tr><td colspan="3" class="txt mini">'+(q?'Không có dòng nào khớp tìm kiếm.':'Chưa có thao tác nào.')+'</td></tr>';
+    tb.innerHTML = rows || '<tr><td colspan="4" class="txt mini">'+(q?'Không có dòng nào khớp tìm kiếm.':'Chưa có thao tác nào.')+'</td></tr>';
     setTxt('s8-count', shown+' / '+(state.log||[]).length+' thao tác');
   }
   var s8s=document.getElementById('s8-search'); if(s8s&&s8s.addEventListener) s8s.addEventListener('input', renderS8);
