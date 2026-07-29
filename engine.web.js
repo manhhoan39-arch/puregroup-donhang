@@ -21,7 +21,8 @@
   var MM_MIN = 4, MM_MAX = 20, SOI_PER_LINE = 2;
   // TIÊU CHUẨN ĐỘ CONG 2026 — dải size (mm) cho phép theo TỪNG NHÓM độ cong:
   //   J·B·C·CC·D·DD: 4–20mm · L·M·V·L+·LD: 5–16mm · LJ·LB·LC·LC+: 5–18mm
-  var CURL_RANGE = { J:[4,20],B:[4,20],C:[4,20],CC:[4,20],D:[4,20],DD:[4,20], L:[5,16],M:[5,16],V:[5,16],'L+':[5,16],LD:[5,16], LJ:[5,18],LB:[5,18],LC:[5,18],'LC+':[5,18], 'Curl 1':[4,20] };
+  // Dải độ dài CHUẨN theo độ cong. LC+/LC/LB/LJ: 5–20mm (tiêu chuẩn 2026).
+  var CURL_RANGE = { J:[4,20],B:[4,20],C:[4,20],CC:[4,20],D:[4,20],DD:[4,20], L:[5,16],M:[5,16],V:[5,16],'L+':[5,16],LD:[5,16], LJ:[5,20],LB:[5,20],LC:[5,20],'LC+':[5,20], 'Curl 1':[4,20] };
   var round2 = function (n) { return Math.round((n + Number.EPSILON) * 100) / 100; };
 
   function normalizeLength(len) {
@@ -98,7 +99,13 @@
       var _ck = Object.keys(o.curls || {}), _vlo = minMM, _vhi = maxMM;
       if (_ck.length) { _vlo = 99; _vhi = 0; _ck.forEach(function (k) { var cr = CURL_RANGE[k] || [minMM, maxMM]; if (cr[0] < _vlo) _vlo = cr[0]; if (cr[1] > _vhi) _vhi = cr[1]; }); }
       if (rg.lo > rg.hi) push('length', 'E-LEN', 'error', '"' + o.length + '" dải không hợp lệ (đầu > cuối)');
-      else if (rg.lo < _vlo || rg.hi > _vhi) push('length', 'E-LEN', 'error', '"' + o.length + '" vượt dải cho phép (' + _vlo + '-' + _vhi + 'mm) theo tiêu chuẩn độ cong 2026');
+      else if (rg.lo < _vlo || rg.hi > _vhi) {
+        // Đơn khách CÓ THỂ làm ngoài chuẩn → người dùng bấm "Cho phép sai chuẩn" cho ĐÚNG ô đó
+        // (opt.lenApproved['<mã đơn>|<seri>'] = true) → hạ xuống CẢNH BÁO để vẫn sinh được dữ liệu.
+        var _ok = opt.lenApproved && opt.lenApproved[(o.maDon || '') + '|' + o.seri];
+        if (_ok) push('length', 'W-LEN-OK', 'warn', '"' + o.length + '" NGOÀI chuẩn ' + _vlo + '-' + _vhi + 'mm — đã được cho phép');
+        else push('length', 'E-LEN', 'error', '"' + o.length + '" vượt dải cho phép (' + _vlo + '-' + _vhi + 'mm) theo tiêu chuẩn độ cong 2026');
+      }
       else if (/^\*/.test(o.length)) push('length', 'E-STAR', 'error', '"' + o.length + '" sai cấu trúc chuẩn (đúng: ' + o.length.replace(/^\*/, '') + ') — thừa dấu *');
     }
     // Mix/Single: giá trị hợp lệ + kiểm tra CHÉO với độ dài

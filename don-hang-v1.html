@@ -219,6 +219,13 @@ td.cellsel-anchor,th.cellsel-anchor{box-shadow:inset 0 0 0 2px var(--accent)}
 .prev-table td{padding:6px 9px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);text-align:center;color:var(--text)}
 .prev-table td.txt{text-align:left}
 .prev-table td.err{background:var(--red-500);color:#fff;font-weight:700;cursor:text}
+/* Nút xác nhận "cho phép sai chuẩn" ngay trong ô Độ Dài */
+.len-ok,.len-undo{display:inline-block;margin-left:5px;cursor:pointer;font-size:12px;line-height:1;user-select:none;
+  padding:0 3px;border-radius:4px}
+.len-ok{background:rgba(255,255,255,.92);color:var(--red-600)}
+.len-ok:hover{background:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.65)}
+.len-undo{background:rgba(0,0,0,.06);color:var(--amber-700,#8a5a00)}
+.len-undo:hover{background:rgba(0,0,0,.12)}
 .prev-table td.err[contenteditable]:focus{outline:2px solid var(--accent);background:#fff;color:var(--text)}
 .prev-table tr:hover td:not(.err){background:var(--surface-2)}
 .prev-table td.del{color:var(--text-3);cursor:pointer;font-weight:700;width:26px}
@@ -975,9 +982,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
 
   /* ===== UNDO / REDO — ảnh chụp dữ liệu (orders/keoRows/mixSheets/boxSel) trước mỗi thao tác sửa ===== */
   var undoStack=[], redoStack=[], UNDO_MAX=60;
-  function snapState(){ try{ return JSON.stringify({ orders:state.orders, keoRows:state.keoRows, mixSheets:state.mixSheets, pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{}, colorMix:state.colorMix||{}, remapApproved:state.remapApproved||{} }); }catch(e){ return null; } }
+  function snapState(){ try{ return JSON.stringify({ orders:state.orders, keoRows:state.keoRows, mixSheets:state.mixSheets, pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{}, colorMix:state.colorMix||{}, remapApproved:state.remapApproved||{}, lenApproved:state.lenApproved||{}, lenApproved:state.lenApproved||{} }); }catch(e){ return null; } }
   function pushUndo(){ var s=snapState(); if(s==null) return; undoStack.push(s); if(undoStack.length>UNDO_MAX) undoStack.shift(); redoStack.length=0; updateUndoBtns(); try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){} }
-  function applySnap(s){ try{ var o=JSON.parse(s); state.orders=o.orders||[]; state.keoRows=o.keoRows||[]; state.mixSheets=o.mixSheets||[]; state.pack=o.pack||null; state._packR=null; if(typeof boxSel!=='undefined') boxSel=o.boxSel||{}; state.boxTypes=o.boxTypes||{}; state.colorMix=o.colorMix||{}; state.remapApproved=o.remapApproved||{}; try{ render(); }catch(e){} }catch(e){} }
+  function applySnap(s){ try{ var o=JSON.parse(s); state.orders=o.orders||[]; state.keoRows=o.keoRows||[]; state.mixSheets=o.mixSheets||[]; state.pack=o.pack||null; state._packR=null; if(typeof boxSel!=='undefined') boxSel=o.boxSel||{}; state.boxTypes=o.boxTypes||{}; state.colorMix=o.colorMix||{}; state.remapApproved=o.remapApproved||{}; state.lenApproved=o.lenApproved||{}; try{ render(); }catch(e){} }catch(e){} }
   function doUndo(){ if(!undoStack.length) return; var cur=snapState(); var prev=undoStack.pop(); if(cur!=null) redoStack.push(cur); applySnap(prev); try{ logLine('↶ Hoàn tác'); }catch(e){} updateUndoBtns(); }
   function doRedo(){ if(!redoStack.length) return; var cur=snapState(); var nxt=redoStack.pop(); if(cur!=null) undoStack.push(cur); applySnap(nxt); try{ logLine('↷ Làm lại'); }catch(e){} updateUndoBtns(); }
   function updateUndoBtns(){ var u=document.getElementById('btn-undo'), r=document.getElementById('btn-redo'); if(u){ u.style.opacity=undoStack.length?'1':'.4'; u.style.pointerEvents=undoStack.length?'':'none'; } if(r){ r.style.opacity=redoStack.length?'1':'.4'; r.style.pointerEvents=redoStack.length?'':'none'; } }
@@ -1225,7 +1232,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function render(){
     __pendBuf=[]; Array.prototype.forEach.call(document.querySelectorAll('.pending-save'), function(x){ x.style.display='none'; });   // render lại → hủy mọi ô chờ chưa lưu
     attachColorMix(state.orders);
-    var R = E.runPipeline({ rawOrders: state.orders, mixSheets: state.mixSheets, keoRows: state.keoRows });
+    var R = E.runPipeline({ rawOrders: state.orders, mixSheets: state.mixSheets, keoRows: state.keoRows, opt:{ lenApproved: state.lenApproved||{} } });
     state.orders = R.orders; // giữ bản đã chuẩn hoá
     state.R = R;
     // CẤU TRÚC ĐỘ CONG CỐ ĐỊNH 16 cột (J B C CC D DD L M V L+ LD LC+ LC LB LJ Curl 1)
@@ -1328,7 +1335,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var ti=er?(' title="'+esc(er.msg)+' — sửa xong bấm ra ngoài để tính lại"'):'';
         // ô LỖI 1 dòng → giữ esc (dễ sửa); ô LỖI nhiều dòng (multi-code) → vẫn tách dòng như ô thường
         var hasNl=/\r?\n/.test(String(val==null?'':val));
-        return '<td class="'+cls.trim()+'"'+ce+ti+'>'+((er&&!hasNl)?esc(val):nl2br(val))+'</td>'; };
+        // Ô ĐỘ DÀI ngoài chuẩn: cho phép XÁC NHẬN "đơn này làm sai chuẩn" ngay tại ô (▣/☑) —
+        // đã xác nhận thì ô chuyển sang vàng (cảnh báo) và dữ liệu vẫn sinh bình thường.
+        var apBtn='';
+        if(col==='length' && er && canEditStep('s3')){
+          var _k=o.maDon+'|'+o.seri;
+          if(er.code==='E-LEN' && /vượt dải/.test(er.msg||''))
+            apBtn='<span class="len-ok" data-lenkey="'+esc(_k)+'" title="Cho phép SAI CHUẨN ở ô này (đơn khách làm ngoài chuẩn) → hết đỏ, vẫn sinh dữ liệu">▣</span>';
+          else if(er.code==='W-LEN-OK')
+            apBtn='<span class="len-undo" data-lenkey="'+esc(_k)+'" title="Bỏ cho phép sai chuẩn → đưa về báo đỏ">☑</span>';
+        }
+        return '<td class="'+cls.trim()+'"'+ce+ti+'>'+((er&&!hasNl)?esc(val):nl2br(val))+apBtn+'</td>'; };
       var curls=CURLS.map(function(k){ var cv=(o.curls&&o.curls[k])?o.curls[k]:''; var ce=canEditStep('s3')?' contenteditable="true" data-seri="'+o.seri+'" data-madon="'+esc(o.maDon)+'" data-col="curl:'+esc(k)+'" title="Sửa số lượng độ cong '+esc(k)+'"':''; return '<td class="qty cw"'+ce+' style="background:rgba(0,207,200,.05)">'+cv+'</td>'; }).join('');
       // thứ tự cột đúng sheet "Nhập Đơn" (đến cột W) — Loại Hàng (= Nhóm của đơn khách) sau Code Sợi
       var serr = errKey[o.maDon+'|'+o.seri+'|seri'];   // lỗi cột Seri (E-DUP) cũng phải tô đỏ
@@ -2928,6 +2945,19 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(chip){ chip.textContent=list.length+(isErr?' ô sai chuẩn':' cảnh báo dữ liệu')+'  ('+(i+1)+'/'+list.length+')'; }
     i=(i+1)%list.length; if(isErr) _errI=i; else _warnI=i;
   }
+  // Bấm ▣ trong ô Độ Dài đỏ → CHO PHÉP sai chuẩn ô đó (☑ để bỏ cho phép). Áp dụng ngay, tính lại toàn bộ.
+  document.addEventListener('click', function(ev){
+    var t=ev.target&&ev.target.closest?ev.target.closest('.len-ok,.len-undo'):null; if(!t) return;
+    ev.preventDefault(); ev.stopPropagation();
+    if(typeof canEditStep==='function' && !canEditStep('s3')) return;
+    var k=t.getAttribute('data-lenkey'); if(!k) return;
+    state.lenApproved=state.lenApproved||{};
+    try{ pushUndo(); }catch(e){}
+    if(t.classList.contains('len-ok')){ state.lenApproved[k]=true; logLine('Cho phép SAI CHUẨN độ dài: '+k); }
+    else { delete state.lenApproved[k]; logLine('Bỏ cho phép sai chuẩn độ dài: '+k); }
+    try{ resetPack(); }catch(e){}
+    try{ render(); }catch(e){}
+  });
   var ecEl=document.getElementById('err-chip');  if(ecEl && ecEl.addEventListener) ecEl.addEventListener('click', function(){ jumpCycle('error'); });
   // Nút "Duyệt tất cả" (nằm ở dòng tiêu đề cột) — duyệt mọi quy đổi độ cong
   document.addEventListener('click', function(ev){ var ba=ev.target&&ev.target.closest?ev.target.closest('.rm-approve-all'):null; if(!ba) return; ev.preventDefault(); ev.stopPropagation();
@@ -3110,7 +3140,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function resetPack(){ state.pack=null; state._packR=null; }
   function boxR(){
     if(!state.pack) return state.R;
-    if(!state._packR){ try{ state._packR = E.runPipeline({ rawOrders: state.pack, mixSheets: state.mixSheets, keoRows: state.keoRows }); }catch(e){ state._packR = state.R; } }
+    if(!state._packR){ try{ state._packR = E.runPipeline({ rawOrders: state.pack, mixSheets: state.mixSheets, keoRows: state.keoRows, opt:{ lenApproved: state.lenApproved||{} } }); }catch(e){ state._packR = state.R; } }
     return state._packR;
   }
   function renderBoxAll(){ var br=boxR(); try{ renderBox(br); }catch(e){} try{ updateBoxTotals(br); }catch(e){} try{ applyAllFilters(); }catch(e){} }
@@ -4780,7 +4810,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     },
     getState: function(){
       return { orders:state.orders, mixSheets:state.mixSheets, keoRows:state.keoRows,
-               pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{}, colorMix:state.colorMix||{}, remapApproved:state.remapApproved||{},
+               pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{}, colorMix:state.colorMix||{}, remapApproved:state.remapApproved||{}, lenApproved:state.lenApproved||{},
                files:state.files, log:state.log, source:state.source, processed:state.processed };
     },
     hasData: function(){ return !!(state.files && state.files.length) || !!(state.orders && state.orders.length); },
@@ -4796,6 +4826,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       state.boxTypes = (p.boxTypes && typeof p.boxTypes==='object') ? p.boxTypes : {};
       state.colorMix = (p.colorMix && typeof p.colorMix==='object') ? p.colorMix : {};
       state.remapApproved = (p.remapApproved && typeof p.remapApproved==='object') ? p.remapApproved : {};
+      state.lenApproved = (p.lenApproved && typeof p.lenApproved==='object') ? p.lenApproved : {};
       state.files     = Array.isArray(p.files)     ? p.files     : [];
       state.files.forEach(function(F){ if(F&&F.data) F.imported=true; });   // project đã lưu = file đã xử lý → cột "File đã nhập"
       // dựng lại ghi chú độ cong + Bảng Hộp theo mã đơn từ meta các file đã lưu
