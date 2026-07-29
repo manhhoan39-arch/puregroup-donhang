@@ -2212,12 +2212,24 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var lastXY={x:0,y:0}, edgeTimer=null;
     function extendTo(x,y){ if(!anchor||!selWrapEl) return; var el=document.elementFromPoint(x,y); if(!el||!selWrapEl.contains(el)) return; var cc=cellCoord(el); if(!cc) return; if(cc.r!==head.r || cc.c!==head.c){ head=cc; if(cc.r!==anchor.r || cc.c!==anchor.c){ hasSel=true; document.body.classList.add('mn-dragging'); try{ window.getSelection().removeAllRanges(); }catch(e){} paint(); } } }
     function edgeScroll(){ if(!selWrapEl) return; var sc=selWrapEl.closest?selWrapEl.closest('.tbl-wrap'):null; if(!sc) return; var rc=sc.getBoundingClientRect(), m=42, dy=0, dx=0; if(lastXY.y>rc.bottom-m) dy=22; else if(lastXY.y<rc.top+m) dy=-22; if(lastXY.x>rc.right-m) dx=22; else if(lastXY.x<rc.left+m) dx=-22; if(dy||dx){ sc.scrollTop+=dy; sc.scrollLeft+=dx; extendTo(lastXY.x,lastXY.y); } }
+    // Copy/Cut hợp lệ khi: đã kéo chọn nhiều ô, HOẶC đang ở 1 ô mà không bôi text bên trong
+    // (giống Google Sheets: bấm 1 ô rồi Ctrl+C là copy cả ô).
+    function mnSingleOK(ev){
+      if(hasSel) return true;
+      if(!anchor) return false;
+      var a=document.activeElement;
+      if(a && /input|textarea/i.test(a.tagName||'')){
+        var st=a.selectionStart, en=a.selectionEnd;
+        if(st!=null && en!=null && st!==en) return false;   // đang bôi text trong ô → để copy/cut mặc định
+      }
+      return true;
+    }
     [mw,kw,xw,yw].forEach(function(w){ if(!w) return;
       w.addEventListener('mousedown', function(ev){ var cc=cellCoord(ev.target); if(!cc) return; if(selWrapEl&&selWrapEl!==w) clearPaint(); selWrapEl=w; anchor=cc; head=cc; hasSel=false; clearPaint(); lastXY={x:ev.clientX,y:ev.clientY}; if(!edgeTimer) edgeTimer=setInterval(edgeScroll,50); });
-      w.addEventListener('copy', function(ev){ if(!hasSel) return; var rg=rangeOf(); if(!rg) return; function qz(v){ v=String(v==null?'':v); return /[\t\n"]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; } var out=[]; for(var r=rg.r1;r<=rg.r2;r++){ var line=[]; for(var c=rg.c1;c<=rg.c2;c++){ var el=cellAt(w,r,c); line.push(qz(el?el.value:'')); } out.push(line.join('\t')); } var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text', out.join('\n')); ev.preventDefault(); } });
+      w.addEventListener('copy', function(ev){ if(!mnSingleOK(ev)) return; var rg=rangeOf(); if(!rg) return; function qz(v){ v=String(v==null?'':v); return /[\t\n"]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; } var out=[]; for(var r=rg.r1;r<=rg.r2;r++){ var line=[]; for(var c=rg.c1;c<=rg.c2;c++){ var el=cellAt(w,r,c); line.push(qz(el?el.value:'')); } out.push(line.join('\t')); } var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text', out.join('\n')); ev.preventDefault(); } });
       w.addEventListener('keydown', function(ev){ if(!hasSel||ev.key!=='Delete') return; var rg=rangeOf(); if(!rg) return; ev.preventDefault(); for(var r=rg.r1;r<=rg.r2;r++) for(var c=rg.c1;c<=rg.c2;c++){ var el=cellAt(w,r,c); if(el && !el.disabled){ if(el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; } } if(w===mw) syncManualFromDOM(); else if(w===kw) syncKeoM(); else if(w===yw) syncColorM(); else syncMixGrid(); commit(); });
       // CẮT (Ctrl+X): copy cả vùng rồi XÓA nội dung vùng đó
-      w.addEventListener('cut', function(ev){ if(!hasSel) return; var rg=rangeOf(); if(!rg) return; function qz(v){ v=String(v==null?'':v); return /[\t\n"]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; } var out=[]; for(var r=rg.r1;r<=rg.r2;r++){ var line=[]; for(var c=rg.c1;c<=rg.c2;c++){ var el=cellAt(w,r,c); line.push(qz(el?el.value:'')); if(el && !el.disabled){ if(el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; } } out.push(line.join('\t')); } var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text', out.join('\n')); ev.preventDefault(); } if(w===mw) syncManualFromDOM(); else if(w===kw) syncKeoM(); else if(w===yw) syncColorM(); else syncMixGrid(); commit(); });
+      w.addEventListener('cut', function(ev){ if(!mnSingleOK(ev)) return; var rg=rangeOf(); if(!rg) return; function qz(v){ v=String(v==null?'':v); return /[\t\n"]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; } var out=[]; for(var r=rg.r1;r<=rg.r2;r++){ var line=[]; for(var c=rg.c1;c<=rg.c2;c++){ var el=cellAt(w,r,c); line.push(qz(el?el.value:'')); if(el && !el.disabled){ if(el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; } } out.push(line.join('\t')); } var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text', out.join('\n')); ev.preventDefault(); } if(w===mw) syncManualFromDOM(); else if(w===kw) syncKeoM(); else if(w===yw) syncColorM(); else syncMixGrid(); commit(); });
     });
     document.addEventListener('mousemove', function(ev){
       if(!anchor || ev.buttons!==1 || !selWrapEl) return;
@@ -2586,7 +2598,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   // ==== CHỌN VÙNG kéo chuột cho các bảng dữ liệu (Step 2·3·4·5·6) ====
   var gsA=null,gsH=null,gsDrag=false;
-  var GS_TB={'eng-nhapdon':1,'eng-mix-body':1,'eng-keo-full':1,'eng-cuonbox':1,'eng-box':1};
+  // Bảng bôi đen được: + 2 bảng tổng hợp Step 5 (Code Sợi · Keo) để kéo chọn ô số lượng ra Σ · Đếm · TB
+  var GS_TB={'eng-nhapdon':1,'eng-mix-body':1,'eng-keo-full':1,'eng-cuonbox':1,'eng-box':1,'s6-code-pivot':1,'s6-keo-pivot':1};
   function gsCoord(el){ var td=el&&el.closest?el.closest('td'):null; if(!td) return null; var tb=td.closest('tbody'); if(!tb||!GS_TB[tb.id]) return null; var tr=td.parentNode; var r=Array.prototype.indexOf.call(tb.rows,tr); if(r<0) return null; return {tb:tb,r:r,c:td.cellIndex}; }
   function gsPaint(){
     Array.prototype.forEach.call(document.querySelectorAll('td.gs-sel'),function(e){ e.classList.remove('gs-sel','cell-sel'); });
@@ -2624,6 +2637,89 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var r1=Math.min(gsA.r,gsH.r),r2=Math.max(gsA.r,gsH.r),c1=Math.min(gsA.c,gsH.c),c2=Math.max(gsA.c,gsH.c),out=[];
     for(var r=r1;r<=r2;r++){ var row=gsA.tb.rows[r],line=[]; for(var c=c1;c<=c2;c++){ var td=row&&row.cells[c]; line.push(td?String(td.innerText||'').replace(/\n/g,' ').trim():''); } out.push(line.join('\t')); }
     var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text',out.join('\n')); ev.preventDefault(); }
+  });
+  /* ===== CẮT (Ctrl+X) · XÓA KHỐI (Delete) · DÁN KHỐI (Ctrl+V) cho các bảng bôi đen được =====
+     Chỉ ghi vào ô SỬA ĐƯỢC (contenteditable) rồi phát 'focusout' để đi đúng luồng
+     "chờ bấm 💾 Lưu" hiện có (Nhập Đơn · Mix Label · Bảng Keo) — không đổi cách lưu. */
+  function gsSelRange(){ if(!(gsA&&gsH&&gsA.tb===gsH.tb)) return null;
+    return { tb:gsA.tb, r1:Math.min(gsA.r,gsH.r), r2:Math.max(gsA.r,gsH.r), c1:Math.min(gsA.c,gsH.c), c2:Math.max(gsA.c,gsH.c) }; }
+  function gsCellAt(tb,r,c){ var row=tb&&tb.rows[r]; return row?row.cells[c]:null; }
+  function gsIsEditable(td){ return !!(td && td.getAttribute && td.getAttribute('contenteditable')==='true'); }
+  function gsCommit(td){ try{ td.dispatchEvent(new FocusEvent('focusout',{bubbles:true})); }
+    catch(e){ try{ var e2=document.createEvent('Event'); e2.initEvent('focusout',true,true); td.dispatchEvent(e2); }catch(_){} } }
+  function gsTxt(td){ if(!td) return ''; var t=(td.innerText!=null?td.innerText:td.textContent); return String(t==null?'':t); }
+  function gsSetCell(td,val){
+    if(!gsIsEditable(td)) return false;
+    var cur=gsTxt(td).replace(/ /g,' ').trim(), nv=String(val==null?'':val).trim();
+    if(cur===nv) return false;
+    td.textContent=nv; gsCommit(td); return true;
+  }
+  function gsInEdit(){ var a=document.activeElement; return !!(a && a.getAttribute && a.getAttribute('contenteditable')==='true'); }
+  var __gsMsgT=null;
+  function gsMsg(txt){   // nhắc ngắn (không có toast trong scope này)
+    var b=document.getElementById('gs-msg');
+    if(!b){ b=document.createElement('div'); b.id='gs-msg';
+      b.style.cssText='position:fixed;z-index:99999;left:50%;bottom:70px;transform:translateX(-50%);background:var(--surface);border:1.5px solid var(--accent);color:var(--accent);font-weight:700;font-size:12.5px;padding:7px 14px;border-radius:9px;box-shadow:0 3px 14px rgba(0,0,0,.18)';
+      document.body.appendChild(b); }
+    b.textContent=txt; b.style.display='';
+    if(__gsMsgT) clearTimeout(__gsMsgT);
+    __gsMsgT=setTimeout(function(){ b.style.display='none'; }, 2600);
+  }
+  function gsTsv(rg){ var out=[];
+    for(var r=rg.r1;r<=rg.r2;r++){ var line=[]; for(var c=rg.c1;c<=rg.c2;c++){ line.push(gsTxt(gsCellAt(rg.tb,r,c)).replace(/\n/g,' ').trim()); } out.push(line.join('\t')); }
+    return out.join('\n'); }
+  function gsClear(rg){ var n=0;
+    for(var r=rg.r1;r<=rg.r2;r++) for(var c=rg.c1;c<=rg.c2;c++){ if(gsSetCell(gsCellAt(rg.tb,r,c),'')) n++; }
+    return n; }
+  // CẮT: copy vùng ra clipboard rồi xóa nội dung các ô sửa được
+  document.addEventListener('cut', function(ev){
+    if(ev.defaultPrevented) return;                         // bảng khác đã xử lý (Mix Màu · Packing Slip)
+    var rg=gsSelRange(); if(!rg) return;
+    if(gsInEdit()){ try{ if(String(window.getSelection()||'').length) return; }catch(e){} }   // đang bôi text trong ô → cắt mặc định
+    var cd=ev.clipboardData||window.clipboardData; if(!cd) return;
+    cd.setData('text', gsTsv(rg)); ev.preventDefault();
+    var n=gsClear(rg);
+    if(!n) gsMsg('Vùng chọn không có ô sửa được.');
+  });
+  // XÓA KHỐI: Delete/Backspace khi đang chọn vùng (không ở chế độ gõ trong ô)
+  document.addEventListener('keydown', function(ev){
+    if(ev.key!=='Delete' && ev.key!=='Backspace') return;
+    if(gsInEdit()) return;                                  // đang gõ trong ô → để xóa ký tự
+    var a=document.activeElement; if(a && /input|textarea|select/i.test(a.tagName||'')) return;
+    var rg=gsSelRange(); if(!rg) return;
+    ev.preventDefault(); gsClear(rg);
+  });
+  // DÁN KHỐI: từ Excel/Sheets hoặc trong app → ghi từ ô góc trên-trái của vùng chọn
+  document.addEventListener('paste', function(ev){
+    if(ev.defaultPrevented) return;                         // bảng đã có handler riêng (vd Bảng Keo) xử lý trước
+    var rg=gsSelRange(); if(!rg) return;
+    var ae=document.activeElement, aCell=(ae&&ae.closest)?ae.closest('td'):null;
+    var cd=ev.clipboardData||window.clipboardData; var text=cd&&cd.getData?cd.getData('text'):'';
+    if(text==null||text==='') return;
+    var g=parseClipboard(text);
+    if(!g.length) return;
+    var single=(g.length===1 && g[0].length===1);
+    if(single && gsInEdit()) return;                        // dán 1 ô khi đang gõ → để trình duyệt tự chèn
+    ev.preventDefault();
+    // gốc dán: ô đang focus (nếu nằm trong bảng đang chọn) — nếu không thì góc trên-trái vùng chọn
+    var r0=rg.r1, c0=rg.c1;
+    if(aCell && aCell.closest('table')===rg.tb.closest('table')){
+      var tr=aCell.parentNode, ri=Array.prototype.indexOf.call(rg.tb.rows, tr);
+      if(ri>=0){ r0=ri; c0=aCell.cellIndex; }
+    }
+    var wrote=0, skipped=0;
+    // dán 1 ô vào NHIỀU ô đang chọn → điền đều cả vùng (như Google Sheets)
+    if(single && (rg.r1!==rg.r2 || rg.c1!==rg.c2)){
+      for(var r=rg.r1;r<=rg.r2;r++) for(var c=rg.c1;c<=rg.c2;c++){ var td0=gsCellAt(rg.tb,r,c); if(gsIsEditable(td0)){ if(gsSetCell(td0,g[0][0])) wrote++; } else skipped++; }
+    } else {
+      g.forEach(function(cells,ri2){ cells.forEach(function(v,ci2){
+        var td=gsCellAt(rg.tb, r0+ri2, c0+ci2);
+        if(!td) return;
+        if(gsIsEditable(td)){ if(gsSetCell(td,v)) wrote++; } else skipped++;
+      }); });
+    }
+    if(!wrote && skipped) gsMsg('Không dán được: vùng đích không có ô sửa được.');
+    else if(skipped) gsMsg('Đã dán '+wrote+' ô · bỏ qua '+skipped+' ô chỉ xem.');
   });
   // PASTE vào Bảng Keo (Step 4): dán 1 ô / khối ô từ Excel hoặc từ trong bảng, ghi vào state.keoRows
   (function(){
@@ -4726,6 +4822,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
 (function(){
   var initSig=null, checking=false, notified=false;
   function sig(){
+    if(typeof fetch!=='function') return Promise.resolve(null);   // môi trường không có fetch → bỏ qua
     var u = location.pathname + (location.search ? location.search + '&' : '?') + '_v=' + Date.now();
     return fetch(u, { method:'HEAD', cache:'no-store' })
       .then(function(r){ if(!r || !r.ok) return null; var h=r.headers; return (h.get('etag')||'') + '|' + (h.get('last-modified')||'') + '|' + (h.get('content-length')||''); })
