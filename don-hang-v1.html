@@ -106,7 +106,17 @@ body{
 /* ============ MAIN ============ */
 .main{flex:1;display:flex;flex-direction:column;height:100vh;overflow:hidden}
 .topbar{height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;
-  gap:12px;padding:0 18px;flex-shrink:0;box-shadow:var(--shadow)}
+  gap:8px;padding:0 14px;flex-shrink:0;box-shadow:var(--shadow);flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden}
+/* Thanh công cụ: MỌI nhãn/nút chỉ 1 DÒNG chữ (không xuống dòng), thiếu chỗ thì cuộn ngang */
+.topbar > *{flex:0 0 auto}
+.topbar .search-top{flex:1 1 190px;min-width:130px;width:auto}
+.topbar .btn,.topbar .cl-btn,.topbar select,.topbar .madon-pick,.topbar #cl-bar,.topbar #cl-proj-btns,
+.topbar #cl-bar .who,.topbar #cl-bar .who *,.topbar .cl-sub{white-space:nowrap}
+.topbar #cl-bar{gap:6px;margin-left:6px}
+.topbar #cl-bar .who{line-height:1.2;font-size:12px;max-width:190px;overflow:hidden;text-overflow:ellipsis}
+.topbar #cl-proj-btns .btn{padding:7px 10px}
+.topbar::-webkit-scrollbar{height:6px}
+.topbar::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
 .crumb{font-size:12px;color:var(--text-3)}
 .crumb b{color:var(--text);font-weight:600}
 .page-title{font-size:15px;font-weight:700}
@@ -407,8 +417,9 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   .nav a.active::before{display:none}
   .main{height:auto;overflow:visible}
   .content{overflow:visible;padding:12px}
-  .topbar{height:auto;flex-wrap:wrap;padding:8px 12px;gap:8px}
+  .topbar{height:auto;flex-wrap:wrap;padding:8px 12px;gap:8px;overflow-x:visible}
   .search-top{width:100%;order:9}
+  .topbar .search-top{flex:1 1 100%;width:100%;min-width:0}   /* màn hẹp: ô tìm xuống hàng riêng, chữ vẫn 1 dòng */
   .kpi-grid{grid-template-columns:repeat(2,1fr)}
   .export-grid{grid-template-columns:1fr}
   .tbl-wrap{overflow:auto}
@@ -448,6 +459,9 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   <header class="topbar">
     <div class="spacer"></div>
     <div class="search-top">🔍<input placeholder="Tìm trong Bảng Nhập Đơn…" id="top-search"></div>
+    <!-- Bộ lọc CHUNG trên thanh công cụ: chọn Mã KH / Mã Đơn → MỌI bước hiển thị theo -->
+    <input id="top-makh" class="madon-pick" list="dl-makh" placeholder="Tất cả KH" title="Lọc theo Mã KH — đồng bộ mọi bước" autocomplete="off" style="min-width:104px;margin-left:8px">
+    <input id="top-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off" style="min-width:126px;margin-left:6px">
     <div class="icon-btn" id="btn-undo" title="Hoàn tác (Ctrl+Z)" style="opacity:.4;pointer-events:none">↶</div>
     <div class="icon-btn" id="btn-redo" title="Làm lại (Ctrl+Y / Ctrl+Shift+Z)" style="opacity:.4;pointer-events:none">↷</div>
     <div class="icon-btn" id="themeBtn" title="Đổi giao diện Sáng/Tối">🌙</div>
@@ -936,6 +950,8 @@ function go(id){
   var _cr=document.getElementById('crumb'); if(_cr) _cr.textContent=titles[id][0];
   var _pt=document.getElementById('ptitle'); if(_pt) _pt.textContent=titles[id][1];
   document.getElementById('content').scrollTop=0;
+  // ô tìm trên thanh công cụ đổi theo BƯỚC đang xem
+  try{ if(window.__syncTopSearch) window.__syncTopSearch(); }catch(e){}
 }
 document.querySelectorAll('#nav a').forEach(a=>a.addEventListener('click',()=>go(a.dataset.s)));
 // dark mode
@@ -2986,15 +3002,46 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(inp && inp.addEventListener) inp.addEventListener('input', function(){
       gridQuery = String(inp.value||'');
       applyGridFilter();
-      if(id==='top-search' && typeof go==='function' && gridQuery) go('s3');
     });
   }
   wireSearch('grid-search');
-  wireSearch('top-search');
+  // Ô tìm kiếm trên THANH CÔNG CỤ: tìm trong bảng của BƯỚC ĐANG XEM (giống ô tìm của từng bước),
+  // gõ xong đổ ngay vào ô tìm của bước đó rồi lọc — không nhảy bước.
+  var TOP_SEARCH_OF={ s3:'grid-search', s4:'s4-search', s5:'s5-search', s6:'s6-search', s10:'s10-search', s8:'s8-search' };
+  var TOP_SEARCH_LABEL={ s3:'Bảng Nhập Đơn', s4:'Bảng Mix Label', s5:'Bảng Keo', s6:'Bảng Line Cuốn', s10:'Tổng hợp Box', s8:'lịch sử' };
+  function curStepId(){ var sec=document.querySelector('section.screen.active'); return sec?sec.id:'s3'; }
+  function syncTopSearchPlaceholder(){
+    var t=document.getElementById('top-search'); if(!t) return;
+    var st=curStepId(), lb=TOP_SEARCH_LABEL[st];
+    t.placeholder = lb ? ('Tìm trong '+lb+'…') : 'Tìm trong Bảng Nhập Đơn…';
+    t.disabled = !TOP_SEARCH_OF[st];
+    t.style.opacity = TOP_SEARCH_OF[st] ? '' : '.5';
+    // hiện lại từ khóa đang lọc của bước đó
+    var tgt=document.getElementById(TOP_SEARCH_OF[st]||'');
+    if(tgt && document.activeElement!==t) t.value=String(tgt.value||'');
+  }
+  window.__syncTopSearch = syncTopSearchPlaceholder;
+  (function(){
+    var top=document.getElementById('top-search'); if(!top||!top.addEventListener) return;
+    top.addEventListener('input', function(){
+      var st=curStepId(), tid=TOP_SEARCH_OF[st]; if(!tid) return;
+      var tgt=document.getElementById(tid); if(!tgt) return;
+      tgt.value=String(top.value||'');
+      if(tid==='grid-search'){ gridQuery=tgt.value; applyGridFilter(); }
+      else {
+        var fired=false;
+        try{ var W=(tgt.ownerDocument&&tgt.ownerDocument.defaultView)||window;
+          tgt.dispatchEvent(new W.Event('input',{bubbles:true})); fired=true; }catch(e){}
+        if(!fired){ try{ var ev2=document.createEvent('Event'); ev2.initEvent('input',true,true); tgt.dispatchEvent(ev2); fired=true; }catch(e){} }
+        if(!fired && typeof applyAllFilters==='function') applyAllFilters();
+      }
+    });
+    syncTopSearchPlaceholder();   // đặt đúng nhãn ngay khi mở app
+  })();
   // lọc Mã Đơn cho Bảng Nhập Đơn (giống dropdown bảng Mix)
   var s3madon=document.getElementById('s3-madon');
   if(s3madon) s3madon.addEventListener('change', function(){ setGlobalMadon(String(s3madon.value||'')); });
-  ['s3-makh','s4-makh','s5-makh','s6-makh','s10-makh','s7-makh'].forEach(function(id){ var el=document.getElementById(id); if(el) el.addEventListener('change', function(){ setGlobalMakh(String(el.value||'')); }); });
+  ['top-makh','s3-makh','s4-makh','s5-makh','s6-makh','s10-makh','s7-makh'].forEach(function(id){ var el=document.getElementById(id); if(el) el.addEventListener('change', function(){ setGlobalMakh(String(el.value||'')); }); });
 
   var roleChip=document.getElementById('role-chip');
   if(roleChip){
@@ -3025,7 +3072,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(el.value && allMaDons(R).indexOf(el.value)<0) el.value='';
   }
   // ĐỒNG BỘ mã đơn giữa các bước: chọn đơn ở bất kỳ bảng nào → mọi bảng cùng lọc theo đơn đó.
-  var MADON_IDS=['s3-madon','s4-madon','s5-madon','s6-madon','s10-madon','s7-madon'];
+  var MADON_IDS=['top-madon','s3-madon','s4-madon','s5-madon','s6-madon','s10-madon','s7-madon'];
   function setGlobalMadon(md){
     md=String(md||'').trim(); if(md==='Tất cả các đơn') md='';
     MADON_IDS.forEach(function(id){ var el=document.getElementById(id); if(el && el.value!==md) el.value=md; });
@@ -3035,7 +3082,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(typeof updateErrChips==='function') updateErrChips();
   }
   // ===== Lọc theo Mã KH (đồng bộ mọi bước) =====
-  var MAKH_IDS=['s3-makh','s4-makh','s5-makh','s6-makh','s10-makh','s7-makh'];
+  var MAKH_IDS=['top-makh','s3-makh','s4-makh','s5-makh','s6-makh','s10-makh','s7-makh'];
   function allMaKHs(R){ var out=[],seen={}; ((R&&R.orders)||[]).forEach(function(o){ var k=khOf(o.maDon); if(k&&!seen[k]){seen[k]=1;out.push(k);} }); return out; }
   function fillMakhList(R){ var khs=allMaKHs(R); var dl=document.getElementById('dl-makh'); if(dl){ dl.innerHTML='<option value="Tất cả KH"></option>'+khs.map(function(k){ return '<option value="'+esc(k)+'"></option>'; }).join(''); } (typeof MAKH_IDS!=='undefined'?MAKH_IDS:[]).forEach(function(id){ var el=document.getElementById(id); if(el && el.value && khs.indexOf(el.value)<0) el.value=''; }); }
   function setGlobalMakh(kh){
@@ -3593,7 +3640,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
 
   // wire tìm kiếm + lọc mã đơn cho các bảng bổ sung
   ['s4-search','s5-search','s6-search','s10-search'].forEach(function(id){ var el=document.getElementById(id); if(el) el.addEventListener('input', applyAllFilters); });
-  ['s4-madon','s5-madon','s6-madon','s10-madon','s7-madon'].forEach(function(id){ var el=document.getElementById(id); if(el) el.addEventListener('change', function(){ setGlobalMadon(String(el.value||'')); }); });
+  ['top-madon','s4-madon','s5-madon','s6-madon','s10-madon','s7-madon'].forEach(function(id){ var el=document.getElementById(id); if(el) el.addEventListener('change', function(){ setGlobalMadon(String(el.value||'')); }); });
   // Ô chọn đơn (datalist): bấm vào → tạm xóa chữ để hiện LẠI toàn bộ danh sách (mọi đơn + "Tất cả các đơn").
   // Rời ô mà chưa chọn gì → khôi phục đơn đang chọn (không mất lựa chọn cũ).
   document.addEventListener('focusin', function(ev){ var el=ev.target; if(el&&el.classList&&el.classList.contains('madon-pick')){ el.dataset.prev=el.value||''; el.dataset.ch='0'; el.value=''; } });

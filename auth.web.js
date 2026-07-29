@@ -120,7 +120,8 @@
       '.cl-hint{font-size:11px;color:#a08a94;margin-top:12px;line-height:1.5}',
       // top bar
       '#cl-bar{display:flex;align-items:center;gap:8px;margin-left:8px;font-family:Calibri,system-ui,sans-serif;font-size:13px}',
-      '#cl-bar .who{line-height:1.15}#cl-bar .who b{color:#1f1520}#cl-bar .who span{color:#8a6a78;font-size:11px}',
+      '#cl-bar .who{line-height:1.2;white-space:nowrap}#cl-bar .who b{color:#1f1520}#cl-bar .who span{color:#8a6a78;font-size:11px}',
+      '#cl-bar .cl-btn,#cl-bar .cl-input,#cl-bar select{white-space:nowrap}',
       '.cl-pill{background:#fdeef4;color:#c01050;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700}',
       '.cl-pill.teal{background:#e6fbfa;color:#0d9488}',
       // modal
@@ -277,10 +278,13 @@
       refreshFactories(facSel);
     }
 
-    var who = h('div', { class: 'who' }, [
-      h('b', {}, [S.user ? (S.user.display_name || S.user.username) : '']),
-      h('br'),
-      h('span', {}, [(ROLE_LABEL[role()] || role() || '') + (S.factory ? ' · ' + S.factory.name : (isSuper() ? ' · Toàn hệ thống' : ''))]),
+    // Khối tài khoản: GỘP 1 DÒNG (tên · vai trò · xưởng) để thanh công cụ không bị xuống dòng.
+    var _nm = S.user ? (S.user.display_name || S.user.username) : '';
+    var _rl = ROLE_LABEL[role()] || role() || '';
+    var _fc = S.factory ? S.factory.name : (isSuper() ? 'Toàn hệ thống' : '');
+    var who = h('div', { class: 'who', title: _nm + (_rl ? ' · ' + _rl : '') + (_fc ? ' · ' + _fc : '') }, [
+      h('b', {}, [_nm]),
+      h('span', {}, [(_rl ? ' · ' + _rl : '') + (_fc ? ' · ' + _fc : '')]),
     ]);
     bar.appendChild(who);
 

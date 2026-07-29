@@ -94,17 +94,25 @@
     if (!/\.\d+$/.test(o.codeSoi)) push('codeSoi', 'E-CODE', 'error', '"' + o.codeSoi + '" thiếu độ dài — kỳ vọng <mã>.<số>');
     var rg = parseRange(o.length);
     if (!rg) push('length', 'E-LEN', 'error', 'Độ dài "' + o.length + '" không đọc được');
+    else if (rg.lo > rg.hi) push('length', 'E-LEN', 'error', '"' + o.length + '" dải không hợp lệ (đầu > cuối)');
     else {
-      // Dải cho phép = HỢP các nhóm độ cong CÓ trong dòng (tiêu chuẩn 2026)
-      var _ck = Object.keys(o.curls || {}), _vlo = minMM, _vhi = maxMM;
-      if (_ck.length) { _vlo = 99; _vhi = 0; _ck.forEach(function (k) { var cr = CURL_RANGE[k] || [minMM, maxMM]; if (cr[0] < _vlo) _vlo = cr[0]; if (cr[1] > _vhi) _vhi = cr[1]; }); }
-      if (rg.lo > rg.hi) push('length', 'E-LEN', 'error', '"' + o.length + '" dải không hợp lệ (đầu > cuối)');
-      else if (rg.lo < _vlo || rg.hi > _vhi) {
-        // Đơn khách CÓ THỂ làm ngoài chuẩn → người dùng bấm "Cho phép sai chuẩn" cho ĐÚNG ô đó
+      // KIỂM TỪNG ĐỘ CONG (không lấy hợp): mỗi độ cong CÓ SỐ thì dải độ dài của dòng
+      // phải nằm trong chuẩn của CHÍNH độ cong đó. Vd dòng 12-20mm có L+ (5-16) → SAI CHUẨN,
+      // dù trong dòng còn LB (5-20). Danh sách chuẩn: CURL_RANGE.
+      var _ck = Object.keys(o.curls || {}), bad = [];
+      if (_ck.length) {
+        _ck.forEach(function (k) {
+          var cr = CURL_RANGE[k] || [minMM, maxMM];
+          if (rg.lo < cr[0] || rg.hi > cr[1]) bad.push(k + ' ' + cr[0] + '-' + cr[1] + 'mm');
+        });
+      } else if (rg.lo < minMM || rg.hi > maxMM) bad.push(minMM + '-' + maxMM + 'mm');
+      if (bad.length) {
+        // Đơn khách CÓ THỂ làm ngoài chuẩn → bấm "Cho phép sai chuẩn" cho ĐÚNG ô đó
         // (opt.lenApproved['<mã đơn>|<seri>'] = true) → hạ xuống CẢNH BÁO để vẫn sinh được dữ liệu.
         var _ok = opt.lenApproved && opt.lenApproved[(o.maDon || '') + '|' + o.seri];
-        if (_ok) push('length', 'W-LEN-OK', 'warn', '"' + o.length + '" NGOÀI chuẩn ' + _vlo + '-' + _vhi + 'mm — đã được cho phép');
-        else push('length', 'E-LEN', 'error', '"' + o.length + '" vượt dải cho phép (' + _vlo + '-' + _vhi + 'mm) theo tiêu chuẩn độ cong 2026');
+        var _msg = '"' + o.length + '" vượt chuẩn độ cong: ' + bad.join(', ');
+        if (_ok) push('length', 'W-LEN-OK', 'warn', _msg + ' — đã được cho phép');
+        else push('length', 'E-LEN', 'error', _msg + ' (tiêu chuẩn độ cong 2026)');
       }
       else if (/^\*/.test(o.length)) push('length', 'E-STAR', 'error', '"' + o.length + '" sai cấu trúc chuẩn (đúng: ' + o.length.replace(/^\*/, '') + ') — thừa dấu *');
     }
