@@ -1025,8 +1025,28 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   var nl2br = function(s){ return esc(s).replace(/\r?\n/g,'<br>'); };
   var setTxt = function(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; };
   // Tách Mã Đơn "CS206-697P-LZ" → Mã KH = "CS206" (trước dấu '-' đầu), Mã đơn = "697P-LZ" (phần còn lại)
-  function khOf(md){ md=String(md==null?'':md); var i=md.indexOf('-'); return i>0 ? md.slice(0,i) : ''; }
-  function donOf(md){ md=String(md==null?'':md); var i=md.indexOf('-'); return i>0 ? md.slice(i+1) : md; }
+  /* TÁCH "Mã KH" · "Mã Đơn" từ ô Mã Đơn của khách. Khách ghi 2 kiểu:
+       · CHỈ mã đơn:        "256S" · "355P" · "355P.1" · "499P"
+       · CÓ CẢ mã KH:       "LS343-256S" · "CS152-744P" · "K6-680P"
+     Nhận diện MÃ ĐƠN theo dạng SỐ+CHỮ (kèm .N): 256S/744P/355P.1 — còn mã KH là CHỮ+SỐ (LS343/CS152/K6),
+     nên không lẫn nhau. Phần trước mã đơn = Mã KH; hậu tố hàng đặc biệt (-LZ/-1ES/-2ES/-DU) thuộc MÃ ĐƠN.
+     (Cách cũ cắt tại dấu "-" đầu tiên nên "256S-LZ" bị hiểu sai thành KH="256S", đơn="LZ".) */
+  var MD_ORDER_RE = /^\d+[A-Za-z]+(?:\.\d+)*$/;        // mã đơn: 256S · 744P · 355P.1
+  var MD_SUFFIX_RE = /^(?:LZ|1ES|2ES|DU)$/i;           // hậu tố hàng đặc biệt do app tự gắn
+  function splitMd(md){
+    md = String(md==null?'':md).trim();
+    if(!md) return { kh:'', don:'' };
+    var parts = md.split('-'), oi = -1, i;
+    for(i=0;i<parts.length;i++){ if(MD_ORDER_RE.test(parts[i].trim())){ oi=i; break; } }
+    if(oi<0){   // không nhận ra mã đơn → giữ cách cũ, nhưng KHÔNG cắt khi phần sau là hậu tố đặc biệt
+      if(parts.length>1 && !MD_SUFFIX_RE.test(parts[1].trim()))
+        return { kh:parts[0].trim(), don:parts.slice(1).join('-').trim() };
+      return { kh:'', don:md };
+    }
+    return { kh:parts.slice(0,oi).join('-').trim(), don:parts.slice(oi).join('-').trim() };
+  }
+  function khOf(md){ return splitMd(md).kh; }
+  function donOf(md){ return splitMd(md).don; }
   // Bóc tách Ghi Chú keo (chữ tự do, mỗi DÒNG = 1 điều kiện) → Loại Sợi · Độ Dày · Độ Dài (giữ nhiều dòng, không đổi ghi chú gốc)
   // vd "0.06/0.07/0.085/0.10 Faux Mink tất cả độ dài\n0.06 Super Silk tất cả độ dài"
   // Danh sách TÊN GỌI NGUYÊN LIỆU thật của đơn (bỏ số độ dày) — để đối chiếu khi bóc tách "Loại Sợi"
@@ -1506,7 +1526,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         return '<tr class="subtotal" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td></td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt">Σ '+r.codeSoi+'</td><td></td><td></td><td></td><td></td>'+
           curlTds(r.curls)+'<td>'+fmtN(r.tong)+'</td></tr>';
       }
-      return '<tr class="grand"><td></td><td></td><td></td><td class="txt">Σ GRAND TOTAL</td><td></td><td></td><td></td><td></td>'+
+      return '<tr class="grand"><td></td><td></td><td></td><td class="txt" colspan="2">Σ GRAND TOTAL</td><td></td><td></td><td></td>'+
         curlTds(r.curls)+'<td>'+fmtN(r.tong)+'</td></tr>';
     }).join(''); }
 
@@ -3499,7 +3519,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var cb=document.getElementById('eng-cuonbox'); if(!cb) return;
     var gr=cb.querySelector('tr.grand'); if(!gr) return;
     gr.style.display='';
-    gr.innerHTML='<td></td><td></td><td class="txt">Σ GRAND TOTAL'+(md?(' · '+esc(md)):'')+'</td><td></td><td></td><td></td><td></td>'+
+    // 8 ô trước vùng độ cong (STT · Mã KH · Mã Đơn · Code Sợi · Tên Gọi NL · S/M · MM · Keo nhiệt)
+    // → nhãn gộp 2 ô (Code Sợi + Tên Gọi NL) cho đủ chỗ; TỔNG ô phải khớp header, không được lệch cột.
+    gr.innerHTML='<td></td><td></td><td></td><td class="txt" colspan="2">Σ GRAND TOTAL'+(md?(' · '+esc(md)):'')+'</td><td></td><td></td><td></td>'+
       CURLS.map(function(k){ return '<td class="cw">'+(gc[k]?fmtN(gc[k]):'')+'</td>'; }).join('')+
       '<td>'+fmtN(tot)+'</td>';
   }

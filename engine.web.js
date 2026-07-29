@@ -834,6 +834,13 @@
         }
       }
     }
+    // Ô "Mã Đơn" của khách có 2 kiểu: CHỈ mã đơn ("256S") hoặc CÓ CẢ mã KH ("LS343-256S").
+    // Nếu chỉ có mã đơn mà TÊN FILE ghi liền "MãKH-MãĐơn" (vd "...LS63-256S - HY") → lấy thêm mã KH
+    // từ tên file (chỉ khi ĐÚNG mã đơn đó và viết liền, tránh đoán sai với "- 355P - K68 -").
+    if (maDon && /^\d+[A-Za-z]+(?:\.\d+)*$/.test(maDon)) {
+      var fk = String(fileName || '').match(/([A-Za-z]{1,5}\d+)-(\d+[A-Za-z]+(?:\.\d+)*)/);
+      if (fk && fk[2] === maDon) maDon = fk[1] + '-' + maDon;
+    }
     // 1. tìm header bảng đơn: dòng có cả "Số Line" và "Single/Mix"
     var hr = -1, H = null;
     for (r = 0; r < aoa.length; r++) {
