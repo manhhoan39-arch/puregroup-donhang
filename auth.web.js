@@ -230,7 +230,16 @@
     // REALTIME: máy khác lưu dữ liệu → tự nạp bản mới nhất.
     try {
       if (!cloudRTChannel && window.CLCloud && window.CLCloud.subscribe) {
-        window.CLCloud.subscribe(function () {
+        window.CLCloud.subscribe(function (ev) {
+          ev = ev || {};
+          if (ev.table === 'profiles') {
+            // Admin đổi phân quyền/cài đặt → user liên quan tự áp NGAY (không cần đăng nhập lại).
+            var row = (ev.payload && (ev.payload.new || ev.payload.old)) || {};
+            var myId = S.user && S.user.id;
+            if (myId && String(row.id) === String(myId)) { try { applyLivePerms(); } catch (_) {} }
+            return;
+          }
+          // Dữ liệu (datasets) đổi từ máy khác → tự nạp bản mới nhất.
           toast('Có dữ liệu mới từ máy khác — đang cập nhật…', 'ok');
           try { autoLoadLatest(true); } catch (_) {}
         }).then(function (ch) { cloudRTChannel = ch; });
@@ -445,7 +454,9 @@
           h('div', { class: 'cl-field' }, [h('label', {}, ['Vai trò']), rr]),
           h('div', { class: 'cl-field' }, [h('label', {}, ['Xưởng']), ff]), add
         ]));
-        var visProfs = isSuper() ? profs : profs.filter(function (u) { return u.factory_id === myFid; });   // Factory Admin chỉ quản lý user xưởng mình
+        // Factory Admin chỉ quản lý user xưởng mình VÀ KHÔNG thấy/không đụng được tài khoản super_admin
+        // (chỉ super admin mới phân quyền/quản lý super admin).
+        var visProfs = isSuper() ? profs : profs.filter(function (u) { return u.factory_id === myFid && u.role !== 'super_admin'; });
         var rows = visProfs.map(function (u) {
           var rs = roleOpts(u.role); rs.onchange = function () { window.CLCloud.updateProfile(u.id, { role: rs.value, step_perms: (rs.value === 'user' ? (u.step_perms || cloudDefaultUserPerms()) : null) }).then(function () { toast('Đã đổi vai trò ✓', 'ok'); }).catch(function (e) { toast(e.message, 'err'); }); };
           var fs = facOpts(u.factory_id || '', true); fs.onchange = function () { window.CLCloud.updateProfile(u.id, { factory_id: fs.value || null }).then(function () { toast('Đã đổi xưởng ✓', 'ok'); }).catch(function (e) { toast(e.message, 'err'); }); };
@@ -738,6 +749,20 @@
           toast('Đã tự nạp bản mới nhất: ' + latest.name + ' ✓', 'ok');
         }
       });
+    }).catch(function () {});
+  }
+
+  // Áp NGAY quyền/cài đặt mới cho user hiện tại khi admin đổi (nhận qua realtime profiles).
+  function applyLivePerms() {
+    if (!(window.CLCloud && window.CLCloud.refreshProfile)) return;
+    window.CLCloud.refreshProfile().then(function (p) {
+      if (!p) return;
+      setSession(cloudToSession(p)); S.cloud = true;
+      try { if (window.__CLAPP && window.__CLAPP.setGridRole) window.__CLAPP.setGridRole('admin'); } catch (e) {}
+      try { if (window.__CLAPP && window.__CLAPP.setPerms) window.__CLAPP.setPerms(role(), (S.user && S.user.stepPerms) || null); } catch (e) {}
+      try { applyPermsFallback(); } catch (e) {}
+      try { buildBar(); } catch (e) {}
+      toast('Cài đặt/phân quyền của bạn vừa được cập nhật ✓', 'ok');
     }).catch(function () {});
   }
 

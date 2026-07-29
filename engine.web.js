@@ -336,7 +336,8 @@
   function parseKeoCond(text) {
     var s = ' ' + PS(text) + ' ';
     var lo = null, hi = null, spec = 0, m;
-    if ((m = s.match(/(\d+)\s*[~–-]\s*(\d+)\s*mm/i))) { lo = +m[1]; hi = +m[2]; spec = 3; s = s.replace(m[0], ' '); }            // N~M mm (khoảng kín)
+    if ((m = s.match(/(?:từ|from)\s*(\d+)\s*(?:mm)?\s*(?:đến|tới|->|~|–|-)\s*(\d+)\s*mm/i))) { lo = +m[1]; hi = +m[2]; spec = 3; s = s.replace(m[0], ' '); } // từ N đến M mm (khoảng kín)
+    else if ((m = s.match(/(\d+)\s*[~–-]\s*(\d+)\s*mm/i))) { lo = +m[1]; hi = +m[2]; spec = 3; s = s.replace(m[0], ' '); }            // N~M mm (khoảng kín)
     else if ((m = s.match(/(?:>=|≥|từ)\s*(\d+)\s*(?:mm)?/i))) { lo = +m[1]; hi = 999; spec = 2; s = s.replace(m[0], ' '); }        // từ N / >=N (GỒM N)
     else if ((m = s.match(/(?:>|trên)\s*(\d+)\s*(?:mm)?/i))) { lo = +m[1] + 1; hi = 999; spec = 2; s = s.replace(m[0], ' '); }     // trên N / >N (KHÔNG gồm N)
     else if ((m = s.match(/(?:<=|≤|đến|tối\s*đa)\s*(\d+)\s*(?:mm)?/i))) { lo = 0; hi = +m[1]; spec = 2; s = s.replace(m[0], ' '); } // đến/tối đa N / <=N (GỒM N)
@@ -350,6 +351,33 @@
     return { lo: lo, hi: hi, spec: spec, thickRaw: thickRaw, thicks: thickRaw.map(thickKey), mats: mats };
   }
   /** keoRows → rules[{maDon, glue, mats[], thick[] (khóa chữ số), lo, hi, spec}]. */
+  // Chuẩn hoá tên keo: "Nau155C. 2" → "Nau155C.2"
+  function cleanKeoName(s) { return PS(s).replace(/\s*\.\s*/g, '.').replace(/\s+/g, ' ').trim(); }
+  // 1 ô "Loại Keo" GỘP nhiều keo (xuống dòng/phẩy) + Ghi Chú map từng keo theo ĐỘ DÀI
+  //  (vd "Từ 4 đến 5mm dùng keo Nau155C.2 / Từ 6mm dùng keo Nau155C.3")
+  //  → TÁCH thành nhiều rule, mỗi keo 1 dải độ dài. Không map được chắc chắn → trả null (giữ hành vi cũ).
+  function splitKeoByNote(k, thicks, matsFallback) {
+    var names = PS(k.loaiKeo).split(/[\r\n,;]+/).map(cleanKeoName).filter(Boolean);
+    var uniq = names.filter(function (n, i) { return names.indexOf(n) === i; });
+    if (uniq.length < 2) return null;
+    var gh = PS(k.ghiChu); if (!gh || !/\d/.test(gh)) return null;
+    var lines = gh.split(/\r?\n/);
+    var made = [];
+    uniq.forEach(function (kn) {
+      var knN = kn.replace(/\s+/g, '').toLowerCase(), line = null;
+      for (var i = 0; i < lines.length; i++) {
+        if (lines[i].replace(/\s+/g, '').toLowerCase().indexOf(knN) >= 0) { line = lines[i]; break; }
+      }
+      if (!line) return;
+      // bỏ MỌI tên keo khỏi dòng để đọc độ dài không nhiễu bởi chữ số trong tên keo
+      var lc = line;
+      uniq.forEach(function (nm) { try { var re = new RegExp(nm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\./g, '\\s*\\.\\s*'), 'gi'); lc = lc.replace(re, ' '); } catch (e) {} });
+      var c = parseKeoCond(lc);
+      if (c.lo == null && c.hi == null) return;               // không có điều kiện độ dài rõ ràng → bỏ (an toàn)
+      made.push({ maDon: k.maDon, glue: kn, mats: matsFallback || [], thick: (thicks || []).slice(), lo: c.lo, hi: c.hi, spec: c.spec });
+    });
+    return made.length >= 2 ? made : null;
+  }
   function buildKeoRules(keoRows) {
     var rules = [];
     (keoRows || []).forEach(function (k) {
@@ -386,8 +414,11 @@
       var mats = soi.mats.length ? soi.mats : ghi.mats;
       // Độ dày: ưu tiên cột Độ Dày; nếu cột này trống thì lấy từ Ghi Chú.
       if (!dayThicks.length && !soi.thicks.length && ghi.thicks.length) { thicks = ghi.thicks; }
+      // Ô keo GỘP nhiều keo + ghi chú map theo độ dài → TÁCH mỗi keo 1 dải (mỗi mm ra đúng 1 keo).
+      var split = splitKeoByNote(k, thicks, soi.mats);
+      if (split) { split.forEach(function (r) { rules.push(r); }); return; }
       rules.push({
-        maDon: k.maDon, glue: PS(k.loaiKeo),
+        maDon: k.maDon, glue: cleanKeoName(k.loaiKeo),
         mats: mats, thick: thicks,
         lo: len.lo, hi: len.hi, spec: len.spec,
       });

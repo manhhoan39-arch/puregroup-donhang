@@ -4641,6 +4641,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
                files:state.files, log:state.log, source:state.source, processed:state.processed };
     },
     hasData: function(){ return !!(state.files && state.files.length) || !!(state.orders && state.orders.length); },
+    isDirty: function(){ try{ return !!(__pendBuf && __pendBuf.length); }catch(e){ return false; } },   // có ô sửa CHƯA lưu → không tự reload
     loadData: function(p){
       p = p || {};
       state.orders    = Array.isArray(p.orders)    ? p.orders    : [];
@@ -4695,5 +4696,48 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
 <script src="cl.project.js"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
 <script src="firebase-bridge.js" defer></script>
+<!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
+<script>
+(function(){
+  var initSig=null, checking=false, notified=false;
+  function sig(){
+    var u = location.pathname + (location.search ? location.search + '&' : '?') + '_v=' + Date.now();
+    return fetch(u, { method:'HEAD', cache:'no-store' })
+      .then(function(r){ if(!r || !r.ok) return null; var h=r.headers; return (h.get('etag')||'') + '|' + (h.get('last-modified')||'') + '|' + (h.get('content-length')||''); })
+      .catch(function(){ return null; });
+  }
+  function editing(){
+    var a = document.activeElement;
+    if(a && (a.isContentEditable || /^(input|textarea|select)$/i.test(a.tagName||''))) return true;
+    try{ if(window.__CLAPP && window.__CLAPP.isDirty && window.__CLAPP.isDirty()) return true; }catch(e){}
+    return false;
+  }
+  function banner(){
+    var old=document.getElementById('cl-upd'); if(old) return old;
+    var b=document.createElement('div'); b.id='cl-upd';
+    b.style.cssText='position:fixed;z-index:2147483000;left:50%;bottom:22px;transform:translateX(-50%);background:#E8185C;color:#fff;padding:11px 16px;border-radius:12px;box-shadow:0 10px 34px rgba(0,0,0,.32);font:700 14px system-ui,Segoe UI,Roboto,sans-serif;display:flex;gap:12px;align-items:center';
+    var msg=document.createElement('span'); msg.id='cl-upd-msg'; msg.textContent='🔄 Đã có phiên bản mới của ứng dụng.';
+    var go=document.createElement('button'); go.textContent='Cập nhật ngay';
+    go.style.cssText='background:#fff;color:#E8185C;border:0;border-radius:8px;padding:6px 12px;font-weight:800;cursor:pointer';
+    go.onclick=function(){ try{ location.reload(); }catch(e){ location.href=location.pathname; } };
+    b.appendChild(msg); b.appendChild(go); document.body.appendChild(b);
+    return b;
+  }
+  function onNew(){
+    if(notified) return; notified=true;
+    var b=banner(), m=b.querySelector('#cl-upd-msg'), left=8;
+    (function tick(){
+      if(editing()){ m.textContent='🔄 Đã có phiên bản mới — bấm "Cập nhật ngay" khi xong.'; setTimeout(tick,4000); return; }
+      if(left<=0){ try{ location.reload(); }catch(e){ location.href=location.pathname; } return; }
+      m.textContent='🔄 Đã có phiên bản mới. Tự cập nhật sau '+left+'s…'; left--; setTimeout(tick,1000);
+    })();
+  }
+  function poll(){ if(checking||notified) return; checking=true; sig().then(function(s){ checking=false; if(!s) return; if(initSig==null){ initSig=s; return; } if(s!==initSig) onNew(); }); }
+  sig().then(function(s){ initSig=s; });
+  setInterval(poll, 90000);                                   // kiểm tra 90s/lần
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) poll(); });
+  window.addEventListener('focus', poll);
+})();
+</script>
 </body>
 </html>
