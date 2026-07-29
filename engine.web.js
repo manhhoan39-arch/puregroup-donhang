@@ -1014,7 +1014,9 @@
           if (!v) continue;
           if (v.toLowerCase() === 'mix length') break;   // gặp bảng Mix kế bên → dừng bảng này
           var lm = v.match(/\((\d+)\s*lines?\)/i);       // "6~13mm (16 Lines)"
-          var rg = v.replace(/\(.*?\)/g, '').trim().toLowerCase().replace('~', '-');
+          // BỎ MỌI khoảng trắng: khách hay ghi "12-20 mm" / "6 ~ 13 mm" → khóa phải là "12-20mm"
+          // (khớp normalizeLength của dòng đơn). Trước đây có dấu cách là cột bị BỎ QUA → mất bảng Mix.
+          var rg = v.replace(/\(.*?\)/g, '').replace(/\s+/g, '').toLowerCase().replace(/~/g, '-');
           if (!parseRange(rg.replace(/mm$/, ''))) continue;   // không phải cột dải → bỏ qua
           ranges.push(rg); rangeCols.push(ci); lineCounts.push(lm ? +lm[1] : null);
         }
