@@ -255,19 +255,24 @@
       });
     },
 
-    // ---------- REALTIME: theo dõi thay đổi datasets của xưởng ----------
+    // ---------- REALTIME: theo dõi thay đổi datasets + profiles (quyền/cài đặt) của xưởng ----------
     subscribe: function (onChange) {
       return ensureClient().then(function (c) {
         if (!c || !profile) return null;
         var flt = profile.factory_id ? ('factory_id=eq.' + profile.factory_id) : undefined;
-        var ch = c.channel('ds-' + (profile.factory_id || 'all'))
+        var ch = c.channel('sync-' + (profile.factory_id || 'all'))
           .on('postgres_changes', { event: '*', schema: 'public', table: 'datasets', filter: flt }, function (payload) {
-            try { onChange && onChange(payload); } catch (_) {}
+            try { onChange && onChange({ table: 'datasets', payload: payload }); } catch (_) {}
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: flt }, function (payload) {
+            try { onChange && onChange({ table: 'profiles', payload: payload }); } catch (_) {}
           })
           .subscribe();
         return ch;
       });
-    }
+    },
+    // Nạp lại profile hiện tại (vai trò + phân quyền step) từ cloud.
+    refreshProfile: function () { return ensureClient().then(function (c) { if (!c) return null; return fetchProfile(); }); }
   };
 
   // ---------- Hàng đợi offline ----------
