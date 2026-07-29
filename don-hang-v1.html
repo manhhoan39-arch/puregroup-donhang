@@ -7,9 +7,34 @@
 <link rel="manifest" href="manifest.webmanifest">
 <title>PURE GROUP · Sản Xuất</title>
 <script>
-/* PWA: đăng ký service worker để chạy offline (chỉ hoạt động trên HTTPS như Vercel; file:// bỏ qua) */
+/* PWA: đăng ký service worker (network-first) — online luôn lấy bản mới, offline dùng cache.
+ * Phát hiện SW bản mới → nhắc/tự cập nhật (không cần Ctrl+Shift+R). */
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function(){}); });
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function (reg) {
+      // kiểm tra bản SW mới định kỳ
+      setInterval(function () { try { reg.update(); } catch (e) {} }, 60000);
+      reg.addEventListener('updatefound', function () {
+        var nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', function () {
+          // đã cài xong bản mới VÀ đang có SW điều khiển (tức là CẬP NHẬT, không phải lần đầu)
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            try { nw.postMessage('skip-waiting'); } catch (e) {}
+            if (typeof window.__clNewVersion === 'function') window.__clNewVersion();
+          }
+        });
+      });
+    }).catch(function () {});
+    // SW mới nắm quyền → nạp lại 1 lần để chạy bản mới (nếu chưa reload thủ công)
+    var reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (reloaded) return; reloaded = true;
+      // chỉ tự reload khi KHÔNG đang gõ/không có ô sửa chưa lưu
+      try { var a = document.activeElement; var editing = (a && (a.isContentEditable || /^(input|textarea|select)$/i.test(a.tagName || ''))) || (window.__CLAPP && window.__CLAPP.isDirty && window.__CLAPP.isDirty()); if (editing) return; } catch (e) {}
+      location.reload();
+    });
+  });
 }
 </script>
 <style>
@@ -4733,6 +4758,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     })();
   }
   function poll(){ if(checking||notified) return; checking=true; sig().then(function(s){ checking=false; if(!s) return; if(initSig==null){ initSig=s; return; } if(s!==initSig) onNew(); }); }
+  window.__clNewVersion = onNew;   // cho Service Worker gọi khi phát hiện bản mới
   sig().then(function(s){ initSig=s; });
   setInterval(poll, 90000);                                   // kiểm tra 90s/lần
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) poll(); });
