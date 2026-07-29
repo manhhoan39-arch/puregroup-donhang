@@ -264,11 +264,15 @@
     removeEl('cl-bar');
     var bar = h('div', { id: 'cl-bar' });
 
-    // super admin: chọn xưởng đang thao tác (cho lưu/nạp dataset)
+    // Super admin: chọn XƯỞNG để XEM dữ liệu (cả chế độ đám mây). Đổi xưởng → tự nạp bản mới nhất của xưởng đó.
     var facSel = null;
-    if (isSuper() && !S.cloud) {   // bộ chọn xưởng dùng dữ liệu CLStore cục bộ — bỏ qua ở chế độ đám mây
-      facSel = h('select', { class: 'cl-input', style: 'padding:4px 8px;font-size:12px;width:auto', title: 'Xưởng đang thao tác' });
-      facSel.addEventListener('change', function () { localStorage.setItem(LS.activeFactory, facSel.value); });
+    if (isSuper()) {
+      facSel = h('select', { class: 'cl-input', style: 'padding:4px 8px;font-size:12px;width:auto', title: 'Xưởng đang xem (Super Admin)' });
+      facSel.addEventListener('change', function () {
+        localStorage.setItem(LS.activeFactory, facSel.value);
+        try { autoLoadLatest(true); } catch (e) {}   // xem dữ liệu của xưởng vừa chọn
+      });
+      bar.appendChild(h('span', { class: 'cl-sub', style: 'font-size:11px;margin:0 2px 0 4px;opacity:.75' }, ['Xưởng:']));
       bar.appendChild(facSel);
       refreshFactories(facSel);
     }
@@ -297,16 +301,23 @@
   }
 
   function refreshFactories(sel) {
-    if (!can('factory:read')) return;
-    api('GET', '/api/factories').then(function (list) {
+    var done = function (list) {
       S.factories = list || [];
       if (!sel) return;
       var active = localStorage.getItem(LS.activeFactory) || (S.factory && S.factory.id) || (list[0] && list[0].id) || '';
       sel.innerHTML = '';
       (list || []).forEach(function (f) { sel.appendChild(h('option', { value: f.id }, [f.code + ' · ' + f.name])); });
       if (active) sel.value = active;
-      localStorage.setItem(LS.activeFactory, sel.value);
-    }).catch(function () {});
+      if (sel.value) localStorage.setItem(LS.activeFactory, sel.value);
+    };
+    // ĐÁM MÂY: lấy xưởng qua Supabase; cục bộ: qua API backend.
+    if (S.cloud && window.CLCloud && window.CLCloud.listFactories) { window.CLCloud.listFactories().then(done).catch(function () {}); return; }
+    if (!can('factory:read')) return;
+    api('GET', '/api/factories').then(done).catch(function () {});
+  }
+  function factoryNameOf(fid) {
+    var f = (S.factories || []).filter(function (x) { return x.id === fid; })[0];
+    return f ? (f.code + ' · ' + f.name) : (fid || '—');
   }
 
   function targetFactoryForWrite() {
@@ -381,26 +392,35 @@
   function openDatasetModal() {
     var q = isSuper() ? ('?factoryId=' + (targetFactoryForWrite() || '')) : '';
     var getList = (S.cloud && window.CLCloud) ? window.CLCloud.pull() : api('GET', '/api/datasets' + q);
+    var superView = isSuper() && S.cloud;
+    var curFid = targetFactoryForWrite();
     Promise.resolve(getList).then(function (list) {
-      var rows = (list || []).map(function (d) {
+      list = list || [];
+      // Super admin (đám mây): chỉ hiện bản lưu của XƯỞNG đang chọn ở thanh công cụ.
+      if (superView && curFid) list = list.filter(function (d) { return d.factory_id === curFid; });
+      var rows = list.map(function (d) {
         var acts = [h('button', { class: 'cl-btn sm', onclick: function () { loadDataset(d.id); } }, ['Nạp'])];
         if (can('dataset:delete')) acts.push(h('button', { class: 'cl-btn sm danger', style: 'margin-left:6px', onclick: function () { delDataset(d.id, d.name); } }, ['Xóa']));
-        return h('tr', {}, [
-          h('td', {}, [d.name]),
-          h('td', {}, [d.created_by || '—']),
-          h('td', {}, [new Date(d.updated_at).toLocaleString('vi-VN')]),
-          h('td', { style: 'text-align:right' }, acts),
-        ]);
+        var tds = [ h('td', {}, [d.name]) ];
+        if (superView) tds.push(h('td', {}, [factoryNameOf(d.factory_id)]));
+        tds.push(h('td', {}, [d.created_by || '—']));
+        tds.push(h('td', {}, [new Date(d.updated_at).toLocaleString('vi-VN')]));
+        tds.push(h('td', { style: 'text-align:right' }, acts));
+        return h('tr', {}, tds);
       });
+      var headCols = [h('th', {}, ['Tên'])];
+      if (superView) headCols.push(h('th', {}, ['Xưởng']));
+      headCols.push(h('th', {}, ['Người tạo'])); headCols.push(h('th', {}, ['Cập nhật'])); headCols.push(h('th', {}, ['']));
+      var title = superView && curFid ? ('Nạp dữ liệu — ' + factoryNameOf(curFid)) : 'Nạp dữ liệu đã lưu';
       var body = h('div', {}, [
         rows.length
           ? h('table', { class: 'cl-table' }, [
-              h('thead', {}, [h('tr', {}, [h('th', {}, ['Tên']), h('th', {}, ['Người tạo']), h('th', {}, ['Cập nhật']), h('th', {}, [''])])]),
+              h('thead', {}, [h('tr', {}, headCols)]),
               h('tbody', {}, rows),
             ])
-          : h('p', { class: 'cl-sub' }, ['Chưa có bản lưu nào cho xưởng này.']),
+          : h('p', { class: 'cl-sub' }, [superView ? 'Xưởng này chưa có bản lưu nào. Đổi xưởng ở thanh công cụ để xem xưởng khác.' : 'Chưa có bản lưu nào cho xưởng này.']),
       ]);
-      openModal('Nạp dữ liệu đã lưu', body);
+      openModal(title, body);
     }).catch(function (e) { toast(e.message, 'err'); });
   }
   function loadDataset(id) {
@@ -740,7 +760,10 @@
     var q = isSuper() ? ('?factoryId=' + (targetFactoryForWrite() || '')) : '';
     var getList = (S.cloud && window.CLCloud) ? window.CLCloud.pull() : api('GET', '/api/datasets' + q);
     Promise.resolve(getList).then(function (list) {
-      if (!list || !list.length) return;              // xưởng chưa có bản lưu nào
+      list = list || [];
+      // Super admin (đám mây): pull() trả tất cả xưởng (theo RLS) → lọc theo XƯỞNG đang chọn để xem đúng.
+      if (isSuper() && S.cloud) { var fid = targetFactoryForWrite(); if (fid) list = list.filter(function (d) { return d.factory_id === fid; }); }
+      if (!list.length) return;                        // xưởng chưa có bản lưu nào
       var latest = list[0];                            // bản mới nhất ở đầu
       var getOne = (S.cloud && window.CLCloud) ? window.CLCloud.fetchOne(latest.id) : api('GET', '/api/datasets/' + latest.id);
       return Promise.resolve(getOne).then(function (d) {
