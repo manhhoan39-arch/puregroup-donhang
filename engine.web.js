@@ -1112,6 +1112,23 @@
         if (h === 'LINES CLS' && meta.tongDay == null) meta.tongDay = PN(below);
       }
     }
+    /* SỐ DẢI KHÁCH KHAI — nguồn CHUẨN để đối chiếu (theo quy chuẩn xưởng):
+       cột ngay BÊN PHẢI "Tổng Số Hộp" (thường là Y hoặc Z, cột nào có số liệu).
+       Mỗi dòng = số dải của dòng đó (vd 40 hộp × 20 lines ÷ 2 = 400). Cộng lại = tổng dải khách khai.
+       ĐÁNG TIN hơn ô "Lines CLS" ở đầu sheet — ô đó khách hay ghi theo LINE hoặc ghi nhầm. */
+    meta.tongDaiKhai = (function () {
+      var hcol = findCol(H, 'Tổng Số Hộp');
+      if (hcol < 0) return null;
+      for (var c = hcol + 1; c <= hcol + 3; c++) {
+        var sum = 0, n = 0;
+        for (var rr = hr + 1; rr < aoa.length; rr++) {
+          var v = Number((aoa[rr] || [])[c]);
+          if (isFinite(v) && v) { sum += v; n++; }
+        }
+        if (n >= 3) { meta.tongDaiCol = c; return sum; }   // cột đầu tiên CÓ số liệu
+      }
+      return null;
+    })();
     // CỘT trong vùng độ cong CÓ SỐ LIỆU nhưng KHÔNG nhận diện được độ cong → NGUY CƠ MẤT DỮ LIỆU (sẽ chặn bước sau)
     meta.curlUnmapped = (function () {
       var mappedSet = {}; CURLS.forEach(function (k) { if (curlCol[k] >= 0) mappedSet[curlCol[k]] = 1; });

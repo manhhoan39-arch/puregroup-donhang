@@ -235,6 +235,7 @@ td.cellsel-anchor,th.cellsel-anchor{box-shadow:inset 0 0 0 2px var(--accent)}
 .khop.ok{padding:7px 12px;background:rgba(16,163,74,.10);color:var(--green-700,#15803d);
   border:1px solid rgba(16,163,74,.35);font-weight:700}
 .khop.bad{padding:10px 12px;background:rgba(232,24,92,.07);border:1.5px solid var(--accent)}
+.khop.note{padding:7px 12px;background:rgba(245,158,11,.10);color:#8a5a00;border:1px solid rgba(245,158,11,.4);margin-bottom:8px;line-height:1.6}
 .khop-h{font-weight:800;color:var(--accent);margin-bottom:7px;font-size:12.5px}
 .khop-t{width:auto;font-size:11.5px}
 .khop-t th{padding:4px 9px}
@@ -1902,21 +1903,6 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      Trước đây chỉ so 1 lần lúc xử lý rồi hiện thoáng trong popup → lệch mà không ai thấy.
      Nay hiện BẢNG ĐỐI CHIẾU ngay trên Bảng Line Cuốn, tính lại mỗi lần vẽ, chỉ rõ ĐƠN NÀO lệch bao nhiêu.
      CHỈ ĐỌC để so sánh — không đụng vào dữ liệu, không đổi bất kỳ số liệu nào. */
-  function khopRows(){
-    var R=state.R; if(!R) return [];
-    var out=[];
-    (state.files||[]).forEach(function(F){
-      var m=F&&F.meta; if(!m || !(m.tongKhay||m.tongDay)) return;
-      var mds=(F.maDons&&F.maDons.length)?F.maDons:(m.maDon?[m.maDon]:[]);
-      if(!mds.length) return;
-      var gotKhay=0, gotDay=0;
-      (R.orders||[]).forEach(function(o){ if(mds.indexOf(o.maDon)>=0) gotKhay+=(+o.sl||0); });
-      (R.cuonSheet&&R.cuonSheet.rows||[]).forEach(function(r){ if(r.type==='row' && mds.indexOf(r.maDon)>=0) gotDay+=(+r.tong||0); });
-      out.push({ md:mds.join(', '), expKhay:+m.tongKhay||0, gotKhay:gotKhay, expDay:+m.tongDay||0, gotDay:gotDay,
-                 okKhay:(+m.tongKhay||0)===gotKhay, okDay:(+m.tongDay||0)===gotDay });
-    });
-    return out;
-  }
   /* Dòng Mix KHÔNG dò được bảng Mix (dải không có trong bảng, hoặc nhiều bảng cùng dải mà
      số Line không khớp bảng nào) → dòng đó KHÔNG sinh dây, tổng bị THIẾU mà không ai biết.
      Vd 676P: 5 dòng dải 8-13mm không có bảng → thiếu đúng 450 dây (9.270 thay vì 9.720).
@@ -1934,53 +1920,104 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     });
     return out;
   }
+  /* Đối chiếu theo TỪNG MÃ ĐƠN, dùng 2 nguồn:
+       (1) TỰ KIỂM (đáng tin — dùng để báo đỏ): Tổng Dây app  vs  Σ(SL × Số Line ÷ 2) của chính các
+           dòng đơn. Theo định nghĩa 1 dải = 2 line nên 2 số này PHẢI bằng nhau; lệch = app bỏ sót
+           dòng (điển hình: dòng Mix không có bảng Mix cho dải đó — như 676P thiếu 450 dây).
+       (2) SỐ KHÁCH KHAI (chỉ tham khảo): ô "CLS"/"Lines CLS" đầu sheet. KHÔNG dùng để báo đỏ vì
+           khách hay ghi sai đơn vị (ghi số LINE = 2× dải) hoặc ghi nhầm hẳn
+           (vd 256S: 300 hộp × 16 lines = 2.400 dải, nhưng ô khai ghi 3.520). */
+  function khopRows(){
+    var R=state.R; if(!R) return [];
+    var byMd={};
+    (R.orders||[]).forEach(function(o){
+      var b=byMd[o.maDon]||(byMd[o.maDon]={md:o.maDon, khay:0, tuTinh:0, app:0, khaiKhay:null, khaiDay:null});
+      b.khay+=(+o.sl||0);
+      b.tuTinh+=(+o.sl||0)*(+o.line||0)/2;      // dải = số hộp × số line ÷ 2
+    });
+    (R.cuonSheet&&R.cuonSheet.rows||[]).forEach(function(r){
+      if(r.type==='row' && byMd[r.maDon]) byMd[r.maDon].app+=(+r.tong||0);
+    });
+    (state.files||[]).forEach(function(F){
+      var m=F&&F.meta; if(!m) return;
+      var mds=(F.maDons&&F.maDons.length)?F.maDons:(m.maDon?[m.maDon]:[]);
+      if(mds.length!==1) return;                 // file gộp nhiều đơn → không gán số khai cho đơn nào
+      var b=byMd[mds[0]]; if(!b) return;
+      if(m.tongKhay!=null) b.khaiKhay=+m.tongKhay||0;
+      // Ưu tiên cột DẢI bên phải "Tổng Số Hộp" (Y/Z) — nguồn chuẩn theo quy chuẩn xưởng.
+      // Ô "Lines CLS" chỉ dùng khi file không có cột đó (khách hay ghi theo LINE hoặc ghi nhầm).
+      if(m.tongDaiKhai!=null){ b.khaiDay=+m.tongDaiKhai||0; b.khaiNguon='cột dải'; }
+      else if(m.tongDay!=null){ b.khaiDay=+m.tongDay||0; b.khaiNguon='ô Lines CLS'; }
+    });
+    return Object.keys(byMd).map(function(k){
+      var b=byMd[k];
+      b.tuTinh=Math.round(b.tuTinh);
+      b.thieu=b.tuTinh-b.app;                    // >0 = app đang THIẾU dây
+      b.ok=(b.thieu===0);
+      b.khaiGap2=(b.khaiDay!=null && b.app>0 && b.khaiDay===b.app*2);
+      b.khaiLech=(b.khaiDay!=null && b.khaiDay!==b.app && !b.khaiGap2);
+      return b;
+    });
+  }
   function renderKhopWarn(){
     var box=document.getElementById('khop-warn'); if(!box) return;
-    var rows=khopRows();
-    if(!rows.length){ box.innerHTML=''; return; }
     var md=getVal('s6-madon'), kh=getVal('s6-makh');
-    var show=rows.filter(function(r){
-      if(md && r.md.indexOf(md)<0) return false;
-      if(kh && khOf(r.md.split(', ')[0])!==kh) return false;
-      return true;
-    });
-    if(!show.length){ box.innerHTML=''; return; }
-    // (1) DÒNG MIX THIẾU BẢNG — nguyên nhân số 1 gây thiếu dây, phải hiện dù tổng có khớp hay không
-    var miss=missingMixRows().filter(function(r){
-      if(md && r.maDon!==md) return false;
-      if(kh && khOf(r.maDon)!==kh) return false;
-      return true;
-    });
+    var keep=function(m){ return (!md||m===md) && (!kh||khOf(m)===kh); };
+    var rows=khopRows().filter(function(r){ return keep(r.md); });
+    if(!rows.length){ box.innerHTML=''; return; }
+
+    // (1) DÒNG MIX THIẾU BẢNG — nguyên nhân số 1 làm app tính thiếu dây
+    var miss=missingMixRows().filter(function(r){ return keep(r.maDon); });
     var missHtml='';
     if(miss.length){
-      var byRange={}; miss.forEach(function(r){ var k=r.maDon+' · dải '+r.len+' · '+r.line+' lines';
-        byRange[k]=byRange[k]||{n:0,day:0}; byRange[k].n++; byRange[k].day+=r.thieuDay; });
-      var li=Object.keys(byRange).map(function(k){
-        return '<li><b>'+esc(k)+'</b> — '+byRange[k].n+' dòng, thiếu ~<b>'+fmtN(byRange[k].day)+'</b> dây</li>'; }).join('');
-      var tongThieu=miss.reduce(function(a2,r){ return a2+r.thieuDay; },0);
+      var grp={}; miss.forEach(function(r){ var k2=r.maDon+' · dải '+r.len+' · '+r.line+' lines';
+        grp[k2]=grp[k2]||{n:0,day:0}; grp[k2].n++; grp[k2].day+=r.thieuDay; });
+      var li=Object.keys(grp).map(function(k2){
+        return '<li><b>'+esc(k2)+'</b> — '+grp[k2].n+' dòng, thiếu ~<b>'+fmtN(grp[k2].day)+'</b> dây</li>'; }).join('');
       missHtml='<div class="khop bad" style="margin-bottom:8px">'+
-        '<div class="khop-h">⛔ THIẾU BẢNG MIX — '+miss.length+' dòng không tính được dây (thiếu ~'+fmtN(tongThieu)+' dây)</div>'+
+        '<div class="khop-h">⛔ THIẾU BẢNG MIX — '+miss.length+' dòng không tính được dây</div>'+
         '<ul class="khop-ul">'+li+'</ul>'+
-        '<div class="khop-n">Các dòng Mix này có dải độ dài KHÔNG có trong bảng Mix của đơn (hoặc số Line không khớp bảng nào). '+
+        '<div class="khop-n">Dải độ dài của các dòng Mix này KHÔNG có trong bảng Mix của đơn (hoặc số Line không khớp bảng nào). '+
         'App không tự đoán phân bổ theo mm để tránh ra số sai — hãy bổ sung bảng Mix đúng dải rồi xử lý lại.</div></div>';
     }
-    var bad=show.filter(function(r){ return !r.okKhay || !r.okDay; });
-    if(!bad.length){
-      box.innerHTML=missHtml+'<div class="khop ok">✓ Khớp số khách khai trong file ('+show.length+' đơn)</div>';
+
+    // (2) TỰ KIỂM: Tổng Dây app  vs  Σ(số hộp × số line ÷ 2)
+    var bad=rows.filter(function(r){ return !r.ok; });
+    var selfHtml='';
+    if(bad.length){
+      var trs=bad.map(function(r){
+        return '<tr><td class="txt"><b>'+esc(r.md)+'</b></td>'+
+          '<td class="qty">'+fmtN(r.khay)+'</td><td class="qty">'+fmtN(r.app)+'</td>'+
+          '<td class="qty">'+fmtN(r.tuTinh)+'</td>'+
+          '<td class="qty bad">'+(r.thieu>0?'thiếu ':'thừa ')+fmtN(Math.abs(r.thieu))+'</td></tr>';
+      }).join('');
+      selfHtml='<div class="khop bad"><div class="khop-h">⛔ SỐ DÂY KHÔNG TỰ KHỚP — '+bad.length+' đơn</div>'+
+        '<table class="sheet khop-t"><thead><tr><th class="txt">Mã Đơn</th><th>Số hộp</th>'+
+        '<th>Dây (app tính)</th><th>Dây (hộp × line ÷ 2)</th><th>Chênh</th></tr></thead><tbody>'+trs+'</tbody></table>'+
+        '<div class="khop-n">Theo quy tắc 1 dải = 2 line thì 2 cột dây phải bằng nhau. Lệch nghĩa là có dòng đơn chưa được tính (xem mục thiếu bảng Mix ở trên).</div></div>';
+    }
+
+    // (3) SỐ KHÁCH KHAI — chỉ THAM KHẢO, không báo đỏ
+    var g2=rows.filter(function(r){ return r.khaiGap2; });
+    var kl=rows.filter(function(r){ return r.khaiLech; });
+    var refHtml='';
+    if(g2.length||kl.length){
+      var parts=[];
+      if(g2.length) parts.push(g2.length+' đơn khách khai theo <b>LINE</b> (= 2× số dải): '+
+        g2.map(function(r){ return esc(r.md)+' '+fmtN(r.khaiDay); }).join(' · '));
+      if(kl.length) parts.push(kl.length+' đơn số khai <b>không khớp</b>: '+
+        kl.map(function(r){ return esc(r.md)+' khai '+fmtN(r.khaiDay)+' / app '+fmtN(r.app); }).join(' · '));
+      var ngs={}; rows.forEach(function(r){ if(r.khaiNguon) ngs[r.khaiNguon]=1; });
+      refHtml='<div class="khop note">ℹ Tham khảo — số khách khai trong file (lấy từ '+
+        (Object.keys(ngs).join(' / ')||'file')+'): '+parts.join('. ')+
+        '. Phép kiểm đáng tin vẫn là cột "hộp × line ÷ 2" ở trên.</div>';
+    }
+
+    if(!bad.length && !miss.length){
+      box.innerHTML=refHtml+'<div class="khop ok">✓ Số dây tự khớp ('+rows.length+' đơn: app = số hộp × số line ÷ 2)</div>';
       return;
     }
-    var trs=bad.map(function(r){
-      var dK=r.gotKhay-r.expKhay, dD=r.gotDay-r.expDay;
-      var f=function(got,exp,d,ok){ return ok ? ('<td class="qty">'+fmtN(got)+'</td><td class="qty">'+fmtN(exp)+'</td><td class="qty ok">✓</td>')
-        : ('<td class="qty">'+fmtN(got)+'</td><td class="qty">'+fmtN(exp)+'</td><td class="qty bad">'+(d>0?'+':'')+fmtN(d)+'</td>'); };
-      return '<tr><td class="txt"><b>'+esc(r.md)+'</b></td>'+f(r.gotKhay,r.expKhay,dK,r.okKhay)+f(r.gotDay,r.expDay,dD,r.okDay)+'</tr>';
-    }).join('');
-    box.innerHTML=missHtml+'<div class="khop bad">'+
-      '<div class="khop-h">⚠ LỆCH so với số khách khai trong file — '+bad.length+' đơn cần kiểm tra</div>'+
-      '<table class="sheet khop-t"><thead><tr><th class="txt">Mã Đơn</th>'+
-      '<th>Khay (app)</th><th>Khay (khách khai)</th><th>Lệch</th>'+
-      '<th>Dây (app)</th><th>Dây (khách khai)</th><th>Lệch</th></tr></thead><tbody>'+trs+'</tbody></table>'+
-      '<div class="khop-n">Thường do: thiếu bảng Mix cho một dải · số Line không khớp bảng Mix · đơn sửa tay sau khi nhập.</div></div>';
+    box.innerHTML=missHtml+selfHtml+refHtml;
   }
 
   /* ===== DEBOUNCE cho ô TÌM KIẾM/LỌC =====
