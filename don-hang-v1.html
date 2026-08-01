@@ -498,7 +498,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608011935</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608012035</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -4457,6 +4457,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      màn hình như Page Break Preview của Excel. Kéo cột thì đường ngắt nhảy theo tức thì. */
   var PG_MT=12, PG_MB=12, PG_ML=10, PG_MR=10;              // lề @page (mm)
   var PG_CSS='.pg-ttl{display:none}'+
+    /* Thanh công cụ bám dính đầu cửa sổ in: bảng dài mấy trang cũng luôn với tới nút In,
+       ô Hướng giấy và Undo/Redo mà không phải cuộn ngược lên. */
+    '.noprint{position:sticky;top:0;z-index:50;background:#f1f3f5;'+
+      'border-bottom:1px solid #dcdfe3;padding:8px 12px!important;margin:0 0 14px!important;'+
+      'box-shadow:0 2px 6px rgba(0,0,0,.06)}'+
 
     'body.pg-doc{background:#f1f3f5}'+
     /* Khung xem trước = TỜ GIẤY THẬT: rộng đúng khổ giấy, padding chính là lề in.
@@ -4523,13 +4528,18 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var dc=h.querySelector?h.querySelector('.dc'):null;
       return showName ? h.innerHTML : (dc?dc.outerHTML:'');
     }
+    // bản sao trong dòng lặp không cần sửa được (bản gốc trên thanh tiêu đề mới sửa)
+    function strip(el){
+      var ce=el.querySelectorAll?el.querySelectorAll('[contenteditable]'):[];
+      for(var i=0;i<ce.length;i++) ce[i].removeAttribute('contenteditable');
+    }
     function prepTitle(){                                  // <thead> là thứ DUY NHẤT Chrome lặp thật
       bigTables().forEach(function(t){
         var hr=headRow(t); if(!hr) return;
         var old=t.tHead.querySelector('.pg-ttl');
         var ttl=titleOf(t);
         if(!ttl){ if(old) old.parentNode.removeChild(old); return; }
-        if(old){ old.cells[0].innerHTML=ttl; return; }
+        if(old){ old.cells[0].innerHTML=ttl; strip(old.cells[0]); return; }
         var tr=document.createElement('tr'); tr.className='pg-ttl';
         var th=document.createElement('th'); th.colSpan=hr.cells.length; th.innerHTML=ttl;
         tr.appendChild(th); t.tHead.insertBefore(tr, t.tHead.firstChild);
@@ -4630,7 +4640,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         prepTitle(); bar(); applyLayout();
         if(window.ResizeObserver && sheet) new ResizeObserver(schedule).observe(sheet);
         document.addEventListener('mouseup', schedule);   // kéo cột/kéo dòng xong thì vẽ lại
-        document.addEventListener('input', schedule);
+        document.addEventListener('input', function(e){
+          // sửa ghi chú trên thanh tiêu đề → chép lại vào dòng lặp của mọi trang
+          var h2=e.target&&e.target.closest?e.target.closest('h2'):null;
+          if(h2) prepTitle();
+          schedule();
+        });
       }catch(e){ console.warn('pg.init', e); }
     }
     window.addEventListener('beforeprint', function(){
@@ -4696,7 +4711,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         draw();
         if(window.ResizeObserver) pages().forEach(function(p){ new ResizeObserver(schedule).observe(p); });
         document.addEventListener('mouseup', schedule);
-        document.addEventListener('input', schedule);
+        document.addEventListener('input', function(e){
+          // sửa ghi chú trên thanh tiêu đề → chép lại vào dòng lặp của mọi trang
+          var h2=e.target&&e.target.closest?e.target.closest('h2'):null;
+          if(h2) prepTitle();
+          schedule();
+        });
       }catch(e){ console.warn('pl', e); }
     }
   }
@@ -4721,7 +4741,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var n=String(x.name||'').trim(), g=String(x.note||'').trim();
       return n && g ? n+': '+g : (n||g);
     }).filter(Boolean).join(' · ');
-    return s ? '<span class="dc">📏 '+esc(s)+'</span>' : '';
+    // cho SỬA trực tiếp trong cửa sổ in (sửa xong dòng lặp ở mọi trang tự cập nhật theo)
+    return s ? '<span class="dc edit" contenteditable="true" title="Bấm vào để sửa ghi chú độ cong">📏 '+esc(s)+'</span>' : '';
   }
   function printTongHopCuon(){
     var md=getVal('s6-madon');
