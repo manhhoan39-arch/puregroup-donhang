@@ -496,7 +496,9 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
     <a data-s="s8"><span class="num">8</span> Lịch sử thay đổi</a>
     <a data-s="s9"><span class="num">9</span> Xuất dữ liệu</a>
   </nav>
-  <div class="sidebar-foot">v0.9 · Mockup thiết kế<br>© 2026 Charmlash</div>
+  <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
+       khỏi mất công đoán "đã nạp code mới chưa". -->
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608011935</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -2001,6 +2003,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       t=setTimeout(function(){ t=null; fn.apply(self,args); }, ms==null?160:ms);
     };
   }
+  // Cùng 1 mã đơn có thể đến từ nhiều file (VD mở project cũ rồi nhập lại file mới). Trước
+  // đây file NÀO ĐỨNG SAU thì thắng, nên bản ghi chú cũ đọc thiếu vẫn đè lên bản mới đọc đủ.
+  // Nay chọn bản có NHIỀU dòng ghi chú hơn.
+  function richerBox(a, b){
+    if(!a) return b; if(!b) return a;
+    var na=(a.notes||[]).length, nb=(b.notes||[]).length;
+    return nb>na ? b : a;
+  }
   // Đọc vùng "Bảng Hộp" trong sheet GỬI XƯỞNG: mỗi loại hộp có Tên (C2) · SL (C3) · Ghi Chú (C4); cột Note chung (C11).
   function parseBoxTable(A){
     if(!A||!A.length) return null;
@@ -2020,12 +2030,28 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(low(nm).indexOf('da chon')===0) break;
       if(nm) rows.push({ name:nm, qty:cell(r2,2), note:cell(r2,gcCol) });
     }
-    // (b) cột "Note" chung chạy DÀI HƠN (có thể xuống dưới "Đã chọn") → quét tới section kế (Bảng Độ Cong/Bảng keo)
+    // (b) vùng "Note": ô tiêu đề Note gộp nhiều cột (VD K25:V25), nội dung thật có thể nằm ở
+    // BẤT KỲ cột nào trong vùng đó — mỗi file một khác (355P/744P ở cột L, 672P/499P ở cột K,
+    // 744P còn thêm một khối phụ ở cột S). Trước đây chỉ đọc đúng cột có chữ "Note" nên
+    // 355P chỉ ra 4 nhãn Box/Tape/Curl/Stick, mất sạch nội dung.
+    // Quét cả vùng, gom theo TỪNG CỘT (mỗi cột là một danh sách dọc riêng, không trộn vào nhau).
     if(noteCol>=0 && noteCol!==gcCol){
+      // Dừng theo KHOẢNG TRỐNG của chính vùng Note (2 dòng trống liên tiếp), không dừng theo
+      // tên section ở cột B: nhiều file (499P) có "Bảng Độ Cong" bắt đầu ở cột B trong khi
+      // cột Note vẫn còn chạy tiếp — dừng theo cột B là mất nửa phần ghi chú.
+      var endR=hr, maxC=noteCol, blank=0;
       for(var r3=hr+1;r3<A.length && r3-hr<=24;r3++){
-        var bn=low(cell(r3,1));
-        if(bn==='bang do cong'||bn.indexOf('bang keo')===0) break;
-        var nv=cell(r3,noteCol); if(nv) notes.push(nv);
+        var row3=A[r3]||[], has=false;
+        for(var c3=noteCol;c3<row3.length && c3<=noteCol+15;c3++){
+          if(cell(r3,c3)){ has=true; if(c3>maxC) maxC=c3; }
+        }
+        if(has){ endR=r3; blank=0; } else if(++blank>=2) break;
+      }
+      for(var c4=noteCol;c4<=maxC;c4++){
+        for(var r4=hr+1;r4<=endR;r4++){
+          var nv=cell(r4,c4);
+          if(nv && notes.indexOf(nv)<0) notes.push(nv);
+        }
       }
     }
     return rows.length ? { total:total, rows:rows, notes:notes } : null;
@@ -2188,7 +2214,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var curlNotes={}, cnbm={}, btbm={}, dcbm={}; okFiles.forEach(function(F){
       var seen={}; (F.data.rawOrders||[]).forEach(function(o){ var m=o&&o.maDon; if(m&&!seen[m]){ seen[m]=1;
         if(F.meta&&F.meta.curlNotes) cnbm[m]=Object.assign(cnbm[m]||{}, F.meta.curlNotes);
-        if(F.meta&&F.meta.boxTable) btbm[m]=F.meta.boxTable;
+        if(F.meta&&F.meta.boxTable) btbm[m]=richerBox(btbm[m], F.meta.boxTable);
         if(F.meta&&F.meta.doCong) dcbm[m]=F.meta.doCong;
       } });
       if(F.meta&&F.meta.curlNotes) Object.assign(curlNotes, F.meta.curlNotes);
@@ -3759,7 +3785,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var col=chosen>tot?'var(--red-600)':(chosen===tot&&tot>0?'var(--accent)':'var(--text-2)');
     var fnote=chosen>tot?('⚠ Vượt tổng '+fmtN(chosen-tot)+' hộp'):(tot-chosen>0?('Còn lại '+fmtN(tot-chosen)+' hộp'):(tot>0?'✓ Đã phân bổ đủ':''));
     var noteItems=[]; if(bt && bt.notes) bt.notes.forEach(function(n){ String(n).split(/\r?\n/).forEach(function(x){ x=x.trim(); if(x) noteItems.push(x); }); });
-    var gen=noteItems.length ? '<div class="bt-general"><div class="bt-gtitle">📝 Note</div><ol class="bt-notelist">'+noteItems.map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('')+'</ol></div>' : '';
+    var gen=noteItems.length ? '<div class="bt-general"><div class="bt-gtitle">📝 Note · '+noteItems.length+' dòng'+
+      '<button class="btn sm" id="bt-reread" style="float:right;font-weight:600">↻ Đọc lại từ file Excel</button></div><ol class="bt-notelist">'+noteItems.map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('')+'</ol></div>'
+      : '<div class="bt-general"><div class="bt-gtitle">📝 Note · 0 dòng'+
+        '<button class="btn sm" id="bt-reread" style="float:right;font-weight:600">↻ Đọc lại từ file Excel</button></div></div>';
     var card='<div class="boxtypes-card"><table class="boxtypes" data-tot="'+tot+'">'+
         '<thead><tr><th class="bt-h1">📦 Bảng Hộp'+(md?' · '+esc(md):'')+'</th><th class="bt-h2">'+fmtN(tot)+'</th><th class="bt-h3">Ghi Chú</th></tr></thead>'+
         '<tbody>'+rows+'</tbody>'+
@@ -3767,6 +3796,52 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '</table></div>';
     pb.innerHTML = gen ? ('<div class="boxtypes-wrap">'+card+gen+'</div>') : card;
   }
+  /* Ghi chú Bảng Hộp chỉ được đọc lúc NHẬP file Excel rồi lưu vào project. Sau khi sửa
+     cách đọc, dữ liệu cũ vẫn còn nguyên trong project → phải nhập lại cả file mới thấy.
+     Nút này đọc lại RIÊNG phần ghi chú (Bảng Hộp + Bảng Độ Cong) từ file Excel, không đụng
+     gì tới số liệu đơn hàng. */
+  function rereadBoxNotes(){
+    if(needXLSX(rereadBoxNotes)) return;
+    var inp=document.createElement('input');
+    inp.type='file'; inp.accept='.xlsx,.xls'; inp.style.display='none';
+    inp.onchange=function(){
+      var f=inp.files&&inp.files[0]; if(!f) return;
+      var fr=new FileReader();
+      fr.onload=function(ev){
+        try{
+          var wb=XLSX.read(new Uint8Array(ev.target.result), {type:'array'});
+          var hit=0, names=[];
+          for(var si=0; si<wb.SheetNames.length; si++){
+            var A=aoa(wb.Sheets[wb.SheetNames[si]]);
+            var gx=null; try{ gx=E.parseGuiXuongSheet(A, f.name); }catch(e){ logErr('reread.parseGX', e); }
+            var md=gx&&gx.meta&&gx.meta.maDon; if(!md) continue;
+            var bt=null, dc=null;
+            try{ bt=parseBoxTable(A); }catch(e){ logErr('reread.box', e); }
+            try{ dc=parseDoCongTable(A); }catch(e){ logErr('reread.docong', e); }
+            if(bt){ state.boxTableByMadon[md]=bt; hit++; names.push(md+' ('+(bt.notes||[]).length+' dòng)'); }
+            if(dc) state.doCongByMadon[md]=dc;
+            (state.files||[]).forEach(function(F){          // ghi vào meta để lần Lưu sau giữ được
+              if(!F||!F.meta) return;
+              var mds=(F.maDons&&F.maDons.length)?F.maDons:(F.meta.maDon?[F.meta.maDon]:[]);
+              if(mds.indexOf(md)<0) return;
+              if(bt) F.meta.boxTable=bt;
+              if(dc) F.meta.doCong=dc;
+            });
+          }
+          if(!hit){ alert('File này không có Bảng Hộp đọc được.'); return; }
+          updateBoxTotals(); renderDoCong();      // vẽ lại kèm đúng tổng + mã đơn đang lọc
+          alert('Đã đọc lại ghi chú: '+names.join(', ')+'.\nNhớ bấm Lưu để giữ lại.');
+        }catch(e){ logErr('rereadBoxNotes', e); alert('Không đọc được file: '+(e&&e.message||e)); }
+      };
+      fr.readAsArrayBuffer(f);
+    };
+    document.body.appendChild(inp); inp.click();
+    setTimeout(function(){ if(inp.parentNode) inp.parentNode.removeChild(inp); }, 60000);
+  }
+  document.addEventListener('click', function(e){
+    var b=e.target&&e.target.closest?e.target.closest('#bt-reread'):null;
+    if(b){ e.preventDefault(); rereadBoxNotes(); }
+  });
   function updateBoxTotals(R){
     R=R||state.R; if(!R) return;
     var md=getVal('s10-madon');
@@ -4565,6 +4640,68 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   var RZ_JS_TAG='<scr'+'ipt>('+__rzInit.toString()+')();('+__pgInit.toString()+')();</scr'+'ipt>';
 
+  /* ===== PACKING SLIP: xem trước phân trang =====
+     Mỗi thùng đã ép sang trang riêng (page-break-after), nên số trang = số thùng — TRỪ KHI
+     một thùng dài quá 1 trang. Hiển thị mỗi thùng thành đúng tờ A4 ngang (có lề) để thấy
+     ngay chỗ tràn, kèm đường đứt và nhãn cảnh báo. */
+  var PL_CSS='.pl-doc{background:#f1f3f5}'+
+    '.pl-doc .pl-page{background:#fff;margin:0 auto 18px;position:relative;box-sizing:border-box;'+
+      'box-shadow:0 0 0 1px #dcdfe3, 0 2px 10px rgba(0,0,0,.10)}'+
+    '.pl-cut{position:absolute;left:0;right:0;border-top:2px dashed #E8185C;pointer-events:none;z-index:9}'+
+    '.pl-cut b{position:absolute;right:0;top:1px;font:700 11px Calibri,Arial,sans-serif;color:#fff;'+
+      'background:#E8185C;padding:1px 7px;border-radius:0 0 6px 6px}'+
+    '.pl-tag{position:absolute;right:4px;top:4px;font:700 11px Calibri,Arial,sans-serif;'+
+      'color:#0a7d34;background:#e6f6ec;border:1px solid #b7e3c6;padding:1px 8px;border-radius:9px;z-index:9}'+
+    '.pl-tag.warn{color:#b1102e;background:#ffe8ee;border-color:#f7bfd0}'+
+    '.pl-bar{font:13px Calibri,Arial,sans-serif;color:#555;margin-right:12px}'+
+    '@media print{.pl-doc{background:#fff}'+
+      '.pl-doc .pl-page{box-shadow:none;margin:0;width:auto!important;min-height:0!important;padding:4px 6px 16px!important}'+
+      '.pl-cut,.pl-tag{display:none}}';
+  function __plInit(){
+    var PX=96/25.4, M=10;                                  // @page{size:A4 landscape;margin:10mm}
+    var PW=Math.round(297*PX), PH=Math.round(210*PX), CW=Math.round((297-2*M)*PX), CH=(210-2*M)*PX;
+    var raf=0;
+    function pages(){ return [].slice.call(document.getElementsByClassName('pl-page')); }
+    function draw(){
+      var list=pages(), total=0, over=0;
+      list.forEach(function(pg, i){
+        pg.style.width=PW+'px'; pg.style.padding=(M*PX)+'px'; pg.style.minHeight=PH+'px';
+        [].slice.call(pg.querySelectorAll('.pl-cut,.pl-tag')).forEach(function(e){ e.parentNode.removeChild(e); });
+        var h=0, kids=pg.children;
+        for(var k=0;k<kids.length;k++){
+          var el=kids[k], cs=getComputedStyle(el);
+          if(cs.display==='none'||/pl-cut|pl-tag/.test(el.className||'')) continue;
+          h=Math.max(h, el.getBoundingClientRect().bottom-pg.getBoundingClientRect().top-(M*PX));
+        }
+        var n=Math.max(1, Math.ceil(h/CH)); total+=n; if(n>1) over++;
+        var tag=document.createElement('div');
+        tag.className='pl-tag'+(n>1?' warn':'');
+        tag.textContent=(n>1?'⚠ Thùng '+(i+1)+' tràn '+n+' trang':'Thùng '+(i+1)+' · vừa 1 trang');
+        pg.appendChild(tag);
+        for(var c=1;c<n;c++){
+          var d=document.createElement('div');
+          d.className='pl-cut'; d.style.top=(M*PX+c*CH)+'px';
+          d.innerHTML='<b>Sang trang '+(c+1)+'</b>';
+          pg.appendChild(d);
+        }
+      });
+      var el2=document.getElementById('pl-info');
+      if(el2) el2.textContent='A4 ngang · '+list.length+' thùng · '+total+' trang in'+(over?(' · '+over+' thùng bị tràn'):'');
+    }
+    function schedule(){ if(raf) cancelAnimationFrame(raf); raf=requestAnimationFrame(function(){ raf=0; draw(); }); }
+    if(document.body.classList.contains('pl-doc')){
+      try{
+        var host=document.querySelector('.noprint');
+        if(host){ var b=document.createElement('span'); b.className='pl-bar'; b.id='pl-info'; host.insertBefore(b, host.firstChild); }
+        draw();
+        if(window.ResizeObserver) pages().forEach(function(p){ new ResizeObserver(schedule).observe(p); });
+        document.addEventListener('mouseup', schedule);
+        document.addEventListener('input', schedule);
+      }catch(e){ console.warn('pl', e); }
+    }
+  }
+  var PL_JS_TAG='<scr'+'ipt>('+__plInit.toString()+')();</scr'+'ipt>';
+
   // ===== IN: TỔNG HỢP LINE + TỔNG HỢP CUỐN (theo mã đơn đang lọc, hoặc tất cả) =====
   function thRows(md){ var R=state.R; if(!R||!R.cuonSheet) return []; return R.cuonSheet.rows.filter(function(r){ return r.type==='row' && (!md||r.maDon===md); }); }
   function thMdList(md){ var s={},o=[]; thRows(md).forEach(function(r){ if(!s[r.maDon]){s[r.maDon]=1;o.push(r.maDon);} }); return o; }
@@ -5041,9 +5178,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       'table.pl{border-collapse:collapse;width:100%;font-size:12px;table-layout:fixed}'+
       'table.pl th{color:#E8185C;border:1px solid #E8185C;padding:4px 3px;font-weight:700;overflow:hidden}'+
       'table.pl td{border:1px solid #f2a8c6;padding:3px 4px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}table.pl td.l{text-align:left}';
-    var doc='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Packing List</title><style>'+css+RZ_CSS+PG_CSS+'</style></head><body>'+
+    var doc='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Packing List</title><style>'+css+RZ_CSS+PG_CSS+PL_CSS+'</style></head><body class="pl-doc">'+
       '<div class="noprint" style="text-align:right;padding:6px 10px"><span class="rz-hint">Kéo tiêu đề chọn cột · kéo trên ô chọn khối · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V copy-dán ngoài · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
-      pages+RZ_JS_TAG+'</body></html>';
+      pages+RZ_JS_TAG+PL_JS_TAG+'</body></html>';
     // mở TAB HIỂN THỊ (thấy màu thật trước khi in) thay vì iframe ẩn.
     // Lưu ý: máy in đen trắng (VD Canon LBP2900) sẽ luôn preview xám —
     // muốn ra màu hãy chọn máy in màu hoặc "Save as PDF/Microsoft Print to PDF".
@@ -5458,7 +5595,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       state.files     = Array.isArray(p.files)     ? p.files     : [];
       state.files.forEach(function(F){ if(F&&F.data) F.imported=true; });   // project đã lưu = file đã xử lý → cột "File đã nhập"
       // dựng lại ghi chú độ cong + Bảng Hộp theo mã đơn từ meta các file đã lưu
-      var cnbm={}, btbm={}, dcbm={}; state.files.forEach(function(F){ if(!F||!F.meta||!F.data) return; var seen={}; (F.data.rawOrders||[]).forEach(function(o){ var m=o&&o.maDon; if(m&&!seen[m]){ seen[m]=1; if(F.meta.curlNotes) cnbm[m]=Object.assign(cnbm[m]||{}, F.meta.curlNotes); if(F.meta.boxTable) btbm[m]=F.meta.boxTable; if(F.meta.doCong) dcbm[m]=F.meta.doCong; } }); }); state.curlNotesByMadon=cnbm; state.boxTableByMadon=btbm; state.doCongByMadon=dcbm;
+      var cnbm={}, btbm={}, dcbm={}; state.files.forEach(function(F){ if(!F||!F.meta||!F.data) return; var seen={}; (F.data.rawOrders||[]).forEach(function(o){ var m=o&&o.maDon; if(m&&!seen[m]){ seen[m]=1; if(F.meta.curlNotes) cnbm[m]=Object.assign(cnbm[m]||{}, F.meta.curlNotes); if(F.meta.boxTable) btbm[m]=richerBox(btbm[m], F.meta.boxTable); if(F.meta.doCong) dcbm[m]=F.meta.doCong; } }); }); state.curlNotesByMadon=cnbm; state.boxTableByMadon=btbm; state.doCongByMadon=dcbm;
       if(Array.isArray(p.log)) state.log = p.log;
       state.source = p.source || (state.files.length ? ('💾 nạp từ server · '+state.orders.length+' dòng') : 'Chưa có dữ liệu');
       state.processed = !!(state.files.length || state.orders.length);
