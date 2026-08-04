@@ -88,10 +88,17 @@
       _manual: !!raw._manual,
     };
   }
+  // Hậu tố hàng đặc biệt gắn ở cuối Code Sợi / Mã Đơn (có thể nhiều tầng: -LZ-DU)
+  var SPECIAL_TAGS = ['LZ', '1ES', '2ES', 'DU', 'U', 'W'];
+  var SPECIAL_SUF_RE = new RegExp('(?:-(?:' + SPECIAL_TAGS.join('|') + '))+$', 'i');
   function validateOrder(o, opt) {
     opt = opt || {}; var minMM = opt.minMM || MM_MIN, maxMM = opt.maxMM || MM_MAX, errs = [];
     var push = function (col, code, level, msg) { errs.push({ seri: o.seri, col: col, code: code, level: level, msg: msg }); };
-    if (!/\.\d+$/.test(o.codeSoi)) push('codeSoi', 'E-CODE', 'error', '"' + o.codeSoi + '" thiếu độ dài — kỳ vọng <mã>.<số>');
+    // Code sợi có thể mang HẬU TỐ HÀNG ĐẶC BIỆT do chính app gắn vào lúc đọc đơn
+    // (laser/liigos→LZ, easy fan→1ES/2ES, <số>D-U→DU, hàng U/W…). Phải bỏ hậu tố rồi mới
+    // xét "thiếu độ dài", nếu không "131.SKV.10-LZ" bị báo sai chuẩn oan.
+    var _codeBase = String(o.codeSoi || '').replace(SPECIAL_SUF_RE, '');
+    if (!/\.\d+$/.test(_codeBase)) push('codeSoi', 'E-CODE', 'error', '"' + o.codeSoi + '" thiếu độ dài — kỳ vọng <mã>.<số>');
     var rg = parseRange(o.length);
     if (!rg) push('length', 'E-LEN', 'error', 'Độ dài "' + o.length + '" không đọc được');
     else if (rg.lo > rg.hi) push('length', 'E-LEN', 'error', '"' + o.length + '" dải không hợp lệ (đầu > cuối)');
@@ -1285,6 +1292,7 @@
     parseNhapDonRows: parseNhapDonRows, parseLabelRows: parseLabelRows,
     parseKeoRows: parseKeoRows, parseWorkbookData: parseWorkbookData,
     parseGuiXuongSheet: parseGuiXuongSheet, parseMixColorAOA: parseMixColorAOA,
+    SPECIAL_TAGS: SPECIAL_TAGS, SPECIAL_SUF_RE: SPECIAL_SUF_RE,
     sample: { MM_233S: MM_233S, MIX_233S: MIX_233S, ORDERS_233S: ORDERS_233S, KEO_233S: KEO_233S, MIX_SHEETS_233S: MIX_SHEETS_233S },
   };
   if (root) root.NhapDonEngine = api;
