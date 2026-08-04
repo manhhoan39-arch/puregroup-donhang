@@ -507,7 +507,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608041330</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608041420</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -4565,6 +4565,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     '.pg-brk b{margin-right:2px}'+
     '.pg-brk b{position:absolute;right:0;top:1px;font:700 11px Calibri,Arial,sans-serif;'+
       'color:#fff;background:#E8185C;padding:1px 7px;border-radius:0 0 6px 6px}'+
+    '.fmt-bar{display:inline-flex;align-items:center;gap:6px;margin-right:12px;'+
+      'font:13px Calibri,Arial,sans-serif;vertical-align:middle}'+
+    '.fmt-bar select,.fmt-bar input[type=color]{font:13px Calibri,Arial,sans-serif;vertical-align:middle}'+
+    '.fmt-bar input[type=color]{width:30px;height:22px;padding:0;border:1px solid #ccc;cursor:pointer}'+
     '.pg-bar{display:inline-flex;align-items:center;gap:10px;margin-right:12px;'+
       'font:13px Calibri,Arial,sans-serif}'+
     '.pg-bar select{font:13px Calibri,Arial,sans-serif;padding:2px 4px}'+
@@ -4583,6 +4587,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
          nhãn tự đặt không bám chắc vào chỗ ngắt thật, đã bỏ. */
       'thead{display:table-header-group}tfoot{display:table-footer-group}'+
       'tr{page-break-inside:avoid}'+
+      /* in ra ĐÚNG màu nền đã tô, khỏi phải bật "Background graphics" trong hộp thoại in */
+      'td,th{-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
     '}';
   function __pgInit(){
     var PX=96/25.4, MT=12, MB=12, ML=10, MR=10;
@@ -4746,7 +4752,53 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     });
     window.addEventListener('afterprint', function(){ try{ unlock(); schedule(); }catch(e){ console.warn('pg', e); } });
   }
-  var RZ_JS_TAG='<scr'+'ipt>('+__rzInit.toString()+')();('+__pgInit.toString()+')();</scr'+'ipt>';
+  /* ===== ĐỊNH DẠNG CHỮ / NỀN trong cửa sổ in =====
+     Áp cho vùng ĐANG BÔI ĐEN (kéo trên ô, hoặc bấm tiêu đề để chọn cả cột); chưa chọn gì thì
+     phông + cỡ chữ áp cho cả bảng, còn tô nền bắt buộc phải chọn vùng để khỏi tô nhầm cả trang.
+     Ghi thẳng vào style của ô nên in ra giữ nguyên. */
+  function __fmtInit(){
+    var host=document.querySelector('.noprint'); if(!host) return;
+    var FONTS=['Calibri','Arial','Times New Roman','Tahoma','Verdana','Segoe UI'];
+    var SIZES=[9,10,11,12,13,14,16,18,20,22];
+    var box=document.createElement('span'); box.className='fmt-bar noprint';
+    box.innerHTML='<label>Phông <select id="fmt-font"><option value="">—</option>'+
+        FONTS.map(function(f){ return '<option>'+f+'</option>'; }).join('')+'</select></label>'+
+      '<label>Cỡ <select id="fmt-size"><option value="">—</option>'+
+        SIZES.map(function(n){ return '<option>'+n+'</option>'; }).join('')+'</select></label>'+
+      '<button class="rz-btn" id="fmt-bold" title="In đậm / bỏ đậm vùng đang chọn"><b>B</b></button>'+
+      '<label title="Tô nền vùng đang chọn">Nền <input type="color" id="fmt-bg" value="#fff3a3"></label>'+
+      '<button class="rz-btn" id="fmt-clear" title="Xoá phông/cỡ/nền vừa đặt">Xoá định dạng</button>';
+    host.insertBefore(box, host.firstChild);
+    function picked(){
+      var s=document.querySelectorAll('td.rz-selcell,td.rz-selcol,th.rz-selcol');
+      return s.length?[].slice.call(s):null;
+    }
+    function everyCell(){ return [].slice.call(document.querySelectorAll('table td,table th')); }
+    function run(fn, needPick){
+      var list=picked();
+      if(!list){
+        if(needPick){ alert('Hãy bôi đen vùng cần tô trước: kéo chuột trên các ô, hoặc bấm vào tiêu đề để chọn cả cột.'); return; }
+        list=everyCell();
+      }
+      list.forEach(fn);
+    }
+    var f=box.querySelector('#fmt-font'), z=box.querySelector('#fmt-size');
+    f.onchange=function(){ var v=f.value; if(!v) return; run(function(el){ el.style.fontFamily=v; }); };
+    z.onchange=function(){ var v=z.value; if(!v) return; run(function(el){ el.style.fontSize=v+'px'; }); };
+    box.querySelector('#fmt-bold').onclick=function(){
+      var list=picked()||everyCell();
+      var on=!list.every(function(el){ var w=getComputedStyle(el).fontWeight; return w==='700'||w==='bold'||+w>=600; });
+      list.forEach(function(el){ el.style.fontWeight=on?'800':'400'; });
+    };
+    box.querySelector('#fmt-bg').onchange=function(){
+      var c=this.value; run(function(el){ el.style.background=c; }, true);
+    };
+    box.querySelector('#fmt-clear').onclick=function(){
+      run(function(el){ el.style.fontFamily=''; el.style.fontSize=''; el.style.fontWeight=''; el.style.background=''; });
+      f.value=''; z.value='';
+    };
+  }
+  var RZ_JS_TAG='<scr'+'ipt>('+__rzInit.toString()+')();('+__pgInit.toString()+')();('+__fmtInit.toString()+')();</scr'+'ipt>';
 
   /* ===== PACKING SLIP: xem trước phân trang =====
      Mỗi thùng đã ép sang trang riêng (page-break-after), nên số trang = số thùng — TRỪ KHI
@@ -4821,7 +4873,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function thUsedCurls(rows){ var UC=state.usedCurls||CURLS; return UC.filter(function(k){ return rows.some(function(r){ return (r.curls&&r.curls[k])>0; }); }); }
   function thPrint(title, body, pageHead, land){
     var w=window.open('','_blank'); if(!w) return alert('Trình duyệt chặn cửa sổ in — cho phép popup rồi thử lại.');
-    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Calibri,Arial,sans-serif;padding:6px 14px 14px;color:#111}h2{margin:4px 0 6px;font-size:16px}h2 .dc{font-weight:700;font-size:13.5px;color:#111;margin-left:14px}table{border-collapse:collapse;width:100%;margin-bottom:14px;font-size:12px}th,td{border:1px solid #333;padding:3px 6px;text-align:center}th{background:#f0f0f0}td.l,th.l{text-align:left}.tot{font-weight:800;background:#ffe6ef}.edit{background:#fffef2;word-break:break-word;white-space:normal;outline:none;cursor:text}.edit:focus{background:#fff8c4;box-shadow:inset 0 0 0 2px #E8185C}@media print{.noprint{display:none}.edit{background:transparent!important;box-shadow:none!important}}'+RZ_CSS+PG_CSS+'</style></head><body class="pg-doc" data-ttl="'+esc(pageHead||'')+'" data-land="'+(land?'1':'0')+'"><div class="noprint" style="text-align:right;margin-bottom:8px"><span class="rz-hint">Kéo tiêu đề chọn cột · kéo trên ô chọn khối · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V copy-dán ngoài · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Calibri,Arial,sans-serif;padding:6px 14px 14px;color:#111}h2{margin:4px 0 6px;font-size:16px}h2 .dc{font-weight:700;font-size:13.5px;color:#111;margin-left:14px}table{border-collapse:collapse;width:100%;margin-bottom:14px;font-size:12px}th,td{border:1px solid #333;padding:3px 6px;text-align:center}th{background:#f0f0f0}td.l,th.l{text-align:left}.tot{font-weight:800;background:#ffe6ef}.edit{background:#fffef2;word-break:break-word;white-space:normal;outline:none;cursor:text}.edit:focus{background:#fff8c4;box-shadow:inset 0 0 0 2px #E8185C}@media print{.noprint{display:none}.edit{background:transparent!important;box-shadow:none!important}}'+RZ_CSS+PG_CSS+'</style></head><body class="pg-doc" data-ttl="'+esc(pageHead||'')+'" data-land="'+(land?'1':'0')+'"><div class="noprint" style="text-align:right;margin-bottom:8px"><span class="rz-hint">Chuột phải 1 dòng để Thêm/Nhân bản/Xóa · kéo tiêu đề chọn cột · kéo trên ô chọn khối · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
       '<div class="pg-sheet">'+body+'</div>'+RZ_JS_TAG+'</body></html>');
     w.document.close();
   }
@@ -5293,7 +5345,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       'table.pl th{color:#E8185C;border:1px solid #E8185C;padding:4px 3px;font-weight:700;overflow:hidden}'+
       'table.pl td{border:1px solid #f2a8c6;padding:3px 4px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}table.pl td.l{text-align:left}';
     var doc='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Packing List</title><style>'+css+RZ_CSS+PG_CSS+PL_CSS+'</style></head><body class="pl-doc">'+
-      '<div class="noprint" style="text-align:right;padding:6px 10px"><span class="rz-hint">Kéo tiêu đề chọn cột · kéo trên ô chọn khối · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V copy-dán ngoài · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
+      '<div class="noprint" style="text-align:right;padding:6px 10px"><span class="rz-hint">Chuột phải 1 dòng để Thêm/Nhân bản/Xóa · kéo tiêu đề chọn cột · kéo trên ô chọn khối · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
       pages+RZ_JS_TAG+PL_JS_TAG+'</body></html>';
     // mở TAB HIỂN THỊ (thấy màu thật trước khi in) thay vì iframe ẩn.
     // Lưu ý: máy in đen trắng (VD Canon LBP2900) sẽ luôn preview xám —
