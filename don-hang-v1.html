@@ -295,6 +295,8 @@ td.cellsel-anchor,th.cellsel-anchor{box-shadow:inset 0 0 0 2px var(--accent)}
 .cell-sel input,.cell-sel select,input.cell-sel,select.cell-sel{background:var(--accent-soft)!important;outline:1.5px solid var(--accent);outline-offset:-1px}
 /* Bôi đen vùng ô (kéo chuột) ở các bảng dữ liệu — kiểu Google Sheets */
 .sheet td.cell-sel,.prev-table td.cell-sel,td.gs-sel,#ps-body td.cell-sel{background:var(--accent-soft)!important;box-shadow:inset 0 0 0 1px var(--accent)}
+#ps-body td.ps-mat{background:#fffef2;cursor:text}
+#ps-body td.ps-mat:focus{background:#fff8c4;box-shadow:inset 0 0 0 2px var(--accent);outline:none}
 body.gs-selecting{user-select:none}
 /* So sánh 2 đơn: ghi chú quy đổi + bảng A/B đối xứng (cột đều, cho xuống dòng) */
 .cmp-info{font-size:11.5px;line-height:1.7;padding:8px 12px;background:var(--surface-3);border:1px solid var(--border);border-radius:9px}
@@ -343,6 +345,10 @@ body.gs-selecting{user-select:none}
 .bt-notelist{margin:0;padding-left:22px;list-style:decimal}
 .bt-notelist li{margin:0 0 5px;padding-left:3px;line-height:1.4}
 .bt-notelist li::marker{color:var(--accent);font-weight:700}
+.bt-notecols{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
+.bt-notecols>.bt-notelist{flex:1 1 0;min-width:180px}
+.bt-notecols>.bt-nc-narrow{flex:0 0 auto;min-width:0;padding-right:16px;border-right:1px dashed var(--border)}
+.bt-notelist.bt-nonum{list-style:none;padding-left:2px}
 .bt-hint{font-size:12px;color:var(--text-3);padding:10px 14px;background:var(--surface-3);border:1px dashed var(--border-strong);border-radius:9px;display:inline-block}
 .bt-hint b{color:var(--accent)}
 /* Step 1 · 2 cột danh sách file */
@@ -498,7 +504,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608012110</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608040910</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -2023,7 +2029,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(hr<0) return null;
     var gcCol=findCol(hr,'ghi chu'); if(gcCol<0) gcCol=3;      // dò cột "Ghi Chú" (mỗi file có thể khác cột)
     var noteCol=findCol(hr,'note'); if(noteCol<0) noteCol=10;
-    var total=cell(hr,2), rows=[], notes=[];
+    var total=cell(hr,2), rows=[], notes=[], noteCols=[];
     // (a) danh sách loại hộp: dừng ở "Đã chọn"
     for(var r2=hr+1;r2<A.length && r2-hr<=25;r2++){
       var nm=cell(r2,1);
@@ -2036,7 +2042,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // 355P chỉ ra 4 nhãn Box/Tape/Curl/Stick, mất sạch nội dung.
     // Quét cả vùng, gom theo TỪNG CỘT (mỗi cột là một danh sách dọc riêng, không trộn vào nhau).
     if(noteCol>=0 && noteCol!==gcCol){
-      // Dừng theo KHOẢNG TRỐNG của chính vùng Note (2 dòng trống liên tiếp), không dừng theo
+      // Dừng theo KHOẢNG TRỐNG của chính vùng Note (4 dòng trống liên tiếp), không dừng theo
       // tên section ở cột B: nhiều file (499P) có "Bảng Độ Cong" bắt đầu ở cột B trong khi
       // cột Note vẫn còn chạy tiếp — dừng theo cột B là mất nửa phần ghi chú.
       var endR=hr, maxC=noteCol, blank=0;
@@ -2045,18 +2051,21 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         for(var c3=noteCol;c3<row3.length && c3<=noteCol+15;c3++){
           if(cell(r3,c3)){ has=true; if(c3>maxC) maxC=c3; }
         }
-        if(has){ endR=r3; blank=0; } else if(++blank>=2) break;
+        if(has){ endR=r3; blank=0; } else if(++blank>=4) break;   // 355P có 3 dòng trống giữa các nhãn
       }
       for(var c4=noteCol;c4<=maxC;c4++){
+        var colList=[];
         for(var r4=hr+1;r4<=endR;r4++){
           var nv=cell(r4,c4);
-          if(nv && notes.indexOf(nv)<0) notes.push(nv);
+          if(nv && notes.indexOf(nv)<0){ notes.push(nv); colList.push(nv); }
         }
+        if(colList.length) noteCols.push(colList);       // giữ nguyên bố cục nhiều cột của đơn gốc
       }
     }
     // v:2 = đọc bằng cách MỚI (quét cả vùng Note). Dữ liệu lưu từ bản cũ không có dấu này
     // → app biết mà nhắc người dùng đọc lại, thay vì im lặng hiện thiếu.
-    return rows.length ? { v:2, total:total, rows:rows, notes:notes } : null;
+    // v:3 = có thêm noteCols (bố cục cột). v:2 = chỉ có danh sách phẳng nhưng vẫn đủ nội dung.
+    return rows.length ? { v:3, total:total, rows:rows, notes:notes, noteCols:noteCols } : null;
   }
   // Đọc vùng "Bảng Độ Cong" trong sheet GỬI XƯỞNG: mỗi dòng Độ Cong (C2) · Ghi Chú (C3); dừng trước Bảng keo/Bảng Hộp/Đã chọn.
   function parseDoCongTable(A){
@@ -3008,6 +3017,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var sum=0,nums=0,cnt=0;
     Array.prototype.forEach.call(cells,function(td){
       var t=String(td.textContent||'').trim(); if(!t) return; cnt++;
+      t=t.replace(/[^\d.,\-]+$/,'').trim();          // bỏ đuôi kiểu "15 ⚠" để vẫn cộng được
       if(/^-?[\d.,]+$/.test(t)){ var v=/^\d{1,3}(\.\d{3})+$/.test(t)?parseFloat(t.replace(/\./g,'')):parseFloat(t.replace(',','.')); if(isFinite(v)){ sum+=v; nums++; } }
     });
     var f=function(n){ n=Math.round(n*100)/100; return fmtN(n); };
@@ -3604,6 +3614,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     document.addEventListener('keydown', function(ev){ if(!document.getElementById('ps-ov'))return; if(ev.key==='Delete'&&psMulti()){ ev.preventDefault(); var rg=psRange(); pushUndo(); for(var r=rg.r1;r<=rg.r2;r++)for(var c=rg.c1;c<=rg.c2;c++)psWrite(psCellAt(r,c),0); state._packR=null; renderSlip(); } });
   }
 
+  // Sửa tên NGUYÊN LIỆU ngay trong Packing Slip. Khoá dòng là maDon|seri nên đổi tên
+  // nguyên liệu không làm lạc dòng; chỉ nhóm cảnh báo hụt số được tính lại.
+  document.addEventListener('blur', function(ev){
+    var td=ev.target&&ev.target.closest?ev.target.closest('#ps-body td[data-matcell]'):null;
+    if(!td) return;
+    var idx=boxFindIdx(td.getAttribute('data-boxkey')); if(idx<0) return;
+    var txt=String(td.innerText||td.textContent||'').replace(/\u00a0/g,' ').replace(/[ \t]+$/gm,'').trim();
+    var o=state.pack[idx];
+    if(String(o.material||'')===txt) return;
+    pushUndo(); o.material=txt; state._packR=null; renderSlip();
+  }, true);
   function renderSlip(){
     var body=document.getElementById('ps-body'); if(!body) return;
     var md=getVal('ps-madon'), UC=state.usedCurls||CURLS;
@@ -3635,9 +3656,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         return '<td class="cw" contenteditable="true" data-r="'+(no-1)+'" data-c="'+ci+'" data-boxkey="'+esc(key)+'" data-boxcurl="'+esc(k)+'"'+cTit+' style="background:'+cBg+cCol+';min-width:32px;font-weight:700">'+(v||'')+'</td>'; }).join('');
       var mlc = (/\r?\n/.test(String(o.material||''))||/\r?\n/.test(String(o.codeSoi||''))) ? ' cl-mlcell' : '';
       return '<tr class="'+(mlc?'cl-multiline':'')+'" data-key="'+esc(key)+'" data-madon="'+esc(o.maDon)+'">'+
-        '<td>'+no+'</td><td class="l">'+esc(khOf(o.maDon))+'</td><td class="l">'+esc(donOf(o.maDon))+'</td><td class="txt'+mlc+'">'+nl2br(o.material||o.codeSoi||'')+'</td><td>'+esc(o.length||'')+'</td><td>'+esc(o.mixSingle||'')+'</td>'+
-        curlTds+'<td class="qty"'+totStyle+totTitle+'>'+hp+(warnSum?' ⚠':'')+'</td>'+
-        '<td class="qty rem-cell"'+(remRed?' data-remlock="1" style="background:#ffdede;color:#b1102e;font-weight:800"':(remGreen?' style="background:#d7f5df;color:#1a7a3f;font-weight:800"':''))+remTitle+'>'+remVal+(remRed?' ⚠':'')+'</td>'+
+        '<td>'+no+'</td><td class="l">'+esc(khOf(o.maDon))+'</td><td class="l">'+esc(donOf(o.maDon))+'</td>'+
+        '<td class="txt ps-mat'+mlc+'" contenteditable="true" data-matcell="1" data-boxkey="'+esc(key)+'" '+
+        'title="Bấm vào để sửa tên nguyên liệu">'+nl2br(o.material||o.codeSoi||'')+'</td><td>'+esc(o.length||'')+'</td><td>'+esc(o.mixSingle||'')+'</td>'+
+        curlTds+'<td class="qty" data-r="'+(no-1)+'" data-c="'+UC.length+'"'+totStyle+totTitle+'>'+hp+(warnSum?' ⚠':'')+'</td>'+
+        '<td class="qty rem-cell" data-r="'+(no-1)+'" data-c="'+(UC.length+1)+'"'+(remRed?' data-remlock="1" style="background:#ffdede;color:#b1102e;font-weight:800"':(remGreen?' style="background:#d7f5df;color:#1a7a3f;font-weight:800"':''))+remTitle+'>'+remVal+(remRed?' ⚠':'')+'</td>'+
         '<td class="box-cell"><input class="box-pick" list="box-datalist" data-key="'+esc(key)+'" value="'+esc(boxSel[key]||'')+'" placeholder="— box —" style="width:82px"></td></tr>';
     }).join('');
     body.innerHTML='<table class="sheet" style="width:100%;white-space:nowrap"><thead>'+head+'</thead><tbody>'+(trs||'<tr><td colspan="'+(UC.length+9)+'" class="mini txt">Không có dòng.</td></tr>')+'</tbody></table>';
@@ -3787,13 +3810,28 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var col=chosen>tot?'var(--red-600)':(chosen===tot&&tot>0?'var(--accent)':'var(--text-2)');
     var fnote=chosen>tot?('⚠ Vượt tổng '+fmtN(chosen-tot)+' hộp'):(tot-chosen>0?('Còn lại '+fmtN(tot-chosen)+' hộp'):(tot>0?'✓ Đã phân bổ đủ':''));
     var noteItems=[]; if(bt && bt.notes) bt.notes.forEach(function(n){ String(n).split(/\r?\n/).forEach(function(x){ x=x.trim(); if(x) noteItems.push(x); }); });
-    var stale=!!(bt && bt.v!==2);                       // ghi chú lấy từ dữ liệu lưu bằng bản cũ
+    var stale=!!(bt && !(bt.v>=2));                     // ghi chú lấy từ dữ liệu lưu bằng bản cũ
     var warn=stale ? '<div style="color:#b1102e;font-weight:700;font-size:12px;line-height:1.45;'+
         'background:#ffe8ee;border:1px solid #f7bfd0;border-radius:8px;padding:7px 10px;margin:2px 0 9px">'+
         '⚠ Ghi chú này đang lấy từ dữ liệu đã lưu (đọc bằng bản cũ) nên thiếu nhiều dòng.<br>'+
         'Bấm <b>↻ Đọc lại từ file Excel</b> rồi chọn lại file đơn, sau đó bấm Lưu.</div>' : '';
+    // Đơn gốc để ghi chú thành NHIỀU CỘT cạnh nhau → dựng lại đúng như vậy, không dồn 1 cột.
+    // Cột toàn dòng ngắn (nhãn Box/Tape/Curl/Stick) để co theo nội dung, cột dài chia đều phần còn lại.
+    var cols=(bt && bt.noteCols && bt.noteCols.length>1) ? bt.noteCols : null;
+    var listHtml;
+    if(cols){
+      // CHỈ cột đầu đánh số; các cột sau để trơn cho đỡ rối
+      listHtml='<div class="bt-notecols">'+cols.map(function(cl, ci){
+        var narrow=cl.every(function(x){ return String(x).length<=24; });
+        return '<ol class="bt-notelist'+(narrow?' bt-nc-narrow':'')+(ci?' bt-nonum':'')+'">'+
+          cl.map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('')+'</ol>';
+      }).join('')+'</div>';
+    } else {
+      listHtml='<ol class="bt-notelist">'+noteItems.map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('')+'</ol>';
+    }
     var gen=noteItems.length ? '<div class="bt-general"><div class="bt-gtitle">📝 Note · '+noteItems.length+' dòng'+
-      '<button class="btn sm" id="bt-reread" style="float:right;font-weight:600">↻ Đọc lại từ file Excel</button></div>'+warn+'<ol class="bt-notelist">'+noteItems.map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('')+'</ol></div>'
+      (cols?' · '+cols.length+' cột':'')+
+      '<button class="btn sm" id="bt-reread" style="float:right;font-weight:600">↻ Đọc lại từ file Excel</button></div>'+warn+listHtml+'</div>'
       : '<div class="bt-general"><div class="bt-gtitle">📝 Note · 0 dòng'+
         '<button class="btn sm" id="bt-reread" style="float:right;font-weight:600">↻ Đọc lại từ file Excel</button></div>'+warn+'</div>';
     var card='<div class="boxtypes-card"><table class="boxtypes" data-tot="'+tot+'">'+
