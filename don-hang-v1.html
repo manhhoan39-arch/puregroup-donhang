@@ -498,7 +498,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608012035</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608012110</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -2054,7 +2054,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         }
       }
     }
-    return rows.length ? { total:total, rows:rows, notes:notes } : null;
+    // v:2 = đọc bằng cách MỚI (quét cả vùng Note). Dữ liệu lưu từ bản cũ không có dấu này
+    // → app biết mà nhắc người dùng đọc lại, thay vì im lặng hiện thiếu.
+    return rows.length ? { v:2, total:total, rows:rows, notes:notes } : null;
   }
   // Đọc vùng "Bảng Độ Cong" trong sheet GỬI XƯỞNG: mỗi dòng Độ Cong (C2) · Ghi Chú (C3); dừng trước Bảng keo/Bảng Hộp/Đã chọn.
   function parseDoCongTable(A){
@@ -3785,10 +3787,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var col=chosen>tot?'var(--red-600)':(chosen===tot&&tot>0?'var(--accent)':'var(--text-2)');
     var fnote=chosen>tot?('⚠ Vượt tổng '+fmtN(chosen-tot)+' hộp'):(tot-chosen>0?('Còn lại '+fmtN(tot-chosen)+' hộp'):(tot>0?'✓ Đã phân bổ đủ':''));
     var noteItems=[]; if(bt && bt.notes) bt.notes.forEach(function(n){ String(n).split(/\r?\n/).forEach(function(x){ x=x.trim(); if(x) noteItems.push(x); }); });
+    var stale=!!(bt && bt.v!==2);                       // ghi chú lấy từ dữ liệu lưu bằng bản cũ
+    var warn=stale ? '<div style="color:#b1102e;font-weight:700;font-size:12px;line-height:1.45;'+
+        'background:#ffe8ee;border:1px solid #f7bfd0;border-radius:8px;padding:7px 10px;margin:2px 0 9px">'+
+        '⚠ Ghi chú này đang lấy từ dữ liệu đã lưu (đọc bằng bản cũ) nên thiếu nhiều dòng.<br>'+
+        'Bấm <b>↻ Đọc lại từ file Excel</b> rồi chọn lại file đơn, sau đó bấm Lưu.</div>' : '';
     var gen=noteItems.length ? '<div class="bt-general"><div class="bt-gtitle">📝 Note · '+noteItems.length+' dòng'+
-      '<button class="btn sm" id="bt-reread" style="float:right;font-weight:600">↻ Đọc lại từ file Excel</button></div><ol class="bt-notelist">'+noteItems.map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('')+'</ol></div>'
+      '<button class="btn sm" id="bt-reread" style="float:right;font-weight:600">↻ Đọc lại từ file Excel</button></div>'+warn+'<ol class="bt-notelist">'+noteItems.map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('')+'</ol></div>'
       : '<div class="bt-general"><div class="bt-gtitle">📝 Note · 0 dòng'+
-        '<button class="btn sm" id="bt-reread" style="float:right;font-weight:600">↻ Đọc lại từ file Excel</button></div></div>';
+        '<button class="btn sm" id="bt-reread" style="float:right;font-weight:600">↻ Đọc lại từ file Excel</button></div>'+warn+'</div>';
     var card='<div class="boxtypes-card"><table class="boxtypes" data-tot="'+tot+'">'+
         '<thead><tr><th class="bt-h1">📦 Bảng Hộp'+(md?' · '+esc(md):'')+'</th><th class="bt-h2">'+fmtN(tot)+'</th><th class="bt-h3">Ghi Chú</th></tr></thead>'+
         '<tbody>'+rows+'</tbody>'+
