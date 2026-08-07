@@ -506,7 +506,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608041930</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608042010</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -2294,14 +2294,29 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function canUpload(){ return canEditStep('s1'); }
   function blockUpload(){ alert('Bạn chỉ có quyền XEM ở bước Nhập Đơn — không thể nạp/xử lý file.'); }
   if(chooseBtn&&fi){
-    chooseBtn.addEventListener('click', function(ev){ ev.stopPropagation(); if(!canUpload()) return blockUpload(); fi.click(); });
-    fi.addEventListener('change', function(){ if(!canUpload()){ fi.value=''; return blockUpload(); } readFiles(fi.files); fi.value=''; });
+    // Bấm "Chọn file" thì nạp sẵn thư viện Excel luôn (người dùng còn đang chọn file trong
+    // hộp thoại) → lúc chọn xong là đọc được ngay, không phải chờ.
+    chooseBtn.addEventListener('click', function(ev){ ev.stopPropagation(); if(!canUpload()) return blockUpload();
+      try{ loadXLSX(); }catch(e){ logErr('preloadXLSX', e); } fi.click(); });
+    // PHẢI sao chép danh sách file ra mảng TRƯỚC khi xoá ô chọn file. Lần đầu mở app thư viện
+    // Excel chưa nạp nên việc đọc bị hoãn; nếu để nguyên fi.files thì đến lúc chạy lại danh
+    // sách đã rỗng (do fi.value='') → bấm Open lần đầu không ăn, phải chọn lại lần hai.
+    fi.addEventListener('change', function(){
+      if(!canUpload()){ fi.value=''; return blockUpload(); }
+      var picked=Array.prototype.slice.call(fi.files||[]);
+      fi.value='';
+      if(picked.length) readFiles(picked);
+    });
   }
   if(dz&&fi){
-    dz.addEventListener('click', function(ev){ if(ev.target!==chooseBtn){ if(!canUpload()) return blockUpload(); fi.click(); } });
+    dz.addEventListener('click', function(ev){ if(ev.target!==chooseBtn){ if(!canUpload()) return blockUpload();
+      try{ loadXLSX(); }catch(e){ logErr('preloadXLSX', e); } fi.click(); } });
     ['dragover','dragenter'].forEach(function(t){ dz.addEventListener(t, function(ev){ ev.preventDefault(); dz.style.borderColor='var(--accent)'; }); });
     ['dragleave','drop'].forEach(function(t){ dz.addEventListener(t, function(ev){ ev.preventDefault(); dz.style.borderColor=''; }); });
-    dz.addEventListener('drop', function(ev){ if(!canUpload()) return blockUpload(); if(ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files.length) readFiles(ev.dataTransfer.files); });
+    // kéo-thả cũng phải sao ra mảng: DataTransfer chỉ sống trong lúc xử lý sự kiện
+    dz.addEventListener('drop', function(ev){ if(!canUpload()) return blockUpload();
+      var dropped=(ev.dataTransfer&&ev.dataTransfer.files)?Array.prototype.slice.call(ev.dataTransfer.files):[];
+      if(dropped.length) readFiles(dropped); });
   }
   var bp=document.getElementById('btn-process'); if(bp) bp.addEventListener('click', function(){ if(!canUpload()) return blockUpload(); processFiles(); });
   var bc=document.getElementById('btn-clear');   if(bc) bc.addEventListener('click', function(){ if(!canUpload()) return blockUpload();
