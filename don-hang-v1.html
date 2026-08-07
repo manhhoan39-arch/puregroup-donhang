@@ -506,7 +506,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608042110</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608071615</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -4567,7 +4567,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded', init);
   }
   var RZ_CSS='th{position:relative;cursor:cell}.rz-col{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;z-index:5}.rz-row{position:absolute;left:0;bottom:-4px;height:8px;width:100%;cursor:row-resize;z-index:5}body.rz-active{cursor:col-resize}body.rz-active,body.rz-sel{user-select:none}.rz-selcol{background:rgba(0,207,200,.22);box-shadow:inset 0 0 0 2px #00CFC8}.rz-selcell{background:rgba(0,207,200,.20);box-shadow:inset 0 0 0 1px #00CFC8}.rz-stats{position:fixed;right:16px;bottom:14px;display:none;background:#fff;border:1.5px solid #E8185C;color:#E8185C;font-weight:800;font-size:13px;padding:7px 14px;border-radius:7px;box-shadow:0 2px 10px rgba(0,0,0,.18);z-index:100}.rz-hint{font-size:11px;color:#888;margin:0 10px}.rz-btn{margin-left:4px;padding:3px 9px;cursor:pointer}.rz-btn:disabled{opacity:.4;cursor:default}.rz-ctx{position:fixed;z-index:300;background:#fff;border:1px solid #e2e2e2;border-radius:9px;box-shadow:0 6px 22px rgba(0,0,0,.22);padding:5px;font-size:13px;min-width:172px}.rz-mi{padding:7px 12px;cursor:pointer;border-radius:6px;white-space:nowrap}.rz-mi:hover{background:rgba(0,207,200,.16)}.rz-danger{color:#b1102e}.rz-danger:hover{background:rgba(232,24,92,.12)}@media print{.rz-col,.rz-row,.rz-ctx{display:none!important}.noprint{display:none!important}.rz-selcol,.rz-selcell{background:none!important;box-shadow:none!important}}';
-  var RZ_BAR='<button id="rz-undo" class="rz-btn" onclick="__rzUndo()" title="Hoàn tác (Ctrl+Z)">↶ Undo</button><button id="rz-redo" class="rz-btn" onclick="__rzRedo()" title="Làm lại (Ctrl+Y)">↷ Redo</button>';
+  var RZ_BAR='<button id="rz-undo" class="rz-btn" onclick="__rzUndo()" title="Hoàn tác (Ctrl+Z)">↶ Undo</button><button id="rz-redo" class="rz-btn" onclick="__rzRedo()" title="Làm lại (Ctrl+Y)">↷ Redo</button>'+
+    '<button id="rz-xl" class="rz-btn" onclick="__xlSave()" title="Tải về .xlsx giữ nguyên cột, màu nền, viền và phông đang thấy">⬇ Excel</button>';
   /* ĐÃ THỬ VÀ LOẠI (kiểm chứng bằng Print preview thật của Chrome — đừng làm lại):
        ✗ position:fixed để lặp tiêu đề: Chrome KHÔNG lặp nó khi in, chỉ vẽ 1 lần và sai chỗ.
        ✗ dòng tiêu đề gộp ô trong <thead> mà thiếu <colgroup>: table-layout:fixed mất mốc,
@@ -4833,7 +4834,253 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       f.value=''; z.value='';
     };
   }
-  var RZ_JS_TAG='<scr'+'ipt>('+__rzInit.toString()+')();('+__pgInit.toString()+')();('+__fmtInit.toString()+')();</scr'+'ipt>';
+  /* ===== TẢI VỀ EXCEL (.xlsx) — GIỮ NGUYÊN BẢNG ĐANG XEM TRƯỚC KHI IN =====
+     Tự sinh .xlsx (zip STORE + XML OOXML) chứ KHÔNG dùng SheetJS: bản cộng đồng của SheetJS
+     không ghi được màu nền / viền / phông chữ, mà yêu cầu là "giữ nguyên như bảng in".
+     Đọc getComputedStyle của từng ô nên mọi thứ người dùng vừa chỉnh trong cửa sổ in
+     (kéo cột, đổi cỡ chữ, tô nền, thêm dòng...) đều theo sang file Excel. */
+  function __xlInit(){
+    var CRCT=(function(){ var t=new Uint32Array(256),c,n,k;
+      for(n=0;n<256;n++){ c=n; for(k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0; } return t; })();
+    function crc32(b){ var c=0xFFFFFFFF; for(var i=0;i<b.length;i++) c=CRCT[(c^b[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+    var ENC=new TextEncoder();
+    function zip(files){                                    // zip không nén (STORE) — đủ cho xlsx
+      var out=[], cen=[], off=0;
+      files.forEach(function(f){
+        var nm=ENC.encode(f.n), dt=ENC.encode(f.d), crc=crc32(dt);
+        var lh=new Uint8Array(30+nm.length), dv=new DataView(lh.buffer);
+        dv.setUint32(0,0x04034b50,true); dv.setUint16(4,20,true);
+        dv.setUint32(14,crc,true); dv.setUint32(18,dt.length,true); dv.setUint32(22,dt.length,true);
+        dv.setUint16(26,nm.length,true); lh.set(nm,30);
+        var ch=new Uint8Array(46+nm.length), cv=new DataView(ch.buffer);
+        cv.setUint32(0,0x02014b50,true); cv.setUint16(4,20,true); cv.setUint16(6,20,true);
+        cv.setUint32(16,crc,true); cv.setUint32(20,dt.length,true); cv.setUint32(24,dt.length,true);
+        cv.setUint16(28,nm.length,true); cv.setUint32(42,off,true); ch.set(nm,46);
+        out.push(lh,dt); cen.push(ch); off+=lh.length+dt.length;
+      });
+      var cs=0; cen.forEach(function(c){ cs+=c.length; });
+      var eo=new Uint8Array(22), ev=new DataView(eo.buffer);
+      ev.setUint32(0,0x06054b50,true); ev.setUint16(8,files.length,true); ev.setUint16(10,files.length,true);
+      ev.setUint32(12,cs,true); ev.setUint32(16,off,true);
+      return new Blob(out.concat(cen,[eo]),{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    }
+    function X(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,''); }
+    function cn(n){ var s=''; n++; while(n>0){ var r=(n-1)%26; s=String.fromCharCode(65+r)+s; n=(n-1-r)/26; } return s; }
+    function argb(c){                                       // "rgb(a)(...)" → "FFRRGGBB", trong suốt → null
+      var m=/^rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?/.exec(c||'');
+      if(!m) return null;
+      if(m[4]!==undefined && +m[4]===0) return null;
+      function h(v){ v=Math.max(0,Math.min(255,Math.round(+v))); return (v<16?'0':'')+v.toString(16).toUpperCase(); }
+      return 'FF'+h(m[1])+h(m[2])+h(m[3]);
+    }
+    function pool(init){ var a=init.slice(), m={}; a.forEach(function(x,i){ m[x]=i; });
+      return { a:a, id:function(x){ if(m[x]===undefined){ m[x]=a.length; a.push(x); } return m[x]; } }; }
+    function numOf(t){                                       // chỉ số thuần mới thành số, code "153.SKC.5" giữ nguyên chữ
+      if(!t || /^0\d/.test(t) || !/^-?\d+(\.\d+)?$/.test(t)) return null;
+      var n=+t; return isFinite(n)?n:null;
+    }
+    function styleOf(el, P){
+      var cs=getComputedStyle(el);
+      var fw=cs.fontWeight, bold=(fw==='bold'||+fw>=600);
+      var f='<font>'+(bold?'<b/>':'')+(cs.fontStyle==='italic'?'<i/>':'')+
+        '<sz val="'+(Math.round(parseFloat(cs.fontSize)*0.75*10)/10||11)+'"/>'+
+        '<color rgb="'+(argb(cs.color)||'FF000000')+'"/>'+
+        '<name val="'+X(String(cs.fontFamily||'Calibri').split(',')[0].replace(/["']/g,'').trim()||'Calibri')+'"/></font>';
+      var bg=argb(cs.backgroundColor);
+      /* Nền tô trên cả DÒNG (vd .tot{background:#ffe6ef}) thì ô con vẫn "transparent" —
+         trên màn hình thấy hồng mà đọc riêng ô lại ra rỗng. Phải leo lên tr/tbody/table. */
+      if(!bg){
+        for(var p=el.parentNode; p && p.nodeType===1 && /^(TR|TBODY|THEAD|TFOOT|TABLE)$/.test(p.tagName); p=p.parentNode){
+          var c2=argb(getComputedStyle(p).backgroundColor);
+          if(c2 && c2!=='FFFFFFFF'){ bg=c2; break; }
+        }
+      }
+      var fl=bg?('<fill><patternFill patternType="solid"><fgColor rgb="'+bg+'"/><bgColor indexed="64"/></patternFill></fill>')
+               :'<fill><patternFill patternType="none"/></fill>';
+      function sd(tag,w,col,st){
+        var px=parseFloat(w)||0;
+        if(px<=0||st==='none'||st==='hidden') return '<'+tag+'/>';
+        return '<'+tag+' style="'+(px>=2?'medium':'thin')+'"><color rgb="'+(argb(col)||'FF000000')+'"/></'+tag+'>';
+      }
+      var bd='<border>'+sd('left',cs.borderLeftWidth,cs.borderLeftColor,cs.borderLeftStyle)+
+        sd('right',cs.borderRightWidth,cs.borderRightColor,cs.borderRightStyle)+
+        sd('top',cs.borderTopWidth,cs.borderTopColor,cs.borderTopStyle)+
+        sd('bottom',cs.borderBottomWidth,cs.borderBottomColor,cs.borderBottomStyle)+'<diagonal/></border>';
+      var ta=cs.textAlign, ha=(ta==='center')?'center':((ta==='right'||ta==='end')?'right':'left');
+      var wrap=!/nowrap|^pre$/.test(cs.whiteSpace);
+      return P.xfs.id('<xf numFmtId="0" fontId="'+P.fonts.id(f)+'" fillId="'+P.fills.id(fl)+'" borderId="'+P.borders.id(bd)+
+        '" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">'+
+        '<alignment horizontal="'+ha+'" vertical="center"'+(wrap?' wrapText="1"':'')+'/></xf>');
+    }
+    /* pg-ttl = dòng tiêu đề CHỈ để lặp khi in; nội dung của nó đã có ở dòng h2 nên bỏ,
+       khỏi lặp tên đơn hai lần trong file Excel. */
+    var SKIP=/(^|\s)(noprint|pg-ttl|pg-brk|pl-cut|pl-tag|rz-col|rz-row|rz-ctx|rz-stats)(\s|$)/;
+    function hidden(el){ return SKIP.test(' '+(el.className||'')+' ') || getComputedStyle(el).display==='none'; }
+    function blocks(root){                                   // tách vùng in thành các khối: bảng / dòng chữ
+      var out=[];
+      (function walk(node){
+        for(var i=0;i<node.children.length;i++){
+          var el=node.children[i];
+          if(hidden(el)) continue;
+          var cs=getComputedStyle(el);
+          if(el.tagName==='TABLE'){ out.push({t:'tbl',el:el}); continue; }
+          if(el.querySelector('table')){ walk(el); continue; }
+          var kids=[].slice.call(el.children);
+          if(cs.display==='flex' && kids.length>1){
+            out.push({t:'row',cells:kids.map(function(c){ return {el:c,text:(c.innerText||'').trim()}; })});
+            continue;
+          }
+          if(kids.length && kids.every(function(c){ return /block|flex|grid|list-item/.test(getComputedStyle(c).display); })){ walk(el); continue; }
+          var tx=(el.innerText||'').trim();
+          if(tx) out.push({t:'txt',el:el,text:tx});
+        }
+      })(root);
+      return out;
+    }
+    function grid(tbl){                                      // trải rowspan/colspan thành ma trận đầy đủ
+      var trs=[].slice.call(tbl.rows).filter(function(tr){ return !hidden(tr); });
+      var g=[], occ=[], merges=[], widths=[], heights=[];
+      trs.forEach(function(tr,ri){
+        g[ri]=g[ri]||[]; heights[ri]=tr.getBoundingClientRect().height;
+        var ci=0;
+        [].slice.call(tr.cells).forEach(function(td){
+          if(hidden(td)) return;
+          while(occ[ri]&&occ[ri][ci]) ci++;
+          var rs=td.rowSpan||1, csp=td.colSpan||1;
+          for(var a=0;a<rs;a++){ occ[ri+a]=occ[ri+a]||[]; g[ri+a]=g[ri+a]||[];
+            for(var b=0;b<csp;b++){ occ[ri+a][ci+b]=1; g[ri+a][ci+b]={el:td, anchor:(a===0&&b===0)}; } }
+          if(rs>1||csp>1) merges.push([ri,ci,ri+rs-1,ci+csp-1]);
+          if(csp===1){ var w=td.getBoundingClientRect().width; if(w>(widths[ci]||0)) widths[ci]=w; }
+          ci+=csp;
+        });
+      });
+      return { g:g, merges:merges, widths:widths, heights:heights, n:trs.length };
+    }
+    function build(root, land, P){
+      var rows=[], merges=[], widths=[], maxc=0;
+      blocks(root).forEach(function(b){
+        if(b.t==='tbl'){
+          var G=grid(b.el), base=rows.length;
+          G.widths.forEach(function(w,i){ if(w>(widths[i]||0)) widths[i]=w; });
+          for(var r=0;r<G.n;r++){
+            var gr=G.g[r]||[], line={h:G.heights[r], cells:[]};
+            for(var c=0;c<gr.length;c++){
+              var cell=gr[c]; if(!cell) continue;
+              line.cells.push({ c:c, el:cell.el,
+                text: cell.anchor ? (cell.el.innerText||'').replace(/ /g,' ').trim() : '' });
+              if(c+1>maxc) maxc=c+1;
+            }
+            rows.push(line);
+          }
+          G.merges.forEach(function(m){ merges.push([base+m[0],m[1],base+m[2],m[3]]); });
+          rows.push({h:0,cells:[]});
+        } else if(b.t==='row'){
+          var ln={h:0,cells:[]};
+          b.cells.forEach(function(x,i){ ln.cells.push({c:i,el:x.el,text:x.text}); if(i+1>maxc) maxc=i+1; });
+          rows.push(ln);
+        } else {
+          rows.push({h:0,cells:[{c:0,el:b.el,text:b.text}],span:true});
+        }
+      });
+      var sd='';
+      rows.forEach(function(ln,ri){
+        var cells='';
+        ln.cells.forEach(function(cl){
+          var s=styleOf(cl.el,P), ref=cn(cl.c)+(ri+1), n=numOf(cl.text);
+          cells += (n===null)
+            ? '<c r="'+ref+'" s="'+s+'" t="inlineStr"><is><t xml:space="preserve">'+X(cl.text)+'</t></is></c>'
+            : '<c r="'+ref+'" s="'+s+'"><v>'+n+'</v></c>';
+        });
+        if(ln.span && maxc>1) merges.push([ri,0,ri,maxc-1]);
+        var h=ln.h?Math.max(15,Math.round(ln.h*0.75*10)/10):(ln.cells.length?16:6);
+        sd+='<row r="'+(ri+1)+'" ht="'+h+'" customHeight="1">'+cells+'</row>';
+      });
+      var cols='';
+      for(var i=0;i<maxc;i++){
+        var px=widths[i]||64;
+        cols+='<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+(Math.round(Math.max(3,(px-5)/7)*100)/100)+'" customWidth="1"/>';
+      }
+      var mg=merges.map(function(m){ return '<mergeCell ref="'+cn(m[1])+(m[0]+1)+':'+cn(m[3])+(m[2]+1)+'"/>'; }).join('');
+      return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+        '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>'+
+        '<dimension ref="A1:'+cn(Math.max(0,maxc-1))+Math.max(1,rows.length)+'"/>'+
+        '<sheetViews><sheetView workbookViewId="0"/></sheetViews>'+
+        '<sheetFormatPr defaultRowHeight="15"/>'+
+        (cols?'<cols>'+cols+'</cols>':'')+
+        '<sheetData>'+sd+'</sheetData>'+
+        (mg?'<mergeCells count="'+merges.length+'">'+mg+'</mergeCells>':'')+
+        '<pageMargins left="0.39" right="0.39" top="0.47" bottom="0.47" header="0.3" footer="0.3"/>'+
+        '<pageSetup paperSize="9" orientation="'+(land?'landscape':'portrait')+'" fitToWidth="1" fitToHeight="0"/>'+
+        '</worksheet>';
+    }
+    function sname(s, used){
+      s=String(s||'Sheet').replace(/[\[\]\*\/\\\?:]/g,' ').replace(/\s+/g,' ').trim().slice(0,31)||'Sheet';
+      var b=s, k=2; while(used[s.toLowerCase()]){ s=(b.slice(0,28)+' '+k).slice(0,31); k++; }
+      used[s.toLowerCase()]=1; return s;
+    }
+    function save(){
+      var P={ fonts:pool(['<font><sz val="11"/><color rgb="FF000000"/><name val="Calibri"/></font>']),
+              fills:pool(['<fill><patternFill patternType="none"/></fill>','<fill><patternFill patternType="gray125"/></fill>']),
+              borders:pool(['<border><left/><right/><top/><bottom/><diagonal/></border>']),
+              xfs:pool(['<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>']) };
+      var used={}, sheets=[];
+      var pls=[].slice.call(document.getElementsByClassName('pl-page'));
+      if(pls.length){
+        pls.forEach(function(p,i){ sheets.push({ name:sname('Thung '+(i+1), used), xml:build(p,true,P) }); });
+      } else {
+        var sc=document.querySelector('.pr-scope')||document.body;
+        var h2=sc.querySelector('h2');
+        sheets.push({ name:sname((h2&&h2.innerText)||document.title||'Sheet1', used),
+                      xml:build(sc, document.body.getAttribute('data-land')==='1', P) });
+      }
+      var styles='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+        '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+        '<fonts count="'+P.fonts.a.length+'">'+P.fonts.a.join('')+'</fonts>'+
+        '<fills count="'+P.fills.a.length+'">'+P.fills.a.join('')+'</fills>'+
+        '<borders count="'+P.borders.a.length+'">'+P.borders.a.join('')+'</borders>'+
+        '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
+        '<cellXfs count="'+P.xfs.a.length+'">'+P.xfs.a.join('')+'</cellXfs>'+
+        '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'+
+        '</styleSheet>';
+      var wb='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'+
+        ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'+
+        sheets.map(function(s,i){ return '<sheet name="'+X(s.name)+'" sheetId="'+(i+1)+'" r:id="rId'+(i+1)+'"/>'; }).join('')+
+        '</sheets></workbook>';
+      var R='http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+      var wbr='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+        sheets.map(function(s,i){ return '<Relationship Id="rId'+(i+1)+'" Type="'+R+'/worksheet" Target="worksheets/sheet'+(i+1)+'.xml"/>'; }).join('')+
+        '<Relationship Id="rId'+(sheets.length+1)+'" Type="'+R+'/styles" Target="styles.xml"/></Relationships>';
+      var ct='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
+        '<Default Extension="xml" ContentType="application/xml"/>'+
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'+
+        sheets.map(function(s,i){ return '<Override PartName="/xl/worksheets/sheet'+(i+1)+'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'; }).join('')+
+        '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>';
+      var files=[{n:'[Content_Types].xml',d:ct},
+        {n:'_rels/.rels',d:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="'+R+'/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
+        {n:'xl/workbook.xml',d:wb},{n:'xl/_rels/workbook.xml.rels',d:wbr},{n:'xl/styles.xml',d:styles}];
+      sheets.forEach(function(s,i){ files.push({n:'xl/worksheets/sheet'+(i+1)+'.xml',d:s.xml}); });
+      window.__xlLast=files;                                 // giữ lại phần XML thô để soi khi cần
+      return zip(files);
+    }
+    window.__xlBuild=save;                                   // dùng cho kiểm thử
+    window.__xlSave=function(){
+      try{
+        var blob=save();
+        var nm=String(document.title||'bang-in').replace(/[\\\/:*?"<>|]/g,'-').replace(/\s+/g,' ').trim();
+        var a=document.createElement('a');
+        a.href=URL.createObjectURL(blob); a.download=nm+'.xlsx';
+        document.body.appendChild(a); a.click();
+        setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+      }catch(e){ console.warn('xlsx', e); alert('Không tạo được file Excel: '+(e&&e.message||e)); }
+    };
+  }
+  var RZ_JS_TAG='<scr'+'ipt>('+__rzInit.toString()+')();('+__pgInit.toString()+')();('+__fmtInit.toString()+')();('+__xlInit.toString()+')();</scr'+'ipt>';
 
   /* ===== PACKING SLIP: xem trước phân trang =====
      Mỗi thùng đã ép sang trang riêng (page-break-after), nên số trang = số thùng — TRỪ KHI
