@@ -116,12 +116,13 @@ body{
   gap:8px;padding:0 14px;flex-shrink:0;box-shadow:var(--shadow);flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden}
 /* Thanh công cụ: MỌI nhãn/nút chỉ 1 DÒNG chữ (không xuống dòng), thiếu chỗ thì cuộn ngang */
 .topbar > *{flex:0 0 auto}
-.topbar .search-top{flex:1 1 190px;min-width:130px;width:auto}
 .topbar .btn,.topbar .cl-btn,.topbar select,.topbar .madon-pick,.topbar #cl-bar,.topbar #cl-proj-btns,
 .topbar #cl-bar .who,.topbar #cl-bar .who *,.topbar .cl-sub{white-space:nowrap}
 .topbar #cl-bar{gap:6px;margin-left:6px}
 .topbar #cl-bar .who{line-height:1.2;font-size:12px;max-width:190px;overflow:hidden;text-overflow:ellipsis}
+.topbar #cl-proj-btns{margin-right:2px}
 .topbar #cl-proj-btns .btn{padding:7px 10px}
+.tb-sep{width:1px;height:22px;background:var(--border);flex:0 0 auto}
 .topbar::-webkit-scrollbar{height:6px}
 .topbar::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
 .crumb{font-size:12px;color:var(--text-3)}
@@ -472,8 +473,6 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   .content{overflow:visible;padding:12px}
   .tbl-toolbar{margin:0 -12px 10px;padding:8px 12px}   /* khớp padding .content ở màn hẹp */
   .topbar{height:auto;flex-wrap:wrap;padding:8px 12px;gap:8px;overflow-x:visible}
-  .search-top{width:100%;order:9}
-  .topbar .search-top{flex:1 1 100%;width:100%;min-width:0}   /* màn hẹp: ô tìm xuống hàng riêng, chữ vẫn 1 dòng */
   .kpi-grid{grid-template-columns:repeat(2,1fr)}
   .export-grid{grid-template-columns:1fr}
   .tbl-wrap{overflow:auto}
@@ -507,17 +506,21 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608041815</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608041930</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
 <div class="main">
+  <!-- Bố cục thanh trên: NHÓM TRÁI (Xuất/Mở Project — cl.project.js chèn vào đầu — rồi
+       Hoàn tác/Làm lại/Giao diện) · khoảng đệm co giãn · NHÓM PHẢI (Xưởng, tài khoản, Lưu,
+       Nạp, Quản lý, Đăng xuất do auth.web.js chèn). Trước đây khoảng đệm nằm ngay đầu nên
+       hai nhóm bị tách đôi, giữa thanh trống hoác sau khi bỏ ô tìm kiếm. -->
   <header class="topbar">
-    <div class="spacer"></div>
-    <div class="search-top">🔍<input placeholder="Tìm trong Bảng Nhập Đơn…" id="top-search"></div>
     <div class="icon-btn" id="btn-undo" title="Hoàn tác (Ctrl+Z)" style="opacity:.4;pointer-events:none">↶</div>
     <div class="icon-btn" id="btn-redo" title="Làm lại (Ctrl+Y / Ctrl+Shift+Z)" style="opacity:.4;pointer-events:none">↷</div>
+    <div class="tb-sep"></div>
     <div class="icon-btn" id="themeBtn" title="Đổi giao diện Sáng/Tối">🌙</div>
+    <div class="spacer"></div>
     <!-- Thanh người dùng (đăng nhập/phân quyền) sẽ được auth.web.js chèn vào ĐÂY -->
   </header>
   <div class="content" id="content">
@@ -1011,7 +1014,6 @@ function go(id){
   // Dùng lại kết quả đã tính, KHÔNG tính lại → số liệu không thể lệch.
   try{ if(window.__flushStale) window.__flushStale(id); }catch(e){ logErr('go', e); }
   // ô tìm trên thanh công cụ đổi theo BƯỚC đang xem
-  try{ if(window.__syncTopSearch) window.__syncTopSearch(); }catch(e){ logErr('go', e); }
 }
 document.querySelectorAll('#nav a').forEach(a=>a.addEventListener('click',()=>go(a.dataset.s)));
 // dark mode
@@ -3428,47 +3430,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     }, 160));
   }
   wireSearch('grid-search');
-  // Ô tìm kiếm trên THANH CÔNG CỤ: tìm trong bảng của BƯỚC ĐANG XEM (giống ô tìm của từng bước),
-  // gõ xong đổ ngay vào ô tìm của bước đó rồi lọc — không nhảy bước.
-  // s1 (Nhập Đơn) có HAI ô lọc: file đã chọn + file đã nhập → ô trên thanh công cụ đổ vào cả hai.
-  // Trước đây s1 không có trong bảng này nên ô tìm bị khoá, gõ không được.
-  var TOP_SEARCH_OF={ s1:'imported-madon', s3:'grid-search', s4:'s4-search', s5:'s5-search', s6:'s6-search', s10:'s10-search', s8:'s8-search' };
-  var TOP_SEARCH_ALSO={ s1:['chosen-madon'] };                    // ô lọc phụ cùng bước
-  var TOP_SEARCH_LABEL={ s1:'danh sách file', s3:'Bảng Nhập Đơn', s4:'Bảng Mix Label', s5:'Bảng Keo', s6:'Bảng Line Cuốn', s10:'Tổng hợp Box', s8:'lịch sử' };
-  function curStepId(){ var sec=document.querySelector('section.screen.active'); return sec?sec.id:'s3'; }
-  function syncTopSearchPlaceholder(){
-    var t=document.getElementById('top-search'); if(!t) return;
-    var st=curStepId(), lb=TOP_SEARCH_LABEL[st];
-    t.placeholder = lb ? ('Tìm trong '+lb+'…') : 'Tìm trong Bảng Nhập Đơn…';
-    t.disabled = !TOP_SEARCH_OF[st];
-    t.style.opacity = TOP_SEARCH_OF[st] ? '' : '.5';
-    // hiện lại từ khóa đang lọc của bước đó
-    var tgt=document.getElementById(TOP_SEARCH_OF[st]||'');
-    if(tgt && document.activeElement!==t) t.value=String(tgt.value||'');
-  }
-  window.__syncTopSearch = syncTopSearchPlaceholder;
-  (function(){
-    var top=document.getElementById('top-search'); if(!top||!top.addEventListener) return;
-    top.addEventListener('input', function(){
-      var st=curStepId(), tid=TOP_SEARCH_OF[st]; if(!tid) return;
-      var tgt=document.getElementById(tid); if(!tgt) return;
-      tgt.value=String(top.value||'');
-      (TOP_SEARCH_ALSO[st]||[]).forEach(function(id2){        // đổ sang các ô lọc phụ của bước
-        var e2=document.getElementById(id2); if(!e2) return;
-        e2.value=String(top.value||'');
-        try{ e2.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){ logErr('topSearch.also', e); }
-      });
-      if(tid==='grid-search'){ gridQuery=tgt.value; applyGridFilter(); }
-      else {
-        var fired=false;
-        try{ var W=(tgt.ownerDocument&&tgt.ownerDocument.defaultView)||window;
-          tgt.dispatchEvent(new W.Event('input',{bubbles:true})); fired=true; }catch(e){ logErr('syncTopSearchPlaceholder', e); }
-        if(!fired){ try{ var ev2=document.createEvent('Event'); ev2.initEvent('input',true,true); tgt.dispatchEvent(ev2); fired=true; }catch(e){ logErr('syncTopSearchPlaceholder', e); } }
-        if(!fired && typeof applyAllFilters==='function') applyAllFilters();
-      }
-    });
-    syncTopSearchPlaceholder();   // đặt đúng nhãn ngay khi mở app
-  })();
+  /* ĐÃ BỎ ô tìm kiếm trên thanh trên cùng: mỗi bước đã có ô tìm riêng ngay trên bảng của
+     bước đó, thêm một ô tìm nữa ở thanh chung chỉ gây rối và phải đồng bộ qua lại. */
   // lọc Mã Đơn cho Bảng Nhập Đơn (giống dropdown bảng Mix)
   var s3madon=document.getElementById('s3-madon');
   if(s3madon) s3madon.addEventListener('change', function(){ setGlobalMadon(String(s3madon.value||'')); });

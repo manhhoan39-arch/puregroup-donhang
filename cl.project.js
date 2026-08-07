@@ -56,7 +56,9 @@
   // ---- Chèn 2 nút vào thanh trên cùng ----
   function injectButtons() {
     if (document.getElementById('cl-proj-btns')) return;
-    var host = document.querySelector('#cl-bar') || document.querySelector('.topbar');
+    // Luôn gắn vào ĐẦU thanh trên (nhóm trái) cho bố cục ổn định — trước đây nếu thanh tài
+    // khoản đã dựng xong thì 2 nút này lại nhảy sang cụm bên phải.
+    var host = document.querySelector('.topbar') || document.querySelector('#cl-bar');
     if (!host) return;
     var wrap = document.createElement('span');
     wrap.id = 'cl-proj-btns';
