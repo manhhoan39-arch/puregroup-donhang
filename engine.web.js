@@ -88,6 +88,24 @@
       _manual: !!raw._manual,
     };
   }
+  /* ===== MÃ KEO CHUẨN =====
+     Danh sách mã keo được phép dùng. Ô "Loại Keo" trong Bảng Keo ghi mã ngoài danh sách này
+     → tô đỏ và tính vào Ô sai chuẩn. Chỉ soi những chuỗi CÓ DẠNG mã keo (chữ+số chấm số,
+     VD Nau155C.2) để không báo nhầm mấy dòng ghi chú bằng lời. */
+  var KEO_STD = [
+    'Trong250G.2', 'Trong450G.2', 'Nau155C.2', 'Nau155C.3', 'CamTQN75.2',
+    'NauBNC500.2', 'NauBNC500.3', 'Cam837.2', 'Cam837.3', 'Vang80.2',
+    'XanhLX70.2', 'XanhLX70.3', 'Trang850T.25', 'Trang850T.3',
+    'XanhBlu150.2', 'XanhBlu150.3'
+  ];
+  function keoNorm(s) { return String(s == null ? '' : s).replace(/\s+/g, '').toLowerCase(); }
+  var KEO_STD_SET = (function () { var m = {}; KEO_STD.forEach(function (k) { m[keoNorm(k)] = k; }); return m; })();
+  var KEO_CODE_RE = /^[A-Za-z][A-Za-z0-9]*\s*\.\s*\d+$/;
+  function badKeoCodes(s) {
+    return String(s == null ? '' : s).split(/[\n,;\/]+/)
+      .map(function (x) { return x.trim(); })
+      .filter(function (c) { return c && KEO_CODE_RE.test(c) && !KEO_STD_SET[keoNorm(c)]; });
+  }
   // Hậu tố hàng đặc biệt gắn ở cuối Code Sợi / Mã Đơn (có thể nhiều tầng: -LZ-DU)
   var SPECIAL_TAGS = ['LZ', '1ES', '2ES', 'DU', 'U', 'W'];
   var SPECIAL_SUF_RE = new RegExp('(?:-(?:' + SPECIAL_TAGS.join('|') + '))+$', 'i');
@@ -150,9 +168,17 @@
       // gắn maDon vào từng lỗi — Seri có thể trùng giữa các file/mã đơn khác nhau
       validateOrder(o, opt).forEach(function (e) { e.maDon = o.maDon; errors.push(e); });
     });
+    // Mã keo ngoài danh sách chuẩn → ô sai chuẩn (gắn kèm chỉ số dòng keo để tô đúng ô)
+    (opt.keoRows || []).forEach(function (k, i) {
+      var bad = badKeoCodes(k && k.loaiKeo);
+      if (!bad.length) return;
+      errors.push({ seri: 0, keoIdx: i, maDon: k.maDon, col: 'loaiKeo', code: 'E-KEO', level: 'error',
+        msg: 'Mã keo ' + bad.map(function (c) { return '"' + c + '"'; }).join(', ') + ' không có trong danh sách chuẩn' });
+    });
     var FORMAT_CODES = ['E-MIX', 'E-STAR'];
     var isErr = function (e) { return e.level === 'error'; };
-    var errRows = {}; errors.forEach(function (e) { if (isErr(e)) errRows[e.maDon + '#' + e.seri] = 1; });
+    // lỗi mã keo KHÔNG thuộc dòng đơn nào → không tính vào "dòng hỏng"
+    var errRows = {}; errors.forEach(function (e) { if (isErr(e) && e.code !== 'E-KEO') errRows[e.maDon + '#' + e.seri] = 1; });
     var stats = {
       total: orders.length,
       errorCells: errors.filter(isErr).length,   // gồm CẢ lỗi cấu trúc E-MIX/E-STAR
@@ -640,7 +666,8 @@
   /* ---------------- pipeline ---------------- */
   function runPipeline(input) {
     var opt = input.opt || {};
-    var s1 = runStep1(input.rawOrders, opt);
+    // truyền keoRows vào bước kiểm tra để soi luôn mã keo ngoài danh sách chuẩn
+    var s1 = runStep1(input.rawOrders, Object.assign({}, opt, { keoRows: input.keoRows || [] }));
     // MIX: key theo "dải|số line" — nhiều bảng Mix cùng mã đơn được GỘP THEO KHÓA,
     // 2 bảng cùng dải khác số line vẫn độc lập (khóa khác nhau)
     var mixLabel = new MixLabel(), rangeInfo = {};
@@ -1293,6 +1320,7 @@
     parseKeoRows: parseKeoRows, parseWorkbookData: parseWorkbookData,
     parseGuiXuongSheet: parseGuiXuongSheet, parseMixColorAOA: parseMixColorAOA,
     SPECIAL_TAGS: SPECIAL_TAGS, SPECIAL_SUF_RE: SPECIAL_SUF_RE,
+    KEO_STD: KEO_STD, badKeoCodes: badKeoCodes,
     sample: { MM_233S: MM_233S, MIX_233S: MIX_233S, ORDERS_233S: ORDERS_233S, KEO_233S: KEO_233S, MIX_SHEETS_233S: MIX_SHEETS_233S },
   };
   if (root) root.NhapDonEngine = api;
