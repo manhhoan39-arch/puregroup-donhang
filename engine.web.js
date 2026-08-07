@@ -160,6 +160,9 @@
     return errs;
   }
   function runStep1(rawList, opt) {
+    // Gọi được KHÔNG KÈM opt (lúc đọc từng file mới chỉ cần thống kê nhanh) — thiếu dòng
+    // này thì phần kiểm mã keo bên dưới nổ "Cannot read properties of undefined".
+    opt = opt || {};
     var orders = rawList.map(normalizeOrder), errors = [], seen = {};
     orders.forEach(function (o) {
       var k = o.maDon + '#' + o.seri;
@@ -406,10 +409,23 @@
   //  → TÁCH thành nhiều rule, mỗi keo 1 dải độ dài. Không map được chắc chắn → trả null (giữ hành vi cũ).
   function splitKeoByNote(k, thicks, matsFallback) {
     var names = PS(k.loaiKeo).split(/[\r\n,;]+/).map(cleanKeoName).filter(Boolean);
-    var uniq = names.filter(function (n, i) { return names.indexOf(n) === i; });
-    if (uniq.length < 2) return null;
     var gh = PS(k.ghiChu); if (!gh || !/\d/.test(gh)) return null;
-    var lines = gh.split(/\r?\n/);
+    /* Khách còn 1 kiểu ghi nữa: ô "Mã Keo" chỉ ghi MỘT keo, keo thứ hai nằm trong Ghi Chú —
+       vd 744P: ô ghi "XanhBLu150.2", ghi chú "XanhBLu150.2 cho độ dài 6-8mm; Keo XanhBLu150.3
+       cho độ dài từ 9mm trở lên". Trước đây chỉ nhìn ô Mã Keo nên bỏ sót keo .3, mọi mm đều
+       ăn keo .2. Giờ nhặt thêm tên keo trong ghi chú (dạng <chữ><số>.<số>).
+       An toàn: chỉ chấp nhận khi ô Mã Keo CÓ MẶT trong ghi chú — tức là ghi chú thật sự đang
+       nói về chính dòng keo này, không phải chú thích linh tinh. */
+    (gh.match(/[A-Za-z][A-Za-z0-9]*\s*\.\s*\d+/g) || []).forEach(function (n) {
+      var c = cleanKeoName(n); if (c) names.push(c);
+    });
+    var seenN = {}, uniq = [];
+    names.forEach(function (n) { var key = n.replace(/\s+/g, '').toLowerCase(); if (!seenN[key]) { seenN[key] = 1; uniq.push(n); } });
+    if (uniq.length < 2) return null;
+    var cellN = cleanKeoName(PS(k.loaiKeo).split(/[\r\n,;]+/)[0] || '').replace(/\s+/g, '').toLowerCase();
+    if (cellN && !seenN[cellN]) return null;
+    // ngăn đoạn bằng xuống dòng HOẶC dấu ";" — khách hay viết 2 quy tắc trên cùng 1 dòng
+    var lines = gh.split(/\r?\n|;/);
     var made = [];
     uniq.forEach(function (kn) {
       var knN = kn.replace(/\s+/g, '').toLowerCase(), line = null;
@@ -459,7 +475,11 @@
       if (len.lo == null && ghi.lo != null) { len = ghi; }
       // NGUYÊN LIỆU: ưu tiên cột Loại Sợi; nếu TRỐNG thì lấy từ Ghi Chú (khách hay ghi "chỉ dùng cho ... Cashmere Silk")
       // → giữ ràng buộc nguyên liệu để không khớp nhầm keo giữa các loại sợi khác nhau.
-      var mats = soi.mats.length ? soi.mats : ghi.mats;
+      /* Trừ khi ghi chú là loại "map keo theo độ dài" (có nhắc MÃ KEO trong đó) — lúc đó
+         parseKeoCond cắt nhầm cả cụm "XanhBLu cho độ dài" thành tên nguyên liệu, làm quy tắc
+         không khớp với nguyên liệu nào cả rồi rơi hết vào keo mặc định. */
+      var ghNoteHasGlue = /[A-Za-z][A-Za-z0-9]*\s*\.\s*\d+/.test(PS(k.ghiChu));
+      var mats = soi.mats.length ? soi.mats : (ghNoteHasGlue ? [] : ghi.mats);
       // Độ dày: ưu tiên cột Độ Dày; nếu cột này trống thì lấy từ Ghi Chú.
       if (!dayThicks.length && !soi.thicks.length && ghi.thicks.length) { thicks = ghi.thicks; }
       // Ô keo GỘP nhiều keo + ghi chú map theo độ dài → TÁCH mỗi keo 1 dải (mỗi mm ra đúng 1 keo).
@@ -716,7 +736,48 @@
     var keoByOrder = {};
     var maDons = {}; s1.orders.forEach(function (o) { maDons[o.maDon] = 1; });
     Object.keys(maDons).forEach(function (m) { keoByOrder[m] = (input.keoRows || []).filter(function (k) { return k.maDon === m; }); });
-    return { orders: s1.orders, errors: s1.errors, stats: s1.stats, mixLabel: mixLabel, data1: data1, lineByOrder: lineByOrder, cuon: cuon, cuonSheet: cuonSheet, keoByOrder: keoByOrder, keoRules: keoRules, keoMalformed: keoMalformed };
+    /* ĐỐI CHIẾU VỚI SỐ KHÁCH TỰ TÍNH (chỉ có ở template 2026).
+       Khách gửi kèm bảng mm theo từng độ cong, tính bằng SỢI; app tính bằng DÂY
+       (1 dây = 2 sợi) nên nhân 2 rồi so từng ô (code sợi × mm × độ cong).
+       Lệch chỗ nào chỉ ra chỗ đó — bắt được cả lỗi app lẫn lỗi khách gõ. */
+    var doiChieu = null;
+    if (input.khachCuon && input.khachCuon.rows && input.khachCuon.rows.length) {
+      var APP = {}, KH = {}, keys = {}, only = {};
+      input.khachCuon.rows.forEach(function (rw) { only[rw.maDon] = 1; });   // chỉ soi đơn CÓ số khách gửi
+      (cuonSheet.rows || []).forEach(function (rw) {
+        if (rw.type !== 'row' || !only[rw.maDon]) return;
+        CURLS.forEach(function (k) {
+          var q = (rw.curls && rw.curls[k]) || 0; if (!q) return;
+          var key = rw.maDon + '|' + rw.codeSoi + '|' + rw.mm + '|' + k;
+          APP[key] = (APP[key] || 0) + q * SOI_PER_LINE; keys[key] = 1;
+        });
+      });
+      input.khachCuon.rows.forEach(function (rw) {
+        CURLS.forEach(function (k) {
+          var q = (rw.curls && rw.curls[k]) || 0; if (!q) return;
+          var key = rw.maDon + '|' + rw.codeSoi + '|' + rw.mm + '|' + k;
+          KH[key] = (KH[key] || 0) + q; keys[key] = 1;
+        });
+      });
+      var list = Object.keys(keys), diffs = [];
+      list.forEach(function (key) {
+        var a = APP[key] || 0, b = KH[key] || 0;
+        if (a === b) return;
+        var pr = key.split('|');
+        diffs.push({ maDon: pr[0], codeSoi: pr[1], mm: +pr[2], curl: pr[3], app: a, khach: b });
+      });
+      var appTot = 0, khTot = 0, byOrder = {};
+      list.forEach(function (key) {
+        var a = APP[key] || 0, b = KH[key] || 0, md = key.split('|')[0];
+        appTot += a; khTot += b;
+        // tách theo TỪNG MÃ ĐƠN: giao diện chỉ báo về mấy file vừa nạp nên phải cộng riêng
+        var o = byOrder[md] || (byOrder[md] = { cells: 0, diffs: 0, appSoi: 0, khachSoi: 0 });
+        o.cells++; o.appSoi += a; o.khachSoi += b; if (a !== b) o.diffs++;
+      });
+      doiChieu = { cells: list.length, matched: list.length - diffs.length, diffs: diffs,
+                   appSoi: appTot, khachSoi: khTot, byOrder: byOrder };
+    }
+    return { orders: s1.orders, errors: s1.errors, stats: s1.stats, mixLabel: mixLabel, data1: data1, lineByOrder: lineByOrder, cuon: cuon, cuonSheet: cuonSheet, keoByOrder: keoByOrder, keoRules: keoRules, keoMalformed: keoMalformed, doiChieu: doiChieu };
   }
 
   /* ---------------- PARSER WORKBOOK (AOA từ SheetJS) ---------------- */
@@ -1188,6 +1249,342 @@
     return { rawOrders: out, mixSheets: mixSheets, keoRows: keoRows, keoNotes: null, curlNotes: curlNote, meta: meta };
   }
 
+  /* =====================================================================
+   * TEMPLATE ĐƠN GỬI XƯỞNG 2026 (bản khách đổi từ tháng 8/2026)
+   * ---------------------------------------------------------------------
+   * Khác template cũ ở CHỖ ĐỌC, còn ra thì vẫn đúng cấu trúc nội bộ cũ
+   * (rawOrders / mixSheets / keoRows / meta) nên toàn bộ pipeline, Step 2-6,
+   * in ấn, packing slip... dùng lại y nguyên.
+   *
+   * Ba bảng nối nhau bằng cột "No":
+   *   1) BẢNG CHÍNH   (header có "Số Line" + "Code nguyên liệu"): 1 dòng = 1 code sợi
+   *      trong 1 sản phẩm, các cột độ cong tính theo HỘP.
+   *   2) BẢNG MIX CHI TIẾT (header "Mã BR | No | Label Name | MM | Nguyên Liệu |
+   *      Keo Đã Fix | Số Line"): bung mỗi dòng chính ra từng mm.
+   *      → đây là nguồn của ĐỘ DÀI (dòng Single) và của bảng Mix.
+   *   3) BẢNG MM      (header "** No | Phân Loại | ... | MM | <độ cong>"): cùng 124 dòng
+   *      nhưng tính theo SỢI — chính là bảng cuốn khách tự tính, giữ lại để ĐỐI CHIẾU.
+   *
+   * KEO: template mới KHÔNG còn "Bảng keo" (danh sách quy tắc). Khách fix sẵn keo
+   * từng dòng → ta lấy nguyên keo đó rồi DỰNG LẠI bảng keo theo đúng dạng cũ
+   * (Loại Sợi | Độ Dày | Độ Dài | Mã Keo) để Step 4 và bản in không phải đổi gì.
+   * ===================================================================== */
+  /** Nhận diện template 2026: có bảng Mix Chi Tiết (cặp tiêu đề "Mã BR" + "Keo Đã Fix"). */
+  function isGuiXuong2026(aoa) {
+    if (!aoa || !aoa.length) return false;
+    for (var r = 0; r < Math.min(aoa.length, 80); r++) {
+      var row = aoa[r] || [], br = false, fix = false;
+      for (var i = 0; i < row.length; i++) {
+        var v = PS(row[i]).toLowerCase();
+        if (v === 'mã br') br = true;
+        if (v === 'keo đã fix') fix = true;
+      }
+      if (br && fix) return true;
+    }
+    return false;
+  }
+
+  function parseGuiXuong2026(aoa, fileName) {
+    if (!aoa || !aoa.length) return null;
+    var r, i, row, v;
+    var num = function (x) { var n = Number(x); return isFinite(n) ? n : null; };
+    var mmOf = function (x) { var n = parseInt(String(x == null ? '' : x).replace(/[^\d]/g, ''), 10); return isFinite(n) ? n : null; };
+
+    // ---- A. Mã Đơn: ưu tiên ô khai trong sheet, tên file bổ sung mã KH (giống bản cũ) ----
+    var maDon = '';
+    var fm = String(fileName || '').match(/(\d+[A-Za-z]+(?:\.\d+)*)/);
+    if (fm) maDon = fm[1];
+    for (r = 0; r < Math.min(aoa.length, 5); r++) {
+      row = aoa[r] || [];
+      for (i = 0; i < row.length; i++) {
+        if (PS(row[i]).toLowerCase() === 'mã đơn') {
+          v = PS((aoa[r + 1] || [])[i]).replace(/[\s-]+$/, '');   // file mẫu ghi "CS384-" thiếu đuôi
+          if (v && !(maDon && maDon !== v && maDon.indexOf(v) === 0)) maDon = v;
+          r = 99; break;
+        }
+      }
+    }
+    if (maDon && /^\d+[A-Za-z]+(?:\.\d+)*$/.test(maDon)) {
+      var fk = String(fileName || '').match(/([A-Za-z]{1,5}\d+)-(\d+[A-Za-z]+(?:\.\d+)*)/);
+      if (fk && fk[2] === maDon) maDon = fk[1] + '-' + maDon;
+    }
+
+    // ---- B. Bảng Mix Chi Tiết ----
+    var dh = -1, DC = null;
+    for (r = 0; r < aoa.length && dh < 0; r++) {
+      row = aoa[r] || [];
+      var cBR = -1, cFix = -1;
+      for (i = 0; i < row.length; i++) {
+        v = PS(row[i]).toLowerCase();
+        if (v === 'mã br') cBR = i;
+        if (v === 'keo đã fix') cFix = i;
+      }
+      if (cBR >= 0 && cFix >= 0) {
+        dh = r;
+        DC = { br: cBR, no: findCol(row, 'No', true), label: findCol(row, 'Label Name'),
+               mm: findCol(row, 'MM', true), nl: findCol(row, 'Nguyên Liệu'),
+               keo: cFix, line: findCol(row, 'Số Line') };
+      }
+    }
+    if (dh < 0 || !DC || DC.no < 0 || DC.mm < 0) return null;
+    var detail = [], byNo = {};
+    for (r = dh + 1; r < aoa.length; r++) {
+      row = aoa[r] || [];
+      var no = num(row[DC.no]);
+      if (!PS(row[DC.br]) || no == null || no <= 0) continue;
+      var d = { br: PS(row[DC.br]), no: Math.round(no), label: PS(row[DC.label]),
+                mm: PS(row[DC.mm]), nl: PS(row[DC.nl]), keo: PS(row[DC.keo]),
+                line: PN(row[DC.line]) };
+      detail.push(d);
+      (byNo[d.no] = byNo[d.no] || []).push(d);
+    }
+    if (!detail.length) return null;
+
+    // ---- C. Bảng chính ----
+    var hr = -1, H = null;
+    for (r = 0; r < aoa.length; r++) {
+      row = aoa[r] || [];
+      var hasLine = false, hasCode = false, hasMM = false;
+      for (i = 0; i < row.length; i++) {
+        v = PS(row[i]).toLowerCase();
+        if (v === 'số line') hasLine = true;
+        if (v.indexOf('code') >= 0 && v.indexOf('nguyên liệu') >= 0) hasCode = true;
+        if (v === 'mm') hasMM = true;                    // bảng mm ở dưới cũng có "Số Line"? → loại bằng cột MM
+      }
+      if (hasLine && hasCode && !hasMM) { hr = r; H = row; break; }
+    }
+    if (hr < 0) return null;
+    var col = {
+      stt: (function () { for (var k = 0; k < H.length; k++) if (/^no\.?$/i.test(PS(H[k]))) return k; return -1; })(),
+      soLine: findCol(H, 'Số Line'), danhMuc: findCol(H, 'Sản phẩm'),
+      code: findCol(H, 'Code'), soMau: findCol(H, 'Số màu'), laser: findCol(H, 'Laser'),
+      keo: findCol(H, 'Keo', true), gcXuong: findCol(H, 'Ghi chú (Xưởng'),
+      gcKC: findCol(H, 'Ghi chú (KC'), length: findCol(H, 'Độ Dài'), tong: findCol(H, 'Tổng'),
+    };
+    if (col.stt < 0 || col.code < 0) return null;
+
+    // Cột độ cong: nằm giữa "Độ Dài" và "Tổng". Khớp tên như bản cũ; cột lạ (Curl2/Curl3)
+    // KHÔNG đoán bừa — nếu có số liệu sẽ báo ở meta.curlUnmapped để chặn bước sau.
+    function curlOf(raw) {
+      var core = PS(raw).replace(/\(.*?\)/g, '').trim(); if (!core) return null;
+      for (var j = 0; j < CURLS.length; j++) if (CURLS[j].toLowerCase() === core.toLowerCase()) return CURLS[j];
+      var first = core.split(/\s+/)[0];
+      for (var j2 = 0; j2 < CURLS.length; j2++) if (CURLS[j2].toLowerCase() === first.toLowerCase()) return CURLS[j2];
+      return null;
+    }
+    var curlCol = {}, curlHeaders = {}, curlWarnings = [];
+    CURLS.forEach(function (k) { curlCol[k] = -1; });
+    var cStart = (col.length >= 0 ? col.length : col.stt) + 1;
+    var cEnd = col.tong > 0 ? col.tong : H.length;
+    for (i = cStart; i < cEnd; i++) {
+      var raw = PS(H[i]); if (!raw) continue;
+      var k = curlOf(raw);
+      if (k && curlCol[k] < 0) { curlCol[k] = i; curlHeaders[k] = raw; }
+    }
+    /* KHÔNG cảnh báo cột lạ chỉ vì có tên lạ: template 2026 luôn chừa sẵn 2 cột trống
+       Curl2/Curl3, báo mỗi đơn thì thành nhiễu. Cột lạ mà CÓ SỐ LIỆU vẫn bị bắt ở
+       meta.curlUnmapped bên dưới — chỗ đó mới thật sự nguy hiểm (mất số). */
+
+    var out = [];
+    for (r = hr + 1; r < aoa.length; r++) {
+      row = aoa[r] || [];
+      var stt = num(row[col.stt]);
+      if (stt == null || stt <= 0) { if (out.length) break; else continue; }
+      stt = Math.round(stt);
+      var code = PS(row[col.code]); if (!code || code.charAt(0) === '#') continue;
+      var ds = byNo[stt] || [];
+      // ĐỘ DÀI: dòng Mix lấy dải ở cột "Độ Dài" (bỏ hậu tố ".20"); dòng Single
+      // không ghi gì nên lấy mm từ Bảng Mix Chi Tiết.
+      var lenRaw = PS(col.length >= 0 ? row[col.length] : '');
+      var isMix = !!lenRaw;
+      var length = isMix ? lenRaw.replace(/\.\d+\s*$/, '') : (ds.length ? ds[0].mm : '');
+      var gcX = PS(col.gcXuong >= 0 ? row[col.gcXuong] : '');    // "Faux Mink 0.085"
+      var thick = (gcX.match(/0[.,]\d+/) || [])[0] || '';
+      if (!thick) { var cm = code.match(/\.(\d+)$/); if (cm) thick = cm[1]; }
+      var curls = {};
+      CURLS.forEach(function (k) {
+        var ci = curlCol[k];
+        if (ci >= 0) { var q2 = PN(row[ci]); if (q2) curls[k] = q2; }
+      });
+      var soLineRaw = PS(col.soLine >= 0 ? row[col.soLine] : '');
+      out.push({
+        seri: stt, maDon: maDon, codeSoi: code,
+        detail: PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''),
+        length: length, mixSingle: isMix ? 'Mix' : 'Single', curls: curls,
+        line: PN(soLineRaw.replace(/lines?/i, '').trim()), lineRaw: soLineRaw,
+        loaiHang: '', ghiChu: PS(col.gcKC >= 0 ? row[col.gcKC] : ''),
+        ghiChuKeo: PS(col.keo >= 0 ? row[col.keo] : ''),      // KEO KHÁCH ĐÃ FIX
+        material: gcX, thickness: thick,
+        label: PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''),
+      });
+    }
+    if (!out.length) return null;
+
+    // ---- D. Bảng mm (khách tự tính, theo SỢI) → lấy Phân Loại + giữ lại để đối chiếu ----
+    var khachCuon = null;
+    (function () {
+      var mr = -1, MH = null;
+      for (var r2 = 0; r2 < aoa.length; r2++) {
+        var rw3 = aoa[r2] || [], hasPL = false, hasMM2 = false, hasNo = false;
+        for (var i2 = 0; i2 < rw3.length; i2++) {
+          var v2 = PS(rw3[i2]).toLowerCase();
+          if (v2 === 'phân loại') hasPL = true;
+          if (v2 === 'mm') hasMM2 = true;
+          if (/^\**\s*no\.?$/.test(v2)) hasNo = true;
+        }
+        if (hasPL && hasMM2 && hasNo) { mr = r2; MH = rw3; break; }
+      }
+      if (mr < 0) return;
+      var cNo = -1, cPL = findCol(MH, 'Phân Loại'), cMM = findCol(MH, 'MM', true), cTot = findCol(MH, 'Tổng');
+      for (var k2 = 0; k2 < MH.length; k2++) if (/^\**\s*no\.?$/i.test(PS(MH[k2]))) { cNo = k2; break; }
+      if (cNo < 0 || cMM < 0) return;
+      var mCurl = {};
+      CURLS.forEach(function (k) { mCurl[k] = -1; });
+      for (var c3 = cMM + 1; c3 < MH.length; c3++) {
+        var k3 = curlOf(PS(MH[c3]));
+        if (k3 && mCurl[k3] < 0) mCurl[k3] = c3;
+      }
+      var rows2 = [], plByNo = {}, tong = 0;
+      for (var r3 = mr + 1; r3 < aoa.length; r3++) {
+        var rw4 = aoa[r3] || [], n4 = num(rw4[cNo]);
+        if (n4 == null || n4 <= 0) { if (rows2.length) break; else continue; }
+        var pl = PS(rw4[cPL]); if (pl && !plByNo[Math.round(n4)]) plByNo[Math.round(n4)] = pl;
+        var cs = {};
+        CURLS.forEach(function (k) { var ci2 = mCurl[k]; if (ci2 >= 0) { var q3 = PN(rw4[ci2]); if (q3) cs[k] = q3; } });
+        rows2.push({ no: Math.round(n4), mm: mmOf(rw4[cMM]), curls: cs });   // codeSoi gắn sau (xem dưới)
+        // ô "Tổng" của bảng này khách ghi thẳng con số (vd " 157000,0") chứ không phải chữ
+        // → không dò được theo tên, cộng lại từ các cột độ cong cho chắc.
+        CURLS.forEach(function (k) { tong += cs[k] || 0; });
+      }
+      if (!rows2.length) return;
+      out.forEach(function (o) { if (plByNo[o.seri]) o.loaiHang = plByNo[o.seri]; });
+      /* Gắn LUÔN mã đơn + code sợi vào từng dòng: về sau app gộp nhiều file rồi ĐÁNH SỐ LẠI
+         cột seri, nên cột "No" của khách hết dùng được để tra ngược. */
+      var codeByNo = {};
+      out.forEach(function (o) { codeByNo[o.seri] = o.codeSoi; });
+      rows2 = rows2.filter(function (x) {
+        x.maDon = maDon; x.codeSoi = codeByNo[x.no] || '';
+        return !!x.codeSoi;
+      });
+      if (!rows2.length) return;
+      khachCuon = { rows: rows2, tongSoi: tong };
+    })();
+
+    // ---- E. Bảng Mix: dựng từ Bảng Mix Chi Tiết (chính xác hơn khối "Mix Length") ----
+    var mixSheets = [];
+    var mixWarnings = [];
+    (function () {
+      var byLb = {}, order = [];
+      detail.forEach(function (d) {
+        if (!d.label) return;                                  // trống = dòng Single
+        var declared = (String(d.label).match(/\.(\d+)\s*$/) || [])[1];
+        var rg = normalizeLength(String(d.label).replace(/\.\d+\s*$/, ''));
+        if (!parseRange(rg)) return;
+        var s = byLb[rg];
+        if (!s) { s = byLb[rg] = { dist: {}, no: d.no, declared: declared ? +declared : null }; order.push(rg); }
+        var mm = mmOf(d.mm); if (mm == null) return;
+        if (d.no === s.no) s.dist[mm] = d.line;
+        else if ((s.dist[mm] || 0) !== d.line) s.mismatch = 1;
+      });
+      if (!order.length) return;
+      order.forEach(function (rg) {
+        if (byLb[rg].mismatch) mixWarnings.push('Dải Mix "' + rg + '" có phân bố mm KHÁC NHAU giữa các dòng đơn');
+      });
+      var mmSet = {};
+      order.forEach(function (rg) { Object.keys(byLb[rg].dist).forEach(function (m) { mmSet[m] = 1; }); });
+      var mmList = Object.keys(mmSet).map(Number).sort(function (a, b) { return a - b; });
+      mixSheets.push({
+        maDon: maDon, mmList: mmList,
+        matrix: mmList.map(function (mm) { return order.map(function (rg) { return byLb[rg].dist[mm] || 0; }); }),
+        ranges: order,
+        lineCounts: order.map(function (rg) {
+          if (byLb[rg].declared) return byLb[rg].declared;
+          var s2 = 0; Object.keys(byLb[rg].dist).forEach(function (m) { s2 += byLb[rg].dist[m]; }); return s2;
+        }),
+        colorBlocks: {},
+      });
+    })();
+
+    // ---- F. Bảng keo: DỰNG LẠI theo dạng cũ từ keo khách đã fix ----
+    var keoRows = [];
+    (function () {
+      var info = {};
+      out.forEach(function (o) { if (!info[o.codeSoi]) info[o.codeSoi] = { mat: o.material, thick: o.thickness }; });
+      var byMat = {}, matOrder = [];
+      detail.forEach(function (d) {
+        if (!d.nl || !d.keo) return;
+        var m = byMat[d.nl];
+        if (!m) { m = byMat[d.nl] = { g: {}, order: [] }; matOrder.push(d.nl); }
+        var g = m.g[d.keo];
+        if (!g) { g = m.g[d.keo] = {}; m.order.push(d.keo); }
+        var mm = mmOf(d.mm); if (mm != null) g[mm] = 1;
+      });
+      matOrder.forEach(function (nl) {
+        var m = byMat[nl], one = m.order.length === 1, f = info[nl] || {};
+        m.order.forEach(function (gk) {
+          var mms = Object.keys(m.g[gk]).map(Number).sort(function (a, b) { return a - b; });
+          keoRows.push({
+            maDon: maDon, loaiKeo: gk,
+            loaiSoi: f.mat || nl, doDay: f.thick || '',
+            // 1 nguyên liệu chỉ 1 keo → không ràng buộc độ dài; nhiều keo → tách theo dải mm
+            doDai: (one || !mms.length) ? '' : (mms[0] === mms[mms.length - 1] ? (mms[0] + 'mm') : (mms[0] + '-' + mms[mms.length - 1] + 'mm')),
+            ghiChu: 'Keo khách đã fix trong đơn',
+          });
+        });
+      });
+    })();
+
+    // ---- G. meta ----
+    var meta = { maDon: maDon, template: 2026 };
+    for (r = 0; r < Math.min(aoa.length, 5); r++) {
+      row = aoa[r] || [];
+      for (i = 0; i < row.length; i++) {
+        var h2 = PS(row[i]).toUpperCase(), below = (aoa[r + 1] || [])[i];
+        if (h2 === 'KH' && meta.khach == null) meta.khach = PS(below);
+        if (h2 === 'CLS' && meta.tongKhay == null) meta.tongKhay = PN(below);
+        /* "Lines Clas" của mẫu 2026 ghi theo SỢI (7850 khay × 20 = 157000), khác mẫu cũ
+           ghi theo DÂY (520 × 16 ÷ 2 = 4160). App tính bằng dây → chia 2 cho cùng đơn vị,
+           không thì đơn nào cũng bị báo "LỆCH file khách". Số gốc giữ ở tongSoiKhai. */
+        if (/^LINES\s+CLAS/.test(h2) && meta.tongDay == null) {
+          meta.tongSoiKhai = PN(below);
+          meta.tongDay = meta.tongSoiKhai / SOI_PER_LINE;
+        }
+        if (h2 === 'EASYFAN' && meta.easyFan == null) meta.easyFan = PN(below);
+        if (h2 === 'YY-W' && meta.yyW == null) meta.yyW = PN(below);
+        if (h2 === 'PRFAN' && meta.prFan == null) meta.prFan = PN(below);
+      }
+    }
+    meta.tongHopKhai = out.reduce(function (s, o) {
+      var t = 0; CURLS.forEach(function (k) { t += o.curls[k] || 0; }); return s + t;
+    }, 0);
+    meta.khachCuon = khachCuon;          // bảng mm khách tự tính (SỢI) — để đối chiếu
+    meta.curlWarnings = curlWarnings.concat(mixWarnings);
+    meta.curlUnmapped = (function () {
+      var mapped = {}; CURLS.forEach(function (k) { if (curlCol[k] >= 0) mapped[curlCol[k]] = 1; });
+      var res = [];
+      for (var c4 = cStart; c4 < cEnd; c4++) {
+        if (mapped[c4]) continue;
+        var cnt = 0;
+        for (var r5 = hr + 1; r5 < aoa.length; r5++) {
+          var st5 = num((aoa[r5] || [])[col.stt]); if (st5 == null || st5 <= 0) continue;
+          if (PN(aoa[r5][c4])) cnt++;
+        }
+        if (cnt > 0) res.push({ col: c4, header: PS(H[c4]), count: cnt });
+      }
+      return res;
+    })();
+    meta.curlRemap = [];
+    meta.curlHeaders = curlHeaders;
+    meta.curlNotes = {};
+    meta.specialSym = [];
+    return { rawOrders: out, mixSheets: mixSheets, keoRows: keoRows, keoNotes: null, curlNotes: {}, meta: meta };
+  }
+
+  /** Cửa vào CHUNG: tự nhận template rồi gọi đúng bộ đọc. */
+  function parseGuiXuongAny(aoa, fileName) {
+    return isGuiXuong2026(aoa) ? parseGuiXuong2026(aoa, fileName) : parseGuiXuongSheet(aoa, fileName);
+  }
+
   /* Parse RAW vùng "Mix Length + cặp (9mm | tên màu)" (dán tay) → mixSheets có colorBlocks.
      Dùng CHÍNH logic của parseGuiXuongSheet để nhập thủ công Mix nhiều màu khớp 100% auto. */
   function parseMixColorAOA(aoa, maDon) {
@@ -1319,6 +1716,7 @@
     parseNhapDonRows: parseNhapDonRows, parseLabelRows: parseLabelRows,
     parseKeoRows: parseKeoRows, parseWorkbookData: parseWorkbookData,
     parseGuiXuongSheet: parseGuiXuongSheet, parseMixColorAOA: parseMixColorAOA,
+    parseGuiXuong2026: parseGuiXuong2026, isGuiXuong2026: isGuiXuong2026, parseGuiXuongAny: parseGuiXuongAny,
     SPECIAL_TAGS: SPECIAL_TAGS, SPECIAL_SUF_RE: SPECIAL_SUF_RE,
     KEO_STD: KEO_STD, badKeoCodes: badKeoCodes,
     sample: { MM_233S: MM_233S, MIX_233S: MIX_233S, ORDERS_233S: ORDERS_233S, KEO_233S: KEO_233S, MIX_SHEETS_233S: MIX_SHEETS_233S },

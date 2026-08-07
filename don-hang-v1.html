@@ -506,7 +506,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608071615</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608072010</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1042,11 +1042,19 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   var E = window.NhapDonEngine;
   if(!E){ console.warn('engine.web.js chưa nạp — giữ bảng mẫu tĩnh.'); return; }
   var CURLS = E.CURLS, RANGES = E.RANGES;
+  /* Đọc đơn gửi xưởng — TỰ NHẬN template. Khách đổi mẫu đơn từ T8/2026 (bảng Mix Chi Tiết,
+     keo fix sẵn từng dòng, không còn Bảng keo). Hai bộ đọc chạy song song, cùng trả về một
+     cấu trúc nên mọi bước sau không phải biết đơn đến từ mẫu nào. */
+  window.parseGX = function(aoa, name){
+    return (E.parseGuiXuongAny || E.parseGuiXuongSheet)(aoa, name);
+  };
+  var parseGX = window.parseGX;
   // state: nguồn dữ liệu hiện hành (khởi động TRỐNG — nạp file đơn để bắt đầu)
   var state = {
     orders: [],
     mixSheets: [],
     keoRows: [],
+    khachCuon: null,   // bảng mm khách tự tính (đơn template 2026) — dùng để đối chiếu
     files: [],            // {name, data:{rawOrders,mixSheets,keoRows}, stats}
     log: ['['+new Date().toLocaleString('vi-VN')+'] Khởi động — chưa có dữ liệu, chờ nạp file đơn'],
     source: 'Chưa có dữ liệu',
@@ -1069,9 +1077,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     for(i=undoStack.length-1;i>=0;i--){ bytes+=undoStack[i].length;
       if(bytes>UNDO_BYTES_MAX){ undoStack.splice(0,i+1); break; } }   // bỏ bản CŨ nhất khi vượt trần
   }
-  function snapState(){ try{ return JSON.stringify({ orders:state.orders, keoRows:state.keoRows, mixSheets:state.mixSheets, pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{}, colorMix:state.colorMix||{}, remapApproved:state.remapApproved||{}, lenApproved:state.lenApproved||{}, errAck:state.errAck||{} }); }catch(e){ return null; } }
+  function snapState(){ try{ return JSON.stringify({ orders:state.orders, keoRows:state.keoRows, mixSheets:state.mixSheets, khachCuon:state.khachCuon||null, pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{}, colorMix:state.colorMix||{}, remapApproved:state.remapApproved||{}, lenApproved:state.lenApproved||{}, errAck:state.errAck||{} }); }catch(e){ return null; } }
   function pushUndo(){ var s=snapState(); if(s==null) return; undoStack.push(s); trimUndo(); redoStack.length=0; updateUndoBtns(); try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('pushUndo', e); } }
-  function applySnap(s){ try{ var o=JSON.parse(s); state.orders=o.orders||[]; state.keoRows=o.keoRows||[]; state.mixSheets=o.mixSheets||[]; state.pack=o.pack||null; state._packR=null; if(typeof boxSel!=='undefined') boxSel=o.boxSel||{}; state.boxTypes=o.boxTypes||{}; state.colorMix=o.colorMix||{}; state.remapApproved=o.remapApproved||{}; state.lenApproved=o.lenApproved||{}; state.errAck=o.errAck||{}; try{ render(); }catch(e){ logErr('applySnap', e); } }catch(e){ logErr('applySnap', e); } }
+  function applySnap(s){ try{ var o=JSON.parse(s); state.orders=o.orders||[]; state.keoRows=o.keoRows||[]; state.mixSheets=o.mixSheets||[]; state.khachCuon=o.khachCuon||null; state.pack=o.pack||null; state._packR=null; if(typeof boxSel!=='undefined') boxSel=o.boxSel||{}; state.boxTypes=o.boxTypes||{}; state.colorMix=o.colorMix||{}; state.remapApproved=o.remapApproved||{}; state.lenApproved=o.lenApproved||{}; state.errAck=o.errAck||{}; try{ render(); }catch(e){ logErr('applySnap', e); } }catch(e){ logErr('applySnap', e); } }
   function doUndo(){ if(!undoStack.length) return; var cur=snapState(); var prev=undoStack.pop(); if(cur!=null) redoStack.push(cur); applySnap(prev); try{ logLine('↶ Hoàn tác'); }catch(e){ logErr('doUndo', e); } updateUndoBtns(); }
   function doRedo(){ if(!redoStack.length) return; var cur=snapState(); var nxt=redoStack.pop(); if(cur!=null) undoStack.push(cur); applySnap(nxt); try{ logLine('↷ Làm lại'); }catch(e){ logErr('doRedo', e); } updateUndoBtns(); }
   function updateUndoBtns(){ var u=document.getElementById('btn-undo'), r=document.getElementById('btn-redo'); if(u){ u.style.opacity=undoStack.length?'1':'.4'; u.style.pointerEvents=undoStack.length?'':'none'; } if(r){ r.style.opacity=redoStack.length?'1':'.4'; r.style.pointerEvents=redoStack.length?'':'none'; } }
@@ -1366,7 +1374,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     attachColorMix(state.orders);
     // chuyển bước: dữ liệu KHÔNG đổi → dùng lại kết quả đã tính (số liệu giữ nguyên tuyệt đối)
     var R = (opts && opts.reuseR && state.R) ? state.R
-          : E.runPipeline({ rawOrders: state.orders, mixSheets: state.mixSheets, keoRows: state.keoRows, opt:{ lenApproved: state.lenApproved||{} } });
+          : E.runPipeline({ rawOrders: state.orders, mixSheets: state.mixSheets, keoRows: state.keoRows, khachCuon: state.khachCuon||null, opt:{ lenApproved: state.lenApproved||{} } });
     state.orders = R.orders; // giữ bản đã chuẩn hoá
     state.R = R;
     // CẤU TRÚC ĐỘ CONG CỐ ĐỊNH 16 cột (J B C CC D DD L M V L+ LD LC+ LC LB LJ Curl 1)
@@ -2121,7 +2129,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           if(!data){
             for(var si=0; si<wb.SheetNames.length && !data; si++){
               var gxAOA=aoa(wb.Sheets[wb.SheetNames[si]]);
-              var gx=E.parseGuiXuongSheet(gxAOA, f.name);
+              var gx=parseGX(gxAOA, f.name);
               if(gx && gx.rawOrders.length){
                 data={rawOrders:gx.rawOrders, mixSheets:gx.mixSheets, keoRows:gx.keoRows};
                 meta=gx.meta;
@@ -2139,7 +2147,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             var s1=E.runStep1(data.rawOrders);
             var mas={}; data.rawOrders.forEach(function(o){ mas[String(o.maDon||'').trim()]=1; });
             var curlWarn = (meta && meta.curlWarnings && meta.curlWarnings.length) ? meta.curlWarnings : null;
-            state.files.push({name:f.name, data:data, stats:s1.stats, kind:kind, meta:meta, maDons:Object.keys(mas), curlWarn:curlWarn});
+            // _new = vừa nạp, CHƯA báo cáo lần nào → popup "Xử lý xong" chỉ nói về mấy file này
+            state.files.push({name:f.name, data:data, stats:s1.stats, kind:kind, meta:meta, maDons:Object.keys(mas), curlWarn:curlWarn, _new:true});
             logLine('Đã đọc '+f.name+' ['+kind+']: '+s1.stats.total+' đơn · '+s1.stats.errorCells+' ô lỗi · '+s1.stats.warnCells+' cảnh báo'
               +(data.mixSheets.length?' · có bảng Mix':' · ⚠ KHÔNG có bảng Mix')
               +(meta&&meta.tongKhay?' · file khai: '+meta.tongKhay+' khay / '+meta.tongDay+' dây':''));
@@ -2239,6 +2248,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       } });
       if(F.meta&&F.meta.curlNotes) Object.assign(curlNotes, F.meta.curlNotes);
     }); state.curlNotes=curlNotes; state.curlNotesByMadon=cnbm; state.boxTableByMadon=btbm; state.doCongByMadon=dcbm;
+    /* Đơn template 2026 gửi kèm bảng mm khách tự tính → gom lại để pipeline đối chiếu.
+       Không có thì để null, mọi thứ chạy y như cũ. */
+    (function(){
+      var kc=[];
+      okFiles.forEach(function(F){ if(F.meta&&F.meta.khachCuon&&F.meta.khachCuon.rows) kc=kc.concat(F.meta.khachCuon.rows); });
+      state.khachCuon = kc.length ? { rows:kc } : null;
+    })();
     // GIỮ đơn nhập TAY đã xử lý (đánh dấu _manual) — upload chỉ thay phần đơn upload cũ, không xóa đơn tay
     var keepMan=(state.orders||[]).filter(function(o){ return o._manual; });
     var keepManMix=(state.mixSheets||[]).filter(function(s){ return s._manual; });
@@ -2262,29 +2278,82 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     setTxt('kpi-time', ((Date.now()-t0)/1000).toFixed(2)+'s');
     // đối chiếu với tổng file khách khai (CLS khay / Lines CLS dây)
     var expKhay=0, expDay=0, hasMeta=false;
-    okFiles.forEach(function(F){ if(F.meta&&F.meta.tongKhay){ hasMeta=true; expKhay+=F.meta.tongKhay; expDay+=F.meta.tongDay||0; } });
+    /* CHỈ BÁO VỀ FILE VỪA NẠP LẦN NÀY.
+       Trước đây mỗi lần bấm Xử lý là đọc lại cảnh báo của TẤT CẢ file đang có — nạp thêm
+       1 file cũng phải lướt qua cảnh báo của 21 file đã xem rồi. Giờ file nào đã báo một
+       lần thì thôi (_new=false); muốn xem lại đầy đủ thì mở Log.txt. */
+    var newFiles=okFiles.filter(function(F){ return F._new; });
+    var scopeMd={}; newFiles.forEach(function(F){ (F.maDons||[]).forEach(function(m){ scopeMd[m]=1; }); });
+    var inScope=function(m){ return !!scopeMd[String(m||'').trim()]; };
+    okFiles.forEach(function(F){ if(F._new && F.meta && F.meta.tongKhay){ hasMeta=true; expKhay+=F.meta.tongKhay; expDay+=F.meta.tongDay||0; } });
     var khopTxt='';
     if(hasMeta){
-      var gotKhay=0; state.orders.forEach(function(o){ gotKhay+=o.sl; });
-      var gotDay=state.R.cuonSheet.summary.day;
+      var gotKhay=0; state.orders.forEach(function(o){ if(inScope(o.maDon)) gotKhay+=o.sl; });
+      var gotDay=0; (state.R.cuonSheet.rows||[]).forEach(function(r){ if(r.type==='row' && inScope(r.maDon)) gotDay+=r.tong||0; });
       var khop=(gotKhay===expKhay && gotDay===expDay);
-      khopTxt = khop?'✓ Khớp số file khách khai ('+fmtN(expKhay)+' khay / '+fmtN(expDay)+' dây)':'⚠ LỆCH so với file khách khai — kiểm tra lại!';
+      var nf=newFiles.length+' file vừa nạp';
+      khopTxt = khop?('✓ Khớp số file khách khai — '+nf+' ('+fmtN(expKhay)+' khay / '+fmtN(expDay)+' dây)')
+                    :('⚠ LỆCH so với file khách khai ('+nf+') — kiểm tra lại!');
       setTxt('res-tag', state.source+(khop?' · ✓ khớp file khách':' · ⚠ LỆCH file khách'));
-      logLine('Đối chiếu file khách: khay '+gotKhay+'/'+expKhay+' · dây '+gotDay+'/'+expDay+(khop?' → ✓ KHỚP':' → ⚠ LỆCH, kiểm tra lại!'));
+      logLine('Đối chiếu file khách ('+nf+'): khay '+gotKhay+'/'+expKhay+' · dây '+gotDay+'/'+expDay+(khop?' → ✓ KHỚP':' → ⚠ LỆCH, kiểm tra lại!'));
+    } else {
+      setTxt('res-tag', state.source);   // không có file mới → không treo lại nhãn lệch của lần trước
     }
     logLine('Xử lý '+okFiles.length+' file → '+orders.length+' dòng · Dây='+state.R.cuonSheet.summary.day+' (Mix '+state.R.cuonSheet.summary.mix+' / Single '+state.R.cuonSheet.summary.single+')');
     // popup báo xử lý xong (kèm cảnh báo cấu trúc độ cong nếu file lệch chuẩn)
     var khay2=0; state.orders.forEach(function(o){ khay2+=o.sl; });
     var curlWarnAll=[];
-    okFiles.forEach(function(F){ if(F.curlWarn) F.curlWarn.forEach(function(w){ curlWarnAll.push(esc(F.name.replace(/\.xlsx?$/i,''))+': '+esc(w)); }); });
-    if(silent) return;   // xóa file → dựng lại im lặng, KHÔNG popup "Xử lý xong"
+    newFiles.forEach(function(F){ if(F.curlWarn) F.curlWarn.forEach(function(w){ curlWarnAll.push(esc(F.name.replace(/\.xlsx?$/i,''))+': '+esc(w)); }); });
+    /* ĐỐI CHIẾU với số khách tự tính (đơn template 2026). Khớp thì báo xanh cho yên tâm,
+       lệch thì liệt kê đúng ô nào lệch bao nhiêu — hiện cả ở log để tra lại sau. */
+    var dcTxt='';
+    (function(){
+      var dc=state.R && state.R.doiChieu; if(!dc || !dc.cells) return;
+      // cũng chỉ soi mấy đơn vừa nạp — cộng riêng theo mã đơn
+      var cells=0, soi=0, bo=dc.byOrder||{};
+      Object.keys(bo).forEach(function(m){ if(inScope(m)){ cells+=bo[m].cells; soi+=bo[m].khachSoi; } });
+      if(!cells) return;
+      var diffs=dc.diffs.filter(function(d){ return inScope(d.maDon); });
+      if(!diffs.length){
+        dcTxt='<br><span style="color:var(--green-700,#0a7d34);font-weight:700">✓ Khớp 100% số khách gửi kèm</span>'
+             +' <span style="color:var(--text-2)">('+fmtN(cells)+' ô · '+fmtN(soi)+' sợi)</span>';
+        logLine('✓ Đối chiếu bảng mm của khách: khớp '+cells+'/'+cells+' ô ('+soi+' sợi)');
+      } else {
+        var li=diffs.slice(0,8).map(function(d){
+          return esc(d.codeSoi)+' · '+d.mm+'mm · '+esc(d.curl)+': app <b>'+fmtN(d.app)+'</b> ≠ khách <b>'+fmtN(d.khach)+'</b>';
+        }).join('<br>');
+        dcTxt='<br><span style="color:var(--red-600);font-weight:700">⚠ LỆCH SO VỚI SỐ KHÁCH GỬI KÈM: '+diffs.length+'/'+cells+' ô</span>'
+             +'<br><span style="color:var(--red-600)">'+li+(diffs.length>8?'<br>… còn '+(diffs.length-8)+' ô nữa':'')+'</span>';
+        logLine('⚠ Đối chiếu bảng mm của khách: LỆCH '+diffs.length+'/'+cells+' ô');
+        diffs.forEach(function(d){ logLine('   ↳ '+d.maDon+' · '+d.codeSoi+' · '+d.mm+'mm · '+d.curl+': app '+d.app+' ≠ khách '+d.khach); });
+      }
+    })();
+    // xóa file → dựng lại im lặng, KHÔNG popup và GIỮ nguyên cờ _new (file chưa báo lần nào
+    // thì lần Xử lý tới vẫn phải được báo)
+    if(silent) return;
+    /* Thân popup: phần ĐẦU nói về mấy file vừa nạp (việc cần xem ngay),
+       phần sau chỉ 1 dòng tổng kho cho biết đang có bao nhiêu. */
+    var ack=state.errAck||{}, sErr=0, sWarn=0, sRows=0;
+    (state.R.errors||[]).forEach(function(e){
+      if(!inScope(e.maDon)) return;
+      if(e.level==='error'){ if(!ack[(e.maDon||'')+'|'+e.seri+'|'+e.col]) sErr++; }
+      else sWarn++;
+    });
+    newFiles.forEach(function(F){ sRows+=(F.data&&F.data.rawOrders?F.data.rawOrders.length:0); });
+    var head = newFiles.length
+      ? ('<b>'+newFiles.length+' file vừa nạp</b> · '+sRows+' dòng đơn<br>'+
+         'Ô sai chuẩn: <b'+(sErr?' style="color:var(--red-600)"':'')+'>'+sErr+'</b> · Cảnh báo: <b>'+sWarn+'</b>')
+      : '<span style="color:var(--text-2)">Đã tính lại — không có file mới nạp</span>';
     showPopup('✅ Xử lý xong',
-      okFiles.length+' file · '+orders.length+' dòng đơn<br>'+
-      'Tổng sản lượng: <b>'+fmtN(khay2)+' khay</b> · Tổng Dây: <b>'+fmtN(state.R.cuonSheet.summary.day)+'</b><br>'+
-      'Ô sai chuẩn: <b>'+errShown(state.R)+'</b> · Cảnh báo: <b>'+state.R.stats.warnCells+'</b>'+
-      (state.R.stats.mixFormatCells?' · Sai cấu trúc Mix/Single: <b>'+state.R.stats.mixFormatCells+'</b>':'')+
-      (khopTxt?'<br>'+khopTxt:'')+
-      (curlWarnAll.length?'<br><span style="color:var(--red-600);font-weight:700">⚠ ĐỘ CONG LỆCH CẤU TRÚC CHUẨN</span><br><span style="color:var(--red-600)">'+curlWarnAll.join('<br>')+'</span>':''));
+      head+
+      (khopTxt?'<br>'+khopTxt:'')+dcTxt+
+      (curlWarnAll.length?'<br><span style="color:var(--red-600);font-weight:700">⚠ ĐỘ CONG LỆCH CẤU TRÚC CHUẨN</span><br><span style="color:var(--red-600)">'+curlWarnAll.join('<br>')+'</span>':'')+
+      '<hr style="border:0;border-top:1px solid var(--line);margin:10px 0">'+
+      '<span style="color:var(--text-2)">Toàn bộ: '+okFiles.length+' file · '+orders.length+' dòng · '+
+        fmtN(khay2)+' khay · '+fmtN(state.R.cuonSheet.summary.day)+' dây · '+
+        errShown(state.R)+' ô sai chuẩn</span>');
+    // đã báo rồi thì thôi — lần Xử lý sau không lặp lại cảnh báo của mấy file này nữa
+    okFiles.forEach(function(F){ F._new=false; });
   }
 
   // wire nút chọn file + kéo thả
@@ -2321,7 +2390,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   var bp=document.getElementById('btn-process'); if(bp) bp.addEventListener('click', function(){ if(!canUpload()) return blockUpload(); processFiles(); });
   var bc=document.getElementById('btn-clear');   if(bc) bc.addEventListener('click', function(){ if(!canUpload()) return blockUpload();
     if(typeof confirm==='function' && (state.processed||(state.orders&&state.orders.length)) && !confirm('Xóa TOÀN BỘ dữ liệu (file + Bảng Nhập Đơn + Mix + Keo + Line Cuốn + Box)?')) return;
-    state.files=[]; state.orders=[]; state.mixSheets=[]; state.keoRows=[]; state.R=null; resetPack();
+    state.files=[]; state.orders=[]; state.mixSheets=[]; state.keoRows=[]; state.khachCuon=null; state.R=null; resetPack();
     state.source='Chưa có dữ liệu'; state.processed=false; state.filters={}; gridQuery='';
     try{ state.origOrders=[]; state.origKeo=[]; state.origMix=[]; }catch(e){ logErr('blockUpload', e); }
     renderFiles(); render(); logLine('Đã xóa toàn bộ dữ liệu (file + tất cả bảng)'); });
@@ -3606,7 +3675,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function resetPack(){ state.pack=null; state._packR=null; }
   function boxR(){
     if(!state.pack) return state.R;
-    if(!state._packR){ try{ state._packR = E.runPipeline({ rawOrders: state.pack, mixSheets: state.mixSheets, keoRows: state.keoRows, opt:{ lenApproved: state.lenApproved||{} } }); }catch(e){ state._packR = state.R; } }
+    if(!state._packR){ try{ state._packR = E.runPipeline({ rawOrders: state.pack, mixSheets: state.mixSheets, keoRows: state.keoRows, khachCuon: state.khachCuon||null, opt:{ lenApproved: state.lenApproved||{} } }); }catch(e){ state._packR = state.R; } }
     return state._packR;
   }
   function renderBoxAll(){ var br=boxR(); try{ renderBox(br); }catch(e){ logErr('renderBoxAll', e); } try{ updateBoxTotals(br); }catch(e){ logErr('renderBoxAll', e); } try{ applyAllFilters(); }catch(e){ logErr('renderBoxAll', e); } }
@@ -3900,7 +3969,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           var hit=0, names=[];
           for(var si=0; si<wb.SheetNames.length; si++){
             var A=aoa(wb.Sheets[wb.SheetNames[si]]);
-            var gx=null; try{ gx=E.parseGuiXuongSheet(A, f.name); }catch(e){ logErr('reread.parseGX', e); }
+            var gx=null; try{ gx=parseGX(A, f.name); }catch(e){ logErr('reread.parseGX', e); }
             var md=gx&&gx.meta&&gx.meta.maDon; if(!md) continue;
             var bt=null, dc=null;
             try{ bt=parseBoxTable(A); }catch(e){ logErr('reread.box', e); }
@@ -5776,7 +5845,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var meta={}, keoRows=[], mixSheets=[];
         var nbWs=pickSheet(wb,'Nhập Đơn');
         if(nbWs){ var nb=E.parseWorkbookData({nhapDon:aoa(nbWs),label:aoa(pickSheet(wb,'Label')),keo:aoa(pickSheet(wb,'Bảng Keo'))}); if(nb.rawOrders.length){ data={rawOrders:nb.rawOrders}; keoRows=nb.keoRows||[]; mixSheets=nb.mixSheets||[]; } }
-        if(!data){ for(var si=0;si<wb.SheetNames.length&&!data;si++){ var gx=E.parseGuiXuongSheet(aoa(wb.Sheets[wb.SheetNames[si]]),file.name); if(gx&&gx.rawOrders.length){ data={rawOrders:gx.rawOrders}; remap=(gx.meta&&gx.meta.curlRemap)||[]; keoRows=gx.keoRows||[]; mixSheets=gx.mixSheets||[]; meta=gx.meta||{}; } } }
+        if(!data){ for(var si=0;si<wb.SheetNames.length&&!data;si++){ var gx=parseGX(aoa(wb.Sheets[wb.SheetNames[si]]),file.name); if(gx&&gx.rawOrders.length){ data={rawOrders:gx.rawOrders}; remap=(gx.meta&&gx.meta.curlRemap)||[]; keoRows=gx.keoRows||[]; mixSheets=gx.mixSheets||[]; meta=gx.meta||{}; } } }
         if(!data){ alert('Không đọc được đơn trong file "'+file.name+'".'); return; }
         var s1=E.runStep1(data.rawOrders);
         var slot={ name:file.name.replace(/\.xlsx?$/i,''), orders:s1.orders, remap:remap, keoRows:keoRows, mixSheets:mixSheets, meta:meta };
@@ -5938,6 +6007,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       orders: state.orders,
       mixSheets: state.mixSheets,
       keoRows: state.keoRows,
+      khachCuon: state.khachCuon||null,
       boxAssign: boxSel,
       stats: state.R ? state.R.stats : null,
     };
@@ -6023,7 +6093,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       try{ if(window.__syncUploadPerm) window.__syncUploadPerm(); }catch(e){ logErr('dlAll', e); }
     },
     getState: function(){
-      return { orders:state.orders, mixSheets:state.mixSheets, keoRows:state.keoRows,
+      return { orders:state.orders, mixSheets:state.mixSheets, keoRows:state.keoRows, khachCuon:state.khachCuon||null,
                pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{}, colorMix:state.colorMix||{}, remapApproved:state.remapApproved||{}, lenApproved:state.lenApproved||{}, errAck:state.errAck||{},
                files:state.files, log:state.log, source:state.source, processed:state.processed };
     },
@@ -6034,6 +6104,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       state.orders    = Array.isArray(p.orders)    ? p.orders    : [];
       state.mixSheets = Array.isArray(p.mixSheets) ? p.mixSheets : [];
       state.keoRows   = Array.isArray(p.keoRows)   ? p.keoRows   : [];
+      state.khachCuon = (p.khachCuon && p.khachCuon.rows) ? p.khachCuon : null;   // số khách tự tính (template 2026) — để đối chiếu
       state.pack      = Array.isArray(p.pack)      ? p.pack      : null;   // lớp packing (nếu đã lưu)
       state._packR    = null;
       if(typeof boxSel!=='undefined') boxSel = (p.boxSel && typeof p.boxSel==='object') ? p.boxSel : {};
@@ -6043,7 +6114,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       state.lenApproved = (p.lenApproved && typeof p.lenApproved==='object') ? p.lenApproved : {};
       state.errAck      = (p.errAck      && typeof p.errAck==='object')      ? p.errAck      : {};
       state.files     = Array.isArray(p.files)     ? p.files     : [];
-      state.files.forEach(function(F){ if(F&&F.data) F.imported=true; });   // project đã lưu = file đã xử lý → cột "File đã nhập"
+      // project đã lưu = file đã xử lý → cột "File đã nhập", và KHÔNG báo lại cảnh báo của chúng
+      state.files.forEach(function(F){ if(F&&F.data){ F.imported=true; F._new=false; } });
       // dựng lại ghi chú độ cong + Bảng Hộp theo mã đơn từ meta các file đã lưu
       var cnbm={}, btbm={}, dcbm={}; state.files.forEach(function(F){ if(!F||!F.meta||!F.data) return; var seen={}; (F.data.rawOrders||[]).forEach(function(o){ var m=o&&o.maDon; if(m&&!seen[m]){ seen[m]=1; if(F.meta.curlNotes) cnbm[m]=Object.assign(cnbm[m]||{}, F.meta.curlNotes); if(F.meta.boxTable) btbm[m]=richerBox(btbm[m], F.meta.boxTable); if(F.meta.doCong) dcbm[m]=F.meta.doCong; } }); }); state.curlNotesByMadon=cnbm; state.boxTableByMadon=btbm; state.doCongByMadon=dcbm;
       if(Array.isArray(p.log)) state.log = p.log;
