@@ -286,6 +286,9 @@ td.cellsel-anchor,th.cellsel-anchor{box-shadow:inset 0 0 0 2px var(--accent)}
 .grp-spec{background:var(--grp-spec)} .grp-qty{background:var(--grp-qty)} .grp-sys{background:var(--grp-sys)}
 .cell-err{background:var(--red-50)!important;box-shadow:inset 0 0 0 1.5px var(--red-500);border-radius:4px;position:relative}
 .cell-warn{background:var(--amber-50)!important;box-shadow:inset 0 0 0 1.5px var(--amber-500)}
+/* Ô CẢNH BÁO đã xác nhận đã kiểm: hạ tông vàng → xám, vẫn nhận ra được nhưng hết báo động */
+td.cell-warn.err-ack{background:var(--surface-3)!important;color:var(--text-2)!important;box-shadow:none!important}
+td.cell-warn.err-ack::after{content:" ✓";color:var(--accent);font-weight:800}
 .cell-edit{background:var(--accent-soft)!important;box-shadow:inset 0 0 0 2px var(--accent)}
 .mini{font-size:10.5px;color:var(--text-3)}
 .dot-r{color:var(--red-500)} .num-cell{text-align:right;font-variant-numeric:tabular-nums}
@@ -529,7 +532,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608081855</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608081940</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -681,7 +684,8 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <div class="dd" id="dd-ack" style="display:none;margin-right:6px">
         <button class="btn sm ghost dd-btn" id="dd-ack-btn" title="Xác nhận đã kiểm">✓ Đã kiểm</button>
         <div class="dd-menu">
-          <div class="dd-it okc" id="err-ack" title="Đánh dấu đã kiểm những ô sai chuẩn đang hiện — sẽ không báo lại nữa">—</div>
+          <div class="dd-it okc" id="err-ack" title="Đánh dấu đã kiểm những Ô SAI CHUẨN đang hiện — sẽ không báo lại nữa">—</div>
+          <div class="dd-it okc" id="warn-ack" title="Đánh dấu đã kiểm những Ô CẢNH BÁO đang hiện — sẽ không báo lại nữa">—</div>
           <div class="dd-it" id="err-unack" title="Bỏ xác nhận để xem lại các ô đã đánh dấu">—</div>
         </div>
       </div>
@@ -1448,7 +1452,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     setTxt('res-read', R.stats.total);
     setTxt('res-valid', R.stats.validRows);
     setTxt('res-err', errShown(R));
-    setTxt('res-warn', R.stats.warnCells);
+    setTxt('res-warn', warnShown(R));
     setTxt('res-tag', state.source);
     // summary màn Xuất dữ liệu (bước 9)
     setTxt('s9-src', state.source);
@@ -1523,8 +1527,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var _ndCap=capRows('nd', R.orders, !!(gridMadon||gridMakh));
       nd.innerHTML = _ndCap.rows.map(function(o){
       var cell=function(col,val,extra){ var er=errKey[o.maDon+'|'+o.seri+'|'+col];
-        var _ack=!!(er && er.level==='error' && isErrAcked({maDon:o.maDon, seri:o.seri, seriGoc:o.seriGoc, col:col}));
-        var cls=(extra||'')+(er?(er.level==='warn'?' cell-warn':(_ack?' err err-ack':' err')):'');
+        var _ack=!!(er && isErrAcked({maDon:o.maDon, seri:o.seri, seriGoc:o.seriGoc, col:col}));
+        var cls=(extra||'')+(er?(er.level==='warn'?(_ack?' cell-warn err-ack':' cell-warn'):(_ack?' err err-ack':' err')):'');
         var ce=(er && canEditStep('s3'))?' contenteditable="true" data-seri="'+o.seri+'" data-madon="'+esc(o.maDon)+'" data-col="'+col+'"':'';
         var ti=er?(' title="'+esc(er.msg)+' — sửa xong bấm ra ngoài để tính lại"'):'';
         // ô LỖI 1 dòng → giữ esc (dễ sửa); ô LỖI nhiều dòng (multi-code) → vẫn tách dòng như ô thường
@@ -3481,6 +3485,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     (R.errors||[]).forEach(function(e){ if(e.level==='error' && isErrAcked(e)) n++; });
     return Math.max(0, (R.stats.errorCells||0)-n);
   }
+  // Cảnh báo cũng trừ đi những ô đã bấm "đã kiểm" — không thì con số không bao giờ giảm
+  function warnShown(R){
+    R=R||state.R; if(!R||!R.stats) return 0;
+    var n=0;
+    (R.errors||[]).forEach(function(e){ if(e.level==='warn' && isErrAcked(e)) n++; });
+    return Math.max(0, (R.stats.warnCells||0)-n);
+  }
   /* Tách số ô đỏ theo BẢNG chứa nó. Lỗi mã keo (E-KEO) không thuộc dòng đơn nào
      (seri = 0) nên không bao giờ hiện ở Bảng Nhập Đơn. */
   function errIsKeo(e){ return e && (e.code==='E-KEO' || e.col==='loaiKeo'); }
@@ -3518,7 +3529,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return R.errors.filter(function(e){
       if(gridMadon && e.maDon!==gridMadon) return false;
       if(gridMakh && khOf(e.maDon)!==gridMakh) return false;
-      if(!keepAcked && e.level==='error' && isErrAcked(e)) return false;
+      if(!keepAcked && isErrAcked(e)) return false;   // đã kiểm rồi thì thôi — cả ô đỏ lẫn ô vàng
       return true;
     });
   }
@@ -3527,29 +3538,37 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var list=filteredErrors(), w=0, er=0;
     list.forEach(function(e){ if(e.level==='error') er++; else w++; });
     // Đã xác nhận bao nhiêu ô (trong phạm vi đang lọc) → cho bỏ xác nhận khi cần xem lại
-    var acked=filteredErrors({keepAcked:true}).filter(function(e){ return e.level==='error' && isErrAcked(e); }).length;
+    var acked=filteredErrors({keepAcked:true}).filter(function(e){ return isErrAcked(e); }).length;
     /* Gom vào 2 NÚT XỔ cho gọn thanh: 1 nút cho cảnh báo/ô sai chuẩn, 1 nút cho xác nhận.
        Nhãn trên nút là bản rút gọn, mở ra mới thấy đủ chữ. */
     var wc=document.getElementById('dd-warn'); if(wc){ wc.style.display=w?'':'none'; wc.textContent=w+' ô cảnh báo'; }
     var ec=document.getElementById('dd-err-it'); if(ec){ ec.style.display=er?'':'none'; ec.textContent=er+' ô sai chuẩn'; }
     var ak=document.getElementById('err-ack');
-    if(ak){ ak.style.display=er?'':'none'; ak.innerHTML='✓ Đã kiểm <b>'+er+'</b> ô đang hiện'; }
+    if(ak){ ak.style.display=er?'':'none'; ak.innerHTML='✓ Đã kiểm <b>'+er+'</b> ô sai chuẩn'; }
+    var wa=document.getElementById('warn-ack');
+    if(wa){ wa.style.display=w?'':'none'; wa.innerHTML='✓ Đã kiểm <b>'+w+'</b> ô cảnh báo'; }
     var un=document.getElementById('err-unack');
     if(un){ un.style.display=acked?'':'none'; un.innerHTML='↺ Hiện lại <b>'+acked+'</b> ô đã xác nhận'; }
     var ddA=document.getElementById('dd-ack'), ddAb=document.getElementById('dd-ack-btn');
-    if(ddA){ ddA.style.display=(er||acked)?'':'none'; if(!(er||acked)) ddA.classList.remove('open'); }
+    if(ddA){ ddA.style.display=(er||w||acked)?'':'none'; if(!(er||w||acked)) ddA.classList.remove('open'); }
     if(ddAb) ddAb.textContent=acked?('✓ Đã kiểm '+acked):'✓ Đã kiểm';
     _errI=0; _warnI=0; _errN=-1; _warnN=-1;
   }
   // Xác nhận: mọi ô sai chuẩn đang hiện (theo bộ lọc) coi như đã kiểm → biến khỏi báo cáo.
   // Đơn nhập mới sau này sinh ô mới, chưa có trong danh sách này nên vẫn hiện bình thường.
-  function ackErrors(on){
+  /* lv = 'error' (ô đỏ) · 'warn' (ô vàng) · bỏ trống = cả hai.
+     Ô cảnh báo cũng cần xác nhận: nhiều cảnh báo là chuyện đơn khách vốn vậy, kiểm 1 lần rồi
+     thì phiên sau không phải lướt lại từ đầu. */
+  function ackErrors(on, lv){
     state.errAck=state.errAck||{};
-    var list=filteredErrors({keepAcked:true}).filter(function(e){ return e.level==='error'; });
+    var list=filteredErrors({keepAcked:true}).filter(function(e){ return lv?e.level===lv:true; });
+    if(on) list=list.filter(function(e){ return !isErrAcked(e); });
+    else   list=list.filter(function(e){ return isErrAcked(e); });
     if(!list.length) return;
     try{ pushUndo(); }catch(e){ logErr('ackErrors', e); }
     list.forEach(function(e){ if(on) state.errAck[errAckKey(e)]=1; else delete state.errAck[errAckKey(e)]; });
-    logLine((on?'Xác nhận đã kiểm ':'Bỏ xác nhận ')+list.length+' ô sai chuẩn'+(gridMadon?(' · đơn '+gridMadon):''));
+    var ten = lv==='warn' ? ' ô cảnh báo' : (lv==='error' ? ' ô sai chuẩn' : ' ô');
+    logLine((on?'Xác nhận đã kiểm ':'Bỏ xác nhận ')+list.length+ten+(gridMadon?(' · đơn '+gridMadon):''));
     try{ render(); }catch(e){ logErr('ackErrors', e); }
   }
   function jumpToFirst(level){
@@ -3588,7 +3607,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     try{ render(); }catch(e){ logErr('jumpCycle', e); }
   });
   var ecEl=document.getElementById('dd-err-it');  if(ecEl && ecEl.addEventListener) ecEl.addEventListener('click', function(){ jumpCycle('error'); });
-  var akEl=document.getElementById('err-ack');   if(akEl) akEl.addEventListener('click', function(){ ackErrors(true); });
+  var akEl=document.getElementById('err-ack');   if(akEl) akEl.addEventListener('click', function(){ ackErrors(true,'error'); });
+  var waEl=document.getElementById('warn-ack');  if(waEl) waEl.addEventListener('click', function(){ ackErrors(true,'warn'); });
   var unEl=document.getElementById('err-unack'); if(unEl) unEl.addEventListener('click', function(){ ackErrors(false); });
   // Nút "Duyệt tất cả" (nằm ở dòng tiêu đề cột) — duyệt mọi quy đổi độ cong
   document.addEventListener('click', function(ev){ var ba=ev.target&&ev.target.closest?ev.target.closest('.rm-approve-all'):null; if(!ba) return; ev.preventDefault(); ev.stopPropagation();
