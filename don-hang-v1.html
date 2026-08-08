@@ -506,7 +506,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608081430</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608081510</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -681,7 +681,6 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <button class="btn sm" id="btn-add-mixrow" style="color:var(--teal-600)" title="Thêm dòng MM (chọn Mã Đơn trước)">➕ Thêm dòng</button>
       <button class="btn sm" id="btn-add-mixcol" style="color:var(--teal-600)" title="Thêm cột dải (chọn Mã Đơn trước). Xóa cột: bấm ✕ ngay trên cột đã thêm.">➕ Thêm cột</button>
       <div class="spacer"></div>
-      <span class="errchips"></span>
       <span class="badge fail" id="mix-err-chip" style="margin-right:6px;display:none;cursor:pointer" title="Số lỗi bảng Mix">—</span>
       <button class="btn sm" id="btn-dl-mix">⬇ Xuất MixLabel.xlsx</button>
       <button class="btn primary sm" onclick="go('s5')">Sinh bảng Keo →</button>
@@ -703,7 +702,6 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <button class="btn sm" id="btn-add-keo" style="color:var(--teal-600)">➕ Thêm dòng</button>
       <button class="btn sm" id="btn-del-keo" style="color:var(--red-600)">🗑️ Xóa dòng chọn</button>
       <div class="spacer"></div>
-      <span class="errchips"></span>
       <span class="badge warn" id="keo-warn-chip" style="margin-right:6px;display:none;cursor:pointer" title="Cảnh báo bảng Keo">—</span>
       <button class="btn sm" id="btn-dl-keo">⬇ Xuất BangKeo.xlsx</button>
       <button class="btn primary sm" onclick="go('s6')">Xem Bảng Line Cuốn →</button>
@@ -737,7 +735,6 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <button class="btn sm" id="btn-th-line" style="color:var(--accent);font-weight:700" title="In bảng Tổng hợp Line (theo code sợi × mm)">🖨 Tổng hợp Line</button>
       <button class="btn sm" id="btn-th-cuon" style="color:var(--accent);font-weight:700" title="In bảng Tổng hợp Cuốn (code × S/M × mm × độ cong)">🖨 Tổng hợp Cuốn</button>
       <div class="spacer"></div>
-      <span class="errchips"></span>
       <button class="btn sm" id="btn-dl-linecuon">⬇ Xuất LineCuon.xlsx</button>
       <button class="btn sm" onclick="go('s10')">Tổng hợp Box →</button>
       <button class="btn primary sm" onclick="go('s7')">So sánh với đơn khách →</button>
@@ -822,7 +819,6 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <input id="s10-makh" class="madon-pick" list="dl-makh" placeholder="Tất cả KH" title="Lọc theo Mã KH — đồng bộ mọi bước" autocomplete="off" style="min-width:auto;width:100px;flex:0 0 auto;margin-right:4px">
       <input id="s10-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off" style="min-width:auto;width:140px;flex:0 0 auto">
       <div class="spacer"></div>
-      <span class="errchips"></span>
       <button class="btn sm on" id="btn-box-detail" style="flex:0 0 auto" title="Xem bảng Tổng hợp Box chi tiết">📋 Tổng hợp Box</button>
       <button class="btn sm" id="btn-pack-sum" style="flex:0 0 auto" title="Xem lại packing slip đã tạo (bản sau cùng)">📦 Tổng hợp Packing Slip</button>
       <button class="btn sm" id="btn-packing" style="color:var(--accent);font-weight:700;flex:0 0 auto">📦 Tạo Packing Slip</button>
@@ -3487,27 +3483,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(ak){ ak.style.display=er?'':'none'; ak.textContent='✓ Đã kiểm '+er+' ô'; }
     var un=document.getElementById('err-unack');
     if(un){ un.style.display=acked?'':'none'; un.textContent='↺ Hiện lại '+acked+' ô đã xác nhận'; }
-    /* Cùng bộ chip đó hiện ở MỌI bước có bảng (Mix Label · Bảng Keo · Line Cuốn · Tổng hợp Box),
-       không phải quay về bước 2 mới biết đang còn bao nhiêu ô sai chuẩn. Dùng class chứ không
-       dùng id để khỏi trùng id, bấm thì bắt bằng uỷ quyền sự kiện ở dưới. */
-    var html='';
-    if(w)  html+='<span class="badge warn ec-warn" title="Bấm để xem lần lượt từng ô cảnh báo" style="margin-right:6px;cursor:pointer">'+w+' cảnh báo dữ liệu</span>';
-    if(er) html+='<span class="badge fail ec-err" title="Bấm để xem lần lượt từng ô sai chuẩn" style="margin-right:6px;cursor:pointer">'+er+' ô sai chuẩn</span>';
-    if(er) html+='<button class="btn sm ghost ec-ack" title="Đánh dấu đã kiểm những ô đang hiện" style="margin-right:6px">✓ Đã kiểm '+er+' ô</button>';
-    if(acked) html+='<button class="btn sm ghost ec-unack" title="Bỏ xác nhận để xem lại" style="margin-right:6px;color:var(--text-2)">↺ Hiện lại '+acked+' ô</button>';
-    if(!w && !er && !acked && state.processed) html='<span class="badge pass" style="margin-right:6px">✓ Không còn ô sai chuẩn</span>';
-    Array.prototype.forEach.call(document.querySelectorAll('.errchips'), function(n2){ n2.innerHTML=html; });
     _errI=0; _warnI=0; _errN=-1; _warnN=-1;
   }
-  // bấm chip ở BẤT KỲ bước nào → cùng hành vi với chip ở bước 2
-  document.addEventListener('click', function(ev){
-    var t=ev.target&&ev.target.closest?ev.target.closest('.ec-warn,.ec-err,.ec-ack,.ec-unack'):null;
-    if(!t) return;
-    if(t.classList.contains('ec-warn')) jumpCycle('warn');
-    else if(t.classList.contains('ec-err')) jumpCycle('error');
-    else if(t.classList.contains('ec-ack')) ackErrors(true);
-    else ackErrors(false);
-  });
   // Xác nhận: mọi ô sai chuẩn đang hiện (theo bộ lọc) coi như đã kiểm → biến khỏi báo cáo.
   // Đơn nhập mới sau này sinh ô mới, chưa có trong danh sách này nên vẫn hiện bình thường.
   function ackErrors(on){
@@ -3532,9 +3509,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(!list.length) return;
     if(isErr){ if(list.length!==_errN){ _errI=0; _errN=list.length; } } else { if(list.length!==_warnN){ _warnI=0; _warnN=list.length; } }
     var i=isErr?_errI:_warnI; if(i>=list.length) i=0;
-    var e=list[i]; if(errIsKeo(e)) jumpToKeo(e); else jumpToError(e.seri,e.maDon,e.col);
+    var e=list[i], keo=errIsKeo(e);
+    if(keo) jumpToKeo(e); else jumpToError(e.seri,e.maDon,e.col);
     var chip=document.getElementById(isErr?'err-chip':'warn-chip');
     if(chip){ chip.textContent=list.length+(isErr?' ô sai chuẩn':' cảnh báo dữ liệu')+'  ('+(i+1)+'/'+list.length+')'; }
+    // thẻ KPI cho biết đang xem ô thứ mấy và ở bảng nào — bấm tiếp là sang ô kế
+    var sub=document.getElementById('kpi-err-sub');
+    if(isErr && sub) sub.textContent='▼ ô '+(i+1)+'/'+list.length+' · '+(keo?'Bảng Keo':'Bảng Nhập Đơn')+' — bấm tiếp để sang ô kế';
     i=(i+1)%list.length; if(isErr) _errI=i; else _warnI=i;
   }
   // Bấm ▣ trong ô Độ Dài đỏ → CHO PHÉP sai chuẩn ô đó (☑ để bỏ cho phép). Áp dụng ngay, tính lại toàn bộ.
@@ -3572,8 +3553,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // Bấm dòng lỗi thường → nhảy tới ô sửa
     var tr=ev.target&&ev.target.closest?ev.target.closest('tr[data-seri]'):null; if(tr) jumpToError(tr.getAttribute('data-seri'), tr.getAttribute('data-madon'), tr.getAttribute('data-col'));
   });
-  var kec=document.getElementById('kpi-err-card'); if(kec && kec.addEventListener) kec.addEventListener('click', function(){ if(errShown(state.R)){ jumpToFirst('error'); } else { go('s3'); } });
-  // Bấm vào thẻ: nếu ô đỏ CHỈ còn ở Bảng Keo thì jumpToFirst đã tự sang bước 4 — không rơi vào Bảng Nhập Đơn trống trơn nữa.
+  /* Thẻ "Ô sai chuẩn": bấm 1 lần = tới 1 ô, bấm tiếp = ô kế, xoay vòng hết lượt.
+     Ô nằm ở bảng nào thì tự nhảy sang đúng bảng đó (Bảng Nhập Đơn / Bảng Keo). */
+  var kec=document.getElementById('kpi-err-card'); if(kec && kec.addEventListener) kec.addEventListener('click', function(){ if(errShown(state.R)){ jumpCycle('error'); } else { go('s3'); } });
   var wcEl=document.getElementById('warn-chip'); if(wcEl && wcEl.addEventListener) wcEl.addEventListener('click', function(){ jumpCycle('warn'); });
 
   function wireSearch(id){
