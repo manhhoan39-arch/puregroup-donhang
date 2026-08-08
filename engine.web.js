@@ -69,7 +69,13 @@
       var byC = splitByComma(s); if (byC) return byC;
       var o = s.replace(/(0[.,]\d+)(?=[A-ZĐ])/g,'$1\n'); return o.split('\n').length > 1 ? o : s; }
     return {
-      seri: raw.seri, maDon: String(raw.maDon || '').trim(),
+      seri: raw.seri,
+      /* seriGoc = SỐ THỨ TỰ GỐC trong file khách, KHÔNG BAO GIỜ đổi.
+         Cột seri bị ĐÁNH SỐ LẠI mỗi lần gộp file (1..N toàn bộ), nên mọi thứ cần nhớ theo
+         từng dòng — "đã kiểm ô sai chuẩn", "cho phép sai chuẩn độ dài" — phải bám seriGoc,
+         không thì nạp thêm 1 file là mất sạch. */
+      seriGoc: (raw.seriGoc != null ? raw.seriGoc : raw.seri),
+      maDon: String(raw.maDon || '').trim(),
       codeSoi: splitCodes(raw.codeSoi), detail: raw.detail || '',
       length: lenNorm,
       mixSingle: ms,
@@ -94,7 +100,7 @@
      VD Nau155C.2) để không báo nhầm mấy dòng ghi chú bằng lời. */
   var KEO_STD = [
     'Trong250G.2', 'Trong450G.2', 'Nau155C.2', 'Nau155C.3', 'CamTQN75.2',
-    'NauBNC500.2', 'NauBNC500.3', 'Cam837.2', 'Cam837.3', 'Vang80.2',
+    'NauBNC500.2', 'NauBNC500.3', 'Cam837.2', 'Cam837.3', 'Vang80.2', 'Vang80.3',
     'XanhLX70.2', 'XanhLX70.3', 'Trang850T.25', 'Trang850T.3',
     'XanhBlu150.2', 'XanhBlu150.3'
   ];
@@ -134,7 +140,9 @@
       if (bad.length) {
         // Đơn khách CÓ THỂ làm ngoài chuẩn → bấm "Cho phép sai chuẩn" cho ĐÚNG ô đó
         // (opt.lenApproved['<mã đơn>|<seri>'] = true) → hạ xuống CẢNH BÁO để vẫn sinh được dữ liệu.
-        var _ok = opt.lenApproved && opt.lenApproved[(o.maDon || '') + '|' + o.seri];
+        var _la = opt.lenApproved || {};
+        var _ok = _la[(o.maDon || '') + '|' + (o.seriGoc != null ? o.seriGoc : o.seri)] ||
+                  _la[(o.maDon || '') + '|' + o.seri];      // khoá cũ — giữ cho project đã lưu
         var _msg = '"' + o.length + '" vượt chuẩn độ cong: ' + bad.join(', ');
         if (_ok) push('length', 'W-LEN-OK', 'warn', _msg + ' — đã được cho phép');
         else push('length', 'E-LEN', 'error', _msg + ' (tiêu chuẩn độ cong 2026)');
@@ -169,7 +177,7 @@
       if (seen[k]) errors.push({ maDon: o.maDon, seri: o.seri, col: 'seri', code: 'E-DUP', level: 'error', msg: 'Trùng Seri ' + o.seri });
       seen[k] = 1;
       // gắn maDon vào từng lỗi — Seri có thể trùng giữa các file/mã đơn khác nhau
-      validateOrder(o, opt).forEach(function (e) { e.maDon = o.maDon; errors.push(e); });
+      validateOrder(o, opt).forEach(function (e) { e.maDon = o.maDon; e.seriGoc = o.seriGoc; errors.push(e); });
     });
     // Mã keo ngoài danh sách chuẩn → ô sai chuẩn (gắn kèm chỉ số dòng keo để tô đúng ô)
     (opt.keoRows || []).forEach(function (k, i) {
@@ -407,7 +415,16 @@
   // 1 ô "Loại Keo" GỘP nhiều keo (xuống dòng/phẩy) + Ghi Chú map từng keo theo ĐỘ DÀI
   //  (vd "Từ 4 đến 5mm dùng keo Nau155C.2 / Từ 6mm dùng keo Nau155C.3")
   //  → TÁCH thành nhiều rule, mỗi keo 1 dải độ dài. Không map được chắc chắn → trả null (giữ hành vi cũ).
+  /** Độ dày của 1 dòng keo (cột Độ Dày + độ dày nhúng trong Loại Sợi) → khóa chữ số. */
+  function thicksOfKeoRow(k) {
+    var _dd = String(k.doDay || ''), out = [];
+    (_dd.match(/0[.,]\d+/g) || []).forEach(function (d) { var t = thickKey(d); if (t) out.push(t); });
+    _dd = _dd.replace(/0[.,]\d+/g, ' ');
+    (_dd.match(/\d+/g) || []).forEach(function (n) { var t = thickKey(n); if (t) out.push(t); });
+    return out.concat(parseKeoCond(k.loaiSoi || '').thicks);
+  }
   function splitKeoByNote(k, thicks, matsFallback) {
+    if (k._daTach) return null;    // dòng đã được tách sẵn thành nhiều dòng thật → đừng tách lại
     var names = PS(k.loaiKeo).split(/[\r\n,;]+/).map(cleanKeoName).filter(Boolean);
     var gh = PS(k.ghiChu); if (!gh || !/\d/.test(gh)) return null;
     /* Khách còn 1 kiểu ghi nữa: ô "Mã Keo" chỉ ghi MỘT keo, keo thứ hai nằm trong Ghi Chú —
@@ -441,6 +458,35 @@
       made.push({ maDon: k.maDon, glue: kn, mats: matsFallback || [], thick: (thicks || []).slice(), lo: c.lo, hi: c.hi, spec: c.spec });
     });
     return made.length >= 2 ? made : null;
+  }
+  /* Bung dòng keo "1 ô nhiều quy tắc" thành NHIỀU DÒNG THẬT trong bảng keo.
+     Trước đây app chỉ vẽ mấy dòng tách ra cho ĐẸP (chữ xanh, không sửa được) còn dữ liệu vẫn
+     là 1 dòng — bóc sai thì không sửa được ở đâu cả. Giờ chúng là dòng thật: sửa ô nào là
+     keo tính lại theo ô đó. Ghi chú gốc giữ ở dòng đầu để còn đối chiếu với đơn khách. */
+  function keoRangeText(r) {
+    if (r.lo != null && r.hi != null && r.hi < 900) return r.lo === r.hi ? (r.lo + 'mm') : (r.lo + '-' + r.hi + 'mm');
+    if (r.lo != null) return 'từ ' + r.lo + 'mm';
+    if (r.hi != null && r.hi < 900) return 'đến ' + r.hi + 'mm';
+    return '';
+  }
+  function expandKeoRows(keoRows) {
+    var out = [];
+    (keoRows || []).forEach(function (k) {
+      var split = (k && !k._daTach && PS(k.ghiChu))
+        ? splitKeoByNote(k, thicksOfKeoRow(k), parseKeoCond(k.loaiSoi || '').mats) : null;
+      if (!split || split.length < 2) { out.push(k); return; }
+      split.forEach(function (r, i) {
+        var row = {
+          maDon: k.maDon, loaiKeo: r.glue, loaiSoi: PS(k.loaiSoi), doDay: PS(k.doDay),
+          doDai: keoRangeText(r) || PS(k.doDai),
+          ghiChu: i === 0 ? PS(k.ghiChu) : '',
+          _daTach: 1,
+        };
+        if (k._manual) row._manual = 1;
+        out.push(row);
+      });
+    });
+    return out;
   }
   function buildKeoRules(keoRows) {
     var rules = [];
@@ -1067,7 +1113,7 @@
       if (!Object.keys(curls).length && !code && !len) continue;
       var soLineRaw = PS(col.soLine >= 0 ? row[col.soLine] : '');
       out.push({
-        seri: Math.round(sttN), maDon: maDon, codeSoi: code,
+        seri: Math.round(sttN), seriGoc: Math.round(sttN), maDon: maDon, codeSoi: code,
         detail: PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''),   // Detail = cột "Danh Mục / Phân Loại"
         length: len, mixSingle: PS(row[col.mix]), curls: curls,
         line: PN(soLineRaw.replace(/lines?/i, '').trim()),
@@ -1408,7 +1454,7 @@
       });
       var soLineRaw = PS(col.soLine >= 0 ? row[col.soLine] : '');
       out.push({
-        seri: stt, maDon: maDon, codeSoi: code,
+        seri: stt, seriGoc: stt, maDon: maDon, codeSoi: code,
         detail: PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''),
         length: length, mixSingle: isMix ? 'Mix' : 'Single', curls: curls,
         line: PN(soLineRaw.replace(/lines?/i, '').trim()), lineRaw: soLineRaw,
@@ -1707,7 +1753,7 @@
     runStep1: runStep1, editCell: editCell,
     buildMix: buildMix, MixLabel: MixLabel, mixOfRange: mixOfRange, totalOfRange: totalOfRange,
     sheetRangeInfo: sheetRangeInfo, resolveMixDist: resolveMixDist,
-    buildKeoRules: buildKeoRules, glueFor: glueFor, glueForShort: glueForShort, orderGlues: orderGlues,
+    buildKeoRules: buildKeoRules, expandKeoRows: expandKeoRows, glueFor: glueFor, glueForShort: glueForShort, orderGlues: orderGlues,
     OVERRIDE_2MM_CURLS: OVERRIDE_2MM_CURLS, isOverrideCurl: isOverrideCurl,
     parseKeoCond: parseKeoCond, thickKey: thickKey,
     buildData1: buildData1, buildLineMatrix: buildLineMatrix, STRATEGIES: STRATEGIES,

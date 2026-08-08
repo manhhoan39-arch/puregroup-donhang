@@ -506,7 +506,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608072010</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608081345</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -531,7 +531,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
     <div class="kpi-grid">
       <div class="kpi"><div class="ic b">📁</div><div class="lbl">Tổng file</div><div class="val" id="kpi-files">0</div><div class="sub"><span class="mini">file Excel đã nạp</span></div></div>
       <div class="kpi"><div class="ic g">✓</div><div class="lbl">Dòng hợp lệ</div><div class="val" id="kpi-valid">183</div><div class="sub up">▲ realtime</div></div>
-      <div class="kpi" id="kpi-err-card" style="cursor:pointer" title="Bấm để sang Bảng Nhập Đơn và nhảy tới ô sai chuẩn đầu tiên"><div class="ic r">✕</div><div class="lbl">Ô sai chuẩn</div><div class="val" id="kpi-err">7</div><div class="sub down" style="color:var(--accent);font-weight:700">▼ Bấm để sửa trực tiếp</div></div>
+      <div class="kpi" id="kpi-err-card" style="cursor:pointer" title="Bấm để sang Bảng Nhập Đơn và nhảy tới ô sai chuẩn đầu tiên"><div class="ic r">✕</div><div class="lbl">Ô sai chuẩn</div><div class="val" id="kpi-err">7</div><div class="sub down" id="kpi-err-sub" style="color:var(--accent);font-weight:700">▼ Bấm để sửa trực tiếp</div></div>
       <div class="kpi"><div class="ic v">🧾</div><div class="lbl">Tổng số đơn</div><div class="val" id="kpi-orders">1</div><div class="sub"><span class="mini">mã đơn (1 file khách = 1 đơn)</span></div></div>
       <div class="kpi"><div class="ic t">📦</div><div class="lbl">Tổng sản lượng</div><div class="val" id="kpi-sl">32.4K</div><div class="sub"><span class="mini">khay mi</span></div></div>
       <div class="kpi"><div class="ic a">⏱️</div><div class="lbl">Thời gian xử lý</div><div class="val" id="kpi-time">—</div><div class="sub"><span class="mini">engine chạy trong trình duyệt</span></div></div>
@@ -1390,6 +1390,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     setTxt('kpi-files', state.files.length);
     setTxt('kpi-valid', R.stats.validRows);
     setTxt('kpi-err', errShown(R));          // trừ ô đã xác nhận "đã kiểm"
+    /* Ô đỏ nằm ở HAI bảng khác nhau: lỗi dòng đơn thì ở Bảng Nhập Đơn, còn mã keo sai chuẩn
+       thì ở Bảng Keo. Trước đây gộp một số rồi bảo "bấm để sửa trực tiếp" → sang Bảng Nhập
+       Đơn không thấy gì, tưởng app đếm sai. Giờ ghi rõ ô nào ở đâu. */
+    (function(){
+      var sub=document.getElementById('kpi-err-sub'); if(!sub) return;
+      var n=errShownSplit(R);
+      sub.textContent = !(n.don+n.keo) ? '✓ Không còn ô sai chuẩn'
+        : (n.don&&n.keo) ? ('▼ '+n.don+' ở Bảng Nhập Đơn · '+n.keo+' ở Bảng Keo')
+        : (n.keo ? ('▼ '+n.keo+' ở Bảng Keo — bấm để tới') : '▼ Bấm để sửa trực tiếp');
+    })();
     var maDonSet={}; R.orders.forEach(function(o){ maDonSet[o.maDon]=1; });
     setTxt('kpi-orders', Object.keys(maDonSet).length);   // mỗi file đơn khách = 1 đơn
     var khay=0; R.orders.forEach(function(o){ khay+=o.sl; });
@@ -1474,7 +1484,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var _ndCap=capRows('nd', R.orders, !!(gridMadon||gridMakh));
       nd.innerHTML = _ndCap.rows.map(function(o){
       var cell=function(col,val,extra){ var er=errKey[o.maDon+'|'+o.seri+'|'+col];
-        var _ack=!!(er && er.level==='error' && state.errAck && state.errAck[o.maDon+'|'+o.seri+'|'+col]);
+        var _ack=!!(er && er.level==='error' && isErrAcked({maDon:o.maDon, seri:o.seri, seriGoc:o.seriGoc, col:col}));
         var cls=(extra||'')+(er?(er.level==='warn'?' cell-warn':(_ack?' err err-ack':' err')):'');
         var ce=(er && canEditStep('s3'))?' contenteditable="true" data-seri="'+o.seri+'" data-madon="'+esc(o.maDon)+'" data-col="'+col+'"':'';
         var ti=er?(' title="'+esc(er.msg)+' — sửa xong bấm ra ngoài để tính lại"'):'';
@@ -1484,7 +1494,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         // đã xác nhận thì ô chuyển sang vàng (cảnh báo) và dữ liệu vẫn sinh bình thường.
         var apBtn='';
         if(col==='length' && er && canEditStep('s3')){
-          var _k=o.maDon+'|'+o.seri;
+          var _k=rowKey(o);
           if(er.code==='E-LEN' && /vượt dải/.test(er.msg||''))
             apBtn='<span class="len-ok" data-lenkey="'+esc(_k)+'" title="Cho phép SAI CHUẨN ở ô này (đơn khách làm ngoài chuẩn) → hết đỏ, vẫn sinh dữ liệu">▣</span>';
           else if(er.code==='W-LEN-OK')
@@ -2263,7 +2273,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     state.orders=allO;
     var haveM={}; mixSheets.forEach(function(s){ haveM[s.maDon]=1; }); keepManMix.forEach(function(s){ if(!haveM[s.maDon]) mixSheets.push(s); });
     state.mixSheets=mixSheets;
-    state.keoRows=keoRows.concat(keepManKeo);
+    /* Bung dòng keo "1 ô nhiều quy tắc" (vd 744P: .2 cho 6-8mm, .3 từ 9mm) thành DÒNG THẬT
+       để sửa được ngay trên bảng keo — bóc sai thì sửa, keo tính lại theo đúng ô vừa sửa. */
+    state.keoRows=(E.expandKeoRows?E.expandKeoRows(keoRows):keoRows).concat(keepManKeo);
     state.source='💾 '+okFiles.length+' file · '+orders.length+' dòng'+(keepMan.length?' + ✍ '+keepMan.length+' tay':'');
     resetPack();   // nguồn đổi → reset lớp packing
     state.processed=true;
@@ -2336,7 +2348,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var ack=state.errAck||{}, sErr=0, sWarn=0, sRows=0;
     (state.R.errors||[]).forEach(function(e){
       if(!inScope(e.maDon)) return;
-      if(e.level==='error'){ if(!ack[(e.maDon||'')+'|'+e.seri+'|'+e.col]) sErr++; }
+      if(e.level==='error'){ if(!isErrAcked(e)) sErr++; }
       else sWarn++;
     });
     newFiles.forEach(function(F){ sRows+=(F.data&&F.data.rawOrders?F.data.rawOrders.length:0); });
@@ -2642,7 +2654,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var mixAll=keepMix.slice(), haveM={}; mixAll.forEach(function(s){ haveM[s.maDon]=1; });
     mixSheets.forEach(function(s){ if(!haveM[s.maDon]) mixAll.push(s); });
     state.mixSheets=mixAll;
-    state.keoRows=keepKeo.concat(keoRows);
+    state.keoRows=keepKeo.concat(E.expandKeoRows?E.expandKeoRows(keoRows):keoRows);
     state.source=(keepOrders.length?'Upload '+keepOrders.length+' đơn + ':'')+'✍ Thủ công '+orders.length+' đơn';
     state.processed=true; state.filters={}; gridQuery='';
     try{ renderFiles(); }catch(e){ logErr('applyManual', e); }
@@ -3376,6 +3388,19 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
 
   /* ---- CHIP lỗi / cảnh báo: bấm nhảy đến đúng ô ---- */
+  // Nhảy tới đúng ô mã keo sai chuẩn ở Bảng Keo (bước 4)
+  function jumpToKeo(e){
+    if(typeof go==='function') go('s4');
+    setTimeout(function(){
+      var tb=document.getElementById('eng-keo-full'); if(!tb) return;
+      var tr=tb.querySelector('tr[data-keoidx="'+e.keoIdx+'"]');
+      if(!tr) return;
+      if(tr.scrollIntoView) tr.scrollIntoView({block:'center', behavior:'smooth'});
+      if(tr.classList){ tr.classList.add('flash'); setTimeout(function(){ tr.classList.remove('flash'); }, 1500); }
+      var td=tr.querySelector('td[data-keoedit="loaiKeo"]');
+      if(td){ td.classList.add('jump-hit'); setTimeout(function(){ td.classList.remove('jump-hit'); }, 1800); }
+    }, 60);
+  }
   function jumpToError(seri, mdon, col){
     if(typeof go==='function') go('s3');   // sang Bảng Nhập Đơn
     state.filters={}; gridQuery=''; try{ applyGridFilter(); }catch(e){ logErr('jumpToError', e); }   // bỏ lọc để chắc chắn thấy dòng
@@ -3400,21 +3425,40 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function errShown(R){
     R=R||state.R; if(!R||!R.stats) return 0;
     var ack=state.errAck||{}, n=0;
-    (R.errors||[]).forEach(function(e){ if(e.level==='error' && ack[(e.maDon||'')+'|'+e.seri+'|'+e.col]) n++; });
+    (R.errors||[]).forEach(function(e){ if(e.level==='error' && isErrAcked(e)) n++; });
     return Math.max(0, (R.stats.errorCells||0)-n);
+  }
+  /* Tách số ô đỏ theo BẢNG chứa nó. Lỗi mã keo (E-KEO) không thuộc dòng đơn nào
+     (seri = 0) nên không bao giờ hiện ở Bảng Nhập Đơn. */
+  function errIsKeo(e){ return e && (e.code==='E-KEO' || e.col==='loaiKeo'); }
+  function errShownSplit(R){
+    R=R||state.R; var n={don:0,keo:0}; if(!R) return n;
+    (R.errors||[]).forEach(function(e){
+      if(e.level!=='error' || isErrAcked(e)) return;
+      if(errIsKeo(e)) n.keo++; else n.don++;
+    });
+    return n;
   }
   function errAckedOf(maDons){                          // đã xác nhận bao nhiêu ô trong các mã đơn này
     var R=state.R, ack=state.errAck||{}, n=0; if(!R) return 0;
     (R.errors||[]).forEach(function(e){
       if(e.level!=='error') return;
       if(maDons && maDons.indexOf(e.maDon)<0) return;
-      if(ack[(e.maDon||'')+'|'+e.seri+'|'+e.col]) n++;
+      if(isErrAcked(e)) n++;
     });
     return n;
   }
   // Khoá 1 ô sai chuẩn: mã đơn|seri|cột. Đã xác nhận "đã kiểm" thì không đưa vào báo cáo nữa.
-  function errAckKey(e){ return (e.maDon||'')+'|'+e.seri+'|'+e.col; }
-  function isErrAcked(e){ return !!(state.errAck && state.errAck[errAckKey(e)]); }
+  /* Khoá ghi nhớ theo TỪNG DÒNG phải dùng seri GỐC của file khách: cột seri hiển thị bị
+     đánh số lại 1..N mỗi lần gộp file, nạp thêm 1 file là toàn bộ "đã kiểm" lệch khoá và
+     6 ô vừa tích lại đỏ trở lại. Vẫn đọc được khoá cũ để project đã lưu không mất dấu. */
+  function rowKey(x){ return (x.maDon||'')+'|'+(x.seriGoc!=null?x.seriGoc:x.seri); }
+  function rowKeyOld(x){ return (x.maDon||'')+'|'+x.seri; }
+  function errAckKey(e){ return rowKey(e)+'|'+e.col; }
+  function isErrAcked(e){
+    var a=state.errAck||{};
+    return !!(a[errAckKey(e)] || a[rowKeyOld(e)+'|'+e.col]);
+  }
   function filteredErrors(opts){
     var R=state.R; if(!R||!R.errors) return [];
     var keepAcked=opts&&opts.keepAcked;
@@ -3453,7 +3497,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function jumpToFirst(level){
     var list=filteredErrors().filter(function(x){ return level==='error'?x.level==='error':x.level==='warn'; });
     if(!list.length) return;
-    var e=list[0]; jumpToError(e.seri, e.maDon, e.col);
+    var e=list[0]; if(errIsKeo(e)) jumpToKeo(e); else jumpToError(e.seri, e.maDon, e.col);
   }
   // Bấm nhiều lần → lần lượt nhảy qua TỪNG ô cảnh báo / sai chuẩn (xoay vòng)
   var _errI=0,_warnI=0,_errN=-1,_warnN=-1;
@@ -3463,7 +3507,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(!list.length) return;
     if(isErr){ if(list.length!==_errN){ _errI=0; _errN=list.length; } } else { if(list.length!==_warnN){ _warnI=0; _warnN=list.length; } }
     var i=isErr?_errI:_warnI; if(i>=list.length) i=0;
-    var e=list[i]; jumpToError(e.seri,e.maDon,e.col);
+    var e=list[i]; if(errIsKeo(e)) jumpToKeo(e); else jumpToError(e.seri,e.maDon,e.col);
     var chip=document.getElementById(isErr?'err-chip':'warn-chip');
     if(chip){ chip.textContent=list.length+(isErr?' ô sai chuẩn':' cảnh báo dữ liệu')+'  ('+(i+1)+'/'+list.length+')'; }
     i=(i+1)%list.length; if(isErr) _errI=i; else _warnI=i;
@@ -3504,6 +3548,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var tr=ev.target&&ev.target.closest?ev.target.closest('tr[data-seri]'):null; if(tr) jumpToError(tr.getAttribute('data-seri'), tr.getAttribute('data-madon'), tr.getAttribute('data-col'));
   });
   var kec=document.getElementById('kpi-err-card'); if(kec && kec.addEventListener) kec.addEventListener('click', function(){ if(errShown(state.R)){ jumpToFirst('error'); } else { go('s3'); } });
+  // Bấm vào thẻ: nếu ô đỏ CHỈ còn ở Bảng Keo thì jumpToFirst đã tự sang bước 4 — không rơi vào Bảng Nhập Đơn trống trơn nữa.
   var wcEl=document.getElementById('warn-chip'); if(wcEl && wcEl.addEventListener) wcEl.addEventListener('click', function(){ jumpCycle('warn'); });
 
   function wireSearch(id){
@@ -3613,7 +3658,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       };
       // Nếu cột thuộc tính trống nhưng Ghi Chú có nội dung → BÓC TÁCH hiển thị (chỉ xem, giữ nguyên ghi chú gốc)
       // Ghi chú "keo A cho độ dài X; keo B cho độ dài Y" → NHÂN BẢN dòng (Loại Keo + Độ Dài)
-      var kbl=parseKeoByLength(k.ghiChu);
+      var kbl=k._daTach?null:parseKeoByLength(k.ghiChu);   // đã bung thành dòng thật → khỏi vẽ dòng dẫn xuất
       if(kbl){
         kbl.forEach(function(seg,si){
           rows.push('<tr data-madon="'+esc(k.maDon)+'" data-makh="'+esc(khOf(k.maDon))+'" data-keoidx="'+idx+'">'+
@@ -4125,7 +4170,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var ce = (canEdit && idx>=0) ? ' contenteditable="true" data-keoedit="'+field+'" data-keoidx="'+idx+'" style="white-space:pre-wrap"' : '';
         return '<td class="txt'+ke.cls+'"'+ce+ke.ti+'>'+esc(val==null?'':val)+'</td>';
       };
-      var kbl=parseKeoByLength(k.ghiChu);
+      var kbl=k._daTach?null:parseKeoByLength(k.ghiChu);   // đã bung thành dòng thật → khỏi vẽ dòng dẫn xuất
       if(kbl){
         return kbl.map(function(seg,si){
           return '<tr'+(malformed?' class="cell-warn"':'')+' data-keoidx="'+idx+'">'+
