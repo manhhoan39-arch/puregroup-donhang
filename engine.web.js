@@ -406,9 +406,16 @@
     var thickRaw = s.match(/\d+(?:[.,]\d+)?/g) || [];
     s = s.replace(/\d+(?:[.,]\d+)?/g, ' ');
     var mats = s.split(/[\/,;·]/).map(function (t) { return t.replace(/\s+/g, ' ').trim(); })
-      .filter(function (t) { return t && !/^mm$/i.test(t) && t !== '-' && t !== '.'; });
+      .filter(function (t) { return t && !/^mm$/i.test(t) && t !== '-' && t !== '.'; })
+      /* Ghi chú kiểu "Cho cả đơn", "Dùng chung", "Áp dụng toàn bộ"… KHÔNG phải tên nguyên liệu.
+         Nhận nhầm thì quy tắc keo đòi khớp một nguyên liệu không tồn tại → không dòng nào khớp,
+         cả đơn mất keo (đơn 356P từng bị: 76 dòng đều phải mượn keo trong cột của khách). */
+      .filter(function (t) { return !NOT_MAT_RE.test(t.replace(/\s+/g, ' ').trim()); });
     return { lo: lo, hi: hi, spec: spec, thickRaw: thickRaw, thicks: thickRaw.map(thickKey), mats: mats };
   }
+  /* Cụm chữ chỉ phạm vi áp dụng, KHÔNG phải tên nguyên liệu. Khớp cả câu (^…$) để không
+     cắt nhầm tên thật (vd "Cashmere Silk cho hàng chung" vẫn giữ nguyên là nguyên liệu). */
+  var NOT_MAT_RE = /^(cho\s+)?(cả|toàn\s*bộ|toàn|tất\s*cả|mọi|chung|dùng\s*chung|áp\s*dụng)([\s\S]*)?$|^(cho|dùng|áp\s*dụng|theo|như)\s+.*(đơn|hàng|bảng|trên|dưới|này)$|^(đơn|hàng|bảng|các|những)$/i;
   /** keoRows → rules[{maDon, glue, mats[], thick[] (khóa chữ số), lo, hi, spec}]. */
   // Chuẩn hoá tên keo: "Nau155C. 2" → "Nau155C.2"
   function cleanKeoName(s) { return PS(s).replace(/\s*\.\s*/g, '.').replace(/\s+/g, ' ').trim(); }
@@ -649,8 +656,9 @@
    *  keoRules (tuỳ chọn): tra "Keo nhiệt" cho TỪNG dòng theo (material, thickness, mm) —
    *  cùng 1 dải nhưng mm khác nhau có thể ra keo khác nhau. Không tra được → fallback
    *  cột Keo Nhiệt khách ghi sẵn trên dòng đơn (ghiChuKeo). */
-  function buildCuonBoxSheet(data1, orders, keoRules, keoMalformed) {
+  function buildCuonBoxSheet(data1, orders, keoRules, keoMalformed, keoHasRules) {
     keoMalformed = keoMalformed || {};
+    keoHasRules = keoHasRules || {};
     // nhóm theo MÃ ĐƠN + Code Sợi (cùng code ở 2 đơn khác nhau không gộp lẫn)
     orders = orders || []; var meta = {};
     orders.forEach(function (o) { meta[o.maDon + '|' + o.codeSoi + '|' + o.length] = o; });
@@ -675,7 +683,11 @@
           // OVERRIDE: "Keo 2mm" (keo dải ngắn nhất) cho các độ cong LB/LC/LJ/LC+
           k2 = glueForShort(keoRules, { maDon: r.maDon, material: r.material || '', thickness: r.thickness, mm: r.mm, codeSoi: r.codeSoi, detail: r.detail, loaiHang: r.loaiHang, label: r.label, ghiChu: r.ghiChu });
         }
-        if (!k1) k1 = r.ghiChuKeo || '';
+        /* CHỈ mượn cột "Keo Nhiệt" của khách khi đơn đó KHÔNG CÓ Bảng Keo nào dùng được.
+           Đơn CÓ Bảng Keo mà tra không ra thì phải ĐỂ TRỐNG — trước đây lặng lẽ lấy keo trong
+           cột của khách, nên xoá một dòng trong Bảng Keo vẫn thấy có keo (mà là keo lạ, không
+           hề có trong bảng), tưởng app tính đúng. Trống mới thấy ngay là bảng còn thiếu. */
+        if (!k1 && !keoHasRules[r.maDon]) k1 = r.ghiChuKeo || '';
         if (!k2) k2 = k1;
       }
       if (k1) g.keoSet[k1] = 1;
@@ -778,7 +790,7 @@
       lineByOrder[m] = lm;
     });
     var cuon = buildCuonBox(data1, s1.orders);
-    var cuonSheet = buildCuonBoxSheet(data1, s1.orders, keoRules, keoMalformed);
+    var cuonSheet = buildCuonBoxSheet(data1, s1.orders, keoRules, keoMalformed, keoUsable);
     var keoByOrder = {};
     var maDons = {}; s1.orders.forEach(function (o) { maDons[o.maDon] = 1; });
     Object.keys(maDons).forEach(function (m) { keoByOrder[m] = (input.keoRows || []).filter(function (k) { return k.maDon === m; }); });
