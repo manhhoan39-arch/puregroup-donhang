@@ -229,12 +229,23 @@ td.cellsel-anchor,th.cellsel-anchor{box-shadow:inset 0 0 0 2px var(--accent)}
   position:sticky;top:0;z-index:30;background:var(--bg);
   margin:0 -20px 12px;padding:10px 20px 10px;box-shadow:0 1px 0 var(--border)}
 .tbl-toolbar>*{flex:0 0 auto}                                   /* mặc định: giữ nguyên bề ngang */
-.tbl-toolbar .search-top{flex:1 1 150px!important;width:auto!important;min-width:88px}
-.tbl-toolbar .madon-pick{flex:1 1 120px!important;min-width:80px!important;width:auto}
+.tbl-toolbar .search-top{flex:1 1 210px!important;width:auto!important;min-width:150px}
+.tbl-toolbar .madon-pick{flex:1 1 165px!important;min-width:132px!important;width:auto}
 .tbl-toolbar .spacer{flex:1 1 0!important;min-width:0}          /* khoảng đệm nhường chỗ trước tiên */
 .tbl-toolbar .btn,.tbl-toolbar .badge,.tbl-toolbar .chip{white-space:nowrap}
 /* màn hẹp (laptop nhỏ) thì cho xuống dòng lại, không thì nút bị đẩy ra khỏi màn */
 @media (max-width:1180px){ .tbl-toolbar{flex-wrap:wrap} }
+/* Nút xổ (gom mấy chip cảnh báo lại cho đỡ chật, ô tìm kiếm mới đủ rộng để đọc) */
+.dd{position:relative}
+.dd-btn::after{content:' ▾';opacity:.7}
+.dd-menu{position:absolute;top:calc(100% + 5px);right:0;min-width:230px;z-index:60;display:none;
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:5px;
+  box-shadow:0 10px 28px rgba(0,0,0,.18)}
+.dd.open .dd-menu{display:block}
+.dd-it{display:block;padding:8px 10px;border-radius:7px;font-size:12.5px;white-space:nowrap;cursor:pointer}
+.dd-it:hover{background:var(--surface-3)}
+.dd-it b{font-weight:800}
+.dd-it.warn b{color:#b26a00}.dd-it.fail b{color:var(--red-600)}.dd-it.okc b{color:var(--accent)}
 /* tiêu đề bảng dính NGAY DƯỚI thanh công cụ (bảng có vùng cuộn riêng) */
 .tbl-wrap{position:relative}
 .tbl-wrap thead th{z-index:6}
@@ -518,7 +529,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608081625</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608081715</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -663,10 +674,21 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <input id="s3-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
       <datalist id="dl-madon"></datalist><datalist id="dl-makh"></datalist>
       <div class="spacer"></div>
-      <span class="badge warn" id="warn-chip" title="Bấm để nhảy đến ô cảnh báo" style="margin-right:6px;display:none;cursor:pointer">—</span>
-      <span class="badge fail" id="err-chip" title="Bấm để nhảy đến ô sai chuẩn" style="margin-right:6px;display:none;cursor:pointer">—</span>
-      <button class="btn sm ghost" id="err-ack" title="Đánh dấu đã kiểm những ô sai chuẩn đang hiện — sẽ không báo lại nữa" style="margin-right:6px;display:none">✓ Đã kiểm</button>
-      <button class="btn sm ghost" id="err-unack" title="Bỏ xác nhận để xem lại các ô đã đánh dấu" style="margin-right:6px;display:none;color:var(--text-2)">↺ Hiện lại</button>
+      <!-- Gom cảnh báo / ô sai chuẩn vào 1 nút xổ, xác nhận vào 1 nút xổ — nhường chỗ cho ô tìm kiếm -->
+      <div class="dd" id="dd-err" style="display:none;margin-right:6px">
+        <button class="btn sm dd-btn" id="dd-err-btn" title="Xem cảnh báo và ô sai chuẩn">—</button>
+        <div class="dd-menu">
+          <div class="dd-it warn" id="dd-warn" title="Bấm để xem lần lượt từng ô cảnh báo">—</div>
+          <div class="dd-it fail" id="dd-err-it" title="Bấm để xem lần lượt từng ô sai chuẩn">—</div>
+        </div>
+      </div>
+      <div class="dd" id="dd-ack" style="display:none;margin-right:6px">
+        <button class="btn sm ghost dd-btn" id="dd-ack-btn" title="Xác nhận đã kiểm">✓ Đã kiểm</button>
+        <div class="dd-menu">
+          <div class="dd-it okc" id="err-ack" title="Đánh dấu đã kiểm những ô sai chuẩn đang hiện — sẽ không báo lại nữa">—</div>
+          <div class="dd-it" id="err-unack" title="Bỏ xác nhận để xem lại các ô đã đánh dấu">—</div>
+        </div>
+      </div>
       <button class="btn sm" id="btn-del-nhapdon" style="color:var(--red-600)">🗑️ Xóa dòng chọn</button>
       <button class="btn sm" id="btn-dl-nhapdon-s3">⬇ Xuất Nhập đơn.xlsx</button>
       <button class="btn primary sm" onclick="go('s4')">Sinh Mix Label →</button>
@@ -998,7 +1020,7 @@ window.__applyStepPerms = function(){
 };
 function go(id){
   if(window.__STEP_PERMS && window.__STEP_PERMS[id]==='none') return;   // không có quyền xem step này
-  if(window.__discardPending) window.__discardPending();   // chuyển step: HỦY mọi ô sửa chưa lưu → dữ liệu về nguyên gốc
+  if(window.__confirmEdits) window.__confirmEdits();   // chuyển bước: hỏi giữ hay bỏ mấy ô vừa sửa
   // CHẶN sang bước sau khi có CỘT ĐỘ CONG KHÔNG NHẬN DIỆN ĐƯỢC (có số nhưng máy không hiểu) → tránh SAI/MẤT số liệu
   if({s3:1,s4:1,s5:1,s6:1,s10:1,s7:1,s9:1}[id] && window.__hasUnmappedCurl && window.__hasUnmappedCurl()){
     alert('⛔ Có cột ĐỘ CONG không nhận diện được (có số liệu nhưng máy không hiểu tên header).\nXem mục "MẤT ĐỘ CONG" trong Danh sách lỗi/cảnh báo ở bước Nhập Đơn — hãy sửa tên header trong file gốc cho đúng chuẩn rồi đọc lại. Chưa sửa thì KHÔNG sang bước sau (số liệu sẽ sai).');
@@ -1313,30 +1335,36 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
 
   // ===== Chế độ "Áp dụng thay đổi": sửa ô ở step 2-6 CHỜ xác nhận, bấm nút mới tính lại =====
   // ==== Hàng CHỜ LƯU: sửa ô KHÔNG đụng state (chỉ lưu closure vào buffer); bấm "Lưu" mới áp dụng ====
-  var __pendBuf=[];
-  function saveBtnFor(cell){
-    var sec=cell&&cell.closest?cell.closest('section.screen'):null; if(!sec) return null;
-    var tb=sec.querySelector('.tbl-toolbar'); if(!tb) return null;
-    var b=tb.querySelector('.pending-save');
-    if(!b){ b=document.createElement('button'); b.type='button'; b.className='btn sm pending-save'; b.addEventListener('click', function(){ applyPendingEdits(); }); tb.appendChild(b); }
-    return b;
-  }
+  /* SỬA Ô LÀ ÁP DỤNG NGAY — không còn nút "💾 Lưu" thủ công.
+     Nút đó nằm cuối thanh công cụ, hay bị đẩy hẹp nên khó thấy; tệ hơn là chuyển bước
+     thì mọi ô vừa sửa bị BỎ ÂM THẦM. Giờ: sửa ô nào tính lại ngay ô đó, và chỉ khi
+     CHUYỂN BƯỚC mới hỏi một câu ngắn giữ hay bỏ — giống lúc lưu Packing Slip.
+     Ảnh chụp trước lần sửa đầu tiên được giữ để bấm "Bỏ" là trả lại nguyên trạng. */
+  var __editN=0, __editSnap=null;
   function markPending(cell, applyFn){
-    if(cell&&cell.classList) cell.classList.add('pending-edit');
-    if(typeof applyFn==='function') __pendBuf.push(applyFn);
-    var b=saveBtnFor(cell); if(b) b.style.display='';
-    Array.prototype.forEach.call(document.querySelectorAll('.pending-save'), function(x){ if(x.style.display!=='none') x.textContent='💾 Lưu ('+__pendBuf.length+')'; });
+    if(typeof applyFn!=='function') return;
+    if(!__editN){                                   // lần sửa ĐẦU của đợt này
+      try{ __editSnap=snapState(); }catch(e){ __editSnap=null; logErr('markPending', e); }
+      try{ pushUndo(); }catch(e){ logErr('markPending', e); }
+    }
+    __editN++;
+    runBusy('Đang tính lại…', function(){
+      try{ applyFn(); }catch(e){ logErr('markPending', e); }
+      try{ render(); }catch(e){ logErr('markPending', e); }
+    });
   }
-  function applyPendingEdits(){
-    if(!__pendBuf.length) return;
-    try{ pushUndo(); }catch(e){ logErr('applyPendingEdits', e); }
-    var buf=__pendBuf; __pendBuf=[];
-    buf.forEach(function(fn){ try{ fn(); }catch(e){ logErr('applyPendingEdits', e); } });   // áp dụng mọi ô đã sửa vào state
-    // tính lại + vẽ lại có thể mất vài trăm ms khi nhiều đơn → hiện chỉ báo, KHÔNG đổi kết quả
-    runBusy('Đang lưu và tính lại…', function(){ render(); });
-  }
-  // Chuyển step khi CHƯA lưu → HỦY toàn bộ ô đang chờ: dữ liệu về nguyên gốc, vẽ lại (bỏ giá trị vừa gõ + highlight)
-  window.__discardPending = function(){ if(__pendBuf.length){ __pendBuf=[]; try{ render(); }catch(e){ logErr('__discardPending', e); } } };
+  /* Chuyển bước mà đang có ô vừa sửa → hỏi 1 câu. OK = giữ · Cancel = trả lại như trước. */
+  window.__confirmEdits = function(){
+    if(!__editN) return true;
+    var n=__editN, snap=__editSnap; __editN=0; __editSnap=null;
+    var keep = (typeof confirm!=='function') || confirm(
+      'Đã sửa '+n+' ô trong bảng.\n\n• OK = LƯU thay đổi\n• Cancel = BỎ, trả lại như trước khi sửa');
+    if(keep){ logLine('Lưu '+n+' ô vừa sửa'); return true; }
+    if(snap){ try{ applySnap(snap); }catch(e){ logErr('__confirmEdits', e); } }
+    logLine('Bỏ '+n+' ô vừa sửa (không lưu)');
+    return false;
+  };
+  window.__discardPending = window.__confirmEdits;   // tên cũ, giữ cho chỗ nào còn gọi
   /* ===== VẼ THEO BƯỚC ĐANG XEM (giảm giật khi nhiều đơn) =====
      Trước: mỗi lần Lưu vẽ lại TẤT CẢ bảng (Nhập Đơn + Mix + Line Cuốn ≈ 60.000 ô) dù chỉ xem 1 bước.
      Nay: chỉ dựng HTML cho bảng của BƯỚC ĐANG MỞ; bước ẩn được đánh dấu "cần vẽ" và
@@ -1382,7 +1410,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return true;
   };
   function render(opts){
-    __pendBuf=[]; Array.prototype.forEach.call(document.querySelectorAll('.pending-save'), function(x){ x.style.display='none'; });   // render lại → hủy mọi ô chờ chưa lưu
+    Array.prototype.forEach.call(document.querySelectorAll('.pending-save'), function(x){ x.remove(); });   // dọn nút Lưu cũ (đã bỏ chế độ lưu tay)
     attachColorMix(state.orders);
     // chuyển bước: dữ liệu KHÔNG đổi → dùng lại kết quả đã tính (số liệu giữ nguyên tuyệt đối)
     var R = (opts && opts.reuseR && state.R) ? state.R
@@ -3499,14 +3527,22 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function updateErrChips(){
     var list=filteredErrors(), w=0, er=0;
     list.forEach(function(e){ if(e.level==='error') er++; else w++; });
-    var wc=document.getElementById('warn-chip'); if(wc){ wc.style.display=w?'':'none'; wc.textContent=w+' cảnh báo dữ liệu'; }
-    var ec=document.getElementById('err-chip'); if(ec){ ec.style.display=er?'':'none'; ec.textContent=er+' ô sai chuẩn'; }
     // Đã xác nhận bao nhiêu ô (trong phạm vi đang lọc) → cho bỏ xác nhận khi cần xem lại
     var acked=filteredErrors({keepAcked:true}).filter(function(e){ return e.level==='error' && isErrAcked(e); }).length;
+    /* Gom vào 2 NÚT XỔ cho gọn thanh: 1 nút cho cảnh báo/ô sai chuẩn, 1 nút cho xác nhận.
+       Nhãn trên nút là bản rút gọn, mở ra mới thấy đủ chữ. */
+    var wc=document.getElementById('dd-warn'); if(wc){ wc.style.display=w?'':'none'; wc.innerHTML='● <b>'+w+'</b> cảnh báo dữ liệu'; }
+    var ec=document.getElementById('dd-err-it'); if(ec){ ec.style.display=er?'':'none'; ec.innerHTML='● <b>'+er+'</b> ô sai chuẩn'; }
+    var ddE=document.getElementById('dd-err'), ddEb=document.getElementById('dd-err-btn');
+    if(ddE){ ddE.style.display=(w||er)?'':'none'; if(!(w||er)) ddE.classList.remove('open'); }
+    if(ddEb) ddEb.textContent=(er?('● '+er+' sai chuẩn'):('● '+w+' cảnh báo'));
     var ak=document.getElementById('err-ack');
-    if(ak){ ak.style.display=er?'':'none'; ak.textContent='✓ Đã kiểm '+er+' ô'; }
+    if(ak){ ak.style.display=er?'':'none'; ak.innerHTML='✓ Đã kiểm <b>'+er+'</b> ô đang hiện'; }
     var un=document.getElementById('err-unack');
-    if(un){ un.style.display=acked?'':'none'; un.textContent='↺ Hiện lại '+acked+' ô đã xác nhận'; }
+    if(un){ un.style.display=acked?'':'none'; un.innerHTML='↺ Hiện lại <b>'+acked+'</b> ô đã xác nhận'; }
+    var ddA=document.getElementById('dd-ack'), ddAb=document.getElementById('dd-ack-btn');
+    if(ddA){ ddA.style.display=(er||acked)?'':'none'; if(!(er||acked)) ddA.classList.remove('open'); }
+    if(ddAb) ddAb.textContent=acked?('✓ Đã kiểm '+acked):'✓ Đã kiểm';
     _errI=0; _warnI=0; _errN=-1; _warnN=-1;
   }
   // Xác nhận: mọi ô sai chuẩn đang hiện (theo bộ lọc) coi như đã kiểm → biến khỏi báo cáo.
@@ -3535,8 +3571,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var i=isErr?_errI:_warnI; if(i>=list.length) i=0;
     var e=list[i], keo=errIsKeo(e);
     if(keo) jumpToKeo(e); else jumpToError(e.seri,e.maDon,e.col);
-    var chip=document.getElementById(isErr?'err-chip':'warn-chip');
-    if(chip){ chip.textContent=list.length+(isErr?' ô sai chuẩn':' cảnh báo dữ liệu')+'  ('+(i+1)+'/'+list.length+')'; }
+    var chip=document.getElementById(isErr?'dd-err-it':'dd-warn');
+    if(chip){ chip.innerHTML='● <b>'+list.length+'</b>'+(isErr?' ô sai chuẩn':' cảnh báo dữ liệu')+'  ('+(i+1)+'/'+list.length+')'; }
+    var ddb=document.getElementById('dd-err-btn');
+    if(isErr && ddb) ddb.textContent='● '+(i+1)+'/'+list.length+' sai chuẩn';
     // thẻ KPI cho biết đang xem ô thứ mấy và ở bảng nào — bấm tiếp là sang ô kế
     var sub=document.getElementById('kpi-err-sub');
     if(isErr && sub) sub.textContent='▼ ô '+(i+1)+'/'+list.length+' · '+(keo?'Bảng Keo':'Bảng Nhập Đơn')+' — bấm tiếp để sang ô kế';
@@ -3555,7 +3593,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     try{ resetPack(); }catch(e){ logErr('jumpCycle', e); }
     try{ render(); }catch(e){ logErr('jumpCycle', e); }
   });
-  var ecEl=document.getElementById('err-chip');  if(ecEl && ecEl.addEventListener) ecEl.addEventListener('click', function(){ jumpCycle('error'); });
+  var ecEl=document.getElementById('dd-err-it');  if(ecEl && ecEl.addEventListener) ecEl.addEventListener('click', function(){ jumpCycle('error'); });
   var akEl=document.getElementById('err-ack');   if(akEl) akEl.addEventListener('click', function(){ ackErrors(true); });
   var unEl=document.getElementById('err-unack'); if(unEl) unEl.addEventListener('click', function(){ ackErrors(false); });
   // Nút "Duyệt tất cả" (nằm ở dòng tiêu đề cột) — duyệt mọi quy đổi độ cong
@@ -3580,7 +3618,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   /* Thẻ "Ô sai chuẩn": bấm 1 lần = tới 1 ô, bấm tiếp = ô kế, xoay vòng hết lượt.
      Ô nằm ở bảng nào thì tự nhảy sang đúng bảng đó (Bảng Nhập Đơn / Bảng Keo). */
   var kec=document.getElementById('kpi-err-card'); if(kec && kec.addEventListener) kec.addEventListener('click', function(){ if(errShown(state.R)){ jumpCycle('error'); } else { go('s3'); } });
-  var wcEl=document.getElementById('warn-chip'); if(wcEl && wcEl.addEventListener) wcEl.addEventListener('click', function(){ jumpCycle('warn'); });
+  var wcEl=document.getElementById('dd-warn'); if(wcEl && wcEl.addEventListener) wcEl.addEventListener('click', function(){ jumpCycle('warn'); });
+  /* Nút xổ: bấm nút thì mở/đóng, bấm 1 mục thì chạy rồi đóng, bấm ra ngoài cũng đóng. */
+  document.addEventListener('click', function(ev){
+    var t=ev.target&&ev.target.closest?ev.target.closest('.dd-btn'):null;
+    var dd=t?t.closest('.dd'):null;
+    Array.prototype.forEach.call(document.querySelectorAll('.dd.open'), function(d){ if(d!==dd) d.classList.remove('open'); });
+    if(dd){ dd.classList.toggle('open'); return; }
+    var it=ev.target&&ev.target.closest?ev.target.closest('.dd-it'):null;
+    if(it){ var d2=it.closest('.dd'); if(d2) d2.classList.remove('open'); }
+  });
 
   function wireSearch(id){
     var inp=document.getElementById(id);
@@ -6177,7 +6224,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
                files:state.files, log:state.log, source:state.source, processed:state.processed };
     },
     hasData: function(){ return !!(state.files && state.files.length) || !!(state.orders && state.orders.length); },
-    isDirty: function(){ try{ return !!(__pendBuf && __pendBuf.length); }catch(e){ return false; } },   // có ô sửa CHƯA lưu → không tự reload
+    isDirty: function(){ try{ return __editN>0; }catch(e){ return false; } },   // đang sửa dở → không tự reload
     loadData: function(p){
       p = p || {};
       state.orders    = Array.isArray(p.orders)    ? p.orders    : [];
