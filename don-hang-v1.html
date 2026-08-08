@@ -220,9 +220,21 @@ td.cellsel-anchor,th.cellsel-anchor{box-shadow:inset 0 0 0 2px var(--accent)}
 /* Thanh công cụ của từng bước (ô tìm + lọc KH/đơn + các nút): DÍNH khi cuộn trang,
    nội dung cuộn phía dưới nó; tiêu đề bảng bên dưới cũng dính (thead sticky) → luôn thấy
    ô lọc và tên cột. Nền đục + tràn hết chiều ngang để không lộ nội dung chạy phía sau. */
-.tbl-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+/* THANH CÔNG CỤ LUÔN 1 DÒNG.
+   Trước để flex-wrap:wrap nên hết chỗ là nút cuối (vd "So sánh với đơn khách") rớt xuống
+   dòng hai, thanh cao gấp đôi mà dòng dưới chỉ có 1 nút. Giờ không xuống dòng nữa: ô tìm
+   kiếm và 2 ô lọc tự co giãn để nhường chỗ, nút giữ nguyên bề ngang và không ngắt chữ.
+   Hẹp quá mức thì cuộn ngang, chứ không xuống dòng. */
+.tbl-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;
   position:sticky;top:0;z-index:30;background:var(--bg);
   margin:0 -20px 12px;padding:10px 20px 10px;box-shadow:0 1px 0 var(--border)}
+.tbl-toolbar>*{flex:0 0 auto}                                   /* mặc định: giữ nguyên bề ngang */
+.tbl-toolbar .search-top{flex:1 1 150px!important;width:auto!important;min-width:88px}
+.tbl-toolbar .madon-pick{flex:1 1 120px!important;min-width:80px!important;width:auto}
+.tbl-toolbar .spacer{flex:1 1 0!important;min-width:0}          /* khoảng đệm nhường chỗ trước tiên */
+.tbl-toolbar .btn,.tbl-toolbar .badge,.tbl-toolbar .chip{white-space:nowrap}
+/* màn hẹp (laptop nhỏ) thì cho xuống dòng lại, không thì nút bị đẩy ra khỏi màn */
+@media (max-width:1180px){ .tbl-toolbar{flex-wrap:wrap} }
 /* tiêu đề bảng dính NGAY DƯỚI thanh công cụ (bảng có vùng cuộn riêng) */
 .tbl-wrap{position:relative}
 .tbl-wrap thead th{z-index:6}
@@ -506,7 +518,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608081510</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608081625</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -3388,18 +3400,30 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
 
   /* ---- CHIP lỗi / cảnh báo: bấm nhảy đến đúng ô ---- */
-  // Nhảy tới đúng ô mã keo sai chuẩn ở Bảng Keo (bước 4)
+  /* Nhảy tới đúng ô mã keo sai chuẩn ở BẢNG KEO.
+     LƯU Ý mã bước: s4 = Bảng Mix Label, s5 = BẢNG KEO (số thứ tự trên thanh bên là 3 và 4,
+     lệch với tên id). Trước đây gõ nhầm s4 nên bấm ô keo lại rơi sang bảng Mix. */
+  var KEO_STEP='s5';
   function jumpToKeo(e){
-    if(typeof go==='function') go('s4');
-    setTimeout(function(){
-      var tb=document.getElementById('eng-keo-full'); if(!tb) return;
-      var tr=tb.querySelector('tr[data-keoidx="'+e.keoIdx+'"]');
-      if(!tr) return;
+    if(typeof go==='function') go(KEO_STEP);
+    // bỏ lọc/tìm kiếm để chắc chắn dòng keo đó đang hiện (giống lúc nhảy ở Bảng Nhập Đơn)
+    state.filters={}; gridQuery='';
+    try{ applyGridFilter(); }catch(err){ logErr('jumpToKeo', err); }
+    // bảng chỉ vẽ khi vào đúng bước → thử lại vài nhịp cho tới khi có dòng
+    var tries=0;
+    (function find(){
+      var tb=document.getElementById('eng-keo-full');
+      var tr=tb && tb.querySelector('tr[data-keoidx="'+e.keoIdx+'"]');
+      if(!tr){ if(++tries<12) return setTimeout(find, 60); return; }
       if(tr.scrollIntoView) tr.scrollIntoView({block:'center', behavior:'smooth'});
       if(tr.classList){ tr.classList.add('flash'); setTimeout(function(){ tr.classList.remove('flash'); }, 1500); }
-      var td=tr.querySelector('td[data-keoedit="loaiKeo"]');
-      if(td){ td.classList.add('jump-hit'); setTimeout(function(){ td.classList.remove('jump-hit'); }, 1800); }
-    }, 60);
+      var td=tr.querySelector('td[data-keoedit="loaiKeo"]') || tr.querySelector('td.txt');
+      if(td){
+        if(td.scrollIntoView) td.scrollIntoView({block:'center',inline:'center'});
+        td.classList.add('jump-hit');
+        setTimeout(function(){ td.classList.remove('jump-hit'); }, 1800);
+      }
+    })();
   }
   function jumpToError(seri, mdon, col){
     if(typeof go==='function') go('s3');   // sang Bảng Nhập Đơn
