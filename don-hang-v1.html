@@ -532,7 +532,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608082030</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608082130</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1416,9 +1416,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     Array.prototype.forEach.call(document.querySelectorAll('.pending-save'), function(x){ x.remove(); });   // dọn nút Lưu cũ (đã bỏ chế độ lưu tay)
     attachColorMix(state.orders);
     // chuyển bước: dữ liệu KHÔNG đổi → dùng lại kết quả đã tính (số liệu giữ nguyên tuyệt đối)
-    var R = (opts && opts.reuseR && state.R) ? state.R
+    var _reuse = !!(opts && opts.reuseR && state.R);
+    var R = _reuse ? state.R
           : E.runPipeline({ rawOrders: state.orders, mixSheets: state.mixSheets, keoRows: state.keoRows, khachCuon: state.khachCuon||null, opt:{ lenApproved: state.lenApproved||{} } });
-    state.orders = R.orders; // giữ bản đã chuẩn hoá
+    /* CHỈ ghi đè khi vừa TÍNH LẠI. Dùng lại kết quả cũ mà vẫn gán thì đơn vừa nạp bị thay bằng
+       danh sách của lần tính TRƯỚC — nạp file xong mất sạch đơn, mọi bảng trống, ô tìm mã đơn
+       không ra gì (lỗi 8/8/2026). */
+    if(!_reuse) state.orders = R.orders; // giữ bản đã chuẩn hoá
     state.R = R;
     // CẤU TRÚC ĐỘ CONG CỐ ĐỊNH 16 cột (J B C CC D DD L M V L+ LD LC+ LC LB LJ Curl 1)
     // cho cả Nhập Đơn · Line Cuốn · Tổng hợp Box; file lệch cấu trúc sẽ có cảnh báo riêng
@@ -2088,6 +2092,24 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return nb>na ? b : a;
   }
   // Đọc vùng "Bảng Hộp" trong sheet GỬI XƯỞNG: mỗi loại hộp có Tên (C2) · SL (C3) · Ghi Chú (C4); cột Note chung (C11).
+  /* GHI CHÚ của mẫu đơn 2026 nằm CHỖ KHÁC hẳn mẫu cũ: khối "Note" ở cột B ngay đầu sheet
+     (B4 "Note" · B5 "Ghi Chú Gửi Xưởng" · các dòng dưới là nội dung), chứ không phải cột
+     "Note" cạnh Bảng Hộp. Đọc riêng khối này rồi ghép vào phần ghi chú của Bảng Hộp. */
+  function parseNote2026(A){
+    if(!A||!A.length) return null;
+    var low=function(s){ try{ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[Đđ]/g,'d').toLowerCase().replace(/\s+/g,' ').trim(); }catch(e){ return String(s||'').toLowerCase().trim(); } };
+    var cell=function(r,c){ var row=A[r]||[]; var v=row[c]; return v==null?'':String(v).trim(); };
+    var hr=-1;
+    for(var r=0;r<Math.min(A.length,14);r++){ if(low(cell(r,1))==='note'){ hr=r; break; } }
+    if(hr<0) return null;
+    var out=[];
+    for(var r2=hr+1;r2<A.length && r2-hr<=20;r2++){
+      var v=cell(r2,1), l=low(v);
+      if(l.indexOf('lines check')===0 || l.indexOf('bang hop')===0) break;   // sang khối khác → dừng
+      if(v) out.push(v);
+    }
+    return out.length ? out : null;
+  }
   function parseBoxTable(A){
     if(!A||!A.length) return null;
     function cell(r,c){ var row=A[r]||[]; var v=row[c]; return v==null?'':String(v).trim(); }
@@ -2098,7 +2120,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     for(var r=0;r<A.length;r++){ if(low(cell(r,1)).indexOf('bang hop')===0){ hr=r; break; } }
     if(hr<0) return null;
     var gcCol=findCol(hr,'ghi chu'); if(gcCol<0) gcCol=3;      // dò cột "Ghi Chú" (mỗi file có thể khác cột)
-    var noteCol=findCol(hr,'note'); if(noteCol<0) noteCol=10;
+    /* Cột "Note": mẫu cũ để ở K25 (gộp K25:V25). Mẫu 2026 KHÔNG có cột này — chỗ đó là
+       "Bảng Độ Cong". Trước đây không thấy chữ "Note" là mặc định lấy cột K → đơn 2026 đọc
+       nhầm nguyên vùng độ cong thành ghi chú (ra 41 dòng × 16 cột toàn tên độ cong).
+       → Chỉ dùng cột K khi ô đó THẬT SỰ trống, còn có chữ khác thì coi như không có Note. */
+    var noteCol=findCol(hr,'note');
+    if(noteCol<0) noteCol = low(cell(hr,10))==='' ? 10 : -1;
     var total=cell(hr,2), rows=[], notes=[], noteCols=[];
     // (a) danh sách loại hộp: dừng ở "Đã chọn"
     for(var r2=hr+1;r2<A.length && r2-hr<=25;r2++){
@@ -2187,6 +2214,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
                 data={rawOrders:gx.rawOrders, mixSheets:gx.mixSheets, keoRows:gx.keoRows};
                 meta=gx.meta;
                 try{ meta.boxTable=parseBoxTable(gxAOA); }catch(e){ /* bỏ qua nếu không có Bảng Hộp */ }
+                // mẫu 2026: ghi chú nằm ở khối "Note" đầu sheet → ghép vào cho hiện đúng chỗ
+                try{
+                  var _n26=parseNote2026(gxAOA);
+                  if(_n26 && meta.boxTable && !(meta.boxTable.noteCols||[]).length){
+                    meta.boxTable.notes=_n26; meta.boxTable.noteCols=[_n26]; meta.boxTable.v=3;
+                  }
+                }catch(e){ logErr('parseNote2026', e); }
                 try{ meta.doCong=parseDoCongTable(gxAOA); }catch(e){ /* bỏ qua nếu không có Bảng Độ Cong */ }
                 kind='đơn khách '+gx.meta.maDon+(gx.meta.khach?' · KH '+gx.meta.khach:'');
               }
@@ -2330,9 +2364,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
        nhìn cứ như app không đọc được file. */
     if(!onlyImported && hasNew){
       var _f0=[gridMadon,gridMakh].filter(Boolean).join(' · ');
-      try{ setGlobalMadon(''); }catch(e){ logErr('processFiles', e); }
-      try{ setGlobalMakh(''); }catch(e){ logErr('processFiles', e); }
-      ['chosen-madon','imported-madon'].forEach(function(id){ var e2=document.getElementById(id); if(e2) e2.value=''; });
+      // đặt thẳng, KHÔNG gọi setGlobalMadon/Makh — hai hàm đó kéo theo 1 lượt vẽ lại bằng
+      // dữ liệu CŨ; render() ngay bên dưới đã lo hết rồi.
+      gridMadon=''; gridMakh='';
+      (MADON_IDS||[]).concat(MAKH_IDS||[]).concat(['chosen-madon','imported-madon'])
+        .forEach(function(id){ var e2=document.getElementById(id); if(e2) e2.value=''; });
       if(_f0) logLine('Đã bỏ bộ lọc "'+_f0+'" để thấy đơn vừa nạp');
     }
     render();

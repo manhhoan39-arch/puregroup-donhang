@@ -1356,7 +1356,9 @@
       row = aoa[r] || [];
       for (i = 0; i < row.length; i++) {
         if (PS(row[i]).toLowerCase() === 'mã đơn') {
-          v = PS((aoa[r + 1] || [])[i]).replace(/[\s-]+$/, '');   // file mẫu ghi "CS384-" thiếu đuôi
+          /* GIỮ NGUYÊN cả dấu "-" ở cuối: "CS185-" nghĩa là mã KH = CS185, CHƯA có mã đơn.
+             Cắt dấu đi thì app hiểu nhầm CS185 là mã đơn. splitMd() tách ra kh='CS185', don=''. */
+          v = PS((aoa[r + 1] || [])[i]).trim();
           if (v && !(maDon && maDon !== v && maDon.indexOf(v) === 0)) maDon = v;
           r = 99; break;
         }
