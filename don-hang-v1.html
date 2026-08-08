@@ -532,7 +532,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608081940</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608082030</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -2279,6 +2279,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // onlyImported=true (khi XÓA 1 file): chỉ dựng lại từ file ĐÃ NHẬP — không tự xử lý các file đang chờ ở "File đã chọn"
     var okFiles=state.files.filter(function(F){ return F.data && (!onlyImported || F.imported); });
     if(!okFiles.length){ if(!silent) alert('Chưa có file hợp lệ để xử lý — kéo thả hoặc bấm "Chọn file" trước.'); return; }
+    var hasNew=okFiles.some(function(F){ return F._new; });   // có file vừa nạp trong đợt này không
     if(!onlyImported) okFiles.forEach(function(F){ F.imported=true; });   // đã xử lý → chuyển sang cột "File đã nhập"
     var t0 = Date.now();   // đo thời gian xử lý thật
     var orders=[], mixSheets=[], keoRows=[], seenMix={};
@@ -2323,6 +2324,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     resetPack();   // nguồn đổi → reset lớp packing
     state.processed=true;
     state.filters={}; gridQuery='';   // dữ liệu mới → xóa bộ lọc/tìm kiếm cũ
+    /* NẠP FILE MỚI → BỎ LUÔN bộ lọc Mã Đơn / Mã KH đang bật.
+       App chỉ tự bỏ lọc khi mã đang lọc BIẾN MẤT khỏi dữ liệu; nạp thêm file thì mã cũ vẫn
+       còn nên bộ lọc giữ nguyên — đơn vừa nạp bị ẩn sạch ở mọi bước lẫn ở cột "File đã nhập",
+       nhìn cứ như app không đọc được file. */
+    if(!onlyImported && hasNew){
+      var _f0=[gridMadon,gridMakh].filter(Boolean).join(' · ');
+      try{ setGlobalMadon(''); }catch(e){ logErr('processFiles', e); }
+      try{ setGlobalMakh(''); }catch(e){ logErr('processFiles', e); }
+      ['chosen-madon','imported-madon'].forEach(function(id){ var e2=document.getElementById(id); if(e2) e2.value=''; });
+      if(_f0) logLine('Đã bỏ bộ lọc "'+_f0+'" để thấy đơn vừa nạp');
+    }
     render();
     try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('processFiles', e); }   // tự lưu bản làm việc
     // chốt BẢN GỐC (đã chuẩn hoá) để bước So Sánh đối chiếu với chỉnh sửa về sau — gồm cả Mix & Keo
@@ -2395,8 +2407,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       else sWarn++;
     });
     newFiles.forEach(function(F){ sRows+=(F.data&&F.data.rawOrders?F.data.rawOrders.length:0); });
+    // ghi rõ MÃ ĐƠN vừa nạp — biết mà tra ở các bước sau, khỏi phải mò
+    var mdNew=Object.keys(scopeMd);
     var head = newFiles.length
       ? ('<b>'+newFiles.length+' file vừa nạp</b> · '+sRows+' dòng đơn<br>'+
+         (mdNew.length?('Mã đơn: <b>'+esc(mdNew.slice(0,6).join(' · '))+'</b>'+(mdNew.length>6?(' … +'+(mdNew.length-6)):'')+'<br>'):'')+
          'Ô sai chuẩn: <b'+(sErr?' style="color:var(--red-600)"':'')+'>'+sErr+'</b> · Cảnh báo: <b>'+sWarn+'</b>')
       : '<span style="color:var(--text-2)">Đã tính lại — không có file mới nạp</span>';
     showPopup('✅ Xử lý xong',
