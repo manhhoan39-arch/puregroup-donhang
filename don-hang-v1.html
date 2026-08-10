@@ -532,7 +532,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608101830</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608101930</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -4166,6 +4166,27 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     {k:'other',   name:'Khác',                     note:''}
   ];
   function boxTypesKey(md){ return md||'__all__'; }
+  /* GHI CHÚ Ở TIÊU ĐỀ CỘT ĐỘ CONG (vd 744P: "B curl Label J") = chỉ dẫn DÁN TEM cho Box.
+     Thuộc về khâu đóng hộp nên hiện ở Tổng hợp Box, không phải Bảng Line Cuốn.
+     Đơn nào tiêu đề chỉ ghi trơn tên độ cong thì trả '' — không chèn gì. */
+  function temNoteHtml(md){
+    if(!md) return '';
+    var hd=(state.curlHeadersByMadon&&state.curlHeadersByMadon[md])||{};
+    var nt=(state.curlNotesByMadon&&state.curlNotesByMadon[md])||{};
+    var out=[];
+    CURLS.forEach(function(k){
+      var h=String(hd[k]||'').trim(), n=String(nt[k]||'').trim();
+      var them=(h && h.toLowerCase()!==k.toLowerCase()) ? h : (n?(k+' '+n):'');
+      if(!them) return;
+      var bo=them.replace(new RegExp('^'+k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*','i'),'').trim();
+      out.push('<b>'+esc(k)+'</b> → '+esc(bo||them));
+    });
+    return out.length
+      ? '<div class="txt mini" style="padding:7px 9px;margin-bottom:8px;border-radius:8px;'+
+        'background:var(--amber-50);border:1px solid var(--amber-500);line-height:1.7">'+
+        '🏷️ <b>Ghi chú tiêu đề độ cong</b> (dán tem cho Box): '+out.join(' · ')+'</div>'
+      : '';
+  }
   function renderBoxTypes(tot, md){
     var pb=document.getElementById('box-perbox'); if(!pb) return;
     if(!md){ pb.innerHTML='<div class="bt-hint">📦 Chọn 1 mã đơn ở ô "Tất cả các đơn" để xem <b>Bảng Hộp</b> của đơn đó.</div>'; return; }
@@ -4216,7 +4237,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         '<tbody>'+rows+'</tbody>'+
         '<tfoot><tr><td class="bt-name bt-foot">Đã chọn</td><td class="bt-qty bt-fq" style="color:'+col+'">'+fmtN(chosen)+'</td><td class="bt-note bt-fn" style="color:'+col+';font-weight:700">'+fnote+'</td></tr></tfoot>'+
       '</table></div>';
-    pb.innerHTML = gen ? ('<div class="boxtypes-wrap">'+card+gen+'</div>') : card;
+    // ghi chú dán tem (lấy từ tiêu đề cột độ cong của đơn) đặt NGAY TRÊN Bảng Hộp
+    pb.innerHTML = temNoteHtml(md) + (gen ? ('<div class="boxtypes-wrap">'+card+gen+'</div>') : card);
   }
   /* Ghi chú Bảng Hộp chỉ được đọc lúc NHẬP file Excel rồi lưu vào project. Sau khi sửa
      cách đọc, dữ liệu cũ vẫn còn nguyên trong project → phải nhập lại cả file mới thấy.
@@ -4414,25 +4436,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var box=document.getElementById('s6-docong'); if(!box) return;
     var md=getVal('s6-madon'); setTxt('s6-docong-title', md||'—');
     if(!md){ box.innerHTML='<div class="txt mini" style="padding:8px;color:var(--text-3)">Chọn Mã Đơn ở bộ lọc phía trên để xem bảng độ cong của đơn.</div>'; return; }
-    /* GHI CHÚ Ở TIÊU ĐỀ CỘT ĐỘ CONG (vd 744P: "B curl Label J") — đây là chỉ dẫn DÁN TEM
-       cho Box, xưởng cần thấy ngay ở bước 6. Đơn nào không ghi gì thì không hiện dòng này. */
-    var _hd=(state.curlHeadersByMadon&&state.curlHeadersByMadon[md])||{};
-    var _nt=(state.curlNotesByMadon&&state.curlNotesByMadon[md])||{};
-    var _tem=[];
-    CURLS.forEach(function(k){
-      var h=String(_hd[k]||'').trim(), n=String(_nt[k]||'').trim();
-      var them=h && h.toLowerCase()!==k.toLowerCase() ? h : (n?(k+' '+n):'');
-      if(them) _tem.push('<b>'+esc(k)+'</b> → '+esc(them.replace(new RegExp('^'+k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*','i'),'').trim()||them));
-    });
-    var temHtml=_tem.length
-      ? '<div class="txt mini" style="padding:7px 9px;margin-bottom:6px;border-radius:8px;'+
-        'background:var(--amber-50);border:1px solid var(--amber-500);line-height:1.7">'+
-        '🏷️ <b>Ghi chú tiêu đề độ cong</b> (dán tem cho Box): '+_tem.join(' · ')+'</div>'
-      : '';
     var dc=(state.doCongByMadon&&state.doCongByMadon[md])||null;
-    if(!dc||!dc.rows||!dc.rows.length){ box.innerHTML=temHtml+'<div class="txt mini" style="padding:8px;color:var(--text-3)">Đơn '+esc(md)+' không có bảng độ cong riêng trong file.</div>'; return; }
+    if(!dc||!dc.rows||!dc.rows.length){ box.innerHTML='<div class="txt mini" style="padding:8px;color:var(--text-3)">Đơn '+esc(md)+' không có bảng độ cong riêng trong file.</div>'; return; }
     var rows=dc.rows.map(function(r){ return '<tr><td class="txt">'+esc(r.name||'')+'</td><td class="txt">'+esc(r.note||'')+'</td></tr>'; }).join('');
-    box.innerHTML=temHtml+'<table class="sheet" style="width:100%;font-size:11px"><thead><tr><th style="width:130px">Độ Cong</th><th>Ghi Chú</th></tr></thead><tbody>'+rows+'</tbody></table>';
+    box.innerHTML='<table class="sheet" style="width:100%;font-size:11px"><thead><tr><th style="width:130px">Độ Cong</th><th>Ghi Chú</th></tr></thead><tbody>'+rows+'</tbody></table>';
   }
 
   // Tổng hợp Line Cuốn tính theo Mã Đơn đang chọn (Tổng Dây/Single/Mix + dòng GRAND TOTAL)
