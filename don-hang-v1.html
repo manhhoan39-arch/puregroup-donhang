@@ -532,7 +532,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608101330</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608101700</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -2078,6 +2078,25 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         return '<li><b>'+esc(k2)+'</b> — '+grp[k2].n+' dòng, thiếu ~<b>'+fmtN(grp[k2].day)+'</b> dây (không có bảng Mix cho dải này)</li>';
       }).join('')+'</ul>';
     }
+    /* Dải Mix NHIỀU MÀU: file khách chỉ ghi phân bố cho MỘT màu (vd 676P dải 8-13mm ghi 6 dải,
+       dòng đơn khai 18 lines = 3 màu). Theo quy ước: đơn nào có Mix màu thì BẮT BUỘC điền tay.
+       Nêu đích danh ở đây để biết vào đâu điền, thay vì chỉ thấy "thiếu N dây". */
+    var cmHtml='';
+    try{
+      var cmMiss=((state.R&&state.R.orders)||[]).filter(function(o){
+        return keep(o.maDon) && o.mixSingle==='Mix' && cmCodes(o).length>1 && !colorMixComplete(o);
+      });
+      if(cmMiss.length){
+        var g2={}; cmMiss.forEach(function(o){
+          var k3=o.maDon+' · dải '+o.length+' · '+cmCodes(o).length+' màu';
+          g2[k3]=(g2[k3]||0)+1;
+        });
+        cmHtml='<ul class="khop-ul">'+Object.keys(g2).map(function(k3){
+          return '<li><b>'+esc(k3)+'</b> — '+g2[k3]+' dòng <b>chưa điền Bảng Mix màu</b>'+
+                 ' → vào bước 3 (Bảng Mix Label) điền tay phân bố cho từng màu</li>';
+        }).join('')+'</ul>';
+      }
+    }catch(e){ logErr('renderKhopWarn.cmix', e); }
     var trs=bad.map(function(r){
       return '<tr><td class="txt"><b>'+esc(r.md)+'</b></td><td class="qty">'+fmtN(r.khay)+'</td>'+
         '<td class="qty">'+fmtN(r.app)+'</td><td class="qty">'+fmtN(r.tuTinh)+'</td>'+
@@ -2086,7 +2105,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     box.innerHTML='<div class="khop bad"><div class="khop-h">⛔ SỐ DÂY SAI — '+bad.length+' đơn</div>'+
       '<table class="sheet khop-t"><thead><tr><th class="txt">Mã Đơn</th><th>Số hộp</th>'+
       '<th>Dây (app)</th><th>Dây (hộp × line ÷ 2)</th><th>Chênh</th></tr></thead><tbody>'+trs+'</tbody></table>'+
-      missHtml+'</div>';
+      missHtml+cmHtml+'</div>';
   }
 
   /* ===== DEBOUNCE cho ô TÌM KIẾM/LỌC =====
@@ -2189,17 +2208,26 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var low=function(s){ try{ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[Đđ]/g,'d').toLowerCase().replace(/\s+/g,' ').trim(); }catch(e){ return String(s||'').toLowerCase().trim(); } };
     function findCol(ri,label){ var row=A[ri]||[]; for(var c=0;c<row.length;c++){ if(low(row[c])===label) return c; } return -1; }
     // dò tiêu đề "Bảng Độ Cong" ở BẤT KỲ cột nào (khớp bắt đầu, chấp nhận có chữ thêm)
+    /* Quét CẢ DÒNG chứ không chỉ 6 cột đầu: mẫu đơn 2026 đặt "Bảng Độ Cong" ở cột K,
+       nằm ngang hàng với Bảng Hộp — trước đây tìm không ra nên báo "đơn không có bảng độ cong". */
     var hr=-1, hc=1;
-    for(var r=0;r<A.length && hr<0;r++){ var row0=A[r]||[]; for(var c=0;c<Math.min(row0.length,6);c++){ if(low(row0[c]).indexOf('bang do cong')===0){ hr=r; hc=c; break; } } }
+    for(var r=0;r<A.length && hr<0;r++){ var row0=A[r]||[]; for(var c=0;c<row0.length;c++){ if(low(row0[c]).indexOf('bang do cong')===0){ hr=r; hc=c; break; } } }
     if(hr<0) return null;
-    var gcCol=findCol(hr,'ghi chu'); if(gcCol<0) gcCol=hc+1;    // dò cột "Ghi Chú"
-    var rows=[];
+    /* Cột "Ghi Chú" phải là cột NẰM SAU tiêu đề Bảng Độ Cong — dòng đó còn một "Ghi Chú"
+       nữa của Bảng Hộp ở bên trái, lấy nhầm là đọc sang ghi chú của hộp. */
+    var gcCol=-1, _hrow=A[hr]||[];
+    for(var _c=hc+1;_c<_hrow.length;_c++){ if(low(_hrow[_c])==='ghi chu'){ gcCol=_c; break; } }
+    if(gcCol<0) gcCol=hc+1;
+    var rows=[], _seen=false;
     for(var r2=hr+1;r2<A.length && r2-hr<=12;r2++){
       var nm=cell(r2,hc), l=low(nm);
       if(l.indexOf('bang keo')===0||l.indexOf('bang hop')===0||l.indexOf('da chon')===0) break;
       var nt=cell(r2,gcCol);
-      if(!nt){ var row1=A[r2]||[]; for(var c2=hc+1;c2<Math.min(row1.length,12);c2++){ var vv=cell(r2,c2); if(vv){ nt=vv; break; } } }
-      if(nm||nt) rows.push({ name:nm, note:nt });
+      if(!nt){ var row1=A[r2]||[]; for(var c2=hc+1;c2<Math.min(row1.length,gcCol+8);c2++){ var vv=cell(r2,c2); if(vv){ nt=vv; break; } } }
+      /* Gặp dòng TRỐNG sau khi đã lấy được nội dung → hết bảng. Không dừng ở đây thì mẫu 2026
+         đọc lan xuống tận dòng tiêu đề bảng đơn bên dưới, ra mấy dòng rác "1|2", "J|B". */
+      if(!nm && !nt){ if(_seen) break; else continue; }
+      rows.push({ name:nm, note:nt }); _seen=true;
     }
     return rows.length ? { rows:rows } : null;
   }
@@ -2356,14 +2384,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       F.data.keoRows.forEach(function(k){ keoRows.push(k); });
     });
     // gom GHI CHÚ độ cong từ header các file (vd L+ = "( tem LC)") để hiện ở Box (step 6)
-    var curlNotes={}, cnbm={}, btbm={}, dcbm={}; okFiles.forEach(function(F){
+    var curlNotes={}, cnbm={}, btbm={}, dcbm={}, chbm={}; okFiles.forEach(function(F){
       var seen={}; (F.data.rawOrders||[]).forEach(function(o){ var m=o&&o.maDon; if(m&&!seen[m]){ seen[m]=1;
         if(F.meta&&F.meta.curlNotes) cnbm[m]=Object.assign(cnbm[m]||{}, F.meta.curlNotes);
+        // tiêu đề GỐC của cột độ cong (vd "B curl Label J") — để hiện ở Bảng Độ Cong bước 6
+        if(F.meta&&F.meta.curlHeaders) chbm[m]=Object.assign(chbm[m]||{}, F.meta.curlHeaders);
         if(F.meta&&F.meta.boxTable) btbm[m]=richerBox(btbm[m], F.meta.boxTable);
         if(F.meta&&F.meta.doCong) dcbm[m]=F.meta.doCong;
       } });
       if(F.meta&&F.meta.curlNotes) Object.assign(curlNotes, F.meta.curlNotes);
-    }); state.curlNotes=curlNotes; state.curlNotesByMadon=cnbm; state.boxTableByMadon=btbm; state.doCongByMadon=dcbm;
+    }); state.curlNotes=curlNotes; state.curlNotesByMadon=cnbm; state.boxTableByMadon=btbm; state.doCongByMadon=dcbm; state.curlHeadersByMadon=chbm;
     /* Đơn template 2026 gửi kèm bảng mm khách tự tính → gom lại để pipeline đối chiếu.
        Không có thì để null, mọi thứ chạy y như cũ. */
     (function(){
@@ -4380,10 +4410,25 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var box=document.getElementById('s6-docong'); if(!box) return;
     var md=getVal('s6-madon'); setTxt('s6-docong-title', md||'—');
     if(!md){ box.innerHTML='<div class="txt mini" style="padding:8px;color:var(--text-3)">Chọn Mã Đơn ở bộ lọc phía trên để xem bảng độ cong của đơn.</div>'; return; }
+    /* GHI CHÚ Ở TIÊU ĐỀ CỘT ĐỘ CONG (vd 744P: "B curl Label J") — đây là chỉ dẫn DÁN TEM
+       cho Box, xưởng cần thấy ngay ở bước 6. Đơn nào không ghi gì thì không hiện dòng này. */
+    var _hd=(state.curlHeadersByMadon&&state.curlHeadersByMadon[md])||{};
+    var _nt=(state.curlNotesByMadon&&state.curlNotesByMadon[md])||{};
+    var _tem=[];
+    CURLS.forEach(function(k){
+      var h=String(_hd[k]||'').trim(), n=String(_nt[k]||'').trim();
+      var them=h && h.toLowerCase()!==k.toLowerCase() ? h : (n?(k+' '+n):'');
+      if(them) _tem.push('<b>'+esc(k)+'</b> → '+esc(them.replace(new RegExp('^'+k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*','i'),'').trim()||them));
+    });
+    var temHtml=_tem.length
+      ? '<div class="txt mini" style="padding:7px 9px;margin-bottom:6px;border-radius:8px;'+
+        'background:var(--amber-50);border:1px solid var(--amber-500);line-height:1.7">'+
+        '🏷️ <b>Ghi chú tiêu đề độ cong</b> (dán tem cho Box): '+_tem.join(' · ')+'</div>'
+      : '';
     var dc=(state.doCongByMadon&&state.doCongByMadon[md])||null;
-    if(!dc||!dc.rows||!dc.rows.length){ box.innerHTML='<div class="txt mini" style="padding:8px;color:var(--text-3)">Đơn '+esc(md)+' không có bảng độ cong riêng trong file.</div>'; return; }
+    if(!dc||!dc.rows||!dc.rows.length){ box.innerHTML=temHtml+'<div class="txt mini" style="padding:8px;color:var(--text-3)">Đơn '+esc(md)+' không có bảng độ cong riêng trong file.</div>'; return; }
     var rows=dc.rows.map(function(r){ return '<tr><td class="txt">'+esc(r.name||'')+'</td><td class="txt">'+esc(r.note||'')+'</td></tr>'; }).join('');
-    box.innerHTML='<table class="sheet" style="width:100%;font-size:11px"><thead><tr><th style="width:130px">Độ Cong</th><th>Ghi Chú</th></tr></thead><tbody>'+rows+'</tbody></table>';
+    box.innerHTML=temHtml+'<table class="sheet" style="width:100%;font-size:11px"><thead><tr><th style="width:130px">Độ Cong</th><th>Ghi Chú</th></tr></thead><tbody>'+rows+'</tbody></table>';
   }
 
   // Tổng hợp Line Cuốn tính theo Mã Đơn đang chọn (Tổng Dây/Single/Mix + dòng GRAND TOTAL)
@@ -6350,7 +6395,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       // project đã lưu = file đã xử lý → cột "File đã nhập", và KHÔNG báo lại cảnh báo của chúng
       state.files.forEach(function(F){ if(F&&F.data){ F.imported=true; F._new=false; } });
       // dựng lại ghi chú độ cong + Bảng Hộp theo mã đơn từ meta các file đã lưu
-      var cnbm={}, btbm={}, dcbm={}; state.files.forEach(function(F){ if(!F||!F.meta||!F.data) return; var seen={}; (F.data.rawOrders||[]).forEach(function(o){ var m=o&&o.maDon; if(m&&!seen[m]){ seen[m]=1; if(F.meta.curlNotes) cnbm[m]=Object.assign(cnbm[m]||{}, F.meta.curlNotes); if(F.meta.boxTable) btbm[m]=richerBox(btbm[m], F.meta.boxTable); if(F.meta.doCong) dcbm[m]=F.meta.doCong; } }); }); state.curlNotesByMadon=cnbm; state.boxTableByMadon=btbm; state.doCongByMadon=dcbm;
+      var cnbm={}, btbm={}, dcbm={}, chbm={}; state.files.forEach(function(F){ if(!F||!F.meta||!F.data) return; var seen={}; (F.data.rawOrders||[]).forEach(function(o){ var m=o&&o.maDon; if(m&&!seen[m]){ seen[m]=1; if(F.meta.curlNotes) cnbm[m]=Object.assign(cnbm[m]||{}, F.meta.curlNotes); if(F.meta.curlHeaders) chbm[m]=Object.assign(chbm[m]||{}, F.meta.curlHeaders); if(F.meta.boxTable) btbm[m]=richerBox(btbm[m], F.meta.boxTable); if(F.meta.doCong) dcbm[m]=F.meta.doCong; } }); }); state.curlNotesByMadon=cnbm; state.boxTableByMadon=btbm; state.doCongByMadon=dcbm; state.curlHeadersByMadon=chbm;
       if(Array.isArray(p.log)) state.log = p.log;
       state.source = p.source || (state.files.length ? ('💾 nạp từ server · '+state.orders.length+' dòng') : 'Chưa có dữ liệu');
       state.processed = !!(state.files.length || state.orders.length);
