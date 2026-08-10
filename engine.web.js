@@ -1182,6 +1182,10 @@
           // BỎ MỌI khoảng trắng: khách hay ghi "12-20 mm" / "6 ~ 13 mm" → khóa phải là "12-20mm"
           // (khớp normalizeLength của dòng đơn). Trước đây có dấu cách là cột bị BỎ QUA → mất bảng Mix.
           var rg = v.replace(/\(.*?\)/g, '').replace(/\s+/g, '').toLowerCase().replace(/~/g, '-');
+          /* Tên dải có thể kèm CHÚ THÍCH phía sau: "8-13mm - mix color lash -" (đơn 676P).
+             Trước đây khớp cả chuỗi nên cột đó bị bỏ → app báo "không có bảng Mix cho dải
+             này" và thiếu dây. Giờ chỉ lấy phần DẢI ở ĐẦU, phần chữ sau bỏ qua. */
+          var _mrg = rg.match(/^\*?\d+(?:-\d+)?mm/); if (_mrg) rg = _mrg[0];
           if (!parseRange(rg.replace(/mm$/, ''))) continue;   // không phải cột dải → bỏ qua
           ranges.push(rg); rangeCols.push(ci); lineCounts.push(lm ? +lm[1] : null);
         }
@@ -1508,6 +1512,10 @@
       }
       if (mr < 0) return;
       var cNo = -1, cPL = findCol(MH, 'Phân Loại'), cMM = findCol(MH, 'MM', true), cTot = findCol(MH, 'Tổng');
+      /* Cột "Keo Đã Fix" + "Nguyên Liệu" NGAY TRONG bảng mm: đây mới là chỗ khách sửa keo
+         theo từng mm (vd 130.SKV.7 dùng .2 cho 4-10mm, .3 từ 11mm). Bảng Mix Chi Tiết bên
+         phải có cột cùng tên nhưng khách không phải lúc nào cũng sửa cả hai. */
+      var cKeoFix = findCol(MH, 'Keo Đã Fix'), cNL = findCol(MH, 'Nguyên Liệu');
       for (var k2 = 0; k2 < MH.length; k2++) if (/^\**\s*no\.?$/i.test(PS(MH[k2]))) { cNo = k2; break; }
       if (cNo < 0 || cMM < 0) return;
       var mCurl = {};
@@ -1523,7 +1531,8 @@
         var pl = PS(rw4[cPL]); if (pl && !plByNo[Math.round(n4)]) plByNo[Math.round(n4)] = pl;
         var cs = {};
         CURLS.forEach(function (k) { var ci2 = mCurl[k]; if (ci2 >= 0) { var q3 = PN(rw4[ci2]); if (q3) cs[k] = q3; } });
-        rows2.push({ no: Math.round(n4), mm: mmOf(rw4[cMM]), curls: cs });   // codeSoi gắn sau (xem dưới)
+        rows2.push({ no: Math.round(n4), mm: mmOf(rw4[cMM]), curls: cs,
+          nl: cNL >= 0 ? PS(rw4[cNL]) : '', keo: cKeoFix >= 0 ? PS(rw4[cKeoFix]) : '' });   // codeSoi gắn sau
         // ô "Tổng" của bảng này khách ghi thẳng con số (vd " 157000,0") chứ không phải chữ
         // → không dò được theo tên, cộng lại từ các cột độ cong cho chắc.
         CURLS.forEach(function (k) { tong += cs[k] || 0; });
@@ -1583,7 +1592,10 @@
       var info = {};
       out.forEach(function (o) { if (!info[o.codeSoi]) info[o.codeSoi] = { mat: o.material, thick: o.thickness }; });
       var byMat = {}, matOrder = [];
-      detail.forEach(function (d) {
+      /* Ưu tiên "Keo Đã Fix" trong BẢNG MM (khách sửa ở đó), thiếu thì mới lấy Bảng Mix Chi Tiết. */
+      var nguon = (khachCuon && khachCuon.rows.some(function (r) { return r.nl && r.keo; }))
+        ? khachCuon.rows : detail;
+      nguon.forEach(function (d) {
         if (!d.nl || !d.keo) return;
         var m = byMat[d.nl];
         if (!m) { m = byMat[d.nl] = { g: {}, order: [] }; matOrder.push(d.nl); }
@@ -1672,7 +1684,8 @@
           v = PS(row[ci]); if (!v) continue;
           if (v.toLowerCase() === 'mix length') break;
           var lm = v.match(/\((\d+)\s*lines?\)/i);
-          var rg = v.replace(/\(.*?\)/g, '').trim().toLowerCase().replace('~', '-');
+          var rg = v.replace(/\(.*?\)/g, '').replace(/\s+/g, '').toLowerCase().replace(/~/g, '-');
+          var _mrg = rg.match(/^\*?\d+(?:-\d+)?mm/); if (_mrg) rg = _mrg[0];   // bỏ chú thích sau tên dải
           if (!parseRange(rg.replace(/mm$/, ''))) continue;
           ranges.push(rg); rangeCols.push(ci); lineCounts.push(lm ? +lm[1] : null);
         }

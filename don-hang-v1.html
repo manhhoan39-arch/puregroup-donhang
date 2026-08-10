@@ -532,7 +532,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608100930</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608101330</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1343,6 +1343,23 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      thì mọi ô vừa sửa bị BỎ ÂM THẦM. Giờ: sửa ô nào tính lại ngay ô đó, và chỉ khi
      CHUYỂN BƯỚC mới hỏi một câu ngắn giữ hay bỏ — giống lúc lưu Packing Slip.
      Ảnh chụp trước lần sửa đầu tiên được giữ để bấm "Bỏ" là trả lại nguyên trạng. */
+  /* GHI NGƯỢC Ô ĐÃ SỬA VỀ FILE NGUỒN.
+     state.orders chỉ là bản dựng lại từ F.data.rawOrders. Sửa ô mà không ghi ngược thì lần
+     "Xử lý" sau (nạp thêm file, mở lại project…) dựng lại từ file → giá trị cũ quay về,
+     ô sai chuẩn đã sửa lại báo đỏ. Khớp theo mã đơn + SERI GỐC của file khách. */
+  function ghiNguocVeFile(o){
+    if(!o) return 0;
+    var goc=String(o.seriGoc!=null?o.seriGoc:o.seri), md=String(o.maDon||''), n=0;
+    (state.files||[]).forEach(function(F){
+      var rs=F&&F.data&&F.data.rawOrders; if(!rs) return;
+      for(var i=0;i<rs.length;i++){
+        var r=rs[i]; if(String(r.maDon||'')!==md) continue;
+        if(String(r.seriGoc!=null?r.seriGoc:r.seri)!==goc) continue;
+        rs[i]=JSON.parse(JSON.stringify(o)); n++; break;
+      }
+    });
+    return n;
+  }
   var __editN=0, __editSnap=null;
   function markPending(cell, applyFn){
     if(typeof applyFn!=='function') return;
@@ -1799,6 +1816,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       markPending(td, function(){
         var res = E.editCell(state.orders[idx], col, val);
         state.orders[idx] = res.order;
+        ghiNguocVeFile(res.order);   // để lần Xử lý sau không dựng lại giá trị cũ
         resetPack();   // nguồn Nhập Đơn đổi → reset lớp packing
         logLine('Sửa ô '+mdon+'#'+seri+' ['+col+']: "'+oldVal+'" → "'+String(res.order[col])+'"');
       });
