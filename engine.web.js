@@ -60,7 +60,19 @@
     //   Mã: tách sau độ dày (thickness) khi theo sau là chữ số (mã kế), đứng sau dấu chấm/chữ.
     //   NL:  tách trước 1 chữ IN HOA đứng ngay sau chữ số (vd "0.085H. Pink" → "0.085\nH. Pink").
     var thN = String(raw.thickness == null ? '' : raw.thickness).trim();
-    function splitByComma(s){ if (/[,;]/.test(s)) { var ps = s.split(/\s*[,;]\s*/).map(function(x){return x.trim();}).filter(function(x){return x;}); if (ps.length > 1) return ps.join('\n'); } return null; }
+    /* Dấu phẩy có 2 nghĩa: TÁCH danh sách ("mã A, mã B") và DẤU THẬP PHÂN kiểu Việt ("0,07").
+       Trước đây tách tất → "Ultra matte 0,07" bị bẻ thành 2 dòng "Ultra matte 0" / "07".
+       → Che dấu thập phân lại trước khi tách, xong trả lại. Độ dày luôn dạng 0,xx nên chỉ
+       che đúng "0," — không đụng dấu phẩy tách mã ("...Orange.7, 187.SKV..."). */
+    function splitByComma(s){
+      var PH = '\u0001';   // ký tự tạm, không bao giờ xuất hiện trong dữ liệu
+      var t = String(s == null ? '' : s).replace(/\b0\s*,\s*(\d)/g, '0' + PH + '$1');
+      if (!/[,;]/.test(t)) return null;
+      var ps = t.split(/\s*[,;]\s*/)
+        .map(function(x){ return x.split(PH).join(',').trim(); })
+        .filter(function(x){ return x; });
+      return ps.length > 1 ? ps.join('\n') : null;
+    }
     function splitCodes(s){ s = String(s == null ? '' : s).trim(); if (s.indexOf('\n') >= 0) return s;
       var byC = splitByComma(s); if (byC) return byC;      // nhiều mã sợi 1 ô ngăn bằng "," hoặc ";" (vd "197.SKV.Orange.7, 187.SKV.SmokBlue.7")
       if (!thN) return s;
