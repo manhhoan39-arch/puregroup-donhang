@@ -532,7 +532,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608102115</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608102240</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1431,9 +1431,19 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   };
   function render(opts){
     Array.prototype.forEach.call(document.querySelectorAll('.pending-save'), function(x){ x.remove(); });   // dọn nút Lưu cũ (đã bỏ chế độ lưu tay)
-    attachColorMix(state.orders);
     // chuyển bước: dữ liệu KHÔNG đổi → dùng lại kết quả đã tính (số liệu giữ nguyên tuyệt đối)
     var _reuse = !!(opts && opts.reuseR && state.R);
+    /* CHUẨN HÓA TRƯỚC KHI GẮN BẢNG MIX MÀU.
+       Ngay sau "▶ Xử lý", state.orders vẫn là bản THÔ đọc từ file: mã sợi nhiều màu nằm
+       CHUNG một ô ngăn bằng dấu phẩy ("172.SKV.Oranger.7, 187.SKV.SmokRed.7, …"), chưa
+       tách dòng → isMixColorRow() không nhận ra dòng Mix màu → phân bổ ADMIN ĐÃ ĐIỀN TAY
+       ở bước 3 bị BỎ QUA, dây rơi về bảng Mix chung của file (676P: 9420 thay vì 9720).
+       runStep1 chính là bước chuẩn hoá mà runPipeline vẫn chạy bên trong (chạy 2 lần cho
+       kết quả y hệt), nên đưa lên trước không đổi bất kỳ con số nào. */
+    if(!_reuse && state.orders && state.orders.length){
+      try{ state.orders = E.runStep1(state.orders).orders; }catch(e){ logErr('render.chuanHoa', e); }
+    }
+    attachColorMix(state.orders);
     var R = _reuse ? state.R
           : E.runPipeline({ rawOrders: state.orders, mixSheets: state.mixSheets, keoRows: state.keoRows, khachCuon: state.khachCuon||null, opt:{ lenApproved: state.lenApproved||{} } });
     /* CHỈ ghi đè khi vừa TÍNH LẠI. Dùng lại kết quả cũ mà vẫn gán thì đơn vừa nạp bị thay bằng
