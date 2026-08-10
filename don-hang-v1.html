@@ -532,7 +532,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608101930</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608102115</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -605,12 +605,12 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
         <div class="fcol">
           <div class="fcol-head">📥 File đã chọn <span class="chip" id="chosen-count">0</span><span class="mini" style="margin-left:6px;color:var(--text-3)">chưa xử lý</span></div>
-          <input class="fcol-filter" id="chosen-madon" list="dl-madon" placeholder="Lọc theo mã đơn…" autocomplete="off">
+          <input class="fcol-filter" id="chosen-madon" list="dl-madon" placeholder="Lọc theo mã đơn hoặc tên file…" autocomplete="off">
           <ul class="file-list" id="file-list-chosen"><li><span class="mini">Chưa có file — kéo thả file "Đơn gửi xưởng" để bắt đầu</span></li></ul>
         </div>
         <div class="fcol">
           <div class="fcol-head">✅ File đã nhập <span class="chip" id="imported-count">0</span><span class="mini" style="margin-left:6px;color:var(--text-3)">đã xử lý</span></div>
-          <input class="fcol-filter" id="imported-madon" list="dl-madon" placeholder="Lọc theo mã đơn…" autocomplete="off">
+          <input class="fcol-filter" id="imported-madon" list="dl-madon" placeholder="Lọc theo mã đơn hoặc tên file…" autocomplete="off">
           <ul class="file-list" id="file-list-imported"><li><span class="mini">Chưa có file đã xử lý.</span></li></ul>
         </div>
       </div>
@@ -2333,13 +2333,23 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(!chosenUl||!impUl) return;
     function fmd(id){ var v=(getVal(id)||'').trim(); return (v==='Tất cả các đơn')?'':v; }
     var cMd=fmd('chosen-madon'), iMd=fmd('imported-madon');
-    function match(F, md){ if(!md) return true; return (F.maDons||[]).indexOf(md)>=0; }
+    // bỏ dấu tiếng Việt + đ→d + thường → gõ "do cong" vẫn ra "Độ cong"
+    function kd(s){ try{ return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[Đđ]/g,'d').toLowerCase().replace(/\s+/g,' ').trim(); }catch(e){ return String(s==null?'':s).toLowerCase().trim(); } }
+    // Lọc theo MÃ ĐƠN (khớp đúng, như cũ) HOẶC TÊN FILE (khớp một phần, bỏ dấu)
+    function match(F, md){
+      if(!md) return true;
+      if((F.maDons||[]).indexOf(md)>=0) return true;
+      var q=kd(md); if(!q) return true;
+      if(kd(F.name).indexOf(q)>=0) return true;
+      // gõ một phần mã đơn cũng ra (vd "744" → "CS152-744P")
+      return (F.maDons||[]).some(function(m){ return kd(m).indexOf(q)>=0; });
+    }
     var chosen=[], imported=[];
     state.files.forEach(function(F,idx){ (F.imported?imported:chosen).push(idx); });
     var cHtml=chosen.filter(function(i){ return match(state.files[i], cMd); }).map(function(i){ return fileLiHtml(state.files[i], i); }).join('');
     var iHtml=imported.filter(function(i){ return match(state.files[i], iMd); }).map(function(i){ return fileLiHtml(state.files[i], i); }).join('');
-    chosenUl.innerHTML = cHtml || '<li><span class="mini">'+(chosen.length?'Không có file khớp mã đơn.':'Chưa có file — kéo thả file "Đơn gửi xưởng" để bắt đầu.')+'</span></li>';
-    impUl.innerHTML = iHtml || '<li><span class="mini">'+(imported.length?'Không có file khớp mã đơn.':'Chưa có file đã xử lý. Bấm "▶ Xử lý".')+'</span></li>';
+    chosenUl.innerHTML = cHtml || '<li><span class="mini">'+(chosen.length?'Không có file khớp mã đơn / tên file.':'Chưa có file — kéo thả file "Đơn gửi xưởng" để bắt đầu.')+'</span></li>';
+    impUl.innerHTML = iHtml || '<li><span class="mini">'+(imported.length?'Không có file khớp mã đơn / tên file.':'Chưa có file đã xử lý. Bấm "▶ Xử lý".')+'</span></li>';
     setTxt('chosen-count', chosen.length);
     setTxt('imported-count', imported.length);
   }
