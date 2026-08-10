@@ -532,7 +532,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608082330</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608090010</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -2196,9 +2196,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           // upload lại file TRÙNG TÊN → thay thế bản cũ (không nhân đôi đơn/keo)
           for(var fx=state.files.length-1; fx>=0; fx--){
             if(state.files[fx].name===f.name){
-              // Thay bản mới của CÙNG file → dọn luôn mọi dấu vết của mã đơn bản cũ
-              // (đã kiểm, số hộp đã chọn, mix màu…), không thì số cũ dính sang bản mới.
-              (state.files[fx].maDons||[]).forEach(function(m){ __purgeMd[String(m||'').trim()]=1; });
+              // Thay bản mới của CÙNG file: bỏ hẳn bản cũ để số liệu đọc theo file mới.
+              // KHÔNG đụng tới xác nhận / số nhập tay — đó là công của người dùng.
               state.files.splice(fx,1); logLine('Thay bản mới cho file '+f.name);
             }
           }
@@ -2314,29 +2313,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     ev.preventDefault(); ev.stopPropagation(); removeFile(+b.getAttribute('data-fileidx'));
   });
   ['chosen-madon','imported-madon'].forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener('input', debounce(renderFiles, 160)); el.addEventListener('change', renderFiles); } });
-  /* DỌN SẠCH DẤU VẾT CỦA MẤY MÃ ĐƠN VỪA NẠP LẠI.
-     Xử lý lại mà giữ nguyên "đã kiểm", số hộp đã chọn, mix màu… của bản cũ thì số liệu mới
-     đọc về vẫn bị lớp cũ đè lên. Chỉ dọn ĐÚNG mã đơn có trong file vừa nạp — đơn khác đang
-     làm dở giữ nguyên. Khoá của các bảng này đều bắt đầu bằng mã đơn + dấu ngăn. */
-  var __purgeMd = {};                                  // mã đơn của bản CŨ khi thay file trùng tên
-  function purgeOrderState(mds){
-    var n=0;
-    function wipe(obj, seps){
-      if(!obj) return;
-      Object.keys(obj).forEach(function(k){
-        var hit = !!mds[k];                            // khoá LÀ mã đơn (vd state.boxTypes)
-        if(!hit) for(var i=0;i<seps.length;i++){ var j=k.indexOf(seps[i]); if(j>0 && mds[k.slice(0,j)]){ hit=true; break; } }
-        if(hit){ delete obj[k]; n++; }
-      });
-    }
-    wipe(state.errAck, ['|']);                         // đã kiểm ô sai chuẩn / cảnh báo
-    wipe(state.lenApproved, ['|']);                    // cho phép sai chuẩn độ dài
-    wipe(state.remapApproved, ['|']);                  // duyệt quy đổi tên cột độ cong
-    wipe(state.boxTypes, ['|']);                       // số lượng từng loại hộp
-    if(typeof boxSel!=='undefined') wipe(boxSel, ['|']);   // gán dòng vào Thùng mấy
-    wipe(state.colorMix, ['#']);                       // bảng mix màu đã điền tay
-    return n;
-  }
+  /* NẠP LẠI ĐƠN CŨ → CHỈ LẤY SỐ LIỆU MỚI, GIỮ NGUYÊN MỌI THỨ NGƯỜI DÙNG ĐÃ LÀM.
+     Dòng đơn / bảng Mix / bảng keo của mã đơn đó được đọc lại từ file mới (bản cũ đã bị
+     thay khi file trùng tên). Còn "đã kiểm", "cho phép sai chuẩn", số hộp, gán thùng,
+     mix màu, đơn nhập tay thì KHÔNG đụng — kể cả của chính đơn vừa nạp lại.
+     (Đã thử dọn sạch những thứ này rồi BỎ: mỗi lần nhập là mất hết công xác nhận.) */
+  var __purgeMd = {};                                  // giữ tên biến cho chỗ khác còn dùng
   function processFiles(silent, onlyImported){
     // onlyImported=true (khi XÓA 1 file): chỉ dựng lại từ file ĐÃ NHẬP — không tự xử lý các file đang chờ ở "File đã chọn"
     var okFiles=state.files.filter(function(F){ return F.data && (!onlyImported || F.imported); });
@@ -2372,20 +2354,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       state.khachCuon = kc.length ? { rows:kc } : null;
     })();
     // GIỮ đơn nhập TAY đã xử lý (đánh dấu _manual) — upload chỉ thay phần đơn upload cũ, không xóa đơn tay
-    /* Mã đơn cần dựng lại từ đầu = mã trong file vừa nạp + mã của bản cũ bị thay tên trùng. */
-    var mdReset={};
-    if(!onlyImported && hasNew){
-      okFiles.forEach(function(F){ if(F._new) (F.maDons||[]).forEach(function(m){ mdReset[String(m||'').trim()]=1; }); });
-      Object.keys(__purgeMd).forEach(function(m){ mdReset[m]=1; });
-      __purgeMd={};
-      var _wiped=purgeOrderState(mdReset);
-      if(_wiped) logLine('Dựng lại từ đầu '+Object.keys(mdReset).join(', ')+' — xoá '+_wiped+' dấu vết cũ (đã kiểm · hộp · mix màu)');
-    }
-    // đơn nhập TAY của những mã đang dựng lại cũng là dữ liệu cũ → bỏ
-    var _keepM=function(m){ return !mdReset[String(m||'').trim()]; };
-    var keepMan=(state.orders||[]).filter(function(o){ return o._manual && _keepM(o.maDon); });
-    var keepManMix=(state.mixSheets||[]).filter(function(s){ return s._manual && _keepM(s.maDon); });
-    var keepManKeo=(state.keoRows||[]).filter(function(k){ return k._manual && _keepM(k.maDon); });
+    /* Nạp lại đơn cũ: dòng đơn/Mix/keo lấy theo file MỚI (bản cũ đã bị thay lúc đọc file),
+       còn xác nhận + số liệu nhập tay của MỌI đơn đều giữ nguyên. */
+    __purgeMd={};
+    var keepMan=(state.orders||[]).filter(function(o){ return o._manual; });
+    var keepManMix=(state.mixSheets||[]).filter(function(s){ return s._manual; });
+    var keepManKeo=(state.keoRows||[]).filter(function(k){ return k._manual; });
     var allO=orders.concat(keepMan); allO.forEach(function(o,i){ o.seri=i+1; });
     state.orders=allO;
     var haveM={}; mixSheets.forEach(function(s){ haveM[s.maDon]=1; }); keepManMix.forEach(function(s){ if(!haveM[s.maDon]) mixSheets.push(s); });
