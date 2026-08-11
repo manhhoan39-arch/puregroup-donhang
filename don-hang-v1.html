@@ -268,6 +268,20 @@ td.cellsel-anchor,th.cellsel-anchor{box-shadow:inset 0 0 0 2px var(--accent)}
 .khop-t td.bad{color:var(--accent);font-weight:800}
 .khop-n{margin-top:6px;font-size:11px;color:var(--text-3)}
 .khop-ul{margin:4px 0 0;padding-left:20px;font-size:12px;line-height:1.65}
+/* Bước 2 — BÁO CÁO TỔNG HỢP ĐƠN ĐÃ NHẬP (gấp/mở) */
+.rpt-box{margin:0 0 10px;border:1px solid var(--border);border-radius:10px;background:var(--card,#fff);overflow:hidden}
+.rpt-bar{display:flex;align-items:center;gap:8px;padding:7px 10px;flex-wrap:wrap;background:rgba(232,24,92,.04);border-bottom:1px solid var(--border)}
+.rpt-box.closed .rpt-bar{border-bottom:none}
+.rpt-tog{border:0;background:none;cursor:pointer;font:inherit;font-weight:800;font-size:12.5px;color:var(--accent);padding:2px 4px;border-radius:6px}
+.rpt-tog:hover{background:rgba(232,24,92,.10)}
+.rpt-f{width:150px;padding:5px 9px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:12px;background:var(--card,#fff);color:inherit}
+.rpt-f:focus{outline:none;border-color:var(--accent)}
+.rpt-body{padding:8px 10px 10px;overflow:auto;max-height:340px}
+.rpt-box.closed .rpt-body{display:none}
+.rpt-t{width:auto;font-size:11.5px;white-space:nowrap}
+.rpt-t th,.rpt-t td{padding:4px 10px}
+.rpt-t tr.rpt-sum td{font-weight:800;color:var(--accent);border-top:2px solid var(--accent);background:rgba(232,24,92,.05)}
+.rpt-empty{font-size:12px;color:var(--text-3);padding:4px 2px}
 /* Chỉ báo ĐANG XỬ LÝ — chỉ hiện khi việc kéo dài >180ms để không nhấp nháy */
 #app-busy{position:fixed;inset:0;z-index:200000;display:none;align-items:center;justify-content:center;
   background:rgba(31,21,32,.16);backdrop-filter:blur(1.5px)}
@@ -532,7 +546,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608102355</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608110945</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -670,6 +684,17 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   <!-- ========== SCREEN 3: NHẬP ĐƠN ========== -->
   <section class="screen" id="s3">
     <div id="step3"></div>
+    <!-- BÁO CÁO TỔNG HỢP ĐƠN ĐÃ NHẬP — gấp/mở, có ô lọc riêng + xuất Excel -->
+    <div class="rpt-box" id="s3-rpt">
+      <div class="rpt-bar">
+        <button class="rpt-tog" id="rpt-tog" title="Thu gọn / mở bảng tổng hợp">▾ 📊 Tổng hợp đơn đã nhập <span class="mini" id="rpt-count">—</span></button>
+        <div class="spacer"></div>
+        <input id="rpt-makh" class="rpt-f" list="dl-makh" placeholder="Tìm Mã KH…" title="Lọc riêng cho bảng tổng hợp — gõ một phần cũng ra" autocomplete="off">
+        <input id="rpt-madon" class="rpt-f" list="dl-madon" placeholder="Tìm Mã Đơn…" title="Lọc riêng cho bảng tổng hợp — gõ một phần cũng ra" autocomplete="off">
+        <button class="btn sm" id="btn-dl-rpt">⬇ Xuất Excel</button>
+      </div>
+      <div class="rpt-body" id="rpt-body"></div>
+    </div>
     <div class="tbl-toolbar">
       <span class="chip on" id="role-chip" title="Bấm để đổi quyền (demo)">🛡️ Admin</span>
       <div class="search-top" style="width:230px">🔍<input id="grid-search" placeholder="Tìm trong bảng…"></div>
@@ -1611,6 +1636,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       });
       renderFiles();
     }
+    // bảng tổng hợp đơn đã nhập ở bước 2 (bọc riêng — hỏng thì cũng không chặn phần còn lại)
+    try{ renderNhapDonReport(); }catch(e){ logErr('renderNhapDonReport', e); }
     // chip cảnh báo / lỗi động trên toolbar — CHỈ đếm theo đơn/KH đang lọc
     if(typeof updateErrChips==='function') updateErrChips();
     // áp lại bộ lọc tìm kiếm sau khi render lại lưới
@@ -2122,6 +2149,80 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       missHtml+cmHtml+'</div>';
   }
 
+  /* ===== BƯỚC 2 — BÁO CÁO TỔNG HỢP ĐƠN ĐÃ NHẬP =====
+     Thời gian nhập | Mã KH | Mã Đơn | Số lượng hộp | Số lượng dải.
+     Số hộp/số dải lấy THẲNG từ khopRows() — đúng bộ số đang dùng để đối chiếu ở bước 5,
+     không tính lại theo công thức riêng (tính lại là có ngày lệch nhau). */
+  var rptOpen = true;
+  function rptTime(ts){
+    if(!ts) return '—';
+    var d=new Date(ts); if(isNaN(d.getTime())) return '—';
+    var p=function(n){ return (n<10?'0':'')+n; };
+    return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+d.getFullYear()+' '+p(d.getHours())+':'+p(d.getMinutes());
+  }
+  // bỏ dấu tiếng Việt + đ→d + thường → gõ một phần, gõ không dấu vẫn khớp
+  function rptKd(s){ try{ return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[Đđ]/g,'d').toLowerCase().replace(/\s+/g,' ').trim(); }catch(e){ return String(s==null?'':s).toLowerCase().trim(); } }
+  function rptRows(){
+    // giờ nhập theo TỪNG mã đơn: lấy lần xử lý GẦN NHẤT trong các file có chứa mã đơn đó
+    var tByMd={};
+    (state.files||[]).forEach(function(F){
+      if(!F || !F.importedAt) return;
+      var mds=(F.maDons&&F.maDons.length)?F.maDons:((F.data&&F.data.rawOrders)?F.data.rawOrders.map(function(o){return o.maDon;}):[]);
+      mds.forEach(function(m){ m=String(m||'').trim(); if(!m) return; if(!tByMd[m]||F.importedAt>tByMd[m]) tByMd[m]=F.importedAt; });
+    });
+    return khopRows().map(function(r){
+      return { md:r.md, kh:khOf(r.md), don:donOf(r.md), hop:r.khay, dai:r.app, ts:tByMd[r.md]||0 };
+    }).sort(function(a,b){ return (b.ts-a.ts) || (a.md<b.md?-1:a.md>b.md?1:0); });   // mới nhập lên trước
+  }
+  function rptLoc(){
+    var qk=rptKd(getVal('rpt-makh')), qd=rptKd(getVal('rpt-madon'));
+    return rptRows().filter(function(r){
+      if(qk && rptKd(r.kh).indexOf(qk)<0 && rptKd(r.md).indexOf(qk)<0) return false;
+      if(qd && rptKd(r.don).indexOf(qd)<0 && rptKd(r.md).indexOf(qd)<0) return false;
+      return true;
+    });
+  }
+  function renderNhapDonReport(){
+    var box=document.getElementById('rpt-body'), wrap=document.getElementById('s3-rpt');
+    if(!box||!wrap) return;
+    var tog=document.getElementById('rpt-tog');
+    wrap.classList.toggle('closed', !rptOpen);
+    var rows=rptLoc(), tong=rptRows().length;
+    var dem = tong ? ('('+(rows.length===tong?tong+' đơn':rows.length+'/'+tong+' đơn')+')') : '(chưa có đơn)';
+    if(tog) tog.innerHTML=(rptOpen?'▾':'▸')+' 📊 Tổng hợp đơn đã nhập <span class="mini" id="rpt-count">'+esc(dem)+'</span>';
+    if(!tong){ box.innerHTML='<div class="rpt-empty">Chưa có đơn nào — nạp file ở bước 1 rồi bấm "▶ Xử lý".</div>'; return; }
+    if(!rows.length){ box.innerHTML='<div class="rpt-empty">Không có đơn khớp bộ lọc.</div>'; return; }
+    var sHop=0, sDai=0;
+    var trs=rows.map(function(r,i){
+      sHop+=r.hop; sDai+=r.dai;
+      return '<tr data-madon="'+esc(r.md)+'" data-makh="'+esc(r.kh)+'">'+
+        '<td class="qty">'+(i+1)+'</td>'+
+        '<td class="txt">'+esc(rptTime(r.ts))+'</td>'+
+        '<td class="txt">'+esc(r.kh||'—')+'</td>'+
+        '<td class="txt"><b>'+esc(r.don||r.md)+'</b></td>'+
+        '<td class="qty">'+fmtN(r.hop)+'</td>'+
+        '<td class="qty">'+fmtN(r.dai)+'</td></tr>';
+    }).join('');
+    box.innerHTML='<table class="sheet rpt-t"><thead><tr><th>#</th><th class="txt">Thời gian nhập</th>'+
+      '<th class="txt">Mã KH</th><th class="txt">Mã Đơn</th><th>Số lượng hộp</th><th>Số lượng dải</th></tr></thead><tbody>'+
+      trs+'<tr class="rpt-sum"><td></td><td class="txt">TỔNG</td><td></td><td class="txt">'+rows.length+' đơn</td>'+
+      '<td class="qty">'+fmtN(sHop)+'</td><td class="qty">'+fmtN(sDai)+'</td></tr></tbody></table>';
+  }
+  function dlNhapDonReport(){
+    if(needXLSX(dlNhapDonReport)) return;   // nạp trễ thư viện Excel
+    if(typeof XLSX==='undefined') return alert('Thiếu xlsx.full.min.js');
+    var rows=rptLoc();
+    if(!rows.length) return alert('Không có đơn nào để xuất.');
+    var sHop=0, sDai=0;
+    var body=rows.map(function(r,i){ sHop+=r.hop; sDai+=r.dai; return [i+1, rptTime(r.ts), r.kh||'', r.don||r.md, r.hop, r.dai]; });
+    body.push(['','TỔNG','', rows.length+' đơn', sHop, sDai]);
+    var wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(
+      [['#','Thời gian nhập','Mã KH','Mã Đơn','Số lượng hộp','Số lượng dải']].concat(body)), 'Tong hop don');
+    XLSX.writeFile(wb,'TongHopDonDaNhap.xlsx');
+    logLine('Đã tải TongHopDonDaNhap.xlsx ('+rows.length+' đơn)');
+  }
+
   /* ===== DEBOUNCE cho ô TÌM KIẾM/LỌC =====
      Trước: mỗi ký tự gõ là quét lại TOÀN BỘ dòng × cột (843 dòng ≈ 27.000 phép so chuỗi/phím) → giật.
      Nay: gộp các phím gõ liên tiếp, chỉ lọc 1 lần sau khi ngừng gõ ~160ms.
@@ -2383,6 +2484,19 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     ev.preventDefault(); ev.stopPropagation(); removeFile(+b.getAttribute('data-fileidx'));
   });
   ['chosen-madon','imported-madon'].forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener('input', debounce(renderFiles, 160)); el.addEventListener('change', renderFiles); } });
+  /* Bảng tổng hợp bước 2: 2 ô lọc RIÊNG (không đụng bộ lọc chung của Bảng Nhập Đơn)
+     + nút gấp/mở + xuất Excel. Chỉ vẽ lại đúng cái bảng đó, không tính lại số liệu. */
+  ['rpt-makh','rpt-madon'].forEach(function(id){
+    var el=document.getElementById(id); if(!el) return;
+    var ve=function(){ try{ renderNhapDonReport(); }catch(e){ logErr('renderNhapDonReport', e); } };
+    el.addEventListener('input', debounce(ve, 160)); el.addEventListener('change', ve);
+  });
+  (function(){
+    var tg=document.getElementById('rpt-tog');
+    if(tg) tg.addEventListener('click', function(){ rptOpen=!rptOpen; try{ renderNhapDonReport(); }catch(e){ logErr('renderNhapDonReport', e); } });
+    var dl=document.getElementById('btn-dl-rpt');
+    if(dl) dl.addEventListener('click', function(){ try{ dlNhapDonReport(); }catch(e){ logErr('dlNhapDonReport', e); } });
+  })();
   /* NẠP LẠI ĐƠN CŨ → CHỈ LẤY SỐ LIỆU MỚI, GIỮ NGUYÊN MỌI THỨ NGƯỜI DÙNG ĐÃ LÀM.
      Dòng đơn / bảng Mix / bảng keo của mã đơn đó được đọc lại từ file mới (bản cũ đã bị
      thay khi file trùng tên). Còn "đã kiểm", "cho phép sai chuẩn", số hộp, gán thùng,
@@ -2395,6 +2509,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(!okFiles.length){ if(!silent) alert('Chưa có file hợp lệ để xử lý — kéo thả hoặc bấm "Chọn file" trước.'); return; }
     var hasNew=okFiles.some(function(F){ return F._new; });   // có file vừa nạp trong đợt này không
     if(!onlyImported) okFiles.forEach(function(F){ F.imported=true; });   // đã xử lý → chuyển sang cột "File đã nhập"
+    /* THỜI GIAN NHẬP = lúc bấm "▶ Xử lý" lần đầu của CHÍNH file đó. Xử lý lại cả mớ
+       (vd xoá bớt 1 file) KHÔNG được dời giờ của các file cũ; còn upload đè lại cùng tên
+       thì bản cũ đã bị gỡ ở khâu đọc → file mới nhận giờ mới. Lưu kèm project. */
+    okFiles.forEach(function(F){ if(!F.importedAt) F.importedAt=Date.now(); });
     var t0 = Date.now();   // đo thời gian xử lý thật
     var orders=[], mixSheets=[], keoRows=[], seenMix={};
     okFiles.forEach(function(F){
