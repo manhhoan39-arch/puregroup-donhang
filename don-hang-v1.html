@@ -268,16 +268,15 @@ td.cellsel-anchor,th.cellsel-anchor{box-shadow:inset 0 0 0 2px var(--accent)}
 .khop-t td.bad{color:var(--accent);font-weight:800}
 .khop-n{margin-top:6px;font-size:11px;color:var(--text-3)}
 .khop-ul{margin:4px 0 0;padding-left:20px;font-size:12px;line-height:1.65}
-/* Bước 2 — BÁO CÁO TỔNG HỢP ĐƠN ĐÃ NHẬP (gấp/mở) */
-.rpt-box{margin:0 0 10px;border:1px solid var(--border);border-radius:10px;background:var(--card,#fff);overflow:hidden}
-.rpt-bar{display:flex;align-items:center;gap:8px;padding:7px 10px;flex-wrap:wrap;background:rgba(232,24,92,.04);border-bottom:1px solid var(--border)}
-.rpt-box.closed .rpt-bar{border-bottom:none}
-.rpt-tog{border:0;background:none;cursor:pointer;font:inherit;font-weight:800;font-size:12.5px;color:var(--accent);padding:2px 4px;border-radius:6px}
-.rpt-tog:hover{background:rgba(232,24,92,.10)}
-.rpt-f{width:150px;padding:5px 9px;border:1px solid var(--border);border-radius:8px;font:inherit;font-size:12px;background:var(--card,#fff);color:inherit}
-.rpt-f:focus{outline:none;border-color:var(--accent)}
-.rpt-body{padding:8px 10px 10px;overflow:auto;max-height:340px}
-.rpt-box.closed .rpt-body{display:none}
+/* Bước 2 — 2 TAB: Bảng Nhập Đơn ↔ Tổng hợp đơn (cùng kiểu với 2 tab của bước 6).
+   Đổi tab = đổi 1 class trên section; mỗi tab chỉ hiện đúng công cụ của nó, nên
+   những nút có logic ẩn/hiện riêng (chip lỗi, ✓ Đã kiểm) không bị đụng vào. */
+#btn-s3-grid.on,#btn-s3-rpt.on{background:var(--accent,#E8185C)!important;color:#fff!important;border-color:var(--accent,#E8185C)!important}
+#s3.tab-rpt #role-chip,#s3.tab-rpt #s3-search-wrap,#s3.tab-rpt #s3-makh,#s3.tab-rpt #s3-madon,
+#s3.tab-rpt #dd-warn,#s3.tab-rpt #dd-err-it,#s3.tab-rpt #dd-ack,
+#s3.tab-rpt #btn-del-nhapdon,#s3.tab-rpt #btn-dl-nhapdon-s3,#s3.tab-rpt #s3-grid-view{display:none!important}
+#s3:not(.tab-rpt) #rpt-makh,#s3:not(.tab-rpt) #rpt-madon,
+#s3:not(.tab-rpt) #btn-dl-rpt,#s3:not(.tab-rpt) #s3-rpt-view{display:none!important}
 .rpt-t{width:auto;font-size:11.5px;white-space:nowrap}
 .rpt-t th,.rpt-t td{padding:4px 10px}
 .rpt-t tr.rpt-sum td{font-weight:800;color:var(--accent);border-top:2px solid var(--accent);background:rgba(232,24,92,.05)}
@@ -546,7 +545,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608110945</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608111115</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -684,23 +683,18 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   <!-- ========== SCREEN 3: NHẬP ĐƠN ========== -->
   <section class="screen" id="s3">
     <div id="step3"></div>
-    <!-- BÁO CÁO TỔNG HỢP ĐƠN ĐÃ NHẬP — gấp/mở, có ô lọc riêng + xuất Excel -->
-    <div class="rpt-box" id="s3-rpt">
-      <div class="rpt-bar">
-        <button class="rpt-tog" id="rpt-tog" title="Thu gọn / mở bảng tổng hợp">▾ 📊 Tổng hợp đơn đã nhập <span class="mini" id="rpt-count">—</span></button>
-        <div class="spacer"></div>
-        <input id="rpt-makh" class="rpt-f" list="dl-makh" placeholder="Tìm Mã KH…" title="Lọc riêng cho bảng tổng hợp — gõ một phần cũng ra" autocomplete="off">
-        <input id="rpt-madon" class="rpt-f" list="dl-madon" placeholder="Tìm Mã Đơn…" title="Lọc riêng cho bảng tổng hợp — gõ một phần cũng ra" autocomplete="off">
-        <button class="btn sm" id="btn-dl-rpt">⬇ Xuất Excel</button>
-      </div>
-      <div class="rpt-body" id="rpt-body"></div>
-    </div>
     <div class="tbl-toolbar">
+      <!-- 2 TAB như bước 6: bảng chi tiết ↔ báo cáo tổng hợp (mỗi tab chỉ hiện đúng công cụ của nó) -->
+      <button class="btn sm on" id="btn-s3-grid" title="Bảng Nhập Đơn chi tiết từng dòng">📋 Bảng Nhập Đơn</button>
+      <button class="btn sm" id="btn-s3-rpt" title="Báo cáo tổng hợp các đơn đã nhập">📊 Tổng hợp đơn</button>
       <span class="chip on" id="role-chip" title="Bấm để đổi quyền (demo)">🛡️ Admin</span>
-      <div class="search-top" style="width:230px">🔍<input id="grid-search" placeholder="Tìm trong bảng…"></div>
+      <div class="search-top" id="s3-search-wrap" style="width:230px">🔍<input id="grid-search" placeholder="Tìm trong bảng…"></div>
       <input id="s3-makh" class="madon-pick" list="dl-makh" placeholder="Tất cả KH" title="Lọc theo Mã KH — đồng bộ mọi bước" autocomplete="off" style="min-width:120px;margin-right:6px">
       <input id="s3-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
       <datalist id="dl-madon"></datalist><datalist id="dl-makh"></datalist>
+      <!-- ô lọc RIÊNG của tab Tổng hợp đơn (không đụng bộ lọc chung đồng bộ mọi bước) -->
+      <input id="rpt-makh" class="madon-pick" list="dl-makh" placeholder="Tìm Mã KH…" title="Lọc riêng cho bảng tổng hợp — gõ một phần cũng ra" autocomplete="off" style="min-width:120px;margin-right:6px">
+      <input id="rpt-madon" class="madon-pick" list="dl-madon" placeholder="Tìm Mã Đơn…" title="Lọc riêng cho bảng tổng hợp — gõ một phần cũng ra" autocomplete="off">
       <div class="spacer"></div>
       <!-- 2 chip BẤM THẲNG (không gom vào nút xổ): xem ô lỗi là việc làm liên tục,
            gom lại thì mỗi lần xem một ô phải xổ ra rồi bấm — mất công. Chữ rút ngắn cho vừa thanh. -->
@@ -716,9 +710,21 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       </div>
       <button class="btn sm" id="btn-del-nhapdon" style="color:var(--red-600)">🗑️ Xóa dòng chọn</button>
       <button class="btn sm" id="btn-dl-nhapdon-s3">⬇ Xuất Nhập đơn.xlsx</button>
+      <button class="btn sm" id="btn-dl-rpt">⬇ Xuất Excel</button>
       <button class="btn primary sm" onclick="go('s4')">Sinh Mix Label →</button>
     </div>
-    <div class="tbl-wrap">
+    <!-- TAB 2: báo cáo tổng hợp đơn đã nhập -->
+    <div id="s3-rpt-view">
+      <div class="summary-bar sm" style="margin-top:0;align-items:center;flex-wrap:wrap">
+        <div class="it" style="font-size:13px;font-weight:800;color:var(--accent)">📊 Tổng hợp đơn đã nhập</div>
+        <div class="it" style="margin-left:auto">Số đơn<b id="rpt-count">—</b></div>
+        <div class="it">Tổng hộp<b id="rpt-hop">—</b></div>
+        <div class="it">Tổng dải<b id="rpt-dai">—</b></div>
+      </div>
+      <div class="tbl-wrap" id="rpt-body"></div>
+    </div>
+    <!-- TAB 1: bảng nhập đơn chi tiết -->
+    <div class="tbl-wrap" id="s3-grid-view">
       <table class="prev-table has-chk">
         <thead><tr id="nd-head">
           <th class="freeze">Seri</th><th>Mã Đơn</th><th>Code Sợi</th><th class="grp-qty">Loại Hàng</th><th>Ghi Chú (Keo)</th><th>Lines</th><th>Detail</th><th>Material</th><th>Thickness</th><th>Length (mm)</th><th>Mix/Single</th>
@@ -2153,7 +2159,6 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      Thời gian nhập | Mã KH | Mã Đơn | Số lượng hộp | Số lượng dải.
      Số hộp/số dải lấy THẲNG từ khopRows() — đúng bộ số đang dùng để đối chiếu ở bước 5,
      không tính lại theo công thức riêng (tính lại là có ngày lệch nhau). */
-  var rptOpen = true;
   function rptTime(ts){
     if(!ts) return '—';
     var d=new Date(ts); if(isNaN(d.getTime())) return '—';
@@ -2183,15 +2188,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     });
   }
   function renderNhapDonReport(){
-    var box=document.getElementById('rpt-body'), wrap=document.getElementById('s3-rpt');
-    if(!box||!wrap) return;
-    var tog=document.getElementById('rpt-tog');
-    wrap.classList.toggle('closed', !rptOpen);
+    var box=document.getElementById('rpt-body');
+    if(!box) return;
     var rows=rptLoc(), tong=rptRows().length;
-    var dem = tong ? ('('+(rows.length===tong?tong+' đơn':rows.length+'/'+tong+' đơn')+')') : '(chưa có đơn)';
-    if(tog) tog.innerHTML=(rptOpen?'▾':'▸')+' 📊 Tổng hợp đơn đã nhập <span class="mini" id="rpt-count">'+esc(dem)+'</span>';
-    if(!tong){ box.innerHTML='<div class="rpt-empty">Chưa có đơn nào — nạp file ở bước 1 rồi bấm "▶ Xử lý".</div>'; return; }
-    if(!rows.length){ box.innerHTML='<div class="rpt-empty">Không có đơn khớp bộ lọc.</div>'; return; }
+    setTxt('rpt-count', tong ? (rows.length===tong ? fmtN(tong) : fmtN(rows.length)+'/'+fmtN(tong)) : '—');
+    if(!tong){ setTxt('rpt-hop','—'); setTxt('rpt-dai','—');
+      box.innerHTML='<div class="rpt-empty">Chưa có đơn nào — nạp file ở bước 1 rồi bấm "▶ Xử lý".</div>'; return; }
+    if(!rows.length){ setTxt('rpt-hop','—'); setTxt('rpt-dai','—');
+      box.innerHTML='<div class="rpt-empty">Không có đơn khớp bộ lọc.</div>'; return; }
     var sHop=0, sDai=0;
     var trs=rows.map(function(r,i){
       sHop+=r.hop; sDai+=r.dai;
@@ -2207,6 +2211,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '<th class="txt">Mã KH</th><th class="txt">Mã Đơn</th><th>Số lượng hộp</th><th>Số lượng dải</th></tr></thead><tbody>'+
       trs+'<tr class="rpt-sum"><td></td><td class="txt">TỔNG</td><td></td><td class="txt">'+rows.length+' đơn</td>'+
       '<td class="qty">'+fmtN(sHop)+'</td><td class="qty">'+fmtN(sDai)+'</td></tr></tbody></table>';
+    setTxt('rpt-hop', fmtN(sHop)); setTxt('rpt-dai', fmtN(sDai));
+  }
+  // Đổi tab bước 2 — chỉ bật/tắt 1 class, KHÔNG tính lại số liệu
+  function showS3Report(on){
+    var sec=document.getElementById('s3'); if(!sec) return;
+    sec.classList.toggle('tab-rpt', !!on);
+    var bg=document.getElementById('btn-s3-grid'), br=document.getElementById('btn-s3-rpt');
+    if(bg) bg.classList.toggle('on', !on);
+    if(br) br.classList.toggle('on', !!on);
+    if(on){ try{ renderNhapDonReport(); }catch(e){ logErr('renderNhapDonReport', e); } }
   }
   function dlNhapDonReport(){
     if(needXLSX(dlNhapDonReport)) return;   // nạp trễ thư viện Excel
@@ -2393,14 +2407,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           }
           if(!data){
             var reason='Không nhận dạng được format (cần sheet "Nhập Đơn" nội bộ hoặc bảng GỬI XƯỞNG của khách) — file gồm các sheet: '+wb.SheetNames.join(', ');
-            state.files.push({name:f.name, data:null, error:reason});
+            state.files.push({name:f.name, data:null, error:reason, addedAt:Date.now()});
             logLine(f.name+': '+reason);
           } else {
             var s1=E.runStep1(data.rawOrders);
             var mas={}; data.rawOrders.forEach(function(o){ mas[String(o.maDon||'').trim()]=1; });
             var curlWarn = (meta && meta.curlWarnings && meta.curlWarnings.length) ? meta.curlWarnings : null;
             // _new = vừa nạp, CHƯA báo cáo lần nào → popup "Xử lý xong" chỉ nói về mấy file này
-            state.files.push({name:f.name, data:data, stats:s1.stats, kind:kind, meta:meta, maDons:Object.keys(mas), curlWarn:curlWarn, _new:true});
+            state.files.push({name:f.name, data:data, stats:s1.stats, kind:kind, meta:meta, maDons:Object.keys(mas), curlWarn:curlWarn, _new:true, addedAt:Date.now()});
             logLine('Đã đọc '+f.name+' ['+kind+']: '+s1.stats.total+' đơn · '+s1.stats.errorCells+' ô lỗi · '+s1.stats.warnCells+' cảnh báo'
               +(data.mixSheets.length?' · có bảng Mix':' · ⚠ KHÔNG có bảng Mix')
               +(meta&&meta.tongKhay?' · file khai: '+meta.tongKhay+' khay / '+meta.tongDay+' dây':''));
@@ -2408,7 +2422,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             if(meta && meta.specialSym && meta.specialSym.length) logLine('🏷️ '+f.name+' — hàng đặc biệt: '+meta.specialSym.join(' · '));
           }
         }catch(err){
-          state.files.push({name:f.name, data:null, error:String(err && err.message || err)});
+          state.files.push({name:f.name, data:null, error:String(err && err.message || err), addedAt:Date.now()});
           logLine('Lỗi đọc '+f.name+': '+(err && err.message || err));
         }
         renderFiles();
@@ -2457,6 +2471,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     }
     var chosen=[], imported=[];
     state.files.forEach(function(F,idx){ (F.imported?imported:chosen).push(idx); });
+    /* MỚI NHẤT LÊN ĐẦU cho cả hai cột: cột "đã nhập" xếp theo giờ bấm Xử lý,
+       cột "đã chọn" xếp theo lúc đọc file. File cũ (project lưu trước khi có mốc
+       thời gian) không có giờ → xếp sau, giữ nguyên thứ tự nạp như trước.
+       Chỉ đổi THỨ TỰ HIỂN THỊ — data-fileidx vẫn là chỉ số thật trong state.files
+       nên nút xóa/xử lý không bị lệch dòng. */
+    var moc=function(i){ var F=state.files[i]||{}; return F.importedAt||F.addedAt||0; };
+    var xepMoiTruoc=function(a,b){ var d=moc(b)-moc(a); return d || (b-a); };
+    chosen.sort(xepMoiTruoc); imported.sort(xepMoiTruoc);
     var cHtml=chosen.filter(function(i){ return match(state.files[i], cMd); }).map(function(i){ return fileLiHtml(state.files[i], i); }).join('');
     var iHtml=imported.filter(function(i){ return match(state.files[i], iMd); }).map(function(i){ return fileLiHtml(state.files[i], i); }).join('');
     chosenUl.innerHTML = cHtml || '<li><span class="mini">'+(chosen.length?'Không có file khớp mã đơn / tên file.':'Chưa có file — kéo thả file "Đơn gửi xưởng" để bắt đầu.')+'</span></li>';
@@ -2492,8 +2514,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     el.addEventListener('input', debounce(ve, 160)); el.addEventListener('change', ve);
   });
   (function(){
-    var tg=document.getElementById('rpt-tog');
-    if(tg) tg.addEventListener('click', function(){ rptOpen=!rptOpen; try{ renderNhapDonReport(); }catch(e){ logErr('renderNhapDonReport', e); } });
+    var bg=document.getElementById('btn-s3-grid'), br=document.getElementById('btn-s3-rpt');
+    if(bg) bg.addEventListener('click', function(){ showS3Report(false); });
+    if(br) br.addEventListener('click', function(){ showS3Report(true); });
     var dl=document.getElementById('btn-dl-rpt');
     if(dl) dl.addEventListener('click', function(){ try{ dlNhapDonReport(); }catch(e){ logErr('dlNhapDonReport', e); } });
   })();
