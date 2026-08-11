@@ -1251,12 +1251,21 @@
         if (v === 'ghi chú') gi = i;
       }
       if (ki < 0 || (di < 0 && si < 0 && li < 0)) continue;   // cần Mã Keo + ít nhất 1 cột thuộc tính
-      var lastSoi = '', lastDay = '';
+      var lastSoi = '', lastDay = '', batDau = false, soTrong = 0;
       for (q = r + 1; q < aoa.length; q++) {
         rw = aoa[q] || [];
         var dd = di >= 0 ? PS(rw[di]) : '', mk = PS(rw[ki]);
         var ls = si >= 0 ? PS(rw[si]) : '', ld = li >= 0 ? PS(rw[li]) : '';
-        if (!dd && !mk && !ls && !ld) break;
+        if (!dd && !mk && !ls && !ld) {
+          /* Dòng TRỐNG ngay dưới tiêu đề: nhiều đơn khách chừa 1 dòng cho thoáng
+             (vd CS123-738P: tiêu đề dòng 38, để trống 39, dữ liệu từ 40). Trước đây
+             gặp dòng trống là dừng luôn → báo "đơn không có bảng keo trong file".
+             Chỉ dừng khi bảng ĐÃ có dữ liệu; chưa có thì bỏ qua tối đa 3 dòng trống. */
+          if (batDau) break;
+          if (++soTrong > 3) break;
+          continue;
+        }
+        batDau = true;
         if (!mk) continue;
         if (ls) lastSoi = ls; else if (ld) ls = lastSoi;   // kế thừa ô gộp khi có Độ Dài
         if (dd) lastDay = dd; else if (ld) dd = lastDay;
