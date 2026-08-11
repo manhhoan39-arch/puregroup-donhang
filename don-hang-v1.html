@@ -280,6 +280,9 @@ td.cellsel-anchor,th.cellsel-anchor{box-shadow:inset 0 0 0 2px var(--accent)}
 .rpt-t{width:auto;font-size:11.5px;white-space:nowrap}
 .rpt-t th,.rpt-t td{padding:4px 10px}
 .rpt-t tr.rpt-sum td{font-weight:800;color:var(--accent);border-top:2px solid var(--accent);background:rgba(232,24,92,.05)}
+.rpt-x{width:22px;height:22px;border:1px solid var(--red-500);border-radius:6px;background:var(--red-50);color:var(--red-600);
+  cursor:pointer;font-size:12px;font-weight:800;line-height:1;display:inline-flex;align-items:center;justify-content:center}
+.rpt-x:hover{background:var(--red-500);color:#fff}
 .rpt-empty{font-size:12px;color:var(--text-3);padding:4px 2px}
 /* Chỉ báo ĐANG XỬ LÝ — chỉ hiện khi việc kéo dài >180ms để không nhấp nháy */
 #app-busy{position:fixed;inset:0;z-index:200000;display:none;align-items:center;justify-content:center;
@@ -545,7 +548,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608111200</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608111245</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -2168,16 +2171,26 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   // bỏ dấu tiếng Việt + đ→d + thường → gõ một phần, gõ không dấu vẫn khớp
   function rptKd(s){ try{ return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[Đđ]/g,'d').toLowerCase().replace(/\s+/g,' ').trim(); }catch(e){ return String(s==null?'':s).toLowerCase().trim(); } }
   function rptRows(){
-    // giờ nhập theo TỪNG mã đơn: lấy lần xử lý GẦN NHẤT trong các file có chứa mã đơn đó
-    var tByMd={};
-    (state.files||[]).forEach(function(F){
-      if(!F || !F.importedAt) return;
+    /* Giờ nhập theo TỪNG mã đơn: lấy lần xử lý GẦN NHẤT trong các file có chứa mã đơn đó.
+       Kèm THỨ TỰ FILE (vị trí trong state.files, file nạp sau nằm cuối) để xếp hạng khi
+       nhiều đơn cùng một mốc giờ — nạp cả mớ trong một lần Xử lý thì giờ y hệt nhau,
+       chỉ có thứ tự file mới phân biệt được đơn nào vừa thêm. */
+    var tByMd={}, iByMd={};
+    (state.files||[]).forEach(function(F, idx){
+      if(!F) return;
       var mds=(F.maDons&&F.maDons.length)?F.maDons:((F.data&&F.data.rawOrders)?F.data.rawOrders.map(function(o){return o.maDon;}):[]);
-      mds.forEach(function(m){ m=String(m||'').trim(); if(!m) return; if(!tByMd[m]||F.importedAt>tByMd[m]) tByMd[m]=F.importedAt; });
+      mds.forEach(function(m){
+        m=String(m||'').trim(); if(!m) return;
+        if(iByMd[m]==null || idx>iByMd[m]) iByMd[m]=idx;
+        if(F.importedAt && (!tByMd[m] || F.importedAt>tByMd[m])) tByMd[m]=F.importedAt;
+      });
     });
     return khopRows().map(function(r){
-      return { md:r.md, kh:khOf(r.md), don:donOf(r.md), hop:r.khay, dai:r.app, ts:tByMd[r.md]||0 };
-    }).sort(function(a,b){ return (b.ts-a.ts) || (a.md<b.md?-1:a.md>b.md?1:0); });   // mới nhập lên trước
+      return { md:r.md, kh:khOf(r.md), don:donOf(r.md), hop:r.khay, dai:r.app,
+               ts:tByMd[r.md]||0, ord:(iByMd[r.md]==null?-1:iByMd[r.md]) };
+    }).sort(function(a,b){                                   // MỚI NHẤT LÊN ĐẦU
+      return (b.ts-a.ts) || (b.ord-a.ord) || (a.md<b.md?-1:a.md>b.md?1:0);
+    });
   }
   function rptLoc(){
     var qk=rptKd(getVal('rpt-makh')), qd=rptKd(getVal('rpt-madon'));
@@ -2202,21 +2215,23 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var gio=rptTime(r.ts);
       var tdGio = r.ts ? ('<td class="txt">'+esc(gio)+'</td>')
         : '<td class="txt" title="Đơn này vào app từ trước khi có cột giờ — bấm ▶ Xử lý lại là có giờ" style="color:var(--text-3)">—</td>';
+      var xoa = canUpload() ? ('<button class="rpt-x" data-rptmd="'+esc(r.md)+'" title="Xóa hẳn đơn '+esc(r.md)+' khỏi dữ liệu">✕</button>') : '';
       return '<tr data-madon="'+esc(r.md)+'" data-makh="'+esc(r.kh)+'">'+
         '<td class="qty">'+(i+1)+'</td>'+
         '<td class="txt">'+esc(r.kh||'—')+'</td>'+
         '<td class="txt"><b>'+esc(r.don||r.md)+'</b></td>'+
         '<td class="qty">'+fmtN(r.hop)+'</td>'+
         '<td class="qty">'+fmtN(r.dai)+'</td>'+
-        tdGio+'</tr>';
+        tdGio+
+        '<td class="qty">'+xoa+'</td></tr>';
     }).join('');
     var TH='style="background:var(--green-500);color:#fff"';   // tiêu đề nền xanh chữ trắng như Bảng Mix Label
-    box.innerHTML='<table class="sheet rpt-t"><thead><tr><th '+TH+'>#</th>'+
+    box.innerHTML='<table class="sheet rpt-t"><thead><tr><th '+TH+'>STT</th>'+
       '<th class="txt" '+TH+'>Mã KH</th><th class="txt" '+TH+'>Mã Đơn</th>'+
       '<th '+TH+'>Số lượng hộp</th><th '+TH+'>Số lượng dải</th>'+
-      '<th class="txt" '+TH+'>Thời gian nhập</th></tr></thead><tbody>'+
+      '<th class="txt" '+TH+'>Thời gian nhập</th><th '+TH+' title="Xóa đơn khỏi dữ liệu">Xóa</th></tr></thead><tbody>'+
       trs+'<tr class="rpt-sum"><td></td><td class="txt">TỔNG</td><td class="txt">'+rows.length+' đơn</td>'+
-      '<td class="qty">'+fmtN(sHop)+'</td><td class="qty">'+fmtN(sDai)+'</td><td></td></tr></tbody></table>';
+      '<td class="qty">'+fmtN(sHop)+'</td><td class="qty">'+fmtN(sDai)+'</td><td></td><td></td></tr></tbody></table>';
     setTxt('rpt-hop', fmtN(sHop)); setTxt('rpt-dai', fmtN(sDai));
   }
   // Đổi tab bước 2 — chỉ bật/tắt 1 class, KHÔNG tính lại số liệu
@@ -2510,6 +2525,47 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   document.addEventListener('click', function(ev){
     var b=ev.target&&ev.target.closest?ev.target.closest('.file-x'):null; if(!b) return;
     ev.preventDefault(); ev.stopPropagation(); removeFile(+b.getAttribute('data-fileidx'));
+  });
+  /* XÓA HẲN 1 MÃ ĐƠN (từ bảng Tổng hợp đơn ở bước 2).
+     File khách có thể gộp NHIỀU mã đơn → không được xóa cả file: chỉ bỏ đúng phần
+     của mã đơn đó rồi dựng lại; file nào chỉ có mỗi mã đơn này thì bỏ luôn cả file. */
+  function removeOrder(md){
+    md=String(md||'').trim(); if(!md) return;
+    if(!canUpload()) return blockUpload();
+    var soDong=(state.orders||[]).filter(function(o){ return o.maDon===md; }).length;
+    /* KHÔNG gọi pushUndo ở đây: ảnh chụp Hoàn tác không giữ danh sách FILE, hoàn tác xong
+       đơn vẫn mất mà bảng lại còn dòng — nửa vời còn khó hiểu hơn. Nói thẳng là muốn lấy
+       lại thì nạp lại file, đúng như nút ✕ xóa file ở bước 1. */
+    if(typeof confirm==='function' &&
+       !confirm('Xóa hẳn đơn "'+md+'" ('+soDong+' dòng) khỏi dữ liệu?\n\nMọi bảng ở các bước sau sẽ tính lại. Muốn lấy lại thì phải nạp lại file đơn.')) return;
+    var boFile=0, gonFile=0;
+    var giu=[];
+    (state.files||[]).forEach(function(F){
+      var mds=(F&&F.maDons)||[];
+      if(mds.indexOf(md)<0){ giu.push(F); return; }
+      if(mds.length<=1){ boFile++; return; }                 // file chỉ có mỗi đơn này → bỏ cả file
+      var d=F.data||{};                                       // file gộp nhiều đơn → chỉ cắt phần của đơn này
+      d.rawOrders=(d.rawOrders||[]).filter(function(o){ return o.maDon!==md; });
+      d.mixSheets=(d.mixSheets||[]).filter(function(s){ return s.maDon!==md; });
+      d.keoRows  =(d.keoRows  ||[]).filter(function(k){ return k.maDon!==md; });
+      F.maDons=mds.filter(function(m){ return m!==md; });
+      gonFile++; giu.push(F);
+    });
+    state.files=giu;
+    // dòng nhập TAY của đơn này không nằm trong file nào → phải bỏ riêng
+    state.orders   =(state.orders||[]).filter(function(o){ return o.maDon!==md; });
+    state.mixSheets=(state.mixSheets||[]).filter(function(s){ return s.maDon!==md; });
+    state.keoRows  =(state.keoRows||[]).filter(function(k){ return k.maDon!==md; });
+    if(state.colorMix) Object.keys(state.colorMix).forEach(function(k){ if(k.indexOf(md+'#')===0) delete state.colorMix[k]; });
+    if(typeof logLine==='function') logLine('Xóa đơn '+md+' ('+soDong+' dòng · bỏ '+boFile+' file, gọn '+gonFile+' file)');
+    var conFile=state.files.filter(function(F){ return F.data && F.imported; });
+    if(conFile.length) processFiles(true, true);
+    else { resetPack(); state.source=(state.orders.length?'✍ Thủ công '+state.orders.length+' đơn':'Chưa có dữ liệu'); state.processed=!!state.orders.length; render(); }
+    renderFiles();
+  }
+  document.addEventListener('click', function(ev){
+    var b=ev.target&&ev.target.closest?ev.target.closest('.rpt-x'):null; if(!b) return;
+    ev.preventDefault(); ev.stopPropagation(); removeOrder(b.getAttribute('data-rptmd'));
   });
   ['chosen-madon','imported-madon'].forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener('input', debounce(renderFiles, 160)); el.addEventListener('change', renderFiles); } });
   /* Bảng tổng hợp bước 2: 2 ô lọc RIÊNG (không đụng bộ lọc chung của Bảng Nhập Đơn)
@@ -6549,8 +6605,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       try{ if(window.__syncUploadPerm) window.__syncUploadPerm(); }catch(e){ logErr('dlAll', e); }
     },
     getState: function(){
-      // savedAt: mốc lưu — dùng để bù "Thời gian nhập" cho file lưu từ bản app CŨ (chưa ghi giờ)
-      return { savedAt:Date.now(), orders:state.orders, mixSheets:state.mixSheets, keoRows:state.keoRows, khachCuon:state.khachCuon||null,
+      return { savedAt:Date.now(),   // mốc lưu (thông tin kèm theo bản lưu — KHÔNG dùng làm giờ nhập đơn)
+               orders:state.orders, mixSheets:state.mixSheets, keoRows:state.keoRows, khachCuon:state.khachCuon||null,
                pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{}, colorMix:state.colorMix||{}, remapApproved:state.remapApproved||{}, lenApproved:state.lenApproved||{}, errAck:state.errAck||{},
                files:state.files, log:state.log, source:state.source, processed:state.processed };
     },
@@ -6572,11 +6628,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       state.errAck      = (p.errAck      && typeof p.errAck==='object')      ? p.errAck      : {};
       state.files     = Array.isArray(p.files)     ? p.files     : [];
       // project đã lưu = file đã xử lý → cột "File đã nhập", và KHÔNG báo lại cảnh báo của chúng
-      /* Bản lưu từ app CŨ không có "Thời gian nhập" của từng file → bù bằng mốc LƯU của
-         chính bản đó (mốc thật, có ghi trong file lưu). Bản lưu quá cũ không có cả mốc này
-         thì để trống, chờ lần "▶ Xử lý" sau là có giờ thật. */
-      var _sv=+p.savedAt||0;
-      state.files.forEach(function(F){ if(F&&F.data){ F.imported=true; F._new=false; if(!F.importedAt && _sv) F.importedAt=_sv; } });
+      /* KHÔNG bù "Thời gian nhập" bằng mốc lưu nữa. Đã thử và BỎ: mỗi lần mở bản lưu là
+         MỌI đơn cũ dính chung đúng một mốc, nhìn vào tưởng nhập cùng lúc, lại còn đè lên
+         thứ tự "đơn mới lên đầu". Không biết giờ thì để trống, thà thiếu còn hơn sai. */
+      state.files.forEach(function(F){ if(F&&F.data){ F.imported=true; F._new=false; } });
       // dựng lại ghi chú độ cong + Bảng Hộp theo mã đơn từ meta các file đã lưu
       var cnbm={}, btbm={}, dcbm={}, chbm={}; state.files.forEach(function(F){ if(!F||!F.meta||!F.data) return; var seen={}; (F.data.rawOrders||[]).forEach(function(o){ var m=o&&o.maDon; if(m&&!seen[m]){ seen[m]=1; if(F.meta.curlNotes) cnbm[m]=Object.assign(cnbm[m]||{}, F.meta.curlNotes); if(F.meta.curlHeaders) chbm[m]=Object.assign(chbm[m]||{}, F.meta.curlHeaders); if(F.meta.boxTable) btbm[m]=richerBox(btbm[m], F.meta.boxTable); if(F.meta.doCong) dcbm[m]=F.meta.doCong; } }); }); state.curlNotesByMadon=cnbm; state.boxTableByMadon=btbm; state.doCongByMadon=dcbm; state.curlHeadersByMadon=chbm;
       if(Array.isArray(p.log)) state.log = p.log;
