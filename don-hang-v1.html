@@ -545,7 +545,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608111115</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608111200</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -2199,18 +2199,24 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var sHop=0, sDai=0;
     var trs=rows.map(function(r,i){
       sHop+=r.hop; sDai+=r.dai;
+      var gio=rptTime(r.ts);
+      var tdGio = r.ts ? ('<td class="txt">'+esc(gio)+'</td>')
+        : '<td class="txt" title="Đơn này vào app từ trước khi có cột giờ — bấm ▶ Xử lý lại là có giờ" style="color:var(--text-3)">—</td>';
       return '<tr data-madon="'+esc(r.md)+'" data-makh="'+esc(r.kh)+'">'+
         '<td class="qty">'+(i+1)+'</td>'+
-        '<td class="txt">'+esc(rptTime(r.ts))+'</td>'+
         '<td class="txt">'+esc(r.kh||'—')+'</td>'+
         '<td class="txt"><b>'+esc(r.don||r.md)+'</b></td>'+
         '<td class="qty">'+fmtN(r.hop)+'</td>'+
-        '<td class="qty">'+fmtN(r.dai)+'</td></tr>';
+        '<td class="qty">'+fmtN(r.dai)+'</td>'+
+        tdGio+'</tr>';
     }).join('');
-    box.innerHTML='<table class="sheet rpt-t"><thead><tr><th>#</th><th class="txt">Thời gian nhập</th>'+
-      '<th class="txt">Mã KH</th><th class="txt">Mã Đơn</th><th>Số lượng hộp</th><th>Số lượng dải</th></tr></thead><tbody>'+
-      trs+'<tr class="rpt-sum"><td></td><td class="txt">TỔNG</td><td></td><td class="txt">'+rows.length+' đơn</td>'+
-      '<td class="qty">'+fmtN(sHop)+'</td><td class="qty">'+fmtN(sDai)+'</td></tr></tbody></table>';
+    var TH='style="background:var(--green-500);color:#fff"';   // tiêu đề nền xanh chữ trắng như Bảng Mix Label
+    box.innerHTML='<table class="sheet rpt-t"><thead><tr><th '+TH+'>#</th>'+
+      '<th class="txt" '+TH+'>Mã KH</th><th class="txt" '+TH+'>Mã Đơn</th>'+
+      '<th '+TH+'>Số lượng hộp</th><th '+TH+'>Số lượng dải</th>'+
+      '<th class="txt" '+TH+'>Thời gian nhập</th></tr></thead><tbody>'+
+      trs+'<tr class="rpt-sum"><td></td><td class="txt">TỔNG</td><td class="txt">'+rows.length+' đơn</td>'+
+      '<td class="qty">'+fmtN(sHop)+'</td><td class="qty">'+fmtN(sDai)+'</td><td></td></tr></tbody></table>';
     setTxt('rpt-hop', fmtN(sHop)); setTxt('rpt-dai', fmtN(sDai));
   }
   // Đổi tab bước 2 — chỉ bật/tắt 1 class, KHÔNG tính lại số liệu
@@ -2228,11 +2234,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var rows=rptLoc();
     if(!rows.length) return alert('Không có đơn nào để xuất.');
     var sHop=0, sDai=0;
-    var body=rows.map(function(r,i){ sHop+=r.hop; sDai+=r.dai; return [i+1, rptTime(r.ts), r.kh||'', r.don||r.md, r.hop, r.dai]; });
-    body.push(['','TỔNG','', rows.length+' đơn', sHop, sDai]);
+    var body=rows.map(function(r,i){ sHop+=r.hop; sDai+=r.dai; return [i+1, r.kh||'', r.don||r.md, r.hop, r.dai, rptTime(r.ts)]; });
+    body.push(['','TỔNG', rows.length+' đơn', sHop, sDai, '']);
     var wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(
-      [['#','Thời gian nhập','Mã KH','Mã Đơn','Số lượng hộp','Số lượng dải']].concat(body)), 'Tong hop don');
+      [['#','Mã KH','Mã Đơn','Số lượng hộp','Số lượng dải','Thời gian nhập']].concat(body)), 'Tong hop don');
     XLSX.writeFile(wb,'TongHopDonDaNhap.xlsx');
     logLine('Đã tải TongHopDonDaNhap.xlsx ('+rows.length+' đơn)');
   }
@@ -6543,7 +6549,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       try{ if(window.__syncUploadPerm) window.__syncUploadPerm(); }catch(e){ logErr('dlAll', e); }
     },
     getState: function(){
-      return { orders:state.orders, mixSheets:state.mixSheets, keoRows:state.keoRows, khachCuon:state.khachCuon||null,
+      // savedAt: mốc lưu — dùng để bù "Thời gian nhập" cho file lưu từ bản app CŨ (chưa ghi giờ)
+      return { savedAt:Date.now(), orders:state.orders, mixSheets:state.mixSheets, keoRows:state.keoRows, khachCuon:state.khachCuon||null,
                pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{}, colorMix:state.colorMix||{}, remapApproved:state.remapApproved||{}, lenApproved:state.lenApproved||{}, errAck:state.errAck||{},
                files:state.files, log:state.log, source:state.source, processed:state.processed };
     },
@@ -6565,7 +6572,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       state.errAck      = (p.errAck      && typeof p.errAck==='object')      ? p.errAck      : {};
       state.files     = Array.isArray(p.files)     ? p.files     : [];
       // project đã lưu = file đã xử lý → cột "File đã nhập", và KHÔNG báo lại cảnh báo của chúng
-      state.files.forEach(function(F){ if(F&&F.data){ F.imported=true; F._new=false; } });
+      /* Bản lưu từ app CŨ không có "Thời gian nhập" của từng file → bù bằng mốc LƯU của
+         chính bản đó (mốc thật, có ghi trong file lưu). Bản lưu quá cũ không có cả mốc này
+         thì để trống, chờ lần "▶ Xử lý" sau là có giờ thật. */
+      var _sv=+p.savedAt||0;
+      state.files.forEach(function(F){ if(F&&F.data){ F.imported=true; F._new=false; if(!F.importedAt && _sv) F.importedAt=_sv; } });
       // dựng lại ghi chú độ cong + Bảng Hộp theo mã đơn từ meta các file đã lưu
       var cnbm={}, btbm={}, dcbm={}, chbm={}; state.files.forEach(function(F){ if(!F||!F.meta||!F.data) return; var seen={}; (F.data.rawOrders||[]).forEach(function(o){ var m=o&&o.maDon; if(m&&!seen[m]){ seen[m]=1; if(F.meta.curlNotes) cnbm[m]=Object.assign(cnbm[m]||{}, F.meta.curlNotes); if(F.meta.curlHeaders) chbm[m]=Object.assign(chbm[m]||{}, F.meta.curlHeaders); if(F.meta.boxTable) btbm[m]=richerBox(btbm[m], F.meta.boxTable); if(F.meta.doCong) dcbm[m]=F.meta.doCong; } }); }); state.curlNotesByMadon=cnbm; state.boxTableByMadon=btbm; state.doCongByMadon=dcbm; state.curlHeadersByMadon=chbm;
       if(Array.isArray(p.log)) state.log = p.log;
