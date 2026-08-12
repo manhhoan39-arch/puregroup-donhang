@@ -562,7 +562,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608111605</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608120810</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -2206,8 +2206,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       return (b.ts-a.ts) || (b.ord-a.ord) || (a.md<b.md?-1:a.md>b.md?1:0);
     });
   }
+  /* Hai ô lọc dùng chung danh sách xổ dl-makh/dl-madon, mà danh sách đó có sẵn mục
+     "Tất cả KH" / "Tất cả các đơn" nghĩa là BỎ LỌC. Chọn đúng mục ấy mà coi như chữ
+     cần tìm thì tra ra 0 đơn — bảng trắng trơn (lỗi 12/8). */
+  function rptBoLoc(v, all){ v=String(v||'').trim(); return (v===all)?'':v; }
   function rptLoc(){
-    var qk=rptKd(getVal('rpt-makh')), qd=rptKd(getVal('rpt-madon'));
+    var qk=rptKd(rptBoLoc(getVal('rpt-makh'),'Tất cả KH')),
+        qd=rptKd(rptBoLoc(getVal('rpt-madon'),'Tất cả các đơn'));
     return rptRows().filter(function(r){
       if(qk && rptKd(r.kh).indexOf(qk)<0 && rptKd(r.md).indexOf(qk)<0) return false;
       if(qd && rptKd(r.don).indexOf(qd)<0 && rptKd(r.md).indexOf(qd)<0) return false;
