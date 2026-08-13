@@ -378,7 +378,9 @@
   //  → có từ "màu/color" HOẶC tên màu tiếng Anh (Blue/Pink/Violet/Mocha/Espresso/Chocolate…).
   //  (Tên màu CHỈ xét ở Code Sợi + Tên Gọi NL để TRÁNH nhầm "Black Mink" ở cột Phân Loại.)
   var COLOR_KW = /(màu|mầu|mau|colou?r)/i;
-  var COLOR_NAME = /\b(blue|pink|hpink|h\.?pink|violet|purple|lilac|brown|green|yellow|orange|navy|teal|beige|cream|mocha|espresso|esp|chocolate|coffee|caramel|wine|burgundy|nude|red)\b/i;
+  // Tên màu sợi mi hay gặp. Bổ sung 13/8: pecan (= Dark Brown) · honey — đơn 774P dùng,
+  // khách chú thích ngay trong file ("Pecan: Dark Brown") nhưng app chưa biết là màu.
+  var COLOR_NAME = /\b(blue|pink|hpink|h\.?pink|violet|purple|lilac|brown|green|yellow|orange|navy|teal|beige|cream|mocha|espresso|esp|chocolate|coffee|caramel|wine|burgundy|nude|red|pecan|honey)\b/i;
   var isColorComp = function (comp) {
     var f = comp || {};
     var kw = [f.codeSoi, f.material, f.detail, f.loaiHang, f.label, f.ghiChu].join(' ');
@@ -436,16 +438,38 @@
         s = s.replace(mcu[0], ' ');
       }
     }
+    /* LOẠI TRỪ NGUYÊN LIỆU: "0.05 Tất cả độ dài TRỪ hàng Ultra Matte 0.05" — nghĩa là mọi
+       nguyên liệu 0.05 TRỪ Ultra Matte. Trước đây cụm "trừ hàng Ultra Matte" bị hiểu thành
+       tên nguyên liệu cần khớp → hiểu NGƯỢC HẲN ý khách. Bóc riêng ra thành danh sách cấm.
+       (Chạy SAU phần độ cong để "không phải LB, LC…" đã được lấy ra trước.) */
+    var matsNot = null, mneg = s.match(/\b(?:tr[ừu]|ngo[ạa]i\s*tr[ừu]|kh[ôo]ng\s*ph[ảa]i|except)\s+([\s\S]*)$/i);
+    if (mneg) { matsNot = mneg[1]; s = s.replace(mneg[0], ' '); }
     var thickRaw = s.match(/\d+(?:[.,]\d+)?/g) || [];
     s = s.replace(/\d+(?:[.,]\d+)?/g, ' ');
-    var mats = s.split(/[\/,;·]/).map(function (t) { return t.replace(/\s+/g, ' ').trim(); })
+    /* Tách nguyên liệu: ngoài "/ , ; ·" còn phải nhận "và" và "&" (đơn 774P ghi
+       "cho hàng Mink và hàng màu" — trước đây dính thành MỘT tên không có thật, hai dòng
+       keo Nau155C.2/.3 chẳng khớp dòng nào, 5.520 dây mất keo). Bỏ luôn chữ nối đứng đầu
+       mỗi mục ("cho", "dùng cho", "áp dụng cho"…) kẻo nó thành một phần của tên. */
+    var tachMat = function (txt) {
+      return String(txt == null ? '' : txt).replace(/\d+(?:[.,]\d+)?/g, ' ')
+        .split(/[\/,;·]|\s+v[àa]\s+|\s*&\s*/).map(function (t) {
+          return t.replace(/^\s*(?:cho|d[ùu]ng cho|d[ùu]ng|[áa]p d[ụu]ng cho|[áa]p d[ụu]ng|v[ớo]i|c[ủu]a)\s+/i, '').replace(/\s+/g, ' ').trim();
+        })
+        .filter(function (t) { return t && !/^mm$/i.test(t) && t !== '-' && t !== '.'; })
+        .filter(function (t) { return !NOT_MAT_RE.test(t.replace(/\s+/g, ' ').trim()); });
+    };
+    matsNot = matsNot ? tachMat(matsNot) : null;
+    if (matsNot && !matsNot.length) matsNot = null;
+    var mats = s.split(/[\/,;·]|\s+v[àa]\s+|\s*&\s*/).map(function (t) {
+      return t.replace(/^\s*(?:cho|d[ùu]ng cho|d[ùu]ng|[áa]p d[ụu]ng cho|[áa]p d[ụu]ng|v[ớo]i|c[ủu]a)\s+/i, '').replace(/\s+/g, ' ').trim();
+    })
       .filter(function (t) { return t && !/^mm$/i.test(t) && t !== '-' && t !== '.'; })
       /* Ghi chú kiểu "Cho cả đơn", "Dùng chung", "Áp dụng toàn bộ"… KHÔNG phải tên nguyên liệu.
          Nhận nhầm thì quy tắc keo đòi khớp một nguyên liệu không tồn tại → không dòng nào khớp,
          cả đơn mất keo (đơn 356P từng bị: 76 dòng đều phải mượn keo trong cột của khách). */
       .filter(function (t) { return !NOT_MAT_RE.test(t.replace(/\s+/g, ' ').trim()); });
     return { lo: lo, hi: hi, spec: spec, thickRaw: thickRaw, thicks: thickRaw.map(thickKey), mats: mats,
-             curlOnly: curlOnly, curlNot: curlNot };
+             matsNot: matsNot, curlOnly: curlOnly, curlNot: curlNot };
   }
   // Nhận diện tên độ cong trong câu — token DÀI trước để "LC+" không bị cắt thành "LC", "CC" không thành "C"
   var CURL_TOKEN_RE = new RegExp('(?:' + CURLS.slice().sort(function (a, b) { return b.length - a.length; })
@@ -558,7 +582,7 @@
           var c = parseKeoCond(ln);
           if (!c.thickRaw.length && !c.mats.length && c.lo == null && !c.curlOnly && !c.curlNot) return;
           rules.push({ maDon: k.maDon, glue: PS(k.loaiKeo), mats: c.mats, thick: c.thicks, lo: c.lo, hi: c.hi, spec: c.spec,
-                       curlOnly: c.curlOnly || null, curlNot: c.curlNot || null });
+                       curlOnly: c.curlOnly || null, curlNot: c.curlNot || null, matsNot: c.matsNot || null });
         });
         return;
       }
@@ -595,6 +619,7 @@
         // phạm vi ĐỘ CONG (nếu ghi chú có nói) — ưu tiên Ghi Chú, rồi Loại Sợi, rồi Độ Dài
         curlOnly: ghi.curlOnly || soi.curlOnly || len.curlOnly || null,
         curlNot:  ghi.curlNot  || soi.curlNot  || len.curlNot  || null,
+        matsNot:  soi.matsNot  || ghi.matsNot  || len.matsNot  || null,
       });
     });
     return rules;
@@ -606,6 +631,22 @@
    * cùng mức thì material khớp DÀI hơn thắng ("Premium Faux Mink" > "Faux Mink");
    * quy tắc không có điều kiện nào bị bỏ qua (tránh khớp bừa mọi dòng).
    */
+  /** Điểm khớp giữa nguyên liệu của DÒNG ĐƠN và danh sách tên trong quy tắc keo (−1 = không khớp). */
+  function diemKhopMat(list, mat, comp) {
+    var hit = -1;
+    (list || []).forEach(function (a) {
+      // "hàng màu/sợi màu/màu" → khớp mọi sợi MÀU (không chứa Mink/Silk)
+      if (isColorMat(a)) { if (isColorComp(comp)) hit = Math.max(hit, 30); return; }
+      // "hàng Mink" / "sợi Mink" = mọi sợi có chữ Mink → bỏ chữ chỉ loại đứng đầu
+      var an = normTxt(a).replace(/\d+(?:[.,]\d+)?/g, ' ').replace(/^(?:hàng|sợi|loại)\s+/, '').replace(/\s+/g, ' ').trim();
+      if (!an) return;
+      if (mat === an) hit = Math.max(hit, an.length + 50);        // khớp chính xác
+      // CHỈ 1 CHIỀU: material của dòng CHỨA tên rule ("premium faux mink" chứa "faux mink" → rule
+      // Faux Mink áp được, nhưng rule "Premium Faux Mink" KHÔNG áp cho dòng "Faux Mink")
+      else if (mat.indexOf(an) >= 0) hit = Math.max(hit, an.length);
+    });
+    return hit;
+  }
   function glueFor(rules, comp) {
     var mat = normTxt(comp.material).replace(/\d+(?:[.,]\d+)?/g, ' ').replace(/\s+/g, ' ').trim();
     var mm = Number(comp.mm);
@@ -616,7 +657,7 @@
     (rules || []).forEach(function (r) {
       if (comp.maDon && r.maDon && r.maDon !== comp.maDon) return;
       var hasMat = r.mats && r.mats.length, hasThick = r.thick && r.thick.length;
-      if (!hasMat && !hasThick && r.lo == null && !r.curlOnly && !r.curlNot) return;   // quy tắc rỗng → bỏ
+      if (!hasMat && !hasThick && r.lo == null && !r.curlOnly && !r.curlNot && !(r.matsNot && r.matsNot.length)) return;   // quy tắc rỗng → bỏ
       // đang tra cho MỘT NHÓM ĐỘ CONG cụ thể → rule của nhóm kia không được xen vào
       if (comp.curlNhom != null && !ruleHopCurl(r, !!comp.curlNhom)) return;
       // ---- ĐIỀU KIỆN LỌC CỨNG: vi phạm bất kỳ → LOẠI ----
@@ -628,20 +669,12 @@
         for (var _t = 0; _t < compThicks.length; _t++) { if (r.thick.indexOf(compThicks[_t]) >= 0) { thit = true; break; } }
         if (!thit) return;
       }
+      // NGUYÊN LIỆU BỊ LOẠI TRỪ ("… trừ hàng Ultra Matte") → khớp cái nào là LOẠI rule luôn
+      if (r.matsNot && r.matsNot.length && mat && diemKhopMat(r.matsNot, mat, comp) >= 0) return;
       var matHit = 0;
       if (hasMat) {
         if (!mat) return;
-        var hit = -1;
-        r.mats.forEach(function (a) {
-          // "hàng màu/sợi màu/màu" → khớp mọi sợi MÀU (không chứa Mink/Silk)
-          if (isColorMat(a)) { if (isColorComp(comp)) hit = Math.max(hit, 30); return; }
-          var an = normTxt(a).replace(/\d+(?:[.,]\d+)?/g, ' ').replace(/\s+/g, ' ').trim();
-          if (!an) return;
-          if (mat === an) hit = Math.max(hit, an.length + 50);        // khớp chính xác
-          // CHỈ 1 CHIỀU: material của dòng CHỨA tên rule ("premium faux mink" chứa "faux mink" → rule
-          // Faux Mink áp được, nhưng rule "Premium Faux Mink" KHÔNG áp cho dòng "Faux Mink")
-          else if (mat.indexOf(an) >= 0) hit = Math.max(hit, an.length);
-        });
+        var hit = diemKhopMat(r.mats, mat, comp);
         if (hit < 0) return;
         matHit = hit;
       }
@@ -1329,7 +1362,9 @@
         // Không bung chữ tự do ở đây nữa — việc bung thành QUY TẮC keo được chuyển
         // sang buildKeoRules() để Bảng Keo (Step 4) hiển thị đúng dữ liệu gốc,
         // còn Step 5/6 vẫn gán keo y như cũ.
-        keoRows.push({ maDon: maDon, loaiKeo: mk, loaiSoi: ls, doDay: dd, doDai: ld, ghiChu: gh });
+        // ô Độ Dày ghi MÔ TẢ KEO ("Keo nâu 2mm") thay vì số → coi như trống, lấy độ dày từ Ghi Chú
+        if (/keo/i.test(dd.normalize('NFD').replace(/[\u0300-\u036f]/g,'')) && !/0[.,]\d/.test(dd)) dd = '';
+        keoRows.push({ maDon: maDon, loaiKeo: mk.replace(/[()]/g,'').trim(), loaiSoi: ls, doDay: dd, doDai: ld, ghiChu: gh });
       }
       break;
     }

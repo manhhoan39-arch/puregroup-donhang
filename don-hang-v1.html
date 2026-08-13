@@ -574,7 +574,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608131450</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608131615</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1288,12 +1288,36 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       // 1) Đối chiếu NGUYÊN LIỆU thật — không có tên nào khớp → KHÔNG chắc → giữ nguyên trong Ghi Chú
       var rest=' '+String(ln).toLowerCase().replace(/\s+/g,' ')+' ', mats=[];
       vocab.forEach(function(v){ var vn=String(v).toLowerCase().replace(/\s+/g,' ').trim(); if(vn && rest.indexOf(vn)>=0){ mats.push(v); rest=rest.split(vn).join(' '); } });
+      /* 1b) Không khớp TÊN THẬT nào nhưng khách ghi theo NHÓM ("cho hàng Mink và hàng màu")
+         → lấy đúng danh sách mà ENGINE dùng để gán keo, nhờ vậy bảng hiện lên chính là
+         điều kiện thật đang chạy, không phải bản đoán riêng của giao diện. */
+      if(!mats.length && !BAD.test(ln)){
+        try{
+          var _c=E.parseKeoCond(ln);
+          (_c.mats||[]).forEach(function(a){ if(/^(?:hàng|sợi|loại)\s+/i.test(a)) mats.push(a); });
+          (_c.matsNot||[]).forEach(function(a){ mats.push('trừ '+a); });
+        }catch(e){ logErr('parseKeoNote', e); }
+      }
       // 2) Note phức tạp / có dấu hiệu không chắc → KHÔNG bóc tách
       if(!mats.length || BAD.test(ln)) return;
       // 3) Tách độ dài (mm) ra trước; phần còn lại → Độ dày = số thập phân HOẶC số tự nhiên
       var pl=parseLen(ln);
       var th=pl.s.match(/\d+(?:[.,]\d+)?/g)||[];
-      any=true; soi.push(mats.join('/')); day.push(th.join('/')); dai.push(pl.L);
+      /* Ghi chú kiểu "… TRỪ hàng Ultra Matte" là LOẠI TRỪ. Hiện trơn tên nguyên liệu vào cột
+         Loại Sợi là đọc thành NGƯỢC ý khách (tưởng chỉ dùng cho Ultra Matte) — phải ghi rõ "trừ".
+         Chỉ đánh dấu những tên nằm SAU chữ "trừ" (vd "0.07 Faux Mink không phải hàng màu"
+         thì Faux Mink là DÙNG, chỉ hàng màu mới bị trừ).
+         KHÔNG dùng \b quanh chữ có dấu: "ừ" không phải word-char ASCII nên \b không khớp. */
+      var lnL=String(ln).toLowerCase();
+      var mTru=lnL.match(/(?:^|[\s,;.])(?:trừ|ngoại\s*trừ|không\s*phải)(?=[\s,;.]|$)/);
+      var viTru=mTru?lnL.indexOf(mTru[0]):-1;
+      any=true;
+      soi.push(mats.map(function(v){
+        if(/^trừ\s/i.test(v)) return v;                      // đã gắn sẵn ở bước 1b, đừng gắn 2 lần
+        var i=lnL.indexOf(String(v).toLowerCase());
+        return (viTru>=0 && i>viTru ? 'trừ ' : '')+v;
+      }).join('/'));
+      day.push(th.join('/')); dai.push(pl.L);
     });
     return any?{ loaiSoi:soi.join('\n'), doDay:day.join('\n'), doDai:dai.join('\n') }:null;
   }
