@@ -405,7 +405,11 @@
    * spec = độ đặc hiệu của điều kiện độ dài (3 dải kín/1 giá trị · 2 nửa hở · 0 không ràng buộc).
    */
   function parseKeoCond(text) {
-    var s = ' ' + PS(text) + ' ';
+    /* MỖI DÒNG LÀ MỘT MỤC. Ô "Loại Sợi" hay có nhiều nguyên liệu xếp theo dòng
+       ("Faux Mink⏎Super Silk") — đúng như app hiện lên và như người dùng gõ vào. PS() gộp
+       xuống dòng thành dấu cách nên trước đây dính lại thành MỘT tên "Faux Mink Super Silk",
+       chẳng khớp nguyên liệu nào. Đổi xuống dòng thành dấu ';' để tách như dấu phẩy. */
+    var s = ' ' + PS(String(text == null ? '' : text).replace(/\r?\n+/g, ' ; ')) + ' ';
     var lo = null, hi = null, spec = 0, m;
     if ((m = s.match(/(?:từ|from)\s*(\d+)\s*(?:mm)?\s*(?:đến|tới|->|~|–|-)\s*(\d+)\s*mm/i))) { lo = +m[1]; hi = +m[2]; spec = 3; s = s.replace(m[0], ' '); } // từ N đến M mm (khoảng kín)
     else if ((m = s.match(/(\d+)\s*[~–-]\s*(\d+)\s*mm/i))) { lo = +m[1]; hi = +m[2]; spec = 3; s = s.replace(m[0], ' '); }            // N~M mm (khoảng kín)

@@ -574,7 +574,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608121030</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608131450</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1912,6 +1912,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var val = String(td.innerText==null?'':td.innerText).replace(/ /g,' ').replace(/\n+$/,'').trim();
       var oldVal = String(state.keoRows[idx][field]==null?'':state.keoRows[idx][field]);
       if(val===oldVal) return;
+      /* Ô app TỰ BÓC từ Ghi Chú: hiện sẵn chữ cho dễ đọc nhưng ô gốc đang TRỐNG. Bấm vào rồi
+         bấm ra mà KHÔNG gõ gì thì đừng ghi chữ đó vào dữ liệu — ghi vào là dòng keo chuyển từ
+         "đọc theo Ghi Chú" sang "đọc theo cột", keo lệch mà người dùng có sửa gì đâu. */
+      var seed = td.getAttribute('data-keoseed');
+      if(seed != null && val === String(seed).replace(/\s+$/,'').trim()) return;
       // CHỜ LƯU: chưa đụng state; bấm "Lưu" mới áp dụng (keoMalformed, Keo nhiệt Line Cuốn + Box)
       markPending(td, function(){
         state.keoRows[idx][field]=val;
@@ -4230,13 +4235,18 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(miss) warn++;
       var wc=miss?'cell-warn':'';
       // ô SỬA ĐƯỢC cho admin (contenteditable + data-keoedit/data-keoidx → handler chung cập nhật state.keoRows)
-      var ed=function(field,val,extra){
+      /* seed = giá trị app TỰ BÓC TÁCH từ Ghi Chú, chưa có trong dữ liệu gốc. Vẫn cho gõ đè,
+         nhưng gắn data-keoseed để handler biết: y nguyên seed = chưa sửa gì → đừng ghi vào
+         state (bấm vào ô rồi bấm ra không được biến số app đoán thành số người nhập). */
+      var ed=function(field,val,extra,seed){
         var cls=((extra||'')+' '+(extra===undefined?'txt':'')).trim();
         // ô do app BUNG ra (tách từ ghi chú) vẫn tô xanh như trước để dễ để ý — nhưng SỬA ĐƯỢC
         if(k._daTach && (field==='loaiKeo'||field==='doDai')) cls+=' keo-der';
         var ke=(field==='loaiKeo')?keoErrAttr(val):{cls:'',ti:''};
-        var ce=canEdit?' contenteditable="true" data-keoedit="'+field+'" data-keoidx="'+idx+'" style="white-space:pre-wrap"':'';
-        return '<td class="'+(cls+ke.cls)+'"'+ce+ke.ti+'>'+esc(val==null?'':val)+'</td>';
+        var sd=(seed!=null)?(' data-keoseed="'+esc(seed)+'"'):'';
+        var ti=ke.ti || (seed!=null?' title="App tự bóc tách từ Ghi Chú — gõ đè vào đây thì Bảng Line Cuốn tính keo theo ô này"':'');
+        var ce=canEdit?' contenteditable="true" data-keoedit="'+field+'" data-keoidx="'+idx+'"'+sd+' style="white-space:pre-wrap"':'';
+        return '<td class="'+(cls+ke.cls)+'"'+ce+ti+'>'+esc(val==null?'':val)+'</td>';
       };
       // Nếu cột thuộc tính trống nhưng Ghi Chú có nội dung → BÓC TÁCH hiển thị (chỉ xem, giữ nguyên ghi chú gốc)
       // Ghi chú "keo A cho độ dài X; keo B cho độ dài Y" → NHÂN BẢN dòng (Loại Keo + Độ Dài)
@@ -4257,7 +4267,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var pn=parseKeoNote(k.ghiChu);
       var col=function(field,val,extra){
         if(String(val==null?'':val).trim()) return ed(field,val,extra);
-        if(pn && String(pn[field]||'').trim()) return '<td class="txt keo-der" title="Tự bóc tách từ Ghi Chú (giữ nguyên ghi chú gốc)">'+nl2br(pn[field])+'</td>';
+        // cột trống nhưng bóc được từ Ghi Chú → hiện số app bóc, VẪN SỬA ĐƯỢC (gõ đè là ăn theo ô này)
+        if(pn && String(pn[field]||'').trim()) return ed(field, pn[field], ((extra||'txt')+' keo-der'), pn[field]);
         return ed(field,val,extra);
       };
       rows.push('<tr data-madon="'+esc(k.maDon)+'" data-makh="'+esc(khOf(k.maDon))+'" data-keoidx="'+idx+'">'+
@@ -4784,11 +4795,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       : '';
     tbody.innerHTML = warnRow + (keo.length ? keo.map(function(k){
       var idx = state.keoRows.indexOf(k);
-      var ed = function(field,val){
+      var ed = function(field,val,seed){
         var ke=(field==='loaiKeo')?keoErrAttr(val):{cls:'',ti:''};
         var der=(k._daTach && (field==='loaiKeo'||field==='doDai'))?' keo-der':'';   // app bung ra → tô xanh, vẫn sửa được
-        var ce = (canEdit && idx>=0) ? ' contenteditable="true" data-keoedit="'+field+'" data-keoidx="'+idx+'" style="white-space:pre-wrap"' : '';
-        return '<td class="txt'+der+ke.cls+'"'+ce+ke.ti+'>'+esc(val==null?'':val)+'</td>';
+        if(seed!=null) der+=' keo-der';
+        var ti=(seed!=null && !ke.ti) ? ' title="App tự bóc từ Ghi Chú — gõ đè vào đây thì Bảng Line Cuốn tính keo theo ô này"' : ke.ti;
+        var ce = (canEdit && idx>=0) ? ' contenteditable="true" data-keoedit="'+field+'" data-keoidx="'+idx+'"'+
+                 (seed!=null?' data-keoseed="'+esc(seed)+'"':'')+' style="white-space:pre-wrap"' : '';
+        return '<td class="txt'+der+ke.cls+'"'+ce+ti+'>'+esc(val==null?'':val)+'</td>';
       };
       var kbl=k._daTach?null:parseKeoByLength(k.ghiChu);   // đã bung thành dòng thật → khỏi vẽ dòng dẫn xuất
       if(kbl){
@@ -4801,7 +4815,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         }).join('');
       }
       var pn=parseKeoNote(k.ghiChu);
-      var col=function(field,val){ if(String(val==null?'':val).trim()) return ed(field,val); if(pn&&String(pn[field]||'').trim()) return '<td class="txt keo-der" title="Tự bóc tách từ Ghi Chú">'+nl2br(pn[field])+'</td>'; return ed(field,val); };
+      /* Cột thuộc tính TRỐNG nhưng Ghi Chú có nội dung → hiện số app tự bóc VÀ CHO SỬA.
+         Sửa xong là Bảng Line Cuốn điền keo lại theo đúng ô vừa gõ (yêu cầu 13/8). */
+      var col=function(field,val){
+        if(String(val==null?'':val).trim()) return ed(field,val);
+        if(pn && String(pn[field]||'').trim()) return ed(field, pn[field], pn[field]);
+        return ed(field,val);
+      };
       return '<tr'+(malformed?' class="cell-warn"':'')+' data-keoidx="'+idx+'" title="Chuột phải để thêm/xóa/nhân bản dòng">'+
         '<td>'+esc(khOf(k.maDon))+'</td><td>'+esc(donOf(k.maDon))+'</td>'+ed('loaiKeo',k.loaiKeo)+col('loaiSoi',k.loaiSoi)+col('doDay',k.doDay)+col('doDai',k.doDai)+ed('ghiChu',k.ghiChu)+
         '</tr>';
