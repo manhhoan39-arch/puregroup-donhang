@@ -295,6 +295,9 @@ td.cellsel-anchor,th.cellsel-anchor{box-shadow:inset 0 0 0 2px var(--accent)}
 .rpt-t tbody tr.rpt-row:hover{background:var(--surface-2)}
 .rpt-t tbody tr.rpt-on td{background:var(--accent-soft)!important;font-weight:700}
 .rpt-caret{color:var(--accent);font-weight:800;margin-right:2px}
+.rpt-loc{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px;padding:7px 12px;font-size:12px;
+  background:var(--amber-50,#fffbeb);border:1px solid rgba(245,158,11,.45);border-radius:9px;color:#8a5a00}
+.rpt-loc .btn{margin-left:auto}
 .rpt-t td.rpt-detail-td{padding:0;background:rgba(232,24,92,.03);white-space:normal;
   box-shadow:inset 0 2px 0 var(--accent),inset 0 -2px 0 var(--accent)}
 .rpt-dt-2{display:grid;grid-template-columns:1.25fr 1fr;gap:12px;padding:10px 12px 12px;text-align:left}
@@ -571,7 +574,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608120940</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608121030</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -747,6 +750,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
         <div class="it">Tổng hộp<b id="rpt-hop">—</b></div>
         <div class="it">Tổng dải<b id="rpt-dai">—</b></div>
       </div>
+      <div id="rpt-filter-note"></div>
       <div class="tbl-wrap" id="rpt-body"></div>
     </div>
     <!-- TAB 1: bảng nhập đơn chi tiết -->
@@ -2245,6 +2249,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(!box) return;
     var rows=rptLoc(), tong=rptRows().length;
     setTxt('rpt-count', tong ? (rows.length===tong ? fmtN(tong) : fmtN(rows.length)+'/'+fmtN(tong)) : '—');
+    /* Đang lọc mà giấu mất đơn thì phải NÓI RÕ ngay trên bảng — nhìn "1/27" ở góc phải
+       rất dễ tưởng app làm mất đơn cũ (lỗi 13/8). */
+    (function(){
+      var nb=document.getElementById('rpt-filter-note'); if(!nb) return;
+      var qk=rptBoLoc(getVal('rpt-makh'),'Tất cả KH'), qd=rptBoLoc(getVal('rpt-madon'),'Tất cả các đơn');
+      if(!qk && !qd){ nb.innerHTML=''; return; }
+      var ct=[]; if(qk) ct.push('Mã KH "<b>'+esc(qk)+'</b>"'); if(qd) ct.push('Mã Đơn "<b>'+esc(qd)+'</b>"');
+      nb.innerHTML='<div class="rpt-loc">🔎 Đang lọc theo '+ct.join(' và ')+' — hiện <b>'+fmtN(rows.length)+'</b>/'+fmtN(tong)+' đơn'+
+        '<button class="btn sm" id="rpt-bo-loc">✕ Bỏ lọc, xem tất cả</button></div>';
+    })();
     if(!tong){ setTxt('rpt-hop','—'); setTxt('rpt-dai','—');
       box.innerHTML='<div class="rpt-empty">Chưa có đơn nào — nạp file ở bước 1 rồi bấm "▶ Xử lý".</div>';
       rptMdChon=''; return; }        // không còn đơn nào → quên luôn đơn đang mở
@@ -2299,6 +2313,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   document.addEventListener('click', function(ev){
     var t=ev.target;
+    if(t && t.closest && t.closest('#rpt-bo-loc')){                    // gỡ cả 2 ô lọc của bảng tổng hợp
+      ['rpt-makh','rpt-madon'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+      try{ renderNhapDonReport(); }catch(e){ logErr('renderNhapDonReport', e); }
+      return;
+    }
     if(t && t.closest && t.closest('.rpt-x')) return;                  // bấm nút xóa thì không xổ chi tiết
     var tr=t && t.closest ? t.closest('#rpt-body tr.rpt-row') : null; if(!tr) return;
     var md=tr.getAttribute('data-madon')||'';
@@ -2771,7 +2790,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       // đặt thẳng, KHÔNG gọi setGlobalMadon/Makh — hai hàm đó kéo theo 1 lượt vẽ lại bằng
       // dữ liệu CŨ; render() ngay bên dưới đã lo hết rồi.
       gridMadon=''; gridMakh='';
-      (MADON_IDS||[]).concat(MAKH_IDS||[]).concat(['chosen-madon','imported-madon'])
+      /* Gỡ MỌI ô lọc, kể cả 2 ô riêng của bảng Tổng hợp đơn (bước 2) và 2 ô của danh sách
+         file. Sót ô nào thì nạp đơn mới xong nhìn vào tưởng mất sạch đơn cũ — thực ra là
+         cái ô lọc gõ từ lúc nào vẫn còn bật (lỗi 13/8: còn chữ "750" ở ô Tìm Mã Đơn). */
+      (MADON_IDS||[]).concat(MAKH_IDS||[]).concat(['chosen-madon','imported-madon','rpt-makh','rpt-madon'])
         .forEach(function(id){ var e2=document.getElementById(id); if(e2) e2.value=''; });
       if(_f0) logLine('Đã bỏ bộ lọc "'+_f0+'" để thấy đơn vừa nạp');
     }

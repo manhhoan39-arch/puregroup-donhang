@@ -415,6 +415,23 @@
     else if ((m = s.match(/(?:<|dưới)\s*(\d+)\s*(?:mm)?/i))) { lo = 0; hi = +m[1] - 1; spec = 2; s = s.replace(m[0], ' '); }       // dưới N / <N (KHÔNG gồm N)
     else if ((m = s.match(/(\d+)\s*mm/i))) { lo = +m[1]; hi = +m[1]; spec = 3; s = s.replace(m[0], ' '); }                        // đúng N mm
     s = s.replace(/tất\s*cả(\s*độ\s*d\S*)?/gi, ' ');
+    /* ĐIỀU KIỆN THEO ĐỘ CONG (đơn 750P): khách ghi thẳng trong Ghi Chú
+         "6-8mm cho các độ cong không phải LB, LC, LJ, LC+"
+         "Độ cong LB, LC, LJ, LC+"
+       Trước đây cụm này bị cắt thành TÊN NGUYÊN LIỆU ("cho các độ cong không phải LB", "LC"…)
+       → không dòng nào khớp → cả độ dày 0.15 mất keo. Giờ bóc riêng ra thành phạm vi độ cong
+       và XÓA khỏi phần tên nguyên liệu. */
+    // nuốt luôn chữ nối đứng trước ("… cho các độ cong …") kẻo còn lại chữ "cho" thành tên nguyên liệu
+    var curlOnly = null, curlNot = null,
+        mcu = s.match(/(?:\b(?:cho|dùng|áp\s*dụng|với|của|theo)\s+)*(?:các\s*)?độ\s*cong\b([\s\S]*)$/i);
+    if (mcu) {
+      var seg = mcu[1], phu = /không\s*phải|ngoại\s*trừ|\btrừ\b|\bkhác\b|\bngoài\b/i.test(seg);
+      var ds = (seg.toUpperCase().match(CURL_TOKEN_RE) || []).filter(function (k) { return CURLS.indexOf(k) >= 0; });
+      if (ds.length) {
+        if (phu) curlNot = ds; else curlOnly = ds;
+        s = s.replace(mcu[0], ' ');
+      }
+    }
     var thickRaw = s.match(/\d+(?:[.,]\d+)?/g) || [];
     s = s.replace(/\d+(?:[.,]\d+)?/g, ' ');
     var mats = s.split(/[\/,;·]/).map(function (t) { return t.replace(/\s+/g, ' ').trim(); })
@@ -423,7 +440,23 @@
          Nhận nhầm thì quy tắc keo đòi khớp một nguyên liệu không tồn tại → không dòng nào khớp,
          cả đơn mất keo (đơn 356P từng bị: 76 dòng đều phải mượn keo trong cột của khách). */
       .filter(function (t) { return !NOT_MAT_RE.test(t.replace(/\s+/g, ' ').trim()); });
-    return { lo: lo, hi: hi, spec: spec, thickRaw: thickRaw, thicks: thickRaw.map(thickKey), mats: mats };
+    return { lo: lo, hi: hi, spec: spec, thickRaw: thickRaw, thicks: thickRaw.map(thickKey), mats: mats,
+             curlOnly: curlOnly, curlNot: curlNot };
+  }
+  // Nhận diện tên độ cong trong câu — token DÀI trước để "LC+" không bị cắt thành "LC", "CC" không thành "C"
+  var CURL_TOKEN_RE = new RegExp('(?:' + CURLS.slice().sort(function (a, b) { return b.length - a.length; })
+    .map(function (k) { return k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('|') + ')(?![A-Z])', 'g');
+  /* Rule có ràng buộc độ cong thì chỉ dùng cho ĐÚNG nhóm độ cong của nó.
+     dacBiet = true  → nhóm LB/LC/LJ/LC+ (nhóm "keo 2mm")
+     dacBiet = false → mọi độ cong còn lại */
+  function ruleHopCurl(r, dacBiet) {
+    if (r.curlOnly && r.curlOnly.length)
+      return r.curlOnly.some(function (k) { return isOverrideCurl(k) === dacBiet; });
+    if (r.curlNot && r.curlNot.length) {
+      var nhom = CURLS.filter(function (k) { return isOverrideCurl(k) === dacBiet; });
+      return nhom.some(function (k) { return r.curlNot.indexOf(k) < 0; });   // còn độ cong nào chưa bị loại
+    }
+    return true;
   }
   /* Cụm chữ chỉ phạm vi áp dụng, KHÔNG phải tên nguyên liệu. Khớp cả câu (^…$) để không
      cắt nhầm tên thật (vd "Cashmere Silk cho hàng chung" vẫn giữ nguyên là nguyên liệu). */
@@ -519,8 +552,9 @@
       if (!hasStructured && gh && /\d/.test(gh)) {
         gh.split(/\r?\n/).forEach(function (ln) {
           var c = parseKeoCond(ln);
-          if (!c.thickRaw.length && !c.mats.length && c.lo == null) return;
-          rules.push({ maDon: k.maDon, glue: PS(k.loaiKeo), mats: c.mats, thick: c.thicks, lo: c.lo, hi: c.hi, spec: c.spec });
+          if (!c.thickRaw.length && !c.mats.length && c.lo == null && !c.curlOnly && !c.curlNot) return;
+          rules.push({ maDon: k.maDon, glue: PS(k.loaiKeo), mats: c.mats, thick: c.thicks, lo: c.lo, hi: c.hi, spec: c.spec,
+                       curlOnly: c.curlOnly || null, curlNot: c.curlNot || null });
         });
         return;
       }
@@ -554,6 +588,9 @@
         maDon: k.maDon, glue: cleanKeoName(k.loaiKeo),
         mats: mats, thick: thicks,
         lo: len.lo, hi: len.hi, spec: len.spec,
+        // phạm vi ĐỘ CONG (nếu ghi chú có nói) — ưu tiên Ghi Chú, rồi Loại Sợi, rồi Độ Dài
+        curlOnly: ghi.curlOnly || soi.curlOnly || len.curlOnly || null,
+        curlNot:  ghi.curlNot  || soi.curlNot  || len.curlNot  || null,
       });
     });
     return rules;
@@ -575,7 +612,9 @@
     (rules || []).forEach(function (r) {
       if (comp.maDon && r.maDon && r.maDon !== comp.maDon) return;
       var hasMat = r.mats && r.mats.length, hasThick = r.thick && r.thick.length;
-      if (!hasMat && !hasThick && r.lo == null) return;   // quy tắc rỗng → bỏ
+      if (!hasMat && !hasThick && r.lo == null && !r.curlOnly && !r.curlNot) return;   // quy tắc rỗng → bỏ
+      // đang tra cho MỘT NHÓM ĐỘ CONG cụ thể → rule của nhóm kia không được xen vào
+      if (comp.curlNhom != null && !ruleHopCurl(r, !!comp.curlNhom)) return;
       // ---- ĐIỀU KIỆN LỌC CỨNG: vi phạm bất kỳ → LOẠI ----
       if (r.lo != null) { if (!isFinite(mm) || mm < r.lo || mm > r.hi) return; }
       // Sợi MÀU khớp quy tắc keo màu theo ĐỘ DÀI, BỎ ràng buộc độ dày (điều kiện độ dày trong ghi chú là cho Super Silk).
@@ -622,6 +661,14 @@
       if (g) return g;
     }
     return glueFor(rules, comp);   // fallback: theo mm thật
+  }
+  /** Keo khách ghi ĐÍCH DANH cho nhóm độ cong LB/LC/LJ/LC+ — không có thì trả ''. */
+  function glueForCurlOnly(rules, comp) {
+    var rs = (rules || []).filter(function (r) {
+      return r.curlOnly && r.curlOnly.length && r.curlOnly.some(isOverrideCurl);
+    });
+    if (!rs.length) return '';
+    return glueFor(rs, Object.assign({}, comp, { curlNhom: true }));
   }
   /** Tất cả mã keo của 1 dòng đơn (duyệt từng mm trong dải) — dùng cho Tổng hợp Box. */
   function orderGlues(rules, o) {
@@ -691,9 +738,13 @@
         k1 = ''; k2 = '';
       } else {
         if (keoRules && keoRules.length) {
-          k1 = glueFor(keoRules, { maDon: r.maDon, material: r.material || '', thickness: r.thickness, mm: r.mm, codeSoi: r.codeSoi, detail: r.detail, loaiHang: r.loaiHang, label: r.label, ghiChu: r.ghiChu });
-          // OVERRIDE: "Keo 2mm" (keo dải ngắn nhất) cho các độ cong LB/LC/LJ/LC+
-          k2 = glueForShort(keoRules, { maDon: r.maDon, material: r.material || '', thickness: r.thickness, mm: r.mm, codeSoi: r.codeSoi, detail: r.detail, loaiHang: r.loaiHang, label: r.label, ghiChu: r.ghiChu });
+          var _ctx = { maDon: r.maDon, material: r.material || '', thickness: r.thickness, mm: r.mm, codeSoi: r.codeSoi, detail: r.detail, loaiHang: r.loaiHang, label: r.label, ghiChu: r.ghiChu };
+          // độ cong THƯỜNG: bỏ qua quy tắc chỉ dành riêng cho LB/LC/LJ/LC+
+          k1 = glueFor(keoRules, Object.assign({}, _ctx, { curlNhom: false }));
+          /* LB/LC/LJ/LC+: nếu khách CÓ ghi rõ keo cho mấy độ cong này thì dùng ĐÚNG keo đó
+             (750P: "Độ cong LB, LC, LJ, LC+" → XanhBLu150.2). Không ghi thì giữ nguyên luật
+             cũ — "keo 2mm" = keo của dải ngắn nhất. */
+          k2 = glueForCurlOnly(keoRules, _ctx) || glueForShort(keoRules, _ctx);
         }
         /* CHỈ mượn cột "Keo Nhiệt" của khách khi đơn đó KHÔNG CÓ Bảng Keo nào dùng được.
            Đơn CÓ Bảng Keo mà tra không ra thì phải ĐỂ TRỐNG — trước đây lặng lẽ lấy keo trong
