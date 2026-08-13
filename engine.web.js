@@ -762,11 +762,17 @@
     data1.forEach(function (r) {
       var ck = r.maDon + '|' + r.codeSoi;
       var c = tree[ck] || (tree[ck] = { maDon: r.maDon, codeSoi: r.codeSoi, rows: {}, order: [], total: 0 });
-      // TÁCH DÒNG theo material + độ dày: cùng code sợi nhưng khác material
-      // (Premium Faux Mink ≠ Faux Mink) phải là 2 component riêng với keo riêng
-      var key = r.length + '|' + r.mm + '|' + (r.material || '') + '|' + (r.thickness || '');
+      /* GỘP theo Code Sợi + S/M + mm + material + độ dày — KHÔNG tách theo dải Mix nữa.
+         Đơn 740P có 4 dải Mix cùng phủ mm 11 (6-14 · 7-14 · 7-15 · 7-16mm) → trước đây ra 4
+         dòng trông y hệt nhau vì bảng không hiện cột Độ Dài, xưởng phải tự cộng. Chốt 13/8:
+         cộng gộp lại. Keo vẫn đúng: keo tra theo (nguyên liệu · độ dày · mm) — cả ba đều nằm
+         trong khóa gộp, nên mọi dòng gộp chung luôn cùng một mã keo.
+         TÁCH DÒNG theo material + độ dày vẫn giữ: cùng code sợi nhưng khác material
+         (Premium Faux Mink ≠ Faux Mink) phải là 2 component riêng với keo riêng. */
+      var key = r.mm + '|' + (r.material || '') + '|' + (r.thickness || '') + '|' + (r.mixSingle || '');
       var g = c.rows[key];
-      if (!g) { g = c.rows[key] = { length: r.length, mm: r.mm, curls: {}, tong: 0, keoSet: {}, keo2mmSet: {}, material: r.material || '', thickness: r.thickness || '' }; c.order.push(key); }
+      if (!g) { g = c.rows[key] = { length: r.length, lengths: [], mm: r.mm, curls: {}, tong: 0, keoSet: {}, keo2mmSet: {}, material: r.material || '', thickness: r.thickness || '', mixSingle: r.mixSingle || '' }; c.order.push(key); }
+      if (g.lengths.indexOf(r.length) < 0) g.lengths.push(r.length);   // các dải đã gộp (để tra nguồn)
       g.curls[r.curl] = (g.curls[r.curl] || 0) + r.sl; g.tong += r.sl; c.total += r.sl;
       // KEO TRA THEO TỪNG DÒNG data1 (material + độ dày + mm CỦA CHÍNH DÒNG) — không qua meta gộp
       var k1 = '', k2 = '';
@@ -800,7 +806,7 @@
       CURLS.forEach(function (k) { subCurls[k] = 0; });
       // Sắp trong 1 code sợi: theo TÊN GỌI NGUYÊN LIỆU trước (để cùng code khác material
       // KHÔNG lẫn lộn), rồi độ dài, rồi mm.
-      var smOf = function (g) { var m = meta[c.maDon + '|' + c.codeSoi + '|' + g.length] || {}; return /single/i.test(m.mixSingle || '') ? 0 : 1; };
+      var smOf = function (g) { return /single/i.test(g.mixSingle || (meta[c.maDon + '|' + c.codeSoi + '|' + g.length] || {}).mixSingle || '') ? 0 : 1; };
       c.order.sort(function (a, b) {
         var A = c.rows[a], B = c.rows[b];
         var ma = A.material || '', mb = B.material || '';
@@ -825,7 +831,10 @@
           if (isOverrideCurl(k)) { ovrC[k] = v; normC[k] = 0; ovrTot += v; if (v) hasOvr = true; }
           else { normC[k] = v; ovrC[k] = 0; normTot += v; }
         });
-        var base = { maDon: c.maDon, codeSoi: c.codeSoi, length: g.length, mm: g.mm, box: m.box || '—', mixSingle: m.mixSingle || 'Mix', material: g.material || m.material || '', thickness: g.thickness || m.thickness || '', multiMat: multiMat };
+        var base = { maDon: c.maDon, codeSoi: c.codeSoi, length: g.length,
+                     lengths: (g.lengths && g.lengths.length ? g.lengths.slice().sort() : [g.length]),
+                     mm: g.mm, box: m.box || '—', mixSingle: g.mixSingle || m.mixSingle || 'Mix',
+                     material: g.material || m.material || '', thickness: g.thickness || m.thickness || '', multiMat: multiMat };
         // Nếu có độ cong đặc biệt và keo 2mm KHÁC keo chuẩn → TÁCH 2 dòng, mỗi dòng 1 keo đúng
         if (hasOvr && keo2mm && keo2mm !== keo) {
           if (normTot > 0) rows.push(Object.assign({ type: 'row', stt: ++stt, curls: normC, tong: normTot, keo: keo, keo2mm: keo2mm }, base));
