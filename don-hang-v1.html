@@ -306,6 +306,17 @@ td.cellsel-anchor,th.cellsel-anchor{box-shadow:inset 0 0 0 2px var(--accent)}
 /* Ô ghi chú dài (Bảng Độ Cong bước 5): cắt 1 dòng có "…", trỏ vào hiện khung nổi đầy đủ */
 td.dc-note{max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 td.dc-note[data-tip]{cursor:help;text-decoration:underline dotted var(--text-3);text-underline-offset:3px}
+/* Hộp nhập mật khẩu cho việc KHÔNG hoàn tác được (Xóa tất cả) */
+.pw-ov{position:fixed;inset:0;z-index:500;background:rgba(20,10,18,.55);display:flex;align-items:center;justify-content:center;padding:20px}
+.pw-box{width:min(430px,94vw);background:var(--surface);border:1.5px solid var(--accent);border-radius:14px;
+  padding:18px 18px 16px;box-shadow:0 18px 50px rgba(0,0,0,.32)}
+.pw-h{font-weight:800;font-size:14.5px;color:var(--accent);margin-bottom:8px}
+.pw-d{font-size:12.5px;line-height:1.6;color:var(--text-2);margin-bottom:12px}
+.pw-in{width:100%;height:38px;padding:6px 12px;border:1px solid var(--border-strong);border-radius:9px;
+  background:var(--surface);color:var(--text);font-size:13.5px;outline:none}
+.pw-in:focus{border-color:var(--accent)}
+.pw-err{min-height:18px;margin-top:7px;font-size:12px;color:var(--red-600);font-weight:600}
+.pw-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
 #cl-tip{position:fixed;z-index:400;display:none;max-width:min(560px,80vw);white-space:pre-wrap;word-break:break-word;
   background:var(--text,#1f2430);color:#fff;padding:9px 12px;border-radius:9px;font-size:12px;line-height:1.55;
   box-shadow:0 8px 26px rgba(0,0,0,.28);pointer-events:none}
@@ -504,7 +515,7 @@ kbd{background:var(--surface-3);border:1px solid var(--border);border-bottom-wid
 .fbtn{cursor:pointer;opacity:.4;font-size:9px;padding:2px 3px;border-radius:4px;user-select:none}
 .fbtn:hover{opacity:1;background:var(--surface-2)}
 .fbtn.on{opacity:1;color:var(--accent)}
-.fmenu-list{max-height:250px;overflow:auto;margin:2px 0}
+.fmenu-list{max-height:min(250px,38vh);overflow:auto;margin:2px 0}
 .fmenu-list label{display:flex;gap:8px;align-items:center;padding:5px 11px;border-radius:6px;cursor:pointer;font-size:12px}
 .fmenu-list label:hover{background:var(--surface-3)}
 tr.flash td{animation:flashbg 1.4s ease}
@@ -512,7 +523,7 @@ tr.flash td{animation:flashbg 1.4s ease}
 td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:inset 0 0 0 3px rgba(232,24,92,.28);animation:jumphit 1.8s ease}
 @keyframes jumphit{0%{background:rgba(232,24,92,.35)}70%{background:rgba(232,24,92,.18)}100%{background:transparent}}
 /* context menu kiểu Google Sheet */
-.ctx-menu{position:fixed;z-index:1000003;background:var(--surface);border:1px solid var(--border);border-radius:10px;
+.ctx-menu{position:fixed;z-index:1000003;max-height:calc(100vh - 16px);overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:10px;
   box-shadow:var(--shadow-lg);padding:5px;min-width:200px;font-size:12.5px;animation:fade .12s ease}
 .ctx-menu .mi{padding:7px 12px;border-radius:7px;cursor:pointer;display:flex;gap:9px;align-items:center;color:var(--text)}
 .ctx-menu .mi:hover{background:var(--surface-3)}
@@ -574,7 +585,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608131710</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608131840</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1856,7 +1867,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var mc=r.multiMat?' cl-multimat':'';
         var ovr=r.ovrRow?' cl-ovrrow':'';   // dòng độ cong ĐẶC BIỆT (LB/LC/LJ/LC+) đã tách → chữ hồng đỏ
         var keoTd='<td class="txt" style="font-size:10px"'+(r.ovrRow?' title="Độ cong đặc biệt '+esc(OVR.join('/'))+' → Keo 2mm"':'')+'>'+esc(r.keo||'')+'</td>';
-        return '<tr class="'+(mc+ovr).trim()+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'" style="font-size:10px">'+nl2br(r.material||'')+'</td><td>'+r.mixSingle+'</td><td>'+r.mm+'</td>'+keoTd+
+        return '<tr class="'+(mc+ovr).trim()+'" data-cbk="1" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'" style="font-size:10px">'+nl2br(r.material||'')+'</td><td>'+r.mixSingle+'</td><td>'+r.mm+'</td>'+keoTd+
           UC.map(function(k){ return '<td class="cw">'+q(r.curls[k])+'</td>'; }).join('')+
           '<td class="qty">'+r.tong+'</td></tr>';
       }
@@ -2732,6 +2743,59 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     window.addEventListener('scroll', function(){ el=null; if(tip) tip.style.display='none'; }, true);
   })();
   ['chosen-madon','imported-madon'].forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener('input', debounce(renderFiles, 160)); el.addEventListener('change', renderFiles); } });
+  /* ===== XÓA TẤT CẢ = việc KHÔNG hoàn tác được =====
+     Chốt 13/8: chỉ tài khoản Quản lý xưởng (factory_admin) trở lên được bấm, và phải nhập
+     lại ĐÚNG mật khẩu đăng nhập. Không xác thực được (chưa nối Supabase / mở bằng file://)
+     thì KHÔNG cho xóa — thà kẹt còn hơn mất sạch dữ liệu của xưởng. */
+  function vaiTroHienTai(){
+    if(window.__CL_ROLE) return window.__CL_ROLE;
+    try{ var p=window.CLCloud && window.CLCloud.getProfile && window.CLCloud.getProfile(); if(p&&p.role) return p.role; }catch(e){ logErr('vaiTroHienTai', e); }
+    return '';
+  }
+  function laAdminXuong(){ var r=vaiTroHienTai(); return r==='factory_admin' || r==='super_admin'; }
+  function hoiMatKhau(tieuDe, moTa, nhanOK){
+    return new Promise(function(xong){
+      var ov=document.createElement('div'); ov.className='pw-ov';
+      ov.innerHTML='<div class="pw-box" role="dialog" aria-modal="true">'+
+        '<div class="pw-h">🔒 '+esc(tieuDe)+'</div>'+
+        '<div class="pw-d">'+moTa+'</div>'+
+        '<input type="password" class="pw-in" autocomplete="current-password" placeholder="Mật khẩu đăng nhập">'+
+        '<div class="pw-err"></div>'+
+        '<div class="pw-btns"><button class="btn sm pw-huy">Hủy</button>'+
+        '<button class="btn primary sm pw-ok">'+esc(nhanOK||'Xác nhận')+'</button></div></div>';
+      document.body.appendChild(ov);
+      var inp=ov.querySelector('.pw-in'), err=ov.querySelector('.pw-err'), ok=ov.querySelector('.pw-ok');
+      setTimeout(function(){ try{ inp.focus(); }catch(e){ logErr('hoiMatKhau.focus', e); } }, 0);
+      function dong(kq){ try{ ov.remove(); }catch(e){ logErr('hoiMatKhau.dong', e); } xong(kq); }
+      ov.querySelector('.pw-huy').addEventListener('click', function(){ dong(false); });
+      ov.addEventListener('mousedown', function(ev){ if(ev.target===ov) dong(false); });
+      ok.addEventListener('click', function(){
+        var pw=inp.value;
+        if(!pw){ err.textContent='Chưa nhập mật khẩu.'; return; }
+        var C=window.CLCloud;
+        if(!C || typeof C.verifyPassword!=='function'){
+          err.textContent='Không xác thực được mật khẩu (chưa nối Supabase) → không thể xóa.'; return;
+        }
+        ok.disabled=true; err.textContent='Đang kiểm tra…';
+        C.verifyPassword(pw).then(function(dung){
+          if(dung) return dong(true);
+          err.textContent='Mật khẩu không đúng.'; inp.value=''; ok.disabled=false; try{ inp.focus(); }catch(e){ logErr('hoiMatKhau.focus', e); }
+        }).catch(function(e){
+          err.textContent=(e&&e.message)||'Không xác thực được → không thể xóa.'; ok.disabled=false;
+        });
+      });
+      inp.addEventListener('keydown', function(ev){
+        if(ev.key==='Enter'){ ev.preventDefault(); ok.click(); }
+        else if(ev.key==='Escape'){ ev.preventDefault(); dong(false); }
+      });
+    });
+  }
+  function xoaTatCaDuLieu(){
+    state.files=[]; state.orders=[]; state.mixSheets=[]; state.keoRows=[]; state.khachCuon=null; state.R=null; resetPack();
+    state.source='Chưa có dữ liệu'; state.processed=false; state.filters={}; gridQuery='';
+    try{ state.origOrders=[]; state.origKeo=[]; state.origMix=[]; }catch(e){ logErr('xoaTatCaDuLieu', e); }
+    renderFiles(); render();
+  }
   /* Bảng tổng hợp bước 2: 2 ô lọc RIÊNG (không đụng bộ lọc chung của Bảng Nhập Đơn)
      + nút gấp/mở + xuất Excel. Chỉ vẽ lại đúng cái bảng đó, không tính lại số liệu. */
   ['rpt-makh','rpt-madon'].forEach(function(id){
@@ -2949,12 +3013,20 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(dropped.length) readFiles(dropped); });
   }
   var bp=document.getElementById('btn-process'); if(bp) bp.addEventListener('click', function(){ if(!canUpload()) return blockUpload(); processFiles(); });
-  var bc=document.getElementById('btn-clear');   if(bc) bc.addEventListener('click', function(){ if(!canUpload()) return blockUpload();
-    if(typeof confirm==='function' && (state.processed||(state.orders&&state.orders.length)) && !confirm('Xóa TOÀN BỘ dữ liệu (file + Bảng Nhập Đơn + Mix + Keo + Line Cuốn + Box)?')) return;
-    state.files=[]; state.orders=[]; state.mixSheets=[]; state.keoRows=[]; state.khachCuon=null; state.R=null; resetPack();
-    state.source='Chưa có dữ liệu'; state.processed=false; state.filters={}; gridQuery='';
-    try{ state.origOrders=[]; state.origKeo=[]; state.origMix=[]; }catch(e){ logErr('blockUpload', e); }
-    renderFiles(); render(); logLine('Đã xóa toàn bộ dữ liệu (file + tất cả bảng)'); });
+  var bc=document.getElementById('btn-clear');   if(bc) bc.addEventListener('click', function(){
+    if(!canUpload()) return blockUpload();
+    if(!laAdminXuong()) return alert('⛔ Chỉ tài khoản QUẢN LÝ XƯỞNG (factory admin) trở lên mới được "Xóa tất cả".\n\nVai trò hiện tại: '+(vaiTroHienTai()||'chưa đăng nhập'));
+    var coData = !!(state.processed || (state.orders&&state.orders.length) || (state.files&&state.files.length));
+    if(!coData) return;                       // chưa có gì để xóa → không hỏi mật khẩu vô ích
+    hoiMatKhau('Xóa TOÀN BỘ dữ liệu',
+      'Sẽ xóa hết <b>file đã nạp</b> và <b>Bảng Nhập Đơn · Mix · Keo · Line Cuốn · Box</b>.<br>'+
+      '<b style="color:var(--red-600)">Không hoàn tác được.</b> Nhập lại mật khẩu đăng nhập để xác nhận.',
+      '🗑 Xóa tất cả').then(function(dongY){
+      if(!dongY) return;
+      xoaTatCaDuLieu();
+      logLine('Đã xóa toàn bộ dữ liệu (file + tất cả bảng) — xác thực mật khẩu · vai trò '+vaiTroHienTai());
+    });
+  });
   // Làm mờ/khoá các nút upload khi chỉ-xem (gọi lại khi render/áp quyền).
   window.__syncUploadPerm = function(){ var ok=canUpload(); [chooseBtn,bp,bc].forEach(function(b){ if(b){ b.disabled=!ok; b.style.opacity=ok?'':'.5'; b.style.cursor=ok?'':'not-allowed'; } }); if(dz){ dz.style.opacity=ok?'':'.6'; } };
   try{ window.__syncUploadPerm(); }catch(e){ logErr('__syncUploadPerm', e); }
@@ -3683,8 +3755,20 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   // Bảng bôi đen được: + 2 bảng tổng hợp Step 5 (Code Sợi · Keo) để kéo chọn ô số lượng ra Σ · Đếm · TB
   var GS_TB={'eng-nhapdon':1,'eng-mix-body':1,'eng-keo-full':1,'eng-cuonbox':1,'eng-box':1,'s6-code-pivot':1,'s6-keo-pivot':1};
   function gsCoord(el){ var td=el&&el.closest?el.closest('td'):null; if(!td) return null; var tb=td.closest('tbody'); if(!tb||!GS_TB[tb.id]) return null; var tr=td.parentNode; var r=Array.prototype.indexOf.call(tb.rows,tr); if(r<0) return null; return {tb:tb,r:r,c:td.cellIndex}; }
+  /* Ctrl + kéo = CỘNG DỒN thêm vùng (giống Google Sheets). Vùng cũ được "khóa" lại, vùng
+     mới kéo tiếp cộng vào cùng một Σ · Đếm · TB. Kéo mà KHÔNG giữ Ctrl thì bỏ hết vùng cũ. */
+  var gsLock=[];
+  function gsClearLock(){ gsLock.forEach(function(td){ try{ td.classList.remove('gs-lock','cell-sel'); }catch(e){ logErr('gsClearLock', e); } }); gsLock=[]; }
+  function gsLockCurrent(){
+    Array.prototype.forEach.call(document.querySelectorAll('td.gs-sel'), function(td){
+      if(gsLock.indexOf(td)<0){ gsLock.push(td); td.classList.add('gs-lock'); }
+    });
+  }
   function gsPaint(){
     Array.prototype.forEach.call(document.querySelectorAll('td.gs-sel'),function(e){ e.classList.remove('gs-sel','cell-sel'); });
+    // vẽ lại vùng đã cộng dồn (bỏ ô nào đã bị render lại, tránh giữ tham chiếu chết)
+    gsLock=gsLock.filter(function(td){ return td && td.isConnected; });
+    gsLock.forEach(function(td){ td.classList.add('cell-sel'); });
     if(gsA&&gsH&&gsA.tb===gsH.tb){
       var r1=Math.min(gsA.r,gsH.r),r2=Math.max(gsA.r,gsH.r),c1=Math.min(gsA.c,gsH.c),c2=Math.max(gsA.c,gsH.c);
       for(var r=r1;r<=r2;r++){ var row=gsA.tb.rows[r]; if(!row) continue; for(var c=c1;c<=c2;c++){ var td=row.cells[c]; if(td) td.classList.add('gs-sel','cell-sel'); } }
@@ -3695,7 +3779,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(ev.button!==0) return;
     if(ev.target.closest&&ev.target.closest('input,button,select,a,.fbtn,#sel-stats')) return;
     var cc=gsCoord(ev.target);
-    if(!cc){ if(gsA){ gsA=gsH=null; gsPaint(); } return; }
+    if(!cc){ if(gsA||gsLock.length){ gsA=gsH=null; gsClearLock(); gsPaint(); } return; }
+    if(ev.ctrlKey||ev.metaKey) gsLockCurrent();   // giữ Ctrl → cộng dồn thêm vùng
+    else gsClearLock();                           // kéo bình thường → chỉ 1 vùng như trước
     gsA=cc; gsH=cc; gsDrag=true; gsPaint();
   });
   document.addEventListener('mousemove', function(ev){
@@ -4726,6 +4812,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function applyTable(tbodyId){
     var cfg=TBLS[tbodyId]||{}, tb=document.getElementById(tbodyId); if(!tb) return;
     var nq=nrm(getVal(cfg.search||'')), md=getVal(cfg.madon||''), kh=getVal(cfg.makh||''), cf=colFilters[tbodyId]||{};
+    var stt=0, laCuon=(tbodyId==='eng-cuonbox');
     Array.prototype.forEach.call(tb.querySelectorAll('tr'), function(tr){
       if(tr.getAttribute('data-noflt')){ tr.style.display=''; return; }
       var mv=tr.getAttribute('data-madon');
@@ -4735,8 +4822,59 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var hay=tr.getAttribute('data-search'); if(hay==null) hay=tr.textContent;
       var okQ=!nq || nrm(hay).indexOf(nq)>=0;
       var okC=true; for(var ci in cf){ var set=cf[ci]; if(set && !set[cellText(tr,+ci)]){ okC=false; break; } }
-      tr.style.display=(okM&&okKH&&okQ&&okC)?'':'none';
+      var hien=(okM&&okKH&&okQ&&okC);
+      tr.style.display=hien?'':'none';
+      /* Bảng Line Cuốn: STT đánh lại từ 1 theo ĐÚNG những dòng đang hiện — lọc còn 1 đơn mà
+         số thứ tự vẫn 1748, 1749… thì xưởng không đếm được đến dòng thứ mấy (yêu cầu 13/8). */
+      if(laCuon && hien && tr.hasAttribute('data-cbk')){
+        var o=tr.children[0]; if(o) o.textContent=(++stt);
+      }
     });
+  }
+  /* ===== BỘ LỌC CỦA BẢNG LINE CUỐN CHẠY TRÊN DỮ LIỆU =====
+     Bảng chỉ VẼ 600 dòng đầu (capRows), nên không được cộng số từ DOM — cộng thiếu ngay.
+     Mấy hàm dưới dựng lại đúng phép lọc của applyTable nhưng áp lên state.R.cuonSheet.rows,
+     nhờ vậy 2 bảng Σ và thanh Tổng Dây luôn khớp với những dòng đang hiện. */
+  function cbCellText(r, ci, UC){
+    if(ci===0) return String(r.stt==null?'':r.stt);
+    if(ci===1) return khOf(r.maDon);
+    if(ci===2) return donOf(r.maDon);
+    // nl2br → textContent nối liền, không có dấu cách: phải bỏ xuống dòng cho khớp DOM
+    if(ci===3) return String(r.codeSoi||'').replace(/\r?\n/g,'');
+    if(ci===4) return String(r.material||'').replace(/\r?\n/g,'');
+    if(ci===5) return String(r.mixSingle||'');
+    if(ci===6) return String(r.mm==null?'':r.mm);
+    if(ci===7) return String(r.keo||'');
+    var i=ci-8;
+    if(i>=0 && i<UC.length){ var v=r.curls&&r.curls[UC[i]]; return v?String(v):''; }
+    return String(r.tong==null?'':r.tong);
+  }
+  /* Danh sách dòng dữ liệu ĐANG HIỆN của Bảng Line Cuốn (đã áp mã đơn · mã KH · ô tìm ·
+     bộ lọc cột ▼). boQua = chỉ số cột muốn BỎ QUA (dùng khi dựng danh sách chọn cho chính cột đó). */
+  function cbLocRows(boQua){
+    var R=state.R; if(!R||!R.cuonSheet) return [];
+    var UC=state.usedCurls||CURLS;
+    var cf=colFilters['eng-cuonbox']||{};
+    var nq=nrm(getVal('s6-search')), md=getVal('s6-madon'), kh=getVal('s6-makh');
+    return R.cuonSheet.rows.filter(function(r){
+      if(r.type!=='row') return false;
+      if(md && r.maDon!==md) return false;
+      if(kh && khOf(r.maDon)!==kh) return false;
+      if(nq){
+        var hay=[khOf(r.maDon),donOf(r.maDon),r.codeSoi,r.material,r.mixSingle,r.mm,r.keo].join(' ');
+        if(nrm(hay).indexOf(nq)<0) return false;
+      }
+      for(var ci in cf){
+        if(boQua!=null && +ci===+boQua) continue;
+        var set=cf[ci]; if(set && !set[cbCellText(r,+ci,UC)]) return false;
+      }
+      return true;
+    });
+  }
+  // Đang lọc gì không (mã đơn/KH không tính — 2 bảng Σ vốn đã lọc theo mã đơn)
+  function cbCoLocCot(){
+    var cf=colFilters['eng-cuonbox']||{};
+    return Object.keys(cf).length>0 || !!nrm(getVal('s6-search'));
   }
   // Ẩn/hiện Bảng Mix Màu (.cmix-tbl) theo mã đơn đang chọn (giống các bảng khác).
   function applyColorMixFilter(){
@@ -4793,16 +4931,21 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var R=state.R; if(!R) return;
     var md=getVal('s6-madon'), kh=getVal('s6-makh');
     renderDoCong();
-    // (1) pivot Code Sợi → tổng Số Dây (lọc theo mã đơn nếu chọn)
+    /* 2 bảng Σ tính theo ĐÚNG những dòng đang hiện: mã đơn · mã KH · ô tìm · bộ lọc cột ▼
+       (yêu cầu 13/8 — lọc bảng mà Σ vẫn ra số của cả đơn thì đối chiếu kiểu gì). */
+    var _loc=null;
+    if(cbCoLocCot()){ _loc=[]; cbLocRows().forEach(function(r){ _loc.push(r); }); }
+    var _giu=function(r){
+      if(md && r.maDon!==md) return false;
+      if(kh && khOf(r.maDon)!==kh) return false;
+      return !_loc || _loc.indexOf(r)>=0;
+    };
+    // (1) pivot Code Sợi → tổng Số Dây
     var pv=document.getElementById('s6-code-pivot');
-    if(pv && R.cuonSheet) pv.innerHTML = htmlPivotCode(aggPivotCode(function(r){
-      return !(md && r.maDon!==md) && !(kh && khOf(r.maDon)!==kh);
-    }));
+    if(pv && R.cuonSheet) pv.innerHTML = htmlPivotCode(aggPivotCode(_giu));
     // (1b) Tổng hợp KEO: gộp theo Mã Đơn + Loại Keo (đã gán ở Line Cuốn) → tổng số dây
     var pk=document.getElementById('s6-keo-pivot');
-    if(pk && R.cuonSheet) pk.innerHTML = htmlPivotKeo(aggPivotKeo(function(r){
-      return !(md && r.maDon!==md) && !(kh && khOf(r.maDon)!==kh);
-    }));
+    if(pk && R.cuonSheet) pk.innerHTML = htmlPivotKeo(aggPivotKeo(_giu));
     // (2) bảng keo: chỉ có dữ liệu khi chọn 1 Mã Đơn
     var tbody=document.getElementById('eng-keo');
     if(!tbody) return;
@@ -4874,7 +5017,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var R=state.R; if(!R||!R.cuonSheet) return;
     try{ renderKhopWarn(); }catch(e){ logErr('renderKhopWarn', e); }   // #8: chạy TRƯỚC mọi return sớm
     var md=getVal('s6-madon');
-    var rows=R.cuonSheet.rows.filter(function(r){ return r.type==='row' && (!md || r.maDon===md); });
+    /* Thanh Tổng Dây / Single / Mix và dòng Σ GRAND TOTAL cũng đi theo bộ lọc đang bật —
+       để trên bảng còn 3 code sợi mà tổng vẫn là của cả đơn thì không đối chiếu được. */
+    var rows=cbCoLocCot() ? cbLocRows()
+           : R.cuonSheet.rows.filter(function(r){ return r.type==='row' && (!md || r.maDon===md); });
     var day=0, single=0, mix=0, gc={}, tot=0;
     rows.forEach(function(r){
       day+=r.tong||0; if(r.mixSingle==='Single') single+=r.tong||0; else mix+=r.tong||0; tot+=r.tong||0;
@@ -4891,11 +5037,29 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '<td>'+fmtN(tot)+'</td>';
   }
 
+  /* Đổi bộ lọc cột ▼ ở Bảng Line Cuốn → tính lại thanh Tổng Dây + 2 bảng Σ cho khớp
+     những dòng đang hiện (yêu cầu 13/8). Bảng khác giữ nguyên như trước. */
+  function veLaiTheoLoc(tbodyId){
+    if(tbodyId!=='eng-cuonbox') return;
+    try{ updateLineSummary(); }catch(e){ logErr('veLaiTheoLoc', e); }
+    try{ renderS6Keo(); }catch(e){ logErr('veLaiTheoLoc', e); }
+  }
   function openColMenu(x, y, tbodyId, colIdx, label){
     if(typeof closeCtxMenu==='function') closeCtxMenu();
     var tb=document.getElementById(tbodyId); if(!tb) return;
     var vals={}, order=[];
-    Array.prototype.forEach.call(tb.querySelectorAll('tr'), function(tr){ if(tr.getAttribute('data-noflt'))return; var v=cellText(tr,colIdx); if(!(v in vals)){ vals[v]=0; order.push(v); } vals[v]++; });
+    if(tbodyId==='eng-cuonbox'){
+      /* Bảng Line Cuốn: danh sách chọn lấy từ DỮ LIỆU của đúng đơn/bộ lọc đang bật, không
+         phải từ toàn bộ bảng. Trước đây chọn 1 đơn mà ô lọc Code Sợi vẫn liệt kê code của mọi
+         đơn khác (yêu cầu 13/8). Bỏ qua chính bộ lọc của cột này để còn tích lại được. */
+      var UCm=state.usedCurls||CURLS;
+      cbLocRows(colIdx).forEach(function(r){
+        var v=cbCellText(r,colIdx,UCm);
+        if(!(v in vals)){ vals[v]=0; order.push(v); } vals[v]++;
+      });
+    } else {
+      Array.prototype.forEach.call(tb.querySelectorAll('tr'), function(tr){ if(tr.getAttribute('data-noflt'))return; var v=cellText(tr,colIdx); if(!(v in vals)){ vals[v]=0; order.push(v); } vals[v]++; });
+    }
     order.sort(function(a,b){ return String(a).localeCompare(String(b),'vi',{numeric:true}); });
     var cur=(colFilters[tbodyId]||{})[colIdx];
     var m=document.createElement('div'); m.id='af-ctx'; m.className='ctx-menu';
@@ -4904,19 +5068,34 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '<div class="mi" data-fact="all">☑️ Chọn tất cả</div><div class="mi" data-fact="none">⬜ Bỏ chọn tất cả</div><hr>'+
       '<div class="mi" data-fact="ok"><b>✔ Áp dụng</b></div><div class="mi danger" data-fact="clear">✕ Xóa lọc cột này</div>';
     document.body.appendChild(m);
-    m.style.left=Math.min(x,(window.innerWidth||1200)-244)+'px'; m.style.top=Math.min(y,(window.innerHeight||800)-344)+'px';
+    /* ĐO chiều cao THẬT rồi mới đặt chỗ. Trước đây trừ hao cứng 344px trong khi danh sách dài
+       làm hộp cao hơn thế → nút "✔ Áp dụng" nằm dưới đáy màn hình, bấm không tới (lỗi 13/8). */
+    (function(){
+      var W=window.innerWidth||1200, H=window.innerHeight||800;
+      var r=m.getBoundingClientRect();
+      m.style.left=Math.max(8, Math.min(x, W-r.width-8))+'px';
+      m.style.top =Math.max(8, Math.min(y, H-r.height-8))+'px';
+    })();
     m.addEventListener('click', function(ev){
       ev.stopPropagation();
       var mi=ev.target&&ev.target.closest?ev.target.closest('.mi'):null; if(!mi) return;
       var act=mi.getAttribute('data-fact'), boxes=m.querySelectorAll('input[type="checkbox"]');
       if(act==='all'||act==='none'){ Array.prototype.forEach.call(boxes,function(b){ b.checked=act==='all'; }); return; }
-      if(act==='clear'){ if(colFilters[tbodyId]) delete colFilters[tbodyId][colIdx]; if(typeof closeCtxMenu==='function') closeCtxMenu(); applyTable(tbodyId); return; }
+      if(act==='clear'){ if(colFilters[tbodyId]) delete colFilters[tbodyId][colIdx]; if(typeof closeCtxMenu==='function') closeCtxMenu(); applyTable(tbodyId); veLaiTheoLoc(tbodyId); return; }
       if(act==='ok'){ var sel={},total=0,picked=0; Array.prototype.forEach.call(boxes,function(b){ total++; if(b.checked){ picked++; sel[b.getAttribute('data-v')]=1; } });
         colFilters[tbodyId]=colFilters[tbodyId]||{};
         if(picked===total) delete colFilters[tbodyId][colIdx]; else colFilters[tbodyId][colIdx]=sel;
-        if(typeof closeCtxMenu==='function') closeCtxMenu(); applyTable(tbodyId); }
+        if(typeof closeCtxMenu==='function') closeCtxMenu(); applyTable(tbodyId); veLaiTheoLoc(tbodyId); }
     });
-    setTimeout(function(){ document.addEventListener('click', function h(ev){ if(m.contains&&m.contains(ev.target))return; if(typeof closeCtxMenu==='function') closeCtxMenu(); document.removeEventListener('click',h); }); }, 0);
+    /* Bấm ra ngoài thì đóng. Handler phải TỰ THÁO khi hộp của chính nó đã đóng — trước đây
+       bấm "Áp dụng" (stopPropagation) nên handler cũ còn treo, lần sau mở hộp lọc là bị nó
+       đóng ngay, tưởng nút Áp dụng không bấm được (lỗi 13/8). */
+    setTimeout(function(){ document.addEventListener('click', function h(ev){
+      if(!m.isConnected){ document.removeEventListener('click',h); return; }
+      if(m.contains&&m.contains(ev.target)) return;
+      if(typeof closeCtxMenu==='function') closeCtxMenu();
+      document.removeEventListener('click',h);
+    }); }, 0);
   }
   // click ▼ trên header các bảng (span.fbtn[data-coltbl][data-col])
   document.addEventListener('click', function(ev){
@@ -6806,6 +6985,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     setGridRole: function(r){ state.role = (r==='viewer') ? 'viewer' : 'admin'; try{ render(); }catch(e){ logErr('dlAll', e); } },
     // Phân quyền theo step cho user: role admin → toàn quyền (null); user → map {stepKey:'none|view|edit'}
     setPerms: function(role, stepPerms){
+      window.__CL_ROLE = role || null;      // để nút "Xóa tất cả" biết có phải admin xưởng không
       var admin = (role==='super_admin' || role==='factory_admin');
       window.__STEP_PERMS = admin ? null : ((stepPerms && Object.keys(stepPerms).length) ? stepPerms : null);
       if(window.__applyStepPerms) window.__applyStepPerms();
