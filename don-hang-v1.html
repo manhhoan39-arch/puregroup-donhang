@@ -585,7 +585,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608171527</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608171900</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1052,6 +1052,11 @@ tr.cl-multimat > td.cl-matcell{ background:rgba(0,207,200,.12); box-shadow:inset
 tr.cl-multiline > td.cl-mlcell{ background:rgba(232,24,92,.07); box-shadow:inset 3px 0 0 var(--accent); }
 /* Step 5 (Line Cuốn): DÒNG độ cong đặc biệt (LB/LC/LJ/LC+) đã TÁCH riêng → chữ hồng đỏ (như số Tổng) */
 tr.cl-ovrrow > td, tr.cl-ovrrow > td .qty{ color:var(--accent); }
+/* Hàng xưởng Thanh Hóa làm (code sợi có đuôi "-TH") — tô nền để bộ phận line thấy ngay
+   là KHÔNG làm mấy dòng này. Chỉ là màu nền, số liệu không đổi. */
+tr.cl-throw > td{ background:#FFF3D6; }
+tr.cl-throw > td:nth-child(4){ font-weight:700; }
+tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
@@ -1873,13 +1878,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(r.type==='row'){
         var mc=r.multiMat?' cl-multimat':'';
         var ovr=r.ovrRow?' cl-ovrrow':'';   // dòng độ cong ĐẶC BIỆT (LB/LC/LJ/LC+) đã tách → chữ hồng đỏ
+        var th=r.xuongTH?' cl-throw':'';    // hàng xưởng Thanh Hóa → tô nền vàng nhạt
         var keoTd='<td class="txt" style="font-size:10px"'+(r.ovrRow?' title="Độ cong đặc biệt '+esc(OVR.join('/'))+' → Keo 2mm"':'')+'>'+esc(r.keo||'')+'</td>';
-        return '<tr class="'+(mc+ovr).trim()+'" data-cbk="1" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'" style="font-size:10px">'+nl2br(r.material||'')+'</td><td>'+r.mixSingle+'</td><td>'+r.mm+'</td>'+keoTd+
+        return '<tr class="'+(mc+ovr+th).trim()+'" data-cbk="1" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'" style="font-size:10px">'+nl2br(r.material||'')+'</td><td>'+r.mixSingle+'</td><td>'+r.mm+'</td>'+keoTd+
           UC.map(function(k){ return '<td class="cw">'+q(r.curls[k])+'</td>'; }).join('')+
           '<td class="qty">'+r.tong+'</td></tr>';
       }
       if(r.type==='subtotal'){
-        return '<tr class="subtotal" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td></td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt">Σ '+r.codeSoi+'</td><td></td><td></td><td></td><td></td>'+
+        return '<tr class="subtotal'+(r.xuongTH?' cl-throw':'')+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td></td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt">Σ '+r.codeSoi+'</td><td></td><td></td><td></td><td></td>'+
           curlTds(r.curls)+'<td>'+fmtN(r.tong)+'</td></tr>';
       }
       return '<tr class="grand"><td></td><td></td><td></td><td class="txt" colspan="2">Σ GRAND TOTAL</td><td></td><td></td><td></td>'+
@@ -6241,8 +6247,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function printTongHopLine(){
     var md=getVal('s6-madon');
     if(!md) return alert('Hãy CHỌN 1 mã đơn ở ô lọc trước khi in "Tổng hợp Line".');
-    var rows=thRows(md).filter(function(r){return r.maDon===md;});
-    if(!rows.length) return alert('Đơn "'+md+'" chưa có dữ liệu Line.');
+    /* Hàng xưởng Thanh Hóa (đuôi "-TH") KHÔNG in trong Tổng hợp Line — bộ phận line
+       không làm mấy code đó nên đưa vào chỉ gây nhầm (chốt 17/8). Bảng Tổng hợp Cuốn
+       và bảng ở bước 5 vẫn giữ đủ để đối chiếu. */
+    var rows=thRows(md).filter(function(r){return r.maDon===md && !r.xuongTH;});
+    if(!rows.length) return alert('Đơn "'+md+'" không có dòng Line nào cần in (hàng "-TH" của xưởng Thanh Hóa không tính).');
     /* Cột ĐỘ CONG thay cho cột "Nhân viên" (chốt 17/8) — giống bảng Tổng hợp Cuốn.
        Chỉ hiện những độ cong đơn này THẬT SỰ có, khỏi thừa cột trống. */
     var UC=thUsedCurls(rows);
@@ -6288,8 +6297,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '<th style="width:46px">MM</th>'+
       UC.map(function(k){ return '<th style="width:56px">'+esc(k.replace('Curl-CT','CT'))+'</th>'; }).join('')+
       '<th style="width:64px">Tổng</th></tr></thead><tbody>'+body+'</tbody></table>'+ALIGN_JS;
-    // Line luôn ưu tiên khổ DỌC (chốt 17/8) — cột độ cong đã để vừa đủ số liệu
-    thPrint('Tổng hợp Line · '+md, html, md+' · TỔNG HỢP LINE', false);
+    /* HƯỚNG GIẤY LINH ĐỘNG: ưu tiên khổ DỌC, nhưng nhiều cột độ cong thì bảng tràn lề
+       (mất đất, chữ bị bó) → tự quay NGANG. Bề rộng thật của 1 cột = width + padding 6+6
+       + viền 1 = width+13; khổ A4 dọc chừa lề còn ~700px in được. */
+    var rongBang=(150+150+46+64+56*UC.length)+13*(4+UC.length);
+    thPrint('Tổng hợp Line · '+md, html, md+' · TỔNG HỢP LINE', rongBang>700);
   }
   var bthl=document.getElementById('btn-th-line'); if(bthl) bthl.addEventListener('click', printTongHopLine);
   var bthc=document.getElementById('btn-th-cuon'); if(bthc) bthc.addEventListener('click', printTongHopCuon);
