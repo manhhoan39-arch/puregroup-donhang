@@ -752,6 +752,12 @@
    *  keoRules (tuỳ chọn): tra "Keo nhiệt" cho TỪNG dòng theo (material, thickness, mm) —
    *  cùng 1 dải nhưng mm khác nhau có thể ra keo khác nhau. Không tra được → fallback
    *  cột Keo Nhiệt khách ghi sẵn trên dòng đơn (ghiChuKeo). */
+  /** Code sợi của dòng độ cong mới: gắn đuôi "-NC" (nhiều code 1 ô thì gắn từng dòng). */
+  function themNC(code) {
+    return String(code == null ? '' : code).split(/\r?\n/)
+      .map(function (x) { x = x.trim(); return x ? (/-NC$/.test(x) ? x : x + '-NC') : x; })
+      .join('\n');
+  }
   function buildCuonBoxSheet(data1, orders, keoRules, keoMalformed, keoHasRules) {
     keoMalformed = keoMalformed || {};
     keoHasRules = keoHasRules || {};
@@ -838,7 +844,11 @@
         // Nếu có độ cong đặc biệt và keo 2mm KHÁC keo chuẩn → TÁCH 2 dòng, mỗi dòng 1 keo đúng
         if (hasOvr && keo2mm && keo2mm !== keo) {
           if (normTot > 0) rows.push(Object.assign({ type: 'row', stt: ++stt, curls: normC, tong: normTot, keo: keo, keo2mm: keo2mm }, base));
-          rows.push(Object.assign({ type: 'row', stt: ++stt, curls: ovrC, tong: ovrTot, keo: keo2mm, keo2mm: keo2mm, ovrRow: true }, base));
+          /* Dòng độ cong MỚI (LB/LC/LJ/LC+ ăn keo 2mm) → code sợi thêm đuôi "-NC" để phân
+             biệt với dòng thường cùng code (chốt 13/8). Đuôi này theo suốt: bảng bước 5,
+             2 bảng Σ, bản in và file xuất — đều đọc từ chính dòng này. */
+          rows.push(Object.assign({ type: 'row', stt: ++stt, curls: ovrC, tong: ovrTot, keo: keo2mm, keo2mm: keo2mm, ovrRow: true },
+                                  base, { codeSoi: themNC(c.codeSoi) }));
         } else {
           var curls = {}; CURLS.forEach(function (k) { curls[k] = g.curls[k] || 0; });
           rows.push(Object.assign({ type: 'row', stt: ++stt, curls: curls, tong: g.tong, keo: keo, keo2mm: keo2mm }, base));

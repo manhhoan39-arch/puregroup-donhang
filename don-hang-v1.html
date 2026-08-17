@@ -585,7 +585,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608131840</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608171527</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1354,6 +1354,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
 
   // ===== BẢNG MIX MÀU cho đơn UPLOAD: dòng có "Mix Color"/"MixColor" + NHIỀU code sợi (mỗi code 1 dòng) =====
+  /* DÒNG MIX NHIỀU MÀU = ô nguyên liệu/label ghi rõ "Mix Color" VÀ ô Code Sợi nhiều mã.
+     Đây là ĐỊNH NGHĨA DUY NHẤT, dùng chung cho bước 3 (sinh bảng điền tay) và cảnh báo
+     ở bước 5 — trước đây bước 5 chỉ cần "Mix + nhiều mã sợi" nên dòng "Multi Color"
+     (245S dòng 85 · Red Dragon (multi) · 4 mã) bị đòi điền Bảng Mix màu, mà bước 3 lại
+     không sinh bảng cho nó → nhập đơn mới là cảnh báo hiện lại mãi không dứt.
+     LƯU Ý: "Multi Color" KHÔNG phải mix màu — chuỗi "multicolor" không chứa "mixcolor"
+     nên tự động nằm ngoài, đừng nới điều kiện này ra "mọi dòng Mix nhiều mã sợi". */
   function isMixColorRow(o){
     var t=(String(o.material||'')+' '+String(o.detail||'')+' '+String(o.loaiHang||'')+' '+String(o.label||'')).toLowerCase().replace(/\s+/g,'');
     return t.indexOf('mixcolor')>=0 && /\r?\n/.test(String(o.codeSoi||''));
@@ -2200,8 +2207,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
        Nêu đích danh ở đây để biết vào đâu điền, thay vì chỉ thấy "thiếu N dây". */
     var cmHtml='';
     try{
+      // dùng CHUNG isMixColorRow với bước 3 → cảnh báo và bảng điền tay không bao giờ lệch nhau
       var cmMiss=((state.R&&state.R.orders)||[]).filter(function(o){
-        return keep(o.maDon) && o.mixSingle==='Mix' && cmCodes(o).length>1 && !colorMixComplete(o);
+        return keep(o.maDon) && isMixColorRow(o) && cmCodes(o).length>1 && !colorMixComplete(o);
       });
       if(cmMiss.length){
         var g2={}; cmMiss.forEach(function(o){
@@ -3771,7 +3779,21 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     gsLock.forEach(function(td){ td.classList.add('cell-sel'); });
     if(gsA&&gsH&&gsA.tb===gsH.tb){
       var r1=Math.min(gsA.r,gsH.r),r2=Math.max(gsA.r,gsH.r),c1=Math.min(gsA.c,gsH.c),c2=Math.max(gsA.c,gsH.c);
-      for(var r=r1;r<=r2;r++){ var row=gsA.tb.rows[r]; if(!row) continue; for(var c=c1;c<=c2;c++){ var td=row.cells[c]; if(td) td.classList.add('gs-sel','cell-sel'); } }
+      /* Hai thứ phải LOẠI khỏi vùng chọn, nếu không Σ · Đếm ra số khác hẳn bảng (lỗi 13/8):
+         1. DÒNG ĐANG BỊ LỌC ẨN — kéo theo chỉ số dòng nên vùng quét cả dòng ẩn.
+         2. DÒNG Σ TỔNG PHỤ / GRAND TOTAL — cộng vào là cộng ĐÔI.
+         Vẫn cho kéo riêng mấy dòng tổng phụ với nhau (khi vùng chọn không có dòng dữ liệu nào). */
+      var dsRow=[], coData=false;
+      for(var r=r1;r<=r2;r++){
+        var row=gsA.tb.rows[r]; if(!row || row.style.display==='none') continue;
+        var tong=row.classList.contains('subtotal')||row.classList.contains('grand');
+        if(!tong) coData=true;
+        dsRow.push({row:row, tong:tong});
+      }
+      dsRow.forEach(function(x){
+        if(coData && x.tong) return;                     // vùng có dòng dữ liệu → bỏ dòng tổng phụ
+        for(var c=c1;c<=c2;c++){ var td=x.row.cells[c]; if(td) td.classList.add('gs-sel','cell-sel'); }
+      });
     }
     updateSelStats();
   }
@@ -3803,7 +3825,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var single=(gsA.r===gsH.r&&gsA.c===gsH.c);
     if(single){ try{ if(String(window.getSelection()||'').length) return; }catch(e){ logErr('gsPaint', e); } }   // đang bôi text trong ô → để copy mặc định
     var r1=Math.min(gsA.r,gsH.r),r2=Math.max(gsA.r,gsH.r),c1=Math.min(gsA.c,gsH.c),c2=Math.max(gsA.c,gsH.c),out=[];
-    for(var r=r1;r<=r2;r++){ var row=gsA.tb.rows[r],line=[]; for(var c=c1;c<=c2;c++){ var td=row&&row.cells[c]; line.push(td?String(td.innerText||'').replace(/\n/g,' ').trim():''); } out.push(line.join('\t')); }
+    // copy đúng những gì ĐANG BÔI ĐEN (đã bỏ dòng ẩn + dòng tổng phụ ở gsPaint)
+    for(var r=r1;r<=r2;r++){ var row=gsA.tb.rows[r];
+      if(!row || row.style.display==='none') continue;
+      if(!row.querySelector('td.gs-sel')) continue;
+      var line=[]; for(var c=c1;c<=c2;c++){ var td=row.cells[c]; line.push(td?String(td.innerText||'').replace(/\n/g,' ').trim():''); } out.push(line.join('\t')); }
     var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text',out.join('\n')); ev.preventDefault(); }
   });
   /* ===== CẮT (Ctrl+X) · XÓA KHỐI (Delete) · DÁN KHỐI (Ctrl+V) cho các bảng bôi đen được =====
@@ -5621,6 +5647,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         p=p.previousElementSibling;
       }
       if(!h) return '';
+      /* Dòng lặp đầu mỗi trang CHỈ mang mã đơn. Bảng Keo / Bảng Độ Cong nằm ngoài dòng này
+         nên chỉ in ở TRANG ĐẦU (chốt 17/8 — trước đó lặp lại mọi trang, tốn giấy). */
       var dc=h.querySelector?h.querySelector('.dc'):null;
       return showName ? h.innerHTML : (dc?dc.outerHTML:'');
     }
@@ -6120,21 +6148,61 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function thUsedCurls(rows){ var UC=state.usedCurls||CURLS; return UC.filter(function(k){ return rows.some(function(r){ return (r.curls&&r.curls[k])>0; }); }); }
   function thPrint(title, body, pageHead, land){
     var w=window.open('','_blank'); if(!w) return alert('Trình duyệt chặn cửa sổ in — cho phép popup rồi thử lại.');
-    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Calibri,Arial,sans-serif;padding:6px 14px 14px;color:#111}h2{margin:4px 0 6px;font-size:16px}h2 .dc{font-weight:700;font-size:13.5px;color:#111;margin-left:14px}table{border-collapse:collapse;width:100%;margin-bottom:14px;font-size:12px}th,td{border:1px solid #333;padding:3px 6px;text-align:center}th{background:#f0f0f0}td.l,th.l{text-align:left}.tot{font-weight:800;background:#ffe6ef}.edit{background:#fffef2;word-break:break-word;white-space:normal;outline:none;cursor:text}.edit:focus{background:#fff8c4;box-shadow:inset 0 0 0 2px #E8185C}@media print{.noprint{display:none}.edit{background:transparent!important;box-shadow:none!important}}'+RZ_CSS+PG_CSS+'</style></head><body class="pg-doc" data-ttl="'+esc(pageHead||'')+'" data-land="'+(land?'1':'0')+'"><div class="noprint" style="text-align:right;margin-bottom:8px"><span class="rz-hint">Chuột phải 1 dòng để Thêm/Nhân bản/Xóa · kéo tiêu đề chọn cột · kéo trên ô chọn khối · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Calibri,Arial,sans-serif;padding:6px 14px 14px;color:#111}h2{margin:4px 0 6px;font-size:16px}h2 .dc{font-weight:700;font-size:13.5px;color:#111;margin-left:14px}.hd2{margin:4px 0 8px}.hd-r{margin-top:4px}.hd-t2{font:700 11.5px Calibri,Arial,sans-serif;margin:0 0 2px}.hd-t{width:100%;table-layout:fixed;margin:0 0 4px;font-size:10.5px;border-collapse:collapse}.hd-t th,.hd-t td{border:1px solid #333;padding:2px 5px;text-align:center;white-space:normal;word-break:break-word;vertical-align:top}.hd-t th{background:#f0f0f0}table{border-collapse:collapse;width:100%;margin-bottom:14px;font-size:12px}th,td{border:1px solid #333;padding:3px 6px;text-align:center}th{background:#f0f0f0}td.l,th.l{text-align:left}.tot{font-weight:800;background:#ffe6ef}.edit{background:#fffef2;word-break:break-word;white-space:normal;outline:none;cursor:text}.edit:focus{background:#fff8c4;box-shadow:inset 0 0 0 2px #E8185C}@media print{.noprint{display:none}.edit{background:transparent!important;box-shadow:none!important}}'+RZ_CSS+PG_CSS+'</style></head><body class="pg-doc" data-ttl="'+esc(pageHead||'')+'" data-land="'+(land?'1':'0')+'"><div class="noprint" style="text-align:right;margin-bottom:8px"><span class="rz-hint">Chuột phải 1 dòng để Thêm/Nhân bản/Xóa · kéo tiêu đề chọn cột · kéo trên ô chọn khối · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
       '<div class="pr-scope pg-sheet">'+body+'</div>'+RZ_JS_TAG+'</body></html>');
     w.document.close();
   }
   // Độ cong gộp CHUNG một thanh với tên đơn (thay cho bảng riêng phía trên) — nhờ vậy nó
   // nằm trong dòng tiêu đề lặp nên xuất hiện ở đầu MỌI trang in.
-  function thDocongInline(m){
+  /* ===== HEADER BẢN IN CHIA 2 BÊN (chốt 13/8) =====
+     Bên trái: tiêu đề đơn như cũ. Bên phải: Bảng Keo (Tổng hợp Line) hoặc Bảng Độ Cong
+     (Tổng hợp Cuốn). Cả khối nằm trong .hd2 để dòng tiêu đề LẶP ở đầu mỗi trang in mang
+     theo được cả hai bên (xem titleOf trong RZ_JS). */
+  function thKeoInfo(m){
+    var R=state.R, ks=(R&&R.keoByOrder&&R.keoByOrder[m])||[];
+    if(!ks.length) return '';
+    var mot=function(v){ return String(v==null?'':v).replace(/\r?\n/g,' / ').trim(); };
+    var tr=ks.map(function(k){
+      var pn=null; try{ pn=parseKeoNote(k.ghiChu); }catch(e){ logErr('thKeoInfo', e); }
+      pn=pn||{};
+      return '<tr><td class="l"><b>'+esc(mot(k.loaiKeo))+'</b></td>'+
+             '<td class="l">'+esc(mot(k.loaiSoi||pn.loaiSoi))+'</td>'+
+             '<td>'+esc(mot(k.doDay||pn.doDay))+'</td>'+
+             '<td>'+esc(mot(k.doDai||pn.doDai))+'</td>'+
+             '<td class="l dc edit" contenteditable="true">'+esc(mot(k.ghiChu))+'</td></tr>';   // Ghi Chú gốc của khách, sửa được ngay khi in
+    }).join('');
+    return '<div class="hd-t2">🧷 Bảng Keo</div><table class="hd-t"><thead><tr>'+
+      '<th class="l" style="width:14%">Mã Keo</th><th class="l" style="width:18%">Loại Sợi</th>'+
+      '<th style="width:16%">Độ Dày</th><th style="width:10%">Độ Dài</th><th class="l">Ghi Chú</th>'+
+      '</tr></thead><tbody>'+tr+'</tbody></table>';
+  }
+  function thDoCongInfo(m){
     var d=state.doCongByMadon&&state.doCongByMadon[m];
     if(!d||!d.rows||!d.rows.length) return '';
-    var s=d.rows.map(function(x){
-      var n=String(x.name||'').trim(), g=String(x.note||'').trim();
-      return n && g ? n+': '+g : (n||g);
-    }).filter(Boolean).join(' · ');
-    // cho SỬA trực tiếp trong cửa sổ in (sửa xong dòng lặp ở mọi trang tự cập nhật theo)
-    return s ? '<span class="dc edit" contenteditable="true" title="Bấm vào để sửa ghi chú độ cong">📏 '+esc(s)+'</span>' : '';
+    var tr=d.rows.map(function(x){
+      // ghi chú độ cong SỬA ĐƯỢC ngay trong cửa sổ in (giữ như trước khi đổi bố cục header)
+      return '<tr><td class="l"><b>'+esc(String(x.name||'').trim())+'</b></td>'+
+             '<td class="l dc edit" contenteditable="true">'+esc(String(x.note||'').trim())+'</td></tr>';
+    }).join('');
+    return '<div class="hd-t2">📏 Bảng Độ Cong</div><table class="hd-t"><thead><tr>'+
+      '<th class="l" style="width:14%">Độ Cong</th><th class="l">Ghi Chú</th>'+
+      '</tr></thead><tbody>'+tr+'</tbody></table>';
+  }
+  /* Header bản in: DÒNG MÃ ĐƠN ở trên, bảng kèm (Keo / Độ Cong) nằm NGAY DƯỚI và kẻ hết
+     khổ giấy (chốt 17/8 — trước đó xếp 2 bên, bảng keo bị bó hẹp, ghi chú không đọc nổi). */
+  /* Dòng mã đơn: h2 này là NGUỒN cho dòng tiêu đề lặp ở đầu mỗi trang in (xem titleOf).
+     Khi in, h2 gốc bị ẩn — tên đơn hiện ra từ dòng lặp NẰM TRONG bảng. Vì vậy bảng kèm
+     (Keo / Độ Cong) phải đặt thành DÒNG ĐẦU của tbody mới nằm DƯỚI tên đơn, và chỉ in
+     một lần ở trang đầu (chốt 17/8). */
+  /* Bảng keo (bảng kèm) phải thẳng mép phải với bảng chính. Bảng chính rộng theo
+     tổng px các cột nên đo trực tiếp trong cửa sổ in rồi ép .hd2 rộng bằng đúng thế. */
+  var ALIGN_JS='<script>(function(){function canLe(){var t=document.getElementsByTagName("table"),m=null;'+
+    'for(var i=0;i<t.length;i++){if(!/hd-t/.test(t[i].className||"")){m=t[i];break;}}'+
+    'var h=document.querySelector(".hd2"); if(m&&h&&m.offsetWidth) h.style.width=m.offsetWidth+"px";}'+
+    'canLe(); window.addEventListener("load",canLe);})();<\/script>';
+  function thHead2(tieuDe, duoi){
+    return '<div class="hd2"><h2 style="margin:0 0 6px">'+tieuDe+'</h2>'+
+           '<div class="hd-r">'+(duoi||'')+'</div></div>';
   }
   function printTongHopCuon(){
     var md=getVal('s6-madon');
@@ -6163,7 +6231,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       });
       var thead='<tr><th class="l" style="width:120px">Code Sợi</th><th class="l" style="width:120px">Mã keo</th><th style="width:52px">S/M</th><th style="width:46px">MM</th>'+
         UC.map(function(k){return '<th>'+esc(k.replace('Curl-CT','CT'))+'</th>';}).join('')+'<th style="width:64px">Tổng</th></tr>';
-      html+='<h2 style="margin:4px 0 8px">'+esc(m)+' · TỔNG HỢP CUỐN'+thDocongInline(m)+'</h2>'+
+      html+=thHead2(esc(m)+' · TỔNG HỢP CUỐN', thDoCongInfo(m))+
         '<table style="table-layout:fixed"><thead>'+thead+'</thead><tbody>'+body+
         '<tr class="tot" style="color:#E8185C;font-size:13px"><td class="l" colspan="4">Σ TỔNG SỐ LƯỢNG '+esc(m)+'</td>'+UC.map(function(k){return '<td>'+(grandCurl[k]||'')+'</td>';}).join('')+'<td>'+grand+'</td></tr></tbody></table>';
     });
@@ -6175,22 +6243,27 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(!md) return alert('Hãy CHỌN 1 mã đơn ở ô lọc trước khi in "Tổng hợp Line".');
     var rows=thRows(md).filter(function(r){return r.maDon===md;});
     if(!rows.length) return alert('Đơn "'+md+'" chưa có dữ liệu Line.');
+    /* Cột ĐỘ CONG thay cho cột "Nhân viên" (chốt 17/8) — giống bảng Tổng hợp Cuốn.
+       Chỉ hiện những độ cong đơn này THẬT SỰ có, khỏi thừa cột trống. */
+    var UC=thUsedCurls(rows);
     // gom theo code → keo → mm (mỗi mã keo tách riêng, KHÔNG gộp)
     var byCode={}, codeOrder=[];
     rows.forEach(function(r){
       var code=r.codeSoi, keo=r.keo||'';
       if(!byCode[code]){byCode[code]={keo:{},keoOrder:[]};codeOrder.push(code);}
       var C=byCode[code];
-      if(!C.keo[keo]){C.keo[keo]={mm:{},order:[]};C.keoOrder.push(keo);}
+      if(!C.keo[keo]){C.keo[keo]={mm:{},cu:{},order:[]};C.keoOrder.push(keo);}
       var K=C.keo[keo];
-      if(!(r.mm in K.mm)){K.mm[r.mm]=0;K.order.push(+r.mm);}
+      if(!(r.mm in K.mm)){K.mm[r.mm]=0;K.cu[r.mm]={};K.order.push(+r.mm);}
       K.mm[r.mm]+=r.tong||0;
+      UC.forEach(function(k){ var v=(r.curls&&r.curls[k])||0; if(v) K.cu[r.mm][k]=(K.cu[r.mm][k]||0)+v; });
     });
-    var body='', grand=0;
+    var oCong=function(cur){ return UC.map(function(k){ return '<td>'+((cur&&cur[k])||'')+'</td>'; }).join(''); };
+    var body='', grand=0, grandCur={};
     codeOrder.forEach(function(code){
       var C=byCode[code];
       var totalRows=C.keoOrder.reduce(function(s,k){return s+C.keo[k].order.length;},0);
-      var codeTot=0, firstRow=true;
+      var codeTot=0, codeCur={}, firstRow=true;
       C.keoOrder.forEach(function(keo){
         var K=C.keo[keo], mms=K.order.slice().sort(function(a,b){return a-b;});
         mms.forEach(function(mm,j){
@@ -6198,22 +6271,24 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           if(firstRow){ cells+='<td class="l edit" contenteditable="true" rowspan="'+totalRows+'"><b>'+esc(code)+'</b></td>'; firstRow=false; }
           if(j===0){ cells+='<td class="l edit" contenteditable="true" rowspan="'+mms.length+'">'+esc(keo)+'</td>'; }
           var t=K.mm[mm]; codeTot+=t; grand+=t;
-          cells+='<td>'+mm+'</td><td class="tot">'+t+'</td><td></td>';
+          UC.forEach(function(k){ var v=(K.cu[mm]&&K.cu[mm][k])||0; if(v){ codeCur[k]=(codeCur[k]||0)+v; grandCur[k]=(grandCur[k]||0)+v; } });
+          cells+='<td>'+mm+'</td>'+oCong(K.cu[mm])+'<td class="tot">'+t+'</td>';
           body+='<tr>'+cells+'</tr>';
         });
       });
-      body+='<tr class="tot" style="color:#E8185C"><td class="l" colspan="2">Tổng số '+esc(code)+'</td><td></td><td>'+codeTot+'</td><td></td></tr>';
+      body+='<tr class="tot" style="color:#E8185C"><td class="l" colspan="3">Tổng số '+esc(code)+'</td>'+oCong(codeCur)+'<td>'+codeTot+'</td></tr>';
     });
     // Dòng TỔNG CẢ ĐƠN ở cuối — giống bảng Tổng hợp Cuốn, để xưởng đối chiếu nhanh
     body+='<tr class="tot" style="color:#E8185C;font-size:13px"><td class="l" colspan="3">Σ TỔNG SỐ LƯỢNG '+esc(md)+'</td>'+
-      '<td>'+grand+'</td><td></td></tr>';
-    var html='<h2 style="margin:4px 0 8px">'+esc(md)+' · TỔNG HỢP LINE</h2>'+
-      '<table style="width:100%;table-layout:fixed"><thead><tr>'+
-      '<th class="l" style="width:130px">Code sợi</th>'+
-      '<th class="l" style="width:160px">Mã keo</th>'+
-      '<th style="width:48px">MM</th>'+
-      '<th style="width:70px">Tổng</th>'+
-      '<th class="l">Nhân viên</th></tr></thead><tbody>'+body+'</tbody></table>';
+      oCong(grandCur)+'<td>'+grand+'</td></tr>';
+    var html=thHead2(esc(md)+' · TỔNG HỢP LINE', thKeoInfo(md))+
+      '<table style="table-layout:fixed"><thead><tr>'+
+      '<th class="l" style="width:150px">Code sợi</th>'+
+      '<th class="l" style="width:150px">Mã keo</th>'+
+      '<th style="width:46px">MM</th>'+
+      UC.map(function(k){ return '<th style="width:56px">'+esc(k.replace('Curl-CT','CT'))+'</th>'; }).join('')+
+      '<th style="width:64px">Tổng</th></tr></thead><tbody>'+body+'</tbody></table>'+ALIGN_JS;
+    // Line luôn ưu tiên khổ DỌC (chốt 17/8) — cột độ cong đã để vừa đủ số liệu
     thPrint('Tổng hợp Line · '+md, html, md+' · TỔNG HỢP LINE', false);
   }
   var bthl=document.getElementById('btn-th-line'); if(bthl) bthl.addEventListener('click', printTongHopLine);
