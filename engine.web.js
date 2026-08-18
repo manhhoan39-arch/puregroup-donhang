@@ -50,11 +50,17 @@
     }
     var keys = Object.keys(curls), total = 0;
     keys.forEach(function (kk) { total += curls[kk]; });
-    // Mix/Single: chuẩn hoá hoa thường; giữ giá trị lạ để validate tô đỏ
+    /* MIX/SINGLE LẤY THEO ĐỘ DÀI, không tin cột khách ghi (chốt 18/8):
+         · độ dài 1 giá trị (6mm · 13mm)      → Single
+         · độ dài là KHOẢNG (6-13mm · 6~13mm) → Mix
+       Đơn 792P (template mới) ghi "Mix" cho cả 34 dòng, trong đó 31 dòng chỉ có 1 độ dài
+       ⇒ trước đây 31 ô đỏ E-MIX và bảng Mix ở bước 3 dựng sai. Cột khách ghi chỉ dùng khi
+       KHÔNG đọc được độ dài. */
     var ms = String(raw.mixSingle == null ? '' : raw.mixSingle).trim();
-    if (/^mix$/i.test(ms)) ms = 'Mix';
+    if (r) ms = (r.lo === r.hi) ? 'Single' : 'Mix';
+    else if (/^mix$/i.test(ms)) ms = 'Mix';
     else if (/^single$/i.test(ms)) ms = 'Single';
-    else if (ms === '') ms = r && r.lo === r.hi ? 'Single' : 'Mix';
+    else if (ms === '') ms = 'Mix';
     var lineNum = Number(raw.line) || 0;
     // TÁCH mã sợi / nguyên liệu bị NỐI LIỀN (nhiều màu 1 đơn, không có xuống dòng) → chèn \n.
     //   Mã: tách sau độ dày (thickness) khi theo sau là chữ số (mã kế), đứng sau dấu chấm/chữ.
@@ -592,7 +598,12 @@
         return;
       }
       var len = parseKeoCond(k.doDai || '');
-      var soi = parseKeoCond(k.loaiSoi || '');   // Loại Sợi có thể nhúng độ dày ("0,07; 0,085")
+      /* Cột "Loại Sợi" ghi thẳng CODE SỢI (template mới: "3.MK.7") → phải giữ NGUYÊN VĂN,
+         không đưa qua parseKeoCond vì hàm đó bóc số ra thành độ dày rồi băm tên thành rác
+         (⇒ đơn 792P không dòng nào có keo). */
+      var codeSoiRule = PS(k.loaiSoi || '').split(/[\n,;\/]+/).map(function (x) { return PS(x); }).filter(laCodeSoi);
+      var soi = codeSoiRule.length ? { mats: codeSoiRule, thicks: [], lo: null, hi: null, spec: 0, curlOnly: null, curlNot: null, matsNot: null }
+                                   : parseKeoCond(k.loaiSoi || '');   // Loại Sợi có thể nhúng độ dày ("0,07; 0,085")
       var ghi = parseKeoCond(k.ghiChu || '');    // Ghi Chú thường chứa điều kiện ĐỘ DÀI (vd "dưới 10mm", "từ 10mm")
       // Cột Độ Dày = chỉ chứa độ dày. Xử lý 2 kiểu ghi (tránh nhập nhằng dấu phẩy):
       //  · số THẬP PHÂN "0.07 / 0,085 / 0.10" → giữ nguyên (dấu phẩy là dấu thập phân)
@@ -645,9 +656,25 @@
    * quy tắc không có điều kiện nào bị bỏ qua (tránh khớp bừa mọi dòng).
    */
   /** Điểm khớp giữa nguyên liệu của DÒNG ĐƠN và danh sách tên trong quy tắc keo (−1 = không khớp). */
+  /* Cột "Loại Sợi" của Bảng Keo có đơn ghi thẳng CODE SỢI ("3.MK.7", "150.SMK.7") thay vì tên
+     nguyên liệu (template mới, đơn K21-792P). Nhận dạng để so với Code Sợi của dòng, không thì
+     quy tắc chẳng khớp nguyên liệu nào ⇒ cả đơn không có keo. */
+  var CODE_SOI_RE = /^\d+[A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z0-9]+)*\.\d+$/;
+  function laCodeSoi(x) { return CODE_SOI_RE.test(String(x == null ? '' : x).replace(/\s+/g, '')); }
+  function khopCodeSoi(a, comp) {
+    var an = String(a == null ? '' : a).replace(/\s+/g, '').toLowerCase();
+    var cs = String((comp && comp.codeSoi) || '').split(/\r?\n/);
+    for (var i = 0; i < cs.length; i++) {
+      var c = cs[i].replace(/\s+/g, '').toLowerCase().replace(/-(?:nc|th)$/g, '');
+      if (c && c === an) return true;
+    }
+    return false;
+  }
   function diemKhopMat(list, mat, comp) {
     var hit = -1;
     (list || []).forEach(function (a) {
+      // Bảng Keo ghi CODE SỢI ở cột Loại Sợi → so đúng code sợi của dòng
+      if (laCodeSoi(a)) { if (khopCodeSoi(a, comp)) hit = Math.max(hit, 60); return; }
       // "hàng màu/sợi màu/màu" → khớp mọi sợi MÀU (không chứa Mink/Silk)
       if (isColorMat(a)) { if (isColorComp(comp)) hit = Math.max(hit, 30); return; }
       // "hàng Mink" / "sợi Mink" = mọi sợi có chữ Mink → bỏ chữ chỉ loại đứng đầu
@@ -686,7 +713,8 @@
       if (r.matsNot && r.matsNot.length && mat && diemKhopMat(r.matsNot, mat, comp) >= 0) return;
       var matHit = 0;
       if (hasMat) {
-        if (!mat) return;
+        var chiCodeSoi = r.mats.every(laCodeSoi);
+        if (!mat && !chiCodeSoi) return;
         var hit = diemKhopMat(r.mats, mat, comp);
         if (hit < 0) return;
         matHit = hit;
