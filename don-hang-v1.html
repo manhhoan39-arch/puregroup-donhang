@@ -455,6 +455,7 @@ body.gs-selecting{user-select:none}
 #eng-box td.txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
 #eng-box td:nth-child(5){max-width:none}                                                /* Nguyên liệu: hiển thị đủ 1 dòng */
 /* Dòng Σ subtotal / GRAND TOTAL: số to (5-6 chữ số) → thu nhỏ font để hiện ĐỦ trong cột, không đè */
+#eng-nhapdon td[contenteditable]{white-space:pre-wrap}
 #eng-cuonbox tr.subtotal td.cw,#eng-cuonbox tr.grand td.cw,#box-foot td.cw{font-size:9px;letter-spacing:-.3px;padding-left:1px;padding-right:1px;white-space:normal;word-break:break-all;overflow:visible;max-width:none}
 /* Bảng Keo (Step 5): mỗi ô 1 dòng, chiều cao dòng cố định; nội dung dài → ẩn (…) + tooltip khi rê chuột */
 #eng-keo td{white-space:nowrap!important;overflow:hidden;text-overflow:ellipsis;max-width:160px;vertical-align:middle}
@@ -1475,6 +1476,21 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return n;
   }
   var __editN=0, __editSnap=null;
+  /* Ô nhiều dòng: <br> phải thành "\n" khi đọc ra. Trước đây dùng td.textContent nên 2-3 mã
+     sợi bị DÍNH LIỀN thành một chuỗi ("…WarmGray.7188.SKV.SmokBlue.7") → app hiểu sai số màu
+     (đơn 676P dòng 50, 18/8). */
+  var COT_NHIEU_DONG={ codeSoi:1, material:1, detail:1, label:1, ghiChu:1 };
+  function layTextNhieuDong(td){
+    var h=String(td.innerHTML||'')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(div|p|li)>/gi, '\n')
+      .replace(/<[^>]*>/g, '');
+    var box=document.createElement('textarea'); box.innerHTML=h;      // giải mã &amp; &nbsp; …
+    return String(box.value).replace(/\u00a0/g, ' ')
+      .split(/\r?\n/).map(function(x){ return x.trim(); })
+      .filter(function(x){ return x!==''; })
+      .join('\n').trim();
+  }
   function markPending(cell, applyFn){
     if(typeof applyFn!=='function') return;
     if(!__editN){                                   // lần sửa ĐẦU của đợt này
@@ -1559,6 +1575,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      đang xem 1 đơn mà phải lật trang thì mất mạch. Chia trang chỉ để đỡ nặng khi xem
      TẤT CẢ các đơn. */
   function pgDonDangChon(id){
+    if(id==='rpt') return !!rptBoLoc(getVal('rpt-madon'),'Tất cả các đơn');
     if(id==='eng-nhapdon') return !!(typeof gridMadon!=='undefined' && gridMadon);
     var cfg=(typeof TBLS!=='undefined' && TBLS[id]) || null;
     return !!(cfg && cfg.madon && getVal(cfg.madon));
@@ -1585,6 +1602,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return tr;
   }
   function pgVeLai(id){
+    if(id==='rpt'){ try{ renderNhapDonReport(); }catch(e){ logErr('pgVeLai', e); } return; }   // bảng Tổng hợp đơn (bước 2)
     if(id==='eng-nhapdon'){ try{ applyGridFilter(); }catch(e){ logErr('pgVeLai', e); } return; }
     try{ applyTable(id); }catch(e){ logErr('pgVeLai', e); }
   }
@@ -1751,7 +1769,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var _ack=!!(er && isErrAcked({maDon:o.maDon, seri:o.seri, seriGoc:o.seriGoc, col:col}));
         var cls=(extra||'')+(er?(er.level==='warn'?(_ack?' cell-warn err-ack':' cell-warn'):(_ack?' err err-ack':' err')):'');
         var ce=(er && canEditStep('s3'))?' contenteditable="true" data-seri="'+o.seri+'" data-madon="'+esc(o.maDon)+'" data-col="'+col+'"':'';
-        var ti=er?(' title="'+esc(er.msg)+' — sửa xong bấm ra ngoài để tính lại"'):'';
+        var ti=er?(' title="'+esc(er.msg)+' — sửa xong bấm ra ngoài để tính lại'+
+          (COT_NHIEU_DONG[col]?' · Enter = xuống dòng để thêm mã sợi':'')+'"'):'';
         // ô LỖI 1 dòng → giữ esc (dễ sửa); ô LỖI nhiều dòng (multi-code) → vẫn tách dòng như ô thường
         var hasNl=/\r?\n/.test(String(val==null?'':val));
         // Ô ĐỘ DÀI ngoài chuẩn: cho phép XÁC NHẬN "đơn này làm sai chuẩn" ngay tại ô (▣/☑) —
@@ -2013,7 +2032,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var idx = -1;
       state.orders.forEach(function(o,i){ if(String(o.seri)===seri && (!mdon || o.maDon===mdon)) idx=i; });
       if(idx<0) return;
-      var val = td.textContent.trim();
+      var val = layTextNhieuDong(td);
       var oldVal;
       if(col.indexOf('curl:')===0){ var _ck=col.slice(5); oldVal=String((state.orders[idx].curls&&state.orders[idx].curls[_ck])||''); }
       else oldVal = String(state.orders[idx][col]==null?'':state.orders[idx][col]);
@@ -2027,11 +2046,19 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         logLine('Sửa ô '+mdon+'#'+seri+' ['+col+']: "'+oldVal+'" → "'+String(res.order[col])+'"');
       });
     });
-    // Enter = xác nhận (blur) thay vì xuống dòng
+    /* Enter = xác nhận (blur). RIÊNG mấy ô chứa NHIỀU GIÁ TRỊ (Code Sợi · Material · Detail
+       của dòng mix nhiều màu) thì Enter = XUỐNG DÒNG để thêm mã sợi — đơn 676P dòng 50 có 3
+       màu mà không xuống dòng được nên app chỉ thấy 2 code (18/8). Bấm ra ngoài để lưu. */
     grid.addEventListener('keydown', function(ev){
-      if(ev.key==='Enter' && ev.target && ev.target.hasAttribute && ev.target.hasAttribute('contenteditable')){
-        ev.preventDefault(); ev.target.blur();
-      }
+      if(ev.key!=='Enter') return;
+      var td=ev.target && ev.target.closest ? ev.target.closest('td[contenteditable]') : null;
+      if(!td) return;
+      ev.preventDefault();
+      if(!COT_NHIEU_DONG[td.getAttribute('data-col')||'']){ td.blur(); return; }
+      var xong=false;
+      try{ xong=document.execCommand('insertLineBreak'); }catch(e){ xong=false; }
+      if(!xong){ try{ xong=document.execCommand('insertHTML', false, '<br>'); }catch(e2){ xong=false; } }
+      if(!xong) td.blur();
     });
   }
 
@@ -2428,9 +2455,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(!rows.length){ setTxt('rpt-hop','—'); setTxt('rpt-dai','—');
       box.innerHTML='<div class="rpt-empty">Không có đơn khớp bộ lọc.</div>';
       rptMdChon=''; return; }
+    /* TỔNG luôn tính trên MỌI đơn khớp bộ lọc; chỉ phần HIỆN mới chia trang (50 dòng/trang,
+       đổi được ở thanh dưới bảng). Chọn 1 mã đơn thì xổ hết như các bảng khác. */
     var sHop=0, sDai=0;
-    var trs=rows.map(function(r,i){
-      sHop+=r.hop; sDai+=r.dai;
+    rows.forEach(function(r){ sHop+=r.hop; sDai+=r.dai; });
+    var rSize=pgSizeOf('rpt'), rDayDu=!!rptBoLoc(getVal('rpt-madon'),'Tất cả các đơn');
+    var rPages=Math.max(1, Math.ceil(rows.length/rSize));
+    var rP=rDayDu?0:Math.min(Math.max(0,pgNoOf('rpt')), rPages-1);
+    __pgNo['rpt']=rP;
+    var rHien=rDayDu?rows:rows.slice(rP*rSize, (rP+1)*rSize);
+    var trs=rHien.map(function(r,i0){
+      var i=rDayDu?i0:(rP*rSize+i0);
       var gio=rptTime(r.ts);
       var tdGio = r.ts ? ('<td class="txt">'+esc(gio)+'</td>')
         : '<td class="txt" title="Đơn này vào app từ trước khi có cột giờ — bấm ▶ Xử lý lại là có giờ" style="color:var(--text-3)">—</td>';
@@ -2452,9 +2487,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     box.innerHTML='<table class="sheet rpt-t"><thead><tr><th '+TH+'>STT</th>'+
       '<th class="txt" '+TH+'>Mã KH</th><th class="txt" '+TH+'>Mã Đơn</th>'+
       '<th '+TH+'>Số lượng hộp</th><th '+TH+'>Số lượng dải</th>'+
-      '<th class="txt" '+TH+'>Thời gian nhập</th><th '+TH+' title="Xóa đơn khỏi dữ liệu">Xóa</th></tr></thead><tbody>'+
+      '<th class="txt" '+TH+'>Thời gian nhập</th><th '+TH+' title="Xóa đơn khỏi dữ liệu">Xóa</th></tr></thead><tbody data-gs="1">'+
       trs+'<tr class="rpt-sum"><td></td><td class="txt">TỔNG</td><td class="txt">'+rows.length+' đơn</td>'+
       '<td class="qty">'+fmtN(sHop)+'</td><td class="qty">'+fmtN(sDai)+'</td><td></td><td></td></tr></tbody></table>';
+    // Luôn để thanh này khi bảng dài hơn mức nhỏ nhất — chọn 100 dòng/trang rồi vẫn đổi lại được
+    if(rows.length>PG_SIZES[0] || rP>0 || rDayDu){
+      var _rtb=box.querySelector('tbody');
+      if(_rtb) _rtb.appendChild(rDayDu ? pgBarDayDu('rpt', rows.length, 7) : pgBar('rpt', rP, rPages, rows.length, 7));
+    }
     setTxt('rpt-hop', fmtN(sHop)); setTxt('rpt-dai', fmtN(sDai));
   }
   /* ===== BƯỚC 2 — bấm 1 dòng đơn thì XỔ ngay dưới dòng đó 2 bảng Σ (Code Sợi · Số Dây
@@ -2467,11 +2507,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         '<div><div class="rpt-dt-t">Σ Tổng hợp Code Sợi · Số Dây</div>'+
           '<div class="tbl-wrap" style="max-height:300px"><table class="sheet" style="width:100%;font-size:11px">'+
           '<thead><tr><th style="width:44px">Mã KH</th><th style="width:56px">Mã Đơn</th><th>Code Sợi</th><th>Tên Gọi NL</th><th style="width:56px">Số Dây</th></tr></thead>'+
-          '<tbody>'+htmlPivotCode(aggPivotCode(keep))+'</tbody></table></div></div>'+
+          '<tbody data-gs="1">'+htmlPivotCode(aggPivotCode(keep))+'</tbody></table></div></div>'+
         '<div><div class="rpt-dt-t">🧷 Σ Tổng hợp Keo</div>'+
           '<div class="tbl-wrap" style="max-height:300px"><table class="sheet" style="width:100%;font-size:11px">'+
           '<thead><tr><th style="width:44px">Mã KH</th><th style="width:56px">Mã Đơn</th><th>Loại Keo</th><th style="width:58px">SL (dây)</th></tr></thead>'+
-          '<tbody>'+htmlPivotKeo(aggPivotKeo(keep))+'</tbody></table></div></div>'+
+          '<tbody data-gs="1">'+htmlPivotKeo(aggPivotKeo(keep))+'</tbody></table></div></div>'+
       '</div>';
   }
   document.addEventListener('click', function(ev){
@@ -3877,7 +3917,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   var gsA=null,gsH=null,gsDrag=false;
   // Bảng bôi đen được: + 2 bảng tổng hợp Step 5 (Code Sợi · Keo) để kéo chọn ô số lượng ra Σ · Đếm · TB
   var GS_TB={'eng-nhapdon':1,'eng-mix-body':1,'eng-keo-full':1,'eng-cuonbox':1,'eng-box':1,'s6-code-pivot':1,'s6-keo-pivot':1};
-  function gsCoord(el){ var td=el&&el.closest?el.closest('td'):null; if(!td) return null; var tb=td.closest('tbody'); if(!tb||!GS_TB[tb.id]) return null; var tr=td.parentNode; var r=Array.prototype.indexOf.call(tb.rows,tr); if(r<0) return null; return {tb:tb,r:r,c:td.cellIndex}; }
+  /* Bảng nào muốn kéo chọn thì hoặc có id trong GS_TB, hoặc gắn data-gs="1" trên <tbody>
+     (bảng vẽ động ở bước 2: bảng Tổng hợp đơn + 2 bảng Σ trong phần chi tiết). */
+  function gsCoord(el){ var td=el&&el.closest?el.closest('td'):null; if(!td) return null; var tb=td.closest('tbody'); if(!tb||!(GS_TB[tb.id]||tb.getAttribute('data-gs'))) return null; var tr=td.parentNode; var r=Array.prototype.indexOf.call(tb.rows,tr); if(r<0) return null; return {tb:tb,r:r,c:td.cellIndex}; }
   /* Ctrl + kéo = CỘNG DỒN thêm vùng (giống Google Sheets). Vùng cũ được "khóa" lại, vùng
      mới kéo tiếp cộng vào cùng một Σ · Đếm · TB. Kéo mà KHÔNG giữ Ctrl thì bỏ hết vùng cũ. */
   var gsLock=[];
@@ -3901,7 +3943,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var dsRow=[], coData=false;
       for(var r=r1;r<=r2;r++){
         var row=gsA.tb.rows[r]; if(!row || row.style.display==='none') continue;
-        var tong=row.classList.contains('subtotal')||row.classList.contains('grand');
+        var tong=row.classList.contains('subtotal')||row.classList.contains('grand')||row.classList.contains('rpt-sum');
         if(!tong) coData=true;
         dsRow.push({row:row, tong:tong});
       }
