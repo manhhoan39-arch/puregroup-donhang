@@ -421,7 +421,11 @@
     else if ((m = s.match(/(?:<=|≤|đến|tối\s*đa)\s*(\d+)\s*(?:mm)?/i))) { lo = 0; hi = +m[1]; spec = 2; s = s.replace(m[0], ' '); } // đến/tối đa N / <=N (GỒM N)
     else if ((m = s.match(/(?:<|dưới)\s*(\d+)\s*(?:mm)?/i))) { lo = 0; hi = +m[1] - 1; spec = 2; s = s.replace(m[0], ' '); }       // dưới N / <N (KHÔNG gồm N)
     else if ((m = s.match(/(\d+)\s*mm/i))) { lo = +m[1]; hi = +m[1]; spec = 3; s = s.replace(m[0], ' '); }                        // đúng N mm
-    s = s.replace(/tất\s*cả(\s*độ\s*d\S*)?/gi, ' ');
+    /* "Tất cả (các) độ dài" = KHÔNG ràng buộc độ dài → xoá khỏi phần chữ.
+       Trước chỉ nhận "tất cả độ dài"; khách ghi "Tất cả CÁC độ dài" (672P) thì còn lại
+       "các độ dài" và bị hiểu thành TÊN NGUYÊN LIỆU ⇒ quy tắc keo 0.05 không khớp dòng nào. */
+    s = s.replace(/t[ấa]t\s*c[ảa](\s*(?:c[áa]c|cả|mọi)?\s*độ\s*d\S*)?/gi, ' ');
+    s = s.replace(/(?:^|\s)(?:c[áa]c|mọi|to[àa]n\s*bộ)?\s*độ\s*d[àa]i(?=\s|$)/gi, ' ');
     /* ĐIỀU KIỆN THEO ĐỘ CONG (đơn 750P): khách ghi thẳng trong Ghi Chú
          "6-8mm cho các độ cong không phải LB, LC, LJ, LC+"
          "Độ cong LB, LC, LJ, LC+"
@@ -489,7 +493,7 @@
   }
   /* Cụm chữ chỉ phạm vi áp dụng, KHÔNG phải tên nguyên liệu. Khớp cả câu (^…$) để không
      cắt nhầm tên thật (vd "Cashmere Silk cho hàng chung" vẫn giữ nguyên là nguyên liệu). */
-  var NOT_MAT_RE = /^(cho\s+)?(cả|toàn\s*bộ|toàn|tất\s*cả|mọi|chung|dùng\s*chung|áp\s*dụng)([\s\S]*)?$|^(cho|dùng|áp\s*dụng|theo|như)\s+.*(đơn|hàng|bảng|trên|dưới|này)$|^(đơn|hàng|bảng|các|những)$/i;
+  var NOT_MAT_RE = /^(cho\s+)?(cả|toàn\s*bộ|toàn|tất\s*cả|mọi|chung|dùng\s*chung|áp\s*dụng)([\s\S]*)?$|^(cho|dùng|áp\s*dụng|theo|như)\s+.*(đơn|hàng|bảng|trên|dưới|này)$|^(đơn|hàng|bảng|các|những)$|^(các|mọi|toàn\s*bộ)?\s*độ\s*(dài|cong|dày)$/i;
   /** keoRows → rules[{maDon, glue, mats[], thick[] (khóa chữ số), lo, hi, spec}]. */
   // Chuẩn hoá tên keo: "Nau155C. 2" → "Nau155C.2"
   function cleanKeoName(s) { return PS(s).replace(/\s*\.\s*/g, '.').replace(/\s+/g, ' ').trim(); }
@@ -600,16 +604,24 @@
       var thicks = dayThicks.concat(soi.thicks);
       // Điều kiện ĐỘ DÀI: ưu tiên cột Độ Dài; nếu trống lấy từ Loại Sợi, rồi Ghi Chú.
       if (len.lo == null && soi.lo != null) { len = soi; }
-      if (len.lo == null && ghi.lo != null) { len = ghi; }
+      var _ghDescLen = (PS(k.loaiSoi) || PS(k.doDay) || PS(k.doDai)) && /(^|[\s("'•*-])keo(\s|$)/i.test(PS(k.ghiChu));
+      if (len.lo == null && ghi.lo != null && !_ghDescLen) { len = ghi; }
       // NGUYÊN LIỆU: ưu tiên cột Loại Sợi; nếu TRỐNG thì lấy từ Ghi Chú (khách hay ghi "chỉ dùng cho ... Cashmere Silk")
       // → giữ ràng buộc nguyên liệu để không khớp nhầm keo giữa các loại sợi khác nhau.
       /* Trừ khi ghi chú là loại "map keo theo độ dài" (có nhắc MÃ KEO trong đó) — lúc đó
          parseKeoCond cắt nhầm cả cụm "XanhBLu cho độ dài" thành tên nguyên liệu, làm quy tắc
          không khớp với nguyên liệu nào cả rồi rơi hết vào keo mặc định. */
       var ghNoteHasGlue = /[A-Za-z][A-Za-z0-9]*\s*\.\s*\d+/.test(PS(k.ghiChu));
-      var mats = soi.mats.length ? soi.mats : (ghNoteHasGlue ? [] : ghi.mats);
+      /* GHI CHÚ CHỈ MÔ TẢ MÃ KEO → KHÔNG PHẢI ĐIỀU KIỆN (chốt 18/8).
+         Cột thuộc tính đã có điều kiện mà Ghi Chú lại nhắc chữ "keo" thì đó là câu mô tả:
+           · 265S: "Keo xanh blue 150BT 2mm" → trước đây thành nguyên liệu "Keo xanh blue BT"
+             + độ dài 2mm ⇒ 7/7 dòng KHÔNG có keo.
+           · 737P: "Khách đã xác nhận dùng keo như bảng sau" → thành "nguyên liệu" ⇒ 0.10 mất keo.
+         Điều kiện thật của khách nằm ở cột Độ Dày/Loại Sợi/Độ Dài, cứ theo đó mà tra. */
+      var ghDesc = hasStructured && /(^|[\s("'•*-])keo(\s|$)/i.test(gh);
+      var mats = soi.mats.length ? soi.mats : ((ghNoteHasGlue || ghDesc) ? [] : ghi.mats);
       // Độ dày: ưu tiên cột Độ Dày; nếu cột này trống thì lấy từ Ghi Chú.
-      if (!dayThicks.length && !soi.thicks.length && ghi.thicks.length) { thicks = ghi.thicks; }
+      if (!dayThicks.length && !soi.thicks.length && ghi.thicks.length && !ghDesc) { thicks = ghi.thicks; }
       // Ô keo GỘP nhiều keo + ghi chú map theo độ dài → TÁCH mỗi keo 1 dải (mỗi mm ra đúng 1 keo).
       var split = splitKeoByNote(k, thicks, soi.mats);
       if (split) { split.forEach(function (r) { rules.push(r); }); return; }
