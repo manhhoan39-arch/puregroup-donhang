@@ -600,7 +600,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608191605</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608191713</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1145,6 +1145,12 @@ function go(id){
   var _cr=document.getElementById('crumb'); if(_cr) _cr.textContent=titles[id][0];
   var _pt=document.getElementById('ptitle'); if(_pt) _pt.textContent=titles[id][1];
   document.getElementById('content').scrollTop=0;
+  /* Vào lại bước 5: ô lọc "xưởng làm" luôn về TẤT CẢ (chốt 19/8). Nó là bộ lọc xem nhanh,
+     giữ lại lần trước dễ tưởng đơn thiếu dòng/thiếu dây. */
+  if(id==='s6'){
+    var _tm=document.getElementById('s6-th-mode');
+    if(_tm && _tm.value!=='all'){ _tm.value='all'; try{ __capReflow(); }catch(e){ logErr('go.thmode', e); } }
+  }
   // Bảng của bước này bị HOÃN vẽ lúc trước (đang ẩn) → vẽ ngay bây giờ.
   // Dùng lại kết quả đã tính, KHÔNG tính lại → số liệu không thể lệch.
   try{ if(window.__flushStale) window.__flushStale(id); }catch(e){ logErr('go', e); }

@@ -590,25 +590,53 @@
      → Gom các dòng đơn theo (mã đơn · keo ghi · nguyên liệu · độ dày) thành DÒNG BẢNG KEO
      đúng dạng cũ; ghi chú giữ nguyên văn để phần bung "keo theo độ dài" chạy như thường. */
   function sinhKeoTuDonHang(orders, daCoKeo) {
-    var nhom = {}, out = [];
+    var nhom = {}, out = [], theoSoi = {};
     (orders || []).forEach(function (o) {
       var keo = PS(o.ghiChuKeo); if (!keo) return;
       if (daCoKeo && daCoKeo[o.maDon]) return;                 // đơn đã có bảng keo thật → bỏ qua
       var mat = PS(o.material || o.detail || '').replace(/0[.,]\d+/g, ' ').replace(/\s+/g, ' ').trim();
       var day = PS(o.thickness);
-      var k = o.maDon + '|' + keo + '|' + mat + '|' + day;
-      if (nhom[k]) return;
       var mas = keo.match(/[A-Za-zĐđ][A-Za-z0-9]*\s*\.\s*\d+/g) || [];
       var coDieuKien = /\d\s*mm|cho\b|từ\b|đến\b|dưới\b|trên\b/i.test(keo) || mas.length > 1;
+      /* KEO KHÁC NHAU THEO ĐỘ DÀI mà khách KHÔNG ghi chữ: cùng loại sợi + độ dày nhưng dòng
+         5-8mm ghi keo .2, dòng 9-12mm ghi keo .3 (đơn 769P, sợi 0.15). Gom dải mm của từng
+         mã keo để suy ra cột Độ Dài — không thì mọi mm đều ăn mã keo đầu tiên. */
+      var gk = o.maDon + '|' + mat + '|' + day;
+      var g = theoSoi[gk] || (theoSoi[gk] = { keo: {}, coDK: false });
+      if (coDieuKien) g.coDK = true;
+      else {
+        var r = parseRange(o.length);
+        var ô = g.keo[keo] || (g.keo[keo] = { lo: null, hi: null });
+        if (r) { if (ô.lo == null || r.lo < ô.lo) ô.lo = r.lo; if (ô.hi == null || r.hi > ô.hi) ô.hi = r.hi; }
+      }
+      var k = o.maDon + '|' + keo + '|' + mat + '|' + day;
+      if (nhom[k]) return;
       var row = {
         maDon: o.maDon,
         loaiKeo: mas.length ? mas.map(cleanKeoName).join(', ') : keo,
         loaiSoi: mat, doDay: day, doDai: '',
         ghiChu: coDieuKien ? keo : '',
-        tuSinh: true
+        _gk: gk, _keoGoc: keo, tuSinh: true
       };
       nhom[k] = row; out.push(row);
     });
+    /* Điền cột Độ Dài cho nhóm có TỪ 2 MÃ KEO trở lên và các dải KHÔNG chồng nhau.
+       Chồng nhau (không đoán được ý khách) thì để trống như cũ, an toàn hơn là đoán bừa. */
+    Object.keys(theoSoi).forEach(function (gk) {
+      var g = theoSoi[gk], ten = Object.keys(g.keo);
+      if (g.coDK || ten.length < 2) return;
+      var ds = ten.map(function (t) { return { t: t, lo: g.keo[t].lo, hi: g.keo[t].hi }; })
+                  .filter(function (x) { return x.lo != null; });
+      if (ds.length !== ten.length) return;
+      ds.sort(function (a2, b2) { return a2.lo - b2.lo; });
+      for (var i = 1; i < ds.length; i++) if (ds[i].lo <= ds[i - 1].hi) return;   // chồng dải → bỏ qua
+      ds.forEach(function (x) {
+        out.forEach(function (r) {
+          if (r._gk === gk && r._keoGoc === x.t) r.doDai = (x.lo === x.hi) ? (x.lo + 'mm') : (x.lo + '-' + x.hi + 'mm');
+        });
+      });
+    });
+    out.forEach(function (r) { delete r._gk; delete r._keoGoc; });
     return out;
   }
   function expandKeoRows(keoRows) {
