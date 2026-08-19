@@ -579,6 +579,28 @@
     });
     return out;
   }
+  /* CỘT "HÀNG XƯỞNG THANH HÓA" — dùng chung cho CẢ HAI template (cũ và 2026).
+     Nhận theo 2 đường: (1) tiêu đề ghi TH / Thanh Hoá; (2) tiêu đề TRỐNG thì soi 2 cột ngay
+     sau cột tổng ("Tổng Số Hộp" ở mẫu cũ · "Tổng" ở mẫu 2026) — cột nào MỌI ô có chữ đều là
+     "TH" thì đó là cột đánh dấu. KHÔNG quét cả bề ngang vì bảng phụ bên phải cũng có ô "TH"
+     của riêng nó (đơn 774P) → gắn nhầm dòng. */
+  function timCotXuongTH(H, aoa, hr, endIdx) {
+    for (var i = 0; i < H.length; i++) {
+      var h = PS(H[i]).toLowerCase().replace(/\s+/g, ' ').trim();
+      if (!h) continue;
+      if (/thanh\s*ho[áa]/.test(h) || h === 'th' || /^x[ưu]ởng\s*th$/.test(h)) return i;
+    }
+    if (!(endIdx >= 0)) return -1;
+    for (var c = endIdx + 1; c <= endIdx + 2; c++) {
+      var dem = 0, sach = true;
+      for (var r = hr + 1; r < aoa.length; r++) {
+        var v = PS((aoa[r] || [])[c]); if (!v) continue;
+        if (LA_TH.test(v)) dem++; else { sach = false; break; }
+      }
+      if (sach && dem > 0) return c;
+    }
+    return -1;
+  }
   function buildKeoRules(keoRows) {
     var rules = [];
     (keoRows || []).forEach(function (k) {
@@ -1280,28 +1302,7 @@
        cột mà MỌI ô có chữ trong vùng dữ liệu đều là "TH" — cột số (độ cong, số hộp) tự
        loại vì không khớp. Dòng nào có dấu này thì code sợi ở Bảng Line Cuốn gắn đuôi
        "-TH" để bộ phận line biết là KHÔNG làm code đó. Số liệu KHÔNG đổi. */
-    var colXuongTH = (function () {
-      for (var i0 = 0; i0 < H.length; i0++) {
-        var h0 = PS(H[i0]).toLowerCase().replace(/\s+/g, ' ').trim();
-        if (!h0) continue;
-        if (/thanh\s*ho[áa]/.test(h0) || h0 === 'th' || /^x[ưu]ởng\s*th$/.test(h0)) return i0;
-      }
-      /* Không có tiêu đề thì CHỈ soi 2 cột ngay sau "Tổng Số Hộp" — tức vẫn nằm trong khối
-         cột của bảng đơn. Quét cả bề ngang là SAI: đơn 774P có bảng phụ bên phải
-         (AB=code sợi · AC/AD=tổng) kèm cột "TH" của RIÊNG bảng phụ đó ở AE; lấy theo số
-         dòng thì TH của bảng phụ dính sang dòng đơn khác hẳn (đã thử và loại). */
-      var endIdx = findCol(H, 'Tổng Số Hộp');
-      if (endIdx < 0) return -1;
-      for (var c0 = endIdx + 1; c0 <= endIdx + 2; c0++) {
-        var dem = 0, sach = true;
-        for (var r1 = hr + 1; r1 < aoa.length; r1++) {
-          var v0 = PS((aoa[r1] || [])[c0]); if (!v0) continue;
-          if (LA_TH.test(v0)) dem++; else { sach = false; break; }
-        }
-        if (sach && dem > 0) return c0;
-      }
-      return -1;
-    })();
+    var colXuongTH = timCotXuongTH(H, aoa, hr, findCol(H, 'Tổng Số Hộp'));
     // 2. đọc dòng đơn (bỏ dòng #REF!/#N/A/trống)
     var out = [];
     for (r = hr + 1; r < aoa.length; r++) {
@@ -1660,6 +1661,8 @@
        Curl2/Curl3, báo mỗi đơn thì thành nhiễu. Cột lạ mà CÓ SỐ LIỆU vẫn bị bắt ở
        meta.curlUnmapped bên dưới — chỗ đó mới thật sự nguy hiểm (mất số). */
 
+    // cột đánh dấu hàng xưởng Thanh Hóa (bên phải cột "Tổng")
+    var colTH26 = timCotXuongTH(H, aoa, hr, col.tong);
     var out = [];
     for (r = hr + 1; r < aoa.length; r++) {
       row = aoa[r] || [];
@@ -1685,6 +1688,7 @@
       out.push({
         seri: stt, seriGoc: stt, maDon: maDon, codeSoi: code,
         detail: PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''),
+        xuongTH: colTH26 >= 0 && LA_TH.test(PS(row[colTH26])),   // hàng xưởng Thanh Hóa làm
         length: length, mixSingle: isMix ? 'Mix' : 'Single', curls: curls,
         line: PN(soLineRaw.replace(/lines?/i, '').trim()), lineRaw: soLineRaw,
         loaiHang: '', ghiChu: PS(col.gcKC >= 0 ? row[col.gcKC] : ''),
@@ -1759,7 +1763,11 @@
         if (!d.label) return;                                  // trống = dòng Single
         var declared = (String(d.label).match(/\.(\d+)\s*$/) || [])[1];
         var rg = normalizeLength(String(d.label).replace(/\.\d+\s*$/, ''));
-        if (!parseRange(rg)) return;
+        /* Chỉ dải THẬT SỰ là KHOẢNG mới là Mix (6-13mm). Độ dài 1 giá trị (5mm · 13mm) là
+           Single ⇒ không được dựng thành cột trong Bảng Mix Label (đơn 792P từng ra 12 bảng
+           mix trong khi đơn chỉ có 1 dải 6-13mm — chốt 19/8). */
+        var _r = parseRange(rg);
+        if (!_r || _r.lo === _r.hi) return;
         var s = byLb[rg];
         if (!s) { s = byLb[rg] = { dist: {}, no: d.no, declared: declared ? +declared : null }; order.push(rg); }
         var mm = mmOf(d.mm); if (mm == null) return;

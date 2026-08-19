@@ -600,7 +600,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608181012</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608190805</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -3271,8 +3271,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         }).join('<br>');
         dcTxt='<br><span style="color:var(--red-600);font-weight:700">⚠ LỆCH SO VỚI SỐ KHÁCH GỬI KÈM: '+diffs.length+'/'+cells+' ô</span>'
              +'<br><span style="color:var(--red-600)">'+li+(diffs.length>8?'<br>… còn '+(diffs.length-8)+' ô nữa':'')+'</span>';
-        logLine('⚠ Đối chiếu bảng mm của khách: LỆCH '+diffs.length+'/'+cells+' ô');
-        diffs.forEach(function(d){ logLine('   ↳ '+d.maDon+' · '+d.codeSoi+' · '+d.mm+'mm · '+d.curl+': app '+d.app+' ≠ khách '+d.khach); });
+        /* LỊCH SỬ CHỈ GHI DÒNG CHÍNH (chốt 19/8): trước đây mỗi ô lệch 1 dòng log → nạp 1 đơn
+           to là hơn 600 dòng, không đọc được gì. Chi tiết từng ô đã có ở bước 7 (So sánh)
+           và ngay trong popup "Xử lý xong"; ở đây gộp theo mã đơn, tối đa 5 đơn. */
+        logLine('⚠ Đối chiếu bảng mm của khách: LỆCH '+diffs.length+'/'+cells+' ô (chi tiết ở bước 7 · So sánh)');
+        (function(){
+          var theoDon={}, thuTu=[];
+          diffs.forEach(function(d){ if(theoDon[d.maDon]==null){ theoDon[d.maDon]=0; thuTu.push(d.maDon); } theoDon[d.maDon]++; });
+          thuTu.slice(0,5).forEach(function(m){ logLine('   ↳ '+m+': '+theoDon[m]+' ô lệch'); });
+          if(thuTu.length>5) logLine('   ↳ … còn '+(thuTu.length-5)+' đơn nữa');
+        })();
       }
     })();
     // xóa file → dựng lại im lặng, KHÔNG popup và GIỮ nguyên cờ _new (file chưa báo lần nào
