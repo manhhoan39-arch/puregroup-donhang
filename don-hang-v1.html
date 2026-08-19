@@ -600,7 +600,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608190843</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608191036</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -855,6 +855,11 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <input id="s6-makh" class="madon-pick" list="dl-makh" placeholder="Tất cả KH" title="Lọc theo Mã KH — đồng bộ mọi bước" autocomplete="off" style="min-width:120px;margin-right:6px">
       <input id="s6-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
       <button class="btn sm" id="btn-th-line" style="color:var(--accent);font-weight:700" title="In bảng Tổng hợp Line (theo code sợi × mm)">🖨 Tổng hợp Line</button>
+      <select id="s6-th-mode" title="Chọn dữ liệu đưa vào bản in Tổng hợp Line" style="padding:3px 6px;margin-right:6px;font-size:11.5px">
+        <option value="all">Tất cả</option>
+        <option value="nd" selected title="Chỉ hàng xưởng NĐ — bỏ các code sợi đuôi -TH">Xưởng NĐ</option>
+        <option value="th" title="Chỉ hàng xưởng Thanh Hóa — code sợi đuôi -TH">Xưởng TH</option>
+      </select>
       <button class="btn sm" id="btn-th-cuon" style="color:var(--accent);font-weight:700" title="In bảng Tổng hợp Cuốn (code × S/M × mm × độ cong)">🖨 Tổng hợp Cuốn</button>
       <div class="spacer"></div>
       <button class="btn sm" id="btn-dl-linecuon">⬇ Xuất LineCuon.xlsx</button>
@@ -6677,8 +6682,21 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     /* Hàng xưởng Thanh Hóa (đuôi "-TH") KHÔNG in trong Tổng hợp Line — bộ phận line
        không làm mấy code đó nên đưa vào chỉ gây nhầm (chốt 17/8). Bảng Tổng hợp Cuốn
        và bảng ở bước 5 vẫn giữ đủ để đối chiếu. */
-    var rows=thRows(md).filter(function(r){return r.maDon===md && !r.xuongTH;});
-    if(!rows.length) return alert('Đơn "'+md+'" không có dòng Line nào cần in (hàng "-TH" của xưởng Thanh Hóa không tính).');
+    /* CHỌN DỮ LIỆU IN (chốt 19/8) — ô xổ ngay cạnh nút:
+         nd  = hàng xưởng mình, BỎ hàng "-TH" (mặc định, đúng như trước)
+         th  = CHỈ hàng Thanh Hóa (code sợi có đuôi -TH)
+         all = in tất cả
+       Mọi cài đặt khác của bản in giữ nguyên. */
+    var cheDo=String(getVal('s6-th-mode')||'nd');
+    var rows=thRows(md).filter(function(r){
+      if(r.maDon!==md) return false;
+      if(cheDo==='all') return true;
+      return cheDo==='th' ? !!r.xuongTH : !r.xuongTH;
+    });
+    if(!rows.length) return alert(cheDo==='th'
+      ? ('Đơn "'+md+'" không có dòng nào của xưởng TH (code sợi đuôi -TH).')
+      : ('Đơn "'+md+'" không có dòng Line nào cần in'+(cheDo==='nd'?' (hàng "-TH" của xưởng Thanh Hóa không tính).':'.')));
+    var nhanCheDo = cheDo==='th' ? ' · XƯỞNG TH' : (cheDo==='all' ? ' · TẤT CẢ (NĐ + TH)' : '');
     /* Cột ĐỘ CONG thay cho cột "Nhân viên" (chốt 17/8) — giống bảng Tổng hợp Cuốn.
        Chỉ hiện những độ cong đơn này THẬT SỰ có, khỏi thừa cột trống. */
     var UC=thUsedCurls(rows);
@@ -6717,7 +6735,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // Dòng TỔNG CẢ ĐƠN ở cuối — giống bảng Tổng hợp Cuốn, để xưởng đối chiếu nhanh
     body+='<tr class="tot" style="color:#E8185C;font-size:13px"><td class="l" colspan="3">Σ TỔNG SỐ LƯỢNG '+esc(md)+'</td>'+
       oCong(grandCur)+'<td>'+grand+'</td></tr>';
-    var html=thHead2(esc(md)+' · TỔNG HỢP LINE', thKeoInfo(md))+
+    var html=thHead2(esc(md)+' · TỔNG HỢP LINE'+nhanCheDo, thKeoInfo(md))+
       '<table style="table-layout:fixed"><thead><tr>'+
       '<th class="l" style="width:150px">Code sợi</th>'+
       '<th class="l" style="width:150px">Mã keo</th>'+
@@ -6728,7 +6746,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
        (mất đất, chữ bị bó) → tự quay NGANG. Bề rộng thật của 1 cột = width + padding 6+6
        + viền 1 = width+13; khổ A4 dọc chừa lề còn ~700px in được. */
     var rongBang=(150+150+46+64+56*UC.length)+13*(4+UC.length);
-    thPrint('Tổng hợp Line · '+md, html, md+' · TỔNG HỢP LINE', rongBang>700);
+    thPrint('Tổng hợp Line · '+md+nhanCheDo, html, md+' · TỔNG HỢP LINE'+nhanCheDo, rongBang>700);
   }
   var bthl=document.getElementById('btn-th-line'); if(bthl) bthl.addEventListener('click', printTongHopLine);
   var bthc=document.getElementById('btn-th-cuon'); if(bthc) bthc.addEventListener('click', printTongHopCuon);
