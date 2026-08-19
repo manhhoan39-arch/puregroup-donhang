@@ -108,7 +108,8 @@
       thickness: thN,
       label: raw.label == null ? '' : String(raw.label).trim(),
       mixDist: (raw.mixDist && typeof raw.mixDist === 'object') ? raw.mixDist : null,
-      xuongTH: !!raw.xuongTH,                       // hàng xưởng Thanh Hóa làm → code sợi gắn "-TH"
+      xuongMa: String(raw.xuongMa == null ? '' : raw.xuongMa).trim().toUpperCase(),   // TH · HY · '' (ND)
+      xuongTH: !!raw.xuongTH || String(raw.xuongMa || '').toUpperCase() === 'TH',
       _colorBlocks: (raw._colorBlocks && raw._colorBlocks.length) ? raw._colorBlocks : null,   // phân bổ mix màu do admin nhập (per-dòng)
       _manual: !!raw._manual,
     };
@@ -306,7 +307,8 @@
     var rows = [], curl, mm, sl;
     // mỗi dòng data1 MANG THEO material/độ dày/keo khách ghi của CHÍNH DÒNG ĐƠN sinh ra nó
     // (2 dòng đơn cùng code sợi có thể khác material → không được tra keo qua meta gộp)
-    var carry = { material: o.material || o.detail || '', thickness: o.thickness || '', ghiChuKeo: o.ghiChuKeo || '', xuongTH: !!o.xuongTH };
+    var carry = { material: o.material || o.detail || '', thickness: o.thickness || '', ghiChuKeo: o.ghiChuKeo || '',
+                  xuongTH: !!o.xuongTH, xuongMa: o.xuongMa || (o.xuongTH ? 'TH' : '') };
     // TÁCH THEO MÀU: dòng Mix có NHIỀU code sợi (mix nhiều màu) → tách MỖI code = 1 component,
     // dùng phân bổ mm RIÊNG của màu đó (colorBlocks theo THỨ TỰ khớp code sợi). Tổng dây bảo toàn.
     if (o.mixSingle !== 'Single' && !o.mixDist && (colorBlocks || (o._colorBlocks && o._colorBlocks.length))) {
@@ -333,7 +335,7 @@
       var r = parseRange(o.length), smm = r ? r.lo : NaN;
       for (curl in curls) {
         sl = strategy(o, { mm: smm, mixQty: o.line, qty: curls[curl] }, { rangeTotal: o.line });
-        if (sl) rows.push({ codeSoi: o.codeSoi, length: o.length, mm: smm, curl: curl, sl: sl, maDon: o.maDon, mixSingle: 'Single', material: carry.material, thickness: carry.thickness, ghiChuKeo: carry.ghiChuKeo, xuongTH: carry.xuongTH });
+        if (sl) rows.push({ codeSoi: o.codeSoi, length: o.length, mm: smm, curl: curl, sl: sl, maDon: o.maDon, mixSingle: 'Single', material: carry.material, thickness: carry.thickness, ghiChuKeo: carry.ghiChuKeo, xuongTH: carry.xuongTH, xuongMa: carry.xuongMa });
       }
       return rows;
     }
@@ -342,7 +344,7 @@
     for (curl in curls) {
       for (mm in dist) {
         sl = strategy(o, { mm: +mm, mixQty: dist[mm], qty: curls[curl] }, { rangeTotal: rangeTotal });
-        if (sl) rows.push({ codeSoi: o.codeSoi, length: o.length, mm: +mm, curl: curl, sl: sl, maDon: o.maDon, mixSingle: 'Mix', material: carry.material, thickness: carry.thickness, ghiChuKeo: carry.ghiChuKeo, xuongTH: carry.xuongTH });
+        if (sl) rows.push({ codeSoi: o.codeSoi, length: o.length, mm: +mm, curl: curl, sl: sl, maDon: o.maDon, mixSingle: 'Mix', material: carry.material, thickness: carry.thickness, ghiChuKeo: carry.ghiChuKeo, xuongTH: carry.xuongTH, xuongMa: carry.xuongMa });
       }
     }
     return rows;
@@ -584,18 +586,55 @@
      sau cột tổng ("Tổng Số Hộp" ở mẫu cũ · "Tổng" ở mẫu 2026) — cột nào MỌI ô có chữ đều là
      "TH" thì đó là cột đánh dấu. KHÔNG quét cả bề ngang vì bảng phụ bên phải cũng có ô "TH"
      của riêng nó (đơn 774P) → gắn nhầm dòng. */
+  /** Ô đánh dấu xưởng → mã ngắn: TH · HY · '' (ND/Nam Định = xưởng nhà, không gắn đuôi). */
+  function maXuongCuaO(v) {
+    var t = String(v == null ? '' : v).replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!t) return null;
+    if (/^(th|thanh\s*ho[áa])$/.test(t)) return 'TH';
+    if (/^(hy|h[ưu]ng\s*y[êe]n)$/.test(t)) return 'HY';
+    if (/^(n[dđ]|nam\s*[dđ][ịi]nh)$/.test(t)) return '';     // xưởng nhà → giữ nguyên code sợi
+    return null;
+  }
+  /* Ký hiệu hàng đặc biệt nhận từ chữ trong dòng đơn:
+     laser/liigos→LZ · easy fan single→1ES · easy fan double→2ES · <số>D-U (vd 3D-U)→DU */
+  var SPECIAL_SYM = [
+    ['LZ',  /laser|liigos/i],
+    ['1ES', /easy\s*fan\s*single/i],
+    ['2ES', /easy\s*fan\s*double/i],
+    ['DU',  /\d\s*d\s*[-\/]\s*u/i]
+  ];
+  /* KÝ HIỆU HÀNG ĐẶC BIỆT (LZ · 1ES · 2ES · DU): xuất hiện ở MỌI dòng → gắn vào MÃ ĐƠN;
+     chỉ vài dòng → gắn vào CODE SỢI của đúng mấy dòng đó. Dùng CHUNG cho cả 2 template. */
+  function apKyHieuDacBiet(out, maDon) {
+    var dsMoTa = [];
+    SPECIAL_SYM.forEach(function (p) {
+      var sym = p[0], hit = out.filter(function (o) { return o._kw && o._kw[sym]; });
+      if (!hit.length) return;
+      if (hit.length === out.length) {
+        // mã đơn khách hay có dấu "-" ở cuối ("CS185-") → bỏ bớt để không thành "CS185--LZ"
+        var suf = '-' + sym, don = function (m) { return String(m || '').replace(/-+$/, '') + suf; };
+        out.forEach(function (o) { o.maDon = don(o.maDon); });
+        maDon = don(maDon); dsMoTa.push(sym + ' (cả đơn → mã đơn)');
+      } else {
+        hit.forEach(function (o) { o.codeSoi += '-' + sym; });
+        dsMoTa.push(sym + ' (' + hit.length + ' dòng → code sợi)');
+      }
+    });
+    out.forEach(function (o) { delete o._kw; });
+    return { maDon: maDon, dsMoTa: dsMoTa };
+  }
   function timCotXuongTH(H, aoa, hr, endIdx) {
     for (var i = 0; i < H.length; i++) {
       var h = PS(H[i]).toLowerCase().replace(/\s+/g, ' ').trim();
       if (!h) continue;
-      if (/thanh\s*ho[áa]/.test(h) || h === 'th' || /^x[ưu]ởng\s*th$/.test(h)) return i;
+      if (/thanh\s*ho[áa]/.test(h) || h === 'th' || /^x[ưu]ởng(\s|$)/.test(h)) return i;
     }
     if (!(endIdx >= 0)) return -1;
     for (var c = endIdx + 1; c <= endIdx + 2; c++) {
       var dem = 0, sach = true;
       for (var r = hr + 1; r < aoa.length; r++) {
         var v = PS((aoa[r] || [])[c]); if (!v) continue;
-        if (LA_TH.test(v)) dem++; else { sach = false; break; }
+        if (maXuongCuaO(v) !== null) dem++; else { sach = false; break; }
       }
       if (sach && dem > 0) return c;
     }
@@ -818,12 +857,15 @@
   /** Code sợi của dòng độ cong mới: gắn đuôi "-NC" (nhiều code 1 ô thì gắn từng dòng). */
   /** Ô cột xưởng ghi "TH" / "Thanh Hóa" → hàng do xưởng Thanh Hóa làm. */
   var LA_TH = /^(th|thanh\s*ho[áa])$/i;
-  /** Code sợi hàng Thanh Hóa: gắn đuôi "-TH" (nhiều code 1 ô thì gắn từng dòng). */
-  function themTH(code) {
+  /** Code sợi hàng xưởng ngoài: gắn đuôi "-TH" / "-HY" (nhiều code 1 ô thì gắn từng dòng). */
+  function themXuong(code, ma) {
+    ma = String(ma || '').toUpperCase(); if (!ma) return code;
+    var re = new RegExp('-' + ma + '$');
     return String(code == null ? '' : code).split(/\r?\n/)
-      .map(function (x) { x = x.trim(); return x ? (/-TH$/.test(x) ? x : x + '-TH') : x; })
+      .map(function (x) { x = x.trim(); return x ? (re.test(x) ? x : x + '-' + ma) : x; })
       .join('\n');
   }
+  function themTH(code) { return themXuong(code, 'TH'); }
   function themNC(code) {
     return String(code == null ? '' : code).split(/\r?\n/)
       .map(function (x) { x = x.trim(); return x ? (/-NC$/.test(x) ? x : x + '-NC') : x; })
@@ -837,9 +879,11 @@
     orders.forEach(function (o) { meta[o.maDon + '|' + o.codeSoi + '|' + o.length] = o; });
     var tree = {};
     data1.forEach(function (r) {
-      // hàng Thanh Hóa tách nhóm riêng: cùng code sợi mà nơi làm khác nhau thì KHÔNG gộp
-      var ck = r.maDon + '|' + r.codeSoi + (r.xuongTH ? '|TH' : '');
-      var c = tree[ck] || (tree[ck] = { maDon: r.maDon, codeSoi: r.codeSoi, xuongTH: !!r.xuongTH, rows: {}, order: [], total: 0 });
+      /* Hàng của xưởng NGOÀI (TH · HY) tách nhóm riêng: cùng code sợi mà nơi làm khác nhau
+         thì KHÔNG gộp, và code sợi hiện kèm đuôi "-TH" / "-HY" cho xưởng dễ nhìn. */
+      var _xm = String(r.xuongMa || (r.xuongTH ? 'TH' : '')).toUpperCase();
+      var ck = r.maDon + '|' + r.codeSoi + (_xm ? '|' + _xm : '');
+      var c = tree[ck] || (tree[ck] = { maDon: r.maDon, codeSoi: r.codeSoi, xuongMa: _xm, xuongTH: _xm === 'TH', rows: {}, order: [], total: 0 });
       /* GỘP theo Code Sợi + S/M + mm + material + độ dày — KHÔNG tách theo dải Mix nữa.
          Đơn 740P có 4 dải Mix cùng phủ mm 11 (6-14 · 7-14 · 7-15 · 7-16mm) → trước đây ra 4
          dòng trông y hệt nhau vì bảng không hiện cột Độ Dài, xưởng phải tự cộng. Chốt 13/8:
@@ -900,7 +944,7 @@
       var multiMat = Object.keys(matSet).length > 1;
       /* Đuôi "-TH" chỉ để HIỆN (bảng bước 5, 2 bảng Σ, bản in, file xuất). Mọi chỗ tra
          cứu — meta đơn, tra keo, đối chiếu số khách — vẫn dùng c.codeSoi GỐC. */
-      var codeHien = c.xuongTH ? themTH(c.codeSoi) : c.codeSoi;
+      var codeHien = themXuong(c.codeSoi, c.xuongMa);
       c.order.forEach(function (key) {
         var g = c.rows[key], m = meta[c.maDon + '|' + c.codeSoi + '|' + g.length] || {};
         var keo = Object.keys(g.keoSet || {}).join(', ');
@@ -912,7 +956,7 @@
           if (isOverrideCurl(k)) { ovrC[k] = v; normC[k] = 0; ovrTot += v; if (v) hasOvr = true; }
           else { normC[k] = v; ovrC[k] = 0; normTot += v; }
         });
-        var base = { maDon: c.maDon, codeSoi: codeHien, xuongTH: !!c.xuongTH, length: g.length,
+        var base = { maDon: c.maDon, codeSoi: codeHien, xuongTH: !!c.xuongTH, xuongMa: c.xuongMa || '', length: g.length,
                      lengths: (g.lengths && g.lengths.length ? g.lengths.slice().sort() : [g.length]),
                      mm: g.mm, box: m.box || '—', mixSingle: g.mixSingle || m.mixSingle || 'Mix',
                      material: g.material || m.material || '', thickness: g.thickness || m.thickness || '', multiMat: multiMat };
@@ -923,13 +967,13 @@
              biệt với dòng thường cùng code (chốt 13/8). Đuôi này theo suốt: bảng bước 5,
              2 bảng Σ, bản in và file xuất — đều đọc từ chính dòng này. */
           rows.push(Object.assign({ type: 'row', stt: ++stt, curls: ovrC, tong: ovrTot, keo: keo2mm, keo2mm: keo2mm, ovrRow: true },
-                                  base, { codeSoi: c.xuongTH ? themTH(themNC(c.codeSoi)) : themNC(c.codeSoi) }));
+                                  base, { codeSoi: themXuong(themNC(c.codeSoi), c.xuongMa) }));
         } else {
           var curls = {}; CURLS.forEach(function (k) { curls[k] = g.curls[k] || 0; });
           rows.push(Object.assign({ type: 'row', stt: ++stt, curls: curls, tong: g.tong, keo: keo, keo2mm: keo2mm }, base));
         }
       });
-      rows.push({ type: 'subtotal', maDon: c.maDon, codeSoi: codeHien, xuongTH: !!c.xuongTH, curls: subCurls, tong: c.total, multiMat: multiMat }); grand += c.total;
+      rows.push({ type: 'subtotal', maDon: c.maDon, codeSoi: codeHien, xuongTH: !!c.xuongTH, xuongMa: c.xuongMa || '', curls: subCurls, tong: c.total, multiMat: multiMat }); grand += c.total;
     });
     rows.push({ type: 'grand', curls: grandCurls, tong: grand });
     return { rows: rows, grand: grand, summary: buildSummary(data1) };
@@ -1291,12 +1335,6 @@
     })();
     // Ký hiệu HÀNG ĐẶC BIỆT (không phân biệt hoa/thường). Quét MỌI cột của từng dòng đơn:
     //  laser/liigos→LZ · easy fan single→1ES · easy fan double→2ES · <số>D-U (vd 3D-U)→DU
-    var SPECIAL_SYM = [
-      ['LZ',  /laser|liigos/i],
-      ['1ES', /easy\s*fan\s*single/i],
-      ['2ES', /easy\s*fan\s*double/i],
-      ['DU',  /\d\s*d\s*[-\/]\s*u/i]
-    ];
     /* CỘT "HÀNG XƯỞNG THANH HÓA" (đơn C185-743P: cột AA, TIÊU ĐỀ TRỐNG, ô ghi "TH").
        Nhận theo 2 đường: (1) tiêu đề có chữ Thanh Hoá/TH; (2) không có tiêu đề thì tìm
        cột mà MỌI ô có chữ trong vùng dữ liệu đều là "TH" — cột số (độ cong, số hộp) tự
@@ -1336,21 +1374,16 @@
         material: PS(col.tenGoi >= 0 ? row[col.tenGoi] : ''),
         thickness: PS(col.doDay >= 0 ? row[col.doDay] : ''),
         label: PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''),
-        xuongTH: colXuongTH >= 0 && LA_TH.test(PS(row[colXuongTH])),   // hàng xưởng Thanh Hóa làm
+        xuongMa: colXuongTH >= 0 ? (maXuongCuaO(row[colXuongTH]) || '') : '',   // TH · HY · '' (ND)
+        xuongTH: colXuongTH >= 0 && LA_TH.test(PS(row[colXuongTH])),   // giữ tương thích chỗ cũ
         _kw: _kw,
       });
     }
     if (!out.length) return null;
     // Áp ký hiệu đặc biệt: XUẤT HIỆN Ở MỌI DÒNG → gắn vào MÃ ĐƠN (676P-LZ);
     //                      chỉ MỘT SỐ dòng → gắn vào CODE SỢI dòng đó (3.MK.7-LZ).
-    var specialApplied = [];
-    SPECIAL_SYM.forEach(function (p) {
-      var sym = p[0], hit = out.filter(function (o) { return o._kw && o._kw[sym]; });
-      if (!hit.length) return;
-      if (hit.length === out.length) { var suf = '-' + sym; out.forEach(function (o) { o.maDon += suf; }); maDon += suf; specialApplied.push(sym + ' (cả đơn → mã đơn)'); }
-      else { hit.forEach(function (o) { o.codeSoi += '-' + sym; }); specialApplied.push(sym + ' (' + hit.length + ' dòng → code sợi)'); }
-    });
-    out.forEach(function (o) { delete o._kw; });
+    var _ap = apKyHieuDacBiet(out, maDon);
+    var specialApplied = _ap.dsMoTa; maDon = _ap.maDon;
     // 3. bảng Mix của khách: dòng "Mix Length" + các dòng "4mm".."20mm".
     //    QUÉT TOÀN SHEET, nhận NHIỀU bảng Mix (kể cả nhiều bảng cùng dải khác số line,
     //    hoặc nhiều bảng nằm cạnh nhau trên cùng dòng). Header dải có thể kèm
@@ -1688,7 +1721,9 @@
       out.push({
         seri: stt, seriGoc: stt, maDon: maDon, codeSoi: code,
         detail: PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''),
-        xuongTH: colTH26 >= 0 && LA_TH.test(PS(row[colTH26])),   // hàng xưởng Thanh Hóa làm
+        xuongMa: colTH26 >= 0 ? (maXuongCuaO(row[colTH26]) || '') : '',
+        xuongTH: colTH26 >= 0 && LA_TH.test(PS(row[colTH26])),
+        _kw: (function () { var k = {}; if (col.laser >= 0 && /laser|liigos/i.test(PS(row[col.laser]))) k.LZ = 1; return k; })(),
         length: length, mixSingle: isMix ? 'Mix' : 'Single', curls: curls,
         line: PN(soLineRaw.replace(/lines?/i, '').trim()), lineRaw: soLineRaw,
         loaiHang: '', ghiChu: PS(col.gcKC >= 0 ? row[col.gcKC] : ''),
@@ -1698,6 +1733,11 @@
       });
     }
     if (!out.length) return null;
+
+    /* Ký hiệu hàng đặc biệt (LZ…) phải áp NGAY ở đây — mã đơn có thể đổi (CS185- → CS185-LZ),
+       mà bảng Mix và bảng keo bên dưới đều khóa theo mã đơn. Áp muộn là mix/keo tra không ra. */
+    var _ap26 = apKyHieuDacBiet(out, maDon);
+    maDon = _ap26.maDon;
 
     // ---- D. Bảng mm (khách tự tính, theo SỢI) → lấy Phân Loại + giữ lại để đối chiếu ----
     var khachCuon = null;
@@ -1867,7 +1907,7 @@
     meta.curlRemap = [];
     meta.curlHeaders = curlHeaders;
     meta.curlNotes = {};
-    meta.specialSym = [];
+    meta.specialSym = _ap26.dsMoTa;
     return { rawOrders: out, mixSheets: mixSheets, keoRows: keoRows, keoNotes: null, curlNotes: {}, meta: meta };
   }
 

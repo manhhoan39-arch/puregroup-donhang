@@ -600,7 +600,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608191036</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608191605</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1638,6 +1638,70 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         if(g && keyMoi!==key){ state.colorMix[keyMoi]=g; delete state.colorMix[key]; }
         logLine('Sửa tên màu ở Bảng Mix Màu '+(lienQuan[0].maDon||'')+': "'+cu+'" → "'+moi+'" ('+lienQuan.length+' dòng đơn)');
       });
+    });
+  }
+  /* ===== DÁN NHIỀU DÒNG VÀO CÁC Ô NHẬP CÒN LẠI (chốt 19/8) =====
+     Mọi ô sửa được đều phải chép–dán được như Excel. Bảng lớn (Nhập Đơn · Mix Label ·
+     Bảng Keo · Box · Packing Slip · Mix Màu) đã có sẵn; còn 2 chỗ này nhập tay:
+       · ô TÊN MÀU ở Bảng Mix Màu  · ô số lượng ở BẢNG HỘP (bước 6). */
+  function doiTenMauNhieu(key, tuCi, ds) {
+    var lienQuan=(state.orders||[]).filter(function(o){ return isMixColorRow(o) && cmKey(o)===key; });
+    if(!lienQuan.length) return 0;
+    var cu=cmCodes(lienQuan[0]).slice(), doi=0;
+    lienQuan.forEach(function(o){
+      var codes=cmCodes(o);
+      ds.forEach(function(ten,i){
+        var ci=tuCi+i; ten=String(ten==null?'':ten).replace(/\u00a0/g,' ').trim();
+        if(!ten || ci>=codes.length || codes[ci]===ten) return;
+        codes[ci]=ten;
+      });
+      o.codeSoi=codes.join('\n');
+      try{ ghiNguocVeFile(o); }catch(e){ logErr('doiTenMauNhieu', e); }
+    });
+    var moi=cmCodes(lienQuan[0]);
+    moi.forEach(function(t,i){ if(t!==cu[i]) doi++; });
+    if(doi){
+      state.colorMix=state.colorMix||{};
+      var g=state.colorMix[key], keyMoi=cmKey(lienQuan[0]);
+      if(g && keyMoi!==key){ state.colorMix[keyMoi]=g; delete state.colorMix[key]; }
+      logLine('Dán '+doi+' tên màu ở Bảng Mix Màu '+(lienQuan[0].maDon||''));
+    }
+    return doi;
+  }
+  if(document.body){
+    // (1) dán 1 CỘT tên màu vào Bảng Mix Màu
+    document.addEventListener('paste', function(ev){
+      if(ev.defaultPrevented) return;
+      var td=ev.target && ev.target.closest ? ev.target.closest('td[data-cmname]') : null; if(!td) return;
+      var cd=ev.clipboardData||window.clipboardData; var text=cd&&cd.getData?cd.getData('text'):''; if(text==null||text==='') return;
+      var g=parseClipboard(text); if(!g.length) return;
+      if(g.length===1 && g[0].length===1) return;            // 1 ô → để trình duyệt tự dán như cũ
+      ev.preventDefault();
+      var ds=g.map(function(h){ return h[0]; });
+      var key=td.getAttribute('data-cmname'), ci=+td.getAttribute('data-cmci')||0;
+      pushUndo();
+      var n=doiTenMauNhieu(key, ci, ds);
+      if(n){ resetPack(); render(); gsMsg('Đã dán '+n+' tên màu.'); }
+      else gsMsg('Không có tên màu nào đổi.');
+    });
+    // (2) dán 1 CỘT số vào BẢNG HỘP (bước 6)
+    document.addEventListener('paste', function(ev){
+      if(ev.defaultPrevented) return;
+      var el=ev.target; if(!el||!el.classList||!el.classList.contains('bt-in')) return;
+      var cd=ev.clipboardData||window.clipboardData; var text=cd&&cd.getData?cd.getData('text'):''; if(text==null||text==='') return;
+      var g=parseClipboard(text); if(!g.length) return;
+      if(g.length===1 && g[0].length===1) return;            // 1 ô → dán bình thường
+      ev.preventDefault();
+      var tbl=el.closest?el.closest('.boxtypes'):null; if(!tbl) return;
+      var ds=Array.prototype.slice.call(tbl.querySelectorAll('.bt-in'));
+      var i0=ds.indexOf(el); if(i0<0) i0=0;
+      var n=0;
+      g.forEach(function(hang,i){
+        var o=ds[i0+i]; if(!o) return;
+        var v=String(hang[0]==null?'':hang[0]).replace(/[^0-9]/g,'');
+        o.value=v; o.dispatchEvent(new Event('input',{bubbles:true})); n++;
+      });
+      gsMsg('Đã dán '+n+' ô Bảng Hộp.');
     });
   }
   /* Ô nhiều dòng: <br> phải thành "\n" khi đọc ra. Trước đây dùng td.textContent nên 2-3 mã
@@ -6642,13 +6706,24 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return '<div class="hd2"><h2 style="margin:0 0 6px">'+tieuDe+'</h2>'+
            '<div class="hd-r">'+(duoi||'')+'</div></div>';
   }
+  /** Dòng hàng xưởng Hưng Yên? (code sợi đuôi "-HY" · cờ xuongMa của engine) */
+  function laHangHY(r){
+    if(!r) return false;
+    if(String(r.xuongMa||'').toUpperCase()==='HY') return true;
+    return String(r.codeSoi||'').split(/\r?\n/).some(function(x){ return /-HY$/.test(x.trim()); });
+  }
   function printTongHopCuon(){
     var md=getVal('s6-madon');
     if(!md) return alert('Hãy CHỌN 1 mã đơn ở ô lọc trước khi in "Tổng hợp Cuốn".');
     var mds=thMdList(md); if(!mds.length) return alert('Đơn "'+md+'" chưa có dữ liệu Cuốn.');
     var html='';
+    if(!thRows(md).filter(function(r){ return !laHangHY(r); }).length)
+      return alert('Đơn "'+md+'" chỉ có hàng xưởng HY (code sợi đuôi -HY) — bản in Tổng hợp Cuốn không tính hàng này.');
     mds.forEach(function(m){
-      var rows=thRows(md).filter(function(r){return r.maDon===m;}), UC=thUsedCurls(rows);
+      /* BỎ HÀNG HƯNG YÊN khỏi bản in Tổng hợp Cuốn (chốt 19/8): code sợi đuôi "-HY" là hàng
+         xưởng HY làm, xưởng mình không cuốn nên đưa vào chỉ gây nhầm. Hàng "-TH" vẫn giữ. */
+      var rows=thRows(md).filter(function(r){ return r.maDon===m && !laHangHY(r); }), UC=thUsedCurls(rows);
+      if(!rows.length) return;
       // gom theo code, sắp xếp keo → S/M → mm để merge như bảng Line
       var byCode={}, codeOrder=[];
       rows.forEach(function(r){ var code=r.codeSoi||''; if(!byCode[code]){byCode[code]=[];codeOrder.push(code);} byCode[code].push({keo:r.keo||'', sm:r.mixSingle||'', mm:+r.mm, tong:r.tong||0, curls:r.curls||{}}); });
