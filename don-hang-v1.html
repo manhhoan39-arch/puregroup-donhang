@@ -855,10 +855,11 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <input id="s6-makh" class="madon-pick" list="dl-makh" placeholder="Tất cả KH" title="Lọc theo Mã KH — đồng bộ mọi bước" autocomplete="off" style="min-width:120px;margin-right:6px">
       <input id="s6-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
       <button class="btn sm" id="btn-th-line" style="color:var(--accent);font-weight:700" title="In bảng Tổng hợp Line (theo code sợi × mm)">🖨 Tổng hợp Line</button>
-      <select id="s6-th-mode" title="Chọn dữ liệu đưa vào bản in Tổng hợp Line" style="padding:3px 6px;margin-right:6px;font-size:11.5px">
-        <option value="all">Tất cả</option>
-        <option value="nd" selected title="Chỉ hàng xưởng NĐ — bỏ các code sợi đuôi -TH">Xưởng NĐ</option>
+      <select id="s6-th-mode" title="Lọc bảng theo xưởng làm — 2 bảng Σ và Tổng Dây tính lại theo lựa chọn này (không ảnh hưởng bản in)" style="padding:3px 6px;margin-right:6px;font-size:11.5px">
+        <option value="all" selected>Tất cả</option>
+        <option value="nd" title="Chỉ hàng xưởng NĐ — bỏ code sợi đuôi -TH và -HY">Xưởng NĐ</option>
         <option value="th" title="Chỉ hàng xưởng Thanh Hóa — code sợi đuôi -TH">Xưởng TH</option>
+        <option value="hy" title="Chỉ hàng xưởng Hưng Yên — code sợi đuôi -HY">Xưởng HY</option>
       </select>
       <button class="btn sm" id="btn-th-cuon" style="color:var(--accent);font-weight:700" title="In bảng Tổng hợp Cuốn (code × S/M × mm × độ cong)">🖨 Tổng hợp Cuốn</button>
       <div class="spacer"></div>
@@ -2212,12 +2213,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var ovr=r.ovrRow?' cl-ovrrow':'';   // dòng độ cong ĐẶC BIỆT (LB/LC/LJ/LC+) đã tách → chữ hồng đỏ
         var th=r.xuongTH?' cl-throw':'';    // hàng xưởng Thanh Hóa → tô nền vàng nhạt
         var keoTd='<td class="txt" style="font-size:10px"'+(r.ovrRow?' title="Độ cong đặc biệt '+esc(OVR.join('/'))+' → Keo 2mm"':'')+'>'+esc(r.keo||'')+'</td>';
-        return '<tr class="'+(mc+ovr+th).trim()+'" data-cbk="1" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'" style="font-size:10px">'+nl2br(r.material||'')+'</td><td>'+r.mixSingle+'</td><td>'+r.mm+'</td>'+keoTd+
+        return '<tr class="'+(mc+ovr+th).trim()+'" data-cbk="1" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'" style="font-size:10px">'+nl2br(r.material||'')+'</td><td>'+r.mixSingle+'</td><td>'+r.mm+'</td>'+keoTd+
           UC.map(function(k){ return '<td class="cw">'+q(r.curls[k])+'</td>'; }).join('')+
           '<td class="qty">'+r.tong+'</td></tr>';
       }
       if(r.type==='subtotal'){
-        return '<tr class="subtotal'+(r.xuongTH?' cl-throw':'')+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td></td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt">Σ '+r.codeSoi+'</td><td></td><td></td><td></td><td></td>'+
+        return '<tr class="subtotal'+(r.xuongTH?' cl-throw':'')+'" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td></td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt">Σ '+r.codeSoi+'</td><td></td><td></td><td></td><td></td>'+
           curlTds(r.curls)+'<td>'+fmtN(r.tong)+'</td></tr>';
       }
       // nhãn Σ GRAND TOTAL nằm SÁT LỀ TRÁI (gộp 8 ô đầu) như dòng Σ của các bảng khác
@@ -3263,7 +3264,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     state.mixSheets=mixSheets;
     /* Bung dòng keo "1 ô nhiều quy tắc" (vd 744P: .2 cho 6-8mm, .3 từ 9mm) thành DÒNG THẬT
        để sửa được ngay trên bảng keo — bóc sai thì sửa, keo tính lại theo đúng ô vừa sửa. */
-    state.keoRows=(E.expandKeoRows?E.expandKeoRows(keoRows):keoRows).concat(keepManKeo);
+    /* Đơn KHÔNG có Bảng Keo trong file → dựng bảng keo từ cột "Keo Nhiệt" của chính các dòng
+       đơn (đơn CS315-769P). Có bảng rồi mới xem/sửa được ở bước 4, thay vì chỉ mượn ngầm. */
+    var _daCoKeo={}; keoRows.forEach(function(k){ if(k&&k.maDon) _daCoKeo[k.maDon]=1; });
+    keepManKeo.forEach(function(k){ if(k&&k.maDon) _daCoKeo[k.maDon]=1; });
+    var _keoSinh=[];
+    try{ if(E.sinhKeoTuDonHang) _keoSinh=E.sinhKeoTuDonHang(allO, _daCoKeo); }catch(e){ logErr('sinhKeoTuDonHang', e); }
+    if(_keoSinh.length){
+      var _mds={}; _keoSinh.forEach(function(k){ _mds[k.maDon]=1; });
+      logLine('🧪 Dựng bảng keo từ cột "Keo Nhiệt" của đơn: '+_keoSinh.length+' dòng · '+Object.keys(_mds).join(', '));
+    }
+    state.keoRows=(E.expandKeoRows?E.expandKeoRows(keoRows.concat(_keoSinh)):keoRows.concat(_keoSinh)).concat(keepManKeo);
     state.source='💾 '+okFiles.length+' file · '+orders.length+' dòng'+(keepMan.length?' + ✍ '+keepMan.length+' tay':'');
     resetPack();   // nguồn đổi → reset lớp packing
     state.processed=true;
@@ -5322,7 +5333,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var hay=tr.getAttribute('data-search'); if(hay==null) hay=tr.textContent;
       var okQ=!nq || nrm(hay).indexOf(nq)>=0;
       var okC=true; for(var ci in cf){ var set=cf[ci]; if(set && !set[cellText(tr,+ci)]){ okC=false; break; } }
-      var hien=(okM&&okKH&&okQ&&okC);
+      // Bảng Line Cuốn: thêm bộ lọc XƯỞNG LÀM (Tất cả · NĐ · TH · HY)
+      var okX=true;
+      if(laCuon && tr.hasAttribute('data-xuong')){
+        var _che=String(getVal('s6-th-mode')||'all'), _x=tr.getAttribute('data-xuong')||'';
+        if(_che==='nd') okX=!_x; else if(_che==='th') okX=(_x==='TH'); else if(_che==='hy') okX=(_x==='HY');
+      }
+      var hien=(okM&&okKH&&okQ&&okC&&okX);
       tr.style.display=hien?'':'none';
       if(hien) hienRows.push(tr);
       /* Bảng Line Cuốn: STT đánh lại từ 1 theo ĐÚNG những dòng đang hiện — lọc còn 1 đơn mà
@@ -5360,6 +5377,27 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   /* Danh sách dòng dữ liệu ĐANG HIỆN của Bảng Line Cuốn (đã áp mã đơn · mã KH · ô tìm ·
      bộ lọc cột ▼). boQua = chỉ số cột muốn BỎ QUA (dùng khi dựng danh sách chọn cho chính cột đó). */
+  /* ===== LỌC BẢNG LINE CUỐN THEO XƯỞNG LÀM (chốt 19/8) =====
+     Ô xổ cạnh nút in: Tất cả (mặc định) · Xưởng NĐ (bỏ -TH/-HY) · Xưởng TH · Xưởng HY.
+     Lọc ở DỮ LIỆU nên 2 bảng Σ và thanh Tổng Dây tự nhảy theo. KHÔNG dính tới bản in. */
+  function xuongCuaDong(r){
+    var m=String((r&&r.xuongMa)||'').toUpperCase();
+    if(m) return m;
+    if(r && r.xuongTH) return 'TH';
+    var c=String((r&&r.codeSoi)||'');
+    if(/-TH(\b|$)/m.test(c)) return 'TH';
+    if(/-HY(\b|$)/m.test(c)) return 'HY';
+    return '';
+  }
+  function hopXuongLoc(r){
+    var che=String(getVal('s6-th-mode')||'all');
+    if(che==='all') return true;
+    var x=xuongCuaDong(r);
+    if(che==='nd') return !x;
+    if(che==='th') return x==='TH';
+    if(che==='hy') return x==='HY';
+    return true;
+  }
   function cbLocRows(boQua){
     var R=state.R; if(!R||!R.cuonSheet) return [];
     var UC=state.usedCurls||CURLS;
@@ -5369,6 +5407,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(r.type!=='row') return false;
       if(md && r.maDon!==md) return false;
       if(kh && khOf(r.maDon)!==kh) return false;
+      if(!hopXuongLoc(r)) return false;
       if(nq){
         var hay=[khOf(r.maDon),donOf(r.maDon),r.codeSoi,r.material,r.mixSingle,r.mm,r.keo].join(' ');
         if(nrm(hay).indexOf(nq)<0) return false;
@@ -5383,7 +5422,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   // Đang lọc gì không (mã đơn/KH không tính — 2 bảng Σ vốn đã lọc theo mã đơn)
   function cbCoLocCot(){
     var cf=colFilters['eng-cuonbox']||{};
-    return Object.keys(cf).length>0 || !!nrm(getVal('s6-search'));
+    // Ô "xưởng làm" cũng là một bộ lọc → Σ và Tổng Dây phải tính lại theo nó (chốt 19/8)
+    return Object.keys(cf).length>0 || !!nrm(getVal('s6-search')) || String(getVal('s6-th-mode')||'all')!=='all';
   }
   // Ẩn/hiện Bảng Mix Màu (.cmix-tbl) theo mã đơn đang chọn (giống các bảng khác).
   function applyColorMixFilter(){
@@ -5628,6 +5668,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
 
   // wire tìm kiếm + lọc mã đơn cho các bảng bổ sung
   ['s4-search','s5-search','s6-search','s10-search'].forEach(function(id){ var el=document.getElementById(id); if(el) el.addEventListener('input', debounce(applyAllFilters, 160)); });
+  /* Đổi ô "xưởng làm" ở bước 5 → lọc lại bảng + tính lại 2 bảng Σ và thanh Tổng Dây */
+  (function(){ var el=document.getElementById('s6-th-mode'); if(!el) return;
+    el.addEventListener('change', function(){
+      try{ __capReflow(); }catch(e){ logErr('s6-th-mode', e); }
+      try{ applyAllFilters(); }catch(e){ logErr('s6-th-mode', e); }
+      try{ veLaiTheoLoc('eng-cuonbox'); }catch(e){ logErr('s6-th-mode', e); }
+    });
+  })();
   ['s4-madon','s5-madon','s6-madon','s10-madon','s7-madon'].forEach(function(id){ var el=document.getElementById(id); if(el) el.addEventListener('change', function(){ setGlobalMadon(String(el.value||'')); }); });
   // Ô chọn đơn (datalist): bấm vào → tạm xóa chữ để hiện LẠI toàn bộ danh sách (mọi đơn + "Tất cả các đơn").
   // Rời ô mà chưa chọn gì → khôi phục đơn đang chọn (không mất lựa chọn cũ).
@@ -6757,21 +6805,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     /* Hàng xưởng Thanh Hóa (đuôi "-TH") KHÔNG in trong Tổng hợp Line — bộ phận line
        không làm mấy code đó nên đưa vào chỉ gây nhầm (chốt 17/8). Bảng Tổng hợp Cuốn
        và bảng ở bước 5 vẫn giữ đủ để đối chiếu. */
-    /* CHỌN DỮ LIỆU IN (chốt 19/8) — ô xổ ngay cạnh nút:
-         nd  = hàng xưởng mình, BỎ hàng "-TH" (mặc định, đúng như trước)
-         th  = CHỈ hàng Thanh Hóa (code sợi có đuôi -TH)
-         all = in tất cả
-       Mọi cài đặt khác của bản in giữ nguyên. */
-    var cheDo=String(getVal('s6-th-mode')||'nd');
-    var rows=thRows(md).filter(function(r){
-      if(r.maDon!==md) return false;
-      if(cheDo==='all') return true;
-      return cheDo==='th' ? !!r.xuongTH : !r.xuongTH;
-    });
-    if(!rows.length) return alert(cheDo==='th'
-      ? ('Đơn "'+md+'" không có dòng nào của xưởng TH (code sợi đuôi -TH).')
-      : ('Đơn "'+md+'" không có dòng Line nào cần in'+(cheDo==='nd'?' (hàng "-TH" của xưởng Thanh Hóa không tính).':'.')));
-    var nhanCheDo = cheDo==='th' ? ' · XƯỞNG TH' : (cheDo==='all' ? ' · TẤT CẢ (NĐ + TH)' : '');
+    /* BẢN IN KHÔNG ĐI THEO Ô LỌC TRÊN MÀN HÌNH (chốt 19/8): ô xổ cạnh nút chỉ để LỌC BẢNG.
+       Tổng hợp Line luôn in hàng xưởng nhà — bỏ hàng "-TH" (chốt 17/8). */
+    var rows=thRows(md).filter(function(r){ return r.maDon===md && !r.xuongTH; });
+    if(!rows.length) return alert('Đơn "'+md+'" không có dòng Line nào cần in (hàng "-TH" của xưởng Thanh Hóa không tính).');
+    var nhanCheDo = '';
     /* Cột ĐỘ CONG thay cho cột "Nhân viên" (chốt 17/8) — giống bảng Tổng hợp Cuốn.
        Chỉ hiện những độ cong đơn này THẬT SỰ có, khỏi thừa cột trống. */
     var UC=thUsedCurls(rows);

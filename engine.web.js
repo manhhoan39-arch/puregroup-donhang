@@ -534,8 +534,29 @@
     if (uniq.length < 2) return null;
     var cellN = cleanKeoName(PS(k.loaiKeo).split(/[\r\n,;]+/)[0] || '').replace(/\s+/g, '').toLowerCase();
     if (cellN && !seenN[cellN]) return null;
-    // ngăn đoạn bằng xuống dòng HOẶC dấu ";" — khách hay viết 2 quy tắc trên cùng 1 dòng
+    /* NGĂN ĐOẠN: xuống dòng · ";" · và cả khi khách viết LIỀN 1 DÒNG nối bằng "và/&/,"
+       (769P: "XanhLX70.2 cho 6-8mm và XanhLX70.3 cho 9-14mm"). Cách chắc ăn: cắt theo VỊ TRÍ
+       của từng tên keo — mỗi đoạn chạy từ tên keo này tới ngay trước tên keo kế tiếp. */
     var lines = gh.split(/\r?\n|;/);
+    (function () {
+      var moc = [];
+      uniq.forEach(function (kn) {
+        try {
+          var re = new RegExp(kn.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\./g, '\\s*\\.\\s*'), 'i');
+          var m = gh.match(re); if (m && m.index != null) moc.push({ i: m.index, kn: kn });
+        } catch (e) {}
+      });
+      if (moc.length < 2) return;
+      moc.sort(function (a2, b2) { return a2.i - b2.i; });
+      var doan = moc.map(function (x, j) { return gh.slice(x.i, j + 1 < moc.length ? moc[j + 1].i : gh.length); });
+      // chỉ dùng cách cắt này khi MỖI đoạn có điều kiện độ dài riêng — nếu không, giữ cách cũ
+      var du = doan.every(function (d) {
+        var lc = d;
+        uniq.forEach(function (nm) { try { var re2 = new RegExp(nm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\./g, '\\s*\\.\\s*'), 'gi'); lc = lc.replace(re2, ' '); } catch (e) {} });
+        var c2 = parseKeoCond(lc); return c2.lo != null || c2.hi != null;
+      });
+      if (du) lines = doan;
+    })();
     var made = [];
     uniq.forEach(function (kn) {
       var knN = kn.replace(/\s+/g, '').toLowerCase(), line = null;
@@ -561,6 +582,34 @@
     if (r.lo != null) return 'từ ' + r.lo + 'mm';
     if (r.hi != null && r.hi < 900) return 'đến ' + r.hi + 'mm';
     return '';
+  }
+  /* ===== SINH BẢNG KEO TỪ CỘT "KEO NHIỆT" CỦA DÒNG ĐƠN (chốt 19/8) =====
+     Nhiều đơn khách KHÔNG kèm Bảng Keo, keo ghi thẳng ở từng dòng ("XanhLX70.2",
+     "XanhLX70.2 cho 6-8mm và XanhLX70.3 cho 9-14mm"). Trước đây app chỉ lặng lẽ mượn ô đó
+     để điền keo, còn bước 4 báo "đơn không có bảng keo" nên không xem/sửa được.
+     → Gom các dòng đơn theo (mã đơn · keo ghi · nguyên liệu · độ dày) thành DÒNG BẢNG KEO
+     đúng dạng cũ; ghi chú giữ nguyên văn để phần bung "keo theo độ dài" chạy như thường. */
+  function sinhKeoTuDonHang(orders, daCoKeo) {
+    var nhom = {}, out = [];
+    (orders || []).forEach(function (o) {
+      var keo = PS(o.ghiChuKeo); if (!keo) return;
+      if (daCoKeo && daCoKeo[o.maDon]) return;                 // đơn đã có bảng keo thật → bỏ qua
+      var mat = PS(o.material || o.detail || '').replace(/0[.,]\d+/g, ' ').replace(/\s+/g, ' ').trim();
+      var day = PS(o.thickness);
+      var k = o.maDon + '|' + keo + '|' + mat + '|' + day;
+      if (nhom[k]) return;
+      var mas = keo.match(/[A-Za-zĐđ][A-Za-z0-9]*\s*\.\s*\d+/g) || [];
+      var coDieuKien = /\d\s*mm|cho\b|từ\b|đến\b|dưới\b|trên\b/i.test(keo) || mas.length > 1;
+      var row = {
+        maDon: o.maDon,
+        loaiKeo: mas.length ? mas.map(cleanKeoName).join(', ') : keo,
+        loaiSoi: mat, doDay: day, doDai: '',
+        ghiChu: coDieuKien ? keo : '',
+        tuSinh: true
+      };
+      nhom[k] = row; out.push(row);
+    });
+    return out;
   }
   function expandKeoRows(keoRows) {
     var out = [];
@@ -2048,6 +2097,7 @@
     parseNhapDonRows: parseNhapDonRows, parseLabelRows: parseLabelRows,
     parseKeoRows: parseKeoRows, parseWorkbookData: parseWorkbookData,
     parseGuiXuongSheet: parseGuiXuongSheet, parseMixColorAOA: parseMixColorAOA,
+    sinhKeoTuDonHang: sinhKeoTuDonHang,
     parseGuiXuong2026: parseGuiXuong2026, isGuiXuong2026: isGuiXuong2026, parseGuiXuongAny: parseGuiXuongAny,
     SPECIAL_TAGS: SPECIAL_TAGS, SPECIAL_SUF_RE: SPECIAL_SUF_RE,
     KEO_STD: KEO_STD, badKeoCodes: badKeoCodes,
