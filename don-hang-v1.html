@@ -536,6 +536,9 @@ kbd{background:var(--surface-3);border:1px solid var(--border);border-bottom-wid
 tr.flash td{animation:flashbg 1.4s ease}
 @keyframes flashbg{0%{background:var(--accent-soft)}70%{background:var(--accent-soft)}100%{background:transparent}}
 td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:inset 0 0 0 3px rgba(232,24,92,.28);animation:jumphit 1.8s ease}
+/* Bảng Mix Màu vừa được NHẢY TỚI (chưa điền) — nháy viền cho thấy ngay là bảng nào */
+.cmix-tbl.cm-jump{outline:3px solid #E8185C;outline-offset:2px;animation:cmjump 2.4s ease}
+@keyframes cmjump{0%{background:rgba(232,24,92,.22)}60%{background:rgba(232,24,92,.10)}100%{background:transparent}}
 @keyframes jumphit{0%{background:rgba(232,24,92,.35)}70%{background:rgba(232,24,92,.18)}100%{background:transparent}}
 /* context menu kiểu Google Sheet */
 .ctx-menu{position:fixed;z-index:1000003;max-height:calc(100vh - 16px);overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:10px;
@@ -600,7 +603,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608201340</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608201556</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1071,6 +1074,10 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
 tr.cl-multimat > td.cl-matcell{ background:rgba(0,207,200,.12); box-shadow:inset 3px 0 0 var(--teal-600); font-weight:700; color:var(--teal-600); }
 /* Step 3 (Nhập Đơn): ô chứa nhiều dòng (nhiều code/màu trong 1 dòng đơn) */
 tr.cl-multiline > td.cl-mlcell{ background:rgba(232,24,92,.07); box-shadow:inset 3px 0 0 var(--accent); }
+/* Step 5 (Line Cuốn): DÒNG SINH RA TỪ TÁCH MIX NHIỀU MÀU. Sau khi tách, mỗi màu là 1 code sợi
+   riêng nên KHÔNG còn ô nhiều dòng để tô như bảng Nhập Đơn → tô theo cờ cmix của engine. */
+tr.cl-cmixrow > td.cl-cmixcell{ background:rgba(232,24,92,.07); box-shadow:inset 3px 0 0 var(--accent); font-weight:700; color:var(--accent); }
+tr.subtotal.cl-cmixrow > td.cl-cmixcell{ color:var(--accent); }
 /* Step 5 (Line Cuốn): DÒNG độ cong đặc biệt (LB/LC/LJ/LC+) đã TÁCH riêng → chữ hồng đỏ (như số Tổng) */
 tr.cl-ovrrow > td, tr.cl-ovrrow > td .qty{ color:var(--accent); }
 /* Hàng xưởng Thanh Hóa làm (code sợi có đuôi "-TH") — tô nền để bộ phận line thấy ngay
@@ -1133,9 +1140,10 @@ function go(id){
     id='s1';
   }
   // CHẶN sang bước SAU Mix Label khi còn Bảng Mix Màu chưa hoàn thiện
+  var __cmNhay=false;
   if({s5:1,s6:1,s10:1,s7:1,s9:1}[id] && window.__cmGate && !window.__cmGate()){
-    alert('⚠ Còn Bảng Mix Màu chưa hoàn thiện (đơn có "Mix Color" nhiều màu).\nHãy điền đủ số sợi từng màu ở bước "Bảng Mix Label" trước khi sang bước tiếp theo.');
-    id='s4';
+    alert('⚠ Còn Bảng Mix Màu chưa hoàn thiện (đơn có "Mix Color" nhiều màu).\nBấm OK — app sẽ đưa tới ĐÚNG bảng còn thiếu ở bước "Bảng Mix Label" để điền số sợi từng màu.');
+    id='s4'; __cmNhay=true;   // bấm OK xong nhảy thẳng tới bảng còn thiếu (xem __cmJumpFirst)
   }
   // rời màn Mix Label sau khi sửa mix màu → áp vào tính toán 1 lần (không render giữa lúc gõ)
   if(window.__cmFlush) window.__cmFlush();
@@ -1154,6 +1162,8 @@ function go(id){
   // Bảng của bước này bị HOÃN vẽ lúc trước (đang ẩn) → vẽ ngay bây giờ.
   // Dùng lại kết quả đã tính, KHÔNG tính lại → số liệu không thể lệch.
   try{ if(window.__flushStale) window.__flushStale(id); }catch(e){ logErr('go', e); }
+  // Bị chặn vì Bảng Mix Màu chưa điền → chờ bảng vẽ xong rồi nhảy tới đúng bảng còn thiếu
+  if(__cmNhay && window.__cmJumpFirst) setTimeout(window.__cmJumpFirst, 80);
   // ô tìm trên thanh công cụ đổi theo BƯỚC đang xem
 }
 document.querySelectorAll('#nav a').forEach(a=>a.addEventListener('click',()=>go(a.dataset.s)));
@@ -1394,11 +1404,28 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      LƯU Ý: "Multi Color" KHÔNG phải mix màu — chuỗi "multicolor" không chứa "mixcolor"
      nên tự động nằm ngoài, đừng nới điều kiện này ra "mọi dòng Mix nhiều mã sợi". */
   function isMixColorRow(o){
-    var t=(String(o.material||'')+' '+String(o.detail||'')+' '+String(o.loaiHang||'')+' '+String(o.label||'')).toLowerCase().replace(/\s+/g,'');
-    return t.indexOf('mixcolor')>=0 && /\r?\n/.test(String(o.codeSoi||''));
+    var t=(String(o.material||'')+' '+String(o.detail||'')+' '+String(o.loaiHang||'')+' '+String(o.label||'')+' '+String(o.codeSoi||'')).toLowerCase().replace(/\s+/g,'');
+    var mc = t.indexOf('mixcolor')>=0 || t.indexOf('mixcolour')>=0;   // khách ghi cả "Mix Colour"
+    if(mc && /\r?\n/.test(String(o.codeSoi||''))) return true;        // mẫu cũ: nhiều code sợi 1 ô
+    /* MẪU 2026: cột "Code nguyên liệu" chỉ ghi chữ "Mix Color", số màu thật khai ở cột
+       "Số màu" (C213-785P No.45 = 2 màu). Nhận theo cột đó để bước 3 hiện bảng điền tay. */
+    return (+o.soMau||0) >= 2 && o.mixSingle !== 'Single';
   }
-  function cmCodes(o){ return String(o.codeSoi||'').split(/\r?\n/).map(function(x){return x.trim();}).filter(function(x){return x;}); }
+  function cmCodes(o){
+    var a=String(o.codeSoi||'').split(/\r?\n/).map(function(x){return x.trim();}).filter(function(x){return x;});
+    /* Mẫu 2026 mới nạp: 1 ô "Mix Color" + Số màu = N → sinh đủ N ô tên màu ("Mix Color 1",
+       "Mix Color 2"…) cho admin ĐIỀN TAY. Sửa tên là ghi thẳng vào Code Sợi của dòng đơn
+       (handler td[data-cmname]) ⇒ từ đó Line Cuốn mới tách được theo màu. */
+    var n=+o.soMau||0;
+    if(a.length===1 && n>=2){ var base=a[0]; a=[]; for(var i=0;i<n;i++) a.push(base+' '+(i+1)); }
+    return a;
+  }
   function cmMMs(o){ var pr=E.parseRange(o.length); if(!pr) return []; var a=[]; for(var m=pr.lo;m<=pr.hi;m++) a.push(m); return a; }
+  /* Σ CÁC MÀU phải bằng SỐ LINE của dòng đơn (C213-785P Mix Color: 8 + 8 = 16). Dùng chung
+     cho lúc dựng bảng (HTML) và lúc cập nhật tại chỗ (textContent) để không lệch cách hiện. */
+  function cmTotStr(tong, need){ return 'Σ '+tong+'/'+need+((tong===need)?' ✓':' ⚠ lệch '+(tong-need)); }
+  function cmTotHtml(tong, need){ return '<span class="cm-tot" style="color:'+((tong===need)?'var(--green-600)':'var(--red-600)')+'">'+cmTotStr(tong,need)+'</span>'; }
+  function cmTotTxt(el, tong, need){ el.textContent=cmTotStr(tong,need); el.style.color=(tong===need)?'var(--green-600)':'var(--red-600)'; }
   // khóa theo CHỮ KÝ (mã đơn + dải + bộ code) — các dòng/file trùng nhau dùng CHUNG 1 bảng, không lặp
   function cmKey(o){ return o.maDon+'#'+String(o.length||'').toLowerCase().replace(/~/g,'-')+'#'+cmCodes(o).join(';'); }
   function cmNormRg(s){ var k=String(s||'').toLowerCase().replace(/~/g,'-').replace(/\s|mm/g,''); return k+'mm'; }
@@ -1454,6 +1481,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       cmSeedFromFile(o,key);
       state.colorMix=state.colorMix||{}; var g=state.colorMix[key]||{}, done=colorMixComplete(o);
       var th=mms.map(function(m){ return '<th style="min-width:36px">'+m+'</th>'; }).join('');
+      var tongMau=0;
       var body=codes.map(function(c,ci){
         var rowg=g[ci]||{}, rsum=0;
         var tds=mms.map(function(m,mi){ var v=(rowg[m]!=null&&rowg[m]!=='')?rowg[m]:''; rsum+=(+v||0);
@@ -1463,10 +1491,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
            đơn dùng bảng này ⇒ Bảng Nhập Đơn · Line Cuốn · Box… tự đổi theo, phân bổ đã điền
            được dời sang tên mới chứ không mất. */
         var ceName=canEdit?' contenteditable="true" data-cmname="'+esc(key)+'" data-cmci="'+ci+'" title="Sửa tên màu (code sợi) — bấm ra ngoài là mọi bảng khác đổi theo"':'';
+        tongMau+=rsum;
         return '<tr><td class="txt cm-name'+(canEdit?' edit':'')+'"'+ceName+' style="font-weight:600;white-space:nowrap">'+esc(c)+'</td>'+tds+'<td class="qty cm-sum">'+(rsum||'')+'</td></tr>';
       }).join('');
-      html+='<div class="cmix-tbl" data-cmkey="'+esc(key)+'" data-madon="'+esc(o.maDon)+'" style="border:1px solid '+(done?'var(--border)':'var(--red-500)')+';border-radius:9px;padding:8px;max-width:100%;overflow:auto;flex:0 0 auto">'+
-        '<div class="mini" style="font-weight:700;margin-bottom:5px">'+esc(o.maDon)+' · dải '+esc(o.length||'')+' · '+codes.length+' màu'+(it.cnt>1?' · dùng cho '+it.cnt+' dòng':'')+' — <span class="cm-st" style="color:'+(done?'var(--green-600)':'var(--red-600)')+'">'+(done?'✓ đã điền':'⚠ chưa hoàn thiện')+'</span></div>'+
+      /* Σ CÁC MÀU phải bằng SỐ LINE của dòng đơn (C213-785P Mix Color: 8 + 8 = 16). Hiện luôn
+         ở tiêu đề bảng để điền thiếu/thừa là thấy ngay, khỏi phải cộng tay. */
+      var need=+o.line||0;
+      html+='<div class="cmix-tbl" data-cmkey="'+esc(key)+'" data-madon="'+esc(o.maDon)+'" data-cmneed="'+need+'" style="border:1px solid '+(done?'var(--border)':'var(--red-500)')+';border-radius:9px;padding:8px;max-width:100%;overflow:auto;flex:0 0 auto">'+
+        '<div class="mini" style="font-weight:700;margin-bottom:5px">'+esc(o.maDon)+' · dải '+esc(o.length||'')+' · '+codes.length+' màu'+(it.cnt>1?' · dùng cho '+it.cnt+' dòng':'')+' — <span class="cm-st" style="color:'+(done?'var(--green-600)':'var(--red-600)')+'">'+(done?'✓ đã điền':'⚠ chưa hoàn thiện')+'</span>'+
+        (need?' · '+cmTotHtml(tongMau,need):'')+'</div>'+
         '<table class="sheet" style="width:auto;white-space:nowrap"><thead><tr><th>Màu \\ MM</th>'+th+'<th>Σ</th></tr></thead><tbody>'+body+'</tbody></table>'+
       '</div>';
       });
@@ -2222,13 +2255,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var mc=r.multiMat?' cl-multimat':'';
         var ovr=r.ovrRow?' cl-ovrrow':'';   // dòng độ cong ĐẶC BIỆT (LB/LC/LJ/LC+) đã tách → chữ hồng đỏ
         var th=r.xuongTH?' cl-throw':'';    // hàng xưởng Thanh Hóa → tô nền vàng nhạt
+        var cmx=r.cmix?' cl-cmixrow':'';    // dòng tách từ Mix nhiều màu → tô hồng cột Code Sợi + Tên gọi NL
+        var cell2=(r.multiMat?' cl-matcell':'')+(r.cmix?' cl-cmixcell':'');
         var keoTd='<td class="txt" style="font-size:10px"'+(r.ovrRow?' title="Độ cong đặc biệt '+esc(OVR.join('/'))+' → Keo 2mm"':'')+'>'+esc(r.keo||'')+'</td>';
-        return '<tr class="'+(mc+ovr+th).trim()+'" data-cbk="1" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+(r.multiMat?' cl-matcell':'')+'" style="font-size:10px">'+nl2br(r.material||'')+'</td><td>'+r.mixSingle+'</td><td>'+r.mm+'</td>'+keoTd+
+        return '<tr class="'+(mc+ovr+th+cmx).trim()+'" data-cbk="1" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+cell2+'" title="'+(r.cmix?'Dòng tách từ Mix nhiều màu':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+cell2+'" style="font-size:10px">'+nl2br(r.material||'')+'</td><td>'+r.mixSingle+'</td><td>'+r.mm+'</td>'+keoTd+
           UC.map(function(k){ return '<td class="cw">'+q(r.curls[k])+'</td>'; }).join('')+
           '<td class="qty">'+r.tong+'</td></tr>';
       }
       if(r.type==='subtotal'){
-        return '<tr class="subtotal'+(r.xuongTH?' cl-throw':'')+'" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td></td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt">Σ '+r.codeSoi+'</td><td></td><td></td><td></td><td></td>'+
+        return '<tr class="subtotal'+(r.xuongTH?' cl-throw':'')+(r.cmix?' cl-cmixrow':'')+'" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td></td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+(r.cmix?' cl-cmixcell':'')+'">Σ '+r.codeSoi+'</td><td></td><td></td><td></td><td></td>'+
           curlTds(r.curls)+'<td>'+fmtN(r.tong)+'</td></tr>';
       }
       // nhãn Σ GRAND TOTAL nằm SÁT LỀ TRÁI (gộp 8 ô đầu) như dòng Σ của các bảng khác
@@ -4138,14 +4173,22 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function cmSync(key){
     // cập nhật Σ từng dòng + trạng thái hoàn thiện của 1 bảng mix màu (chỉ sửa DOM tại chỗ)
     var box=document.querySelector('.cmix-tbl[data-cmkey="'+(window.CSS&&CSS.escape?CSS.escape(key):key)+'"]'); if(!box) return;
-    var allDone=true;
+    var allDone=true, tong=0;
     Array.prototype.forEach.call(box.querySelectorAll('tbody tr'), function(tr){
-      var sum=0; Array.prototype.forEach.call(tr.querySelectorAll('td[data-cmci]'), function(td){ sum+=parseInt(String(td.textContent).replace(/[^0-9]/g,''),10)||0; });
+      /* CHỈ cộng các ô MM (td[data-cmmm]). Trước đây quét td[data-cmci] — mà ô TÊN MÀU cũng
+         mang data-cmci → chữ số trong tên bị cộng vào Σ: "Mix Color 1" cộng thêm 1, "Mix
+         Color 2" cộng thêm 2 (bug 20/8/2026: Σ ra 9 và 10 thay vì 8 và 8). Tên màu thật cũng
+         sai y vậy — "33.MK.Violet.85" bị cộng thêm 3385. */
+      var sum=0; Array.prototype.forEach.call(tr.querySelectorAll('td[data-cmmm]'), function(td){ sum+=parseInt(String(td.textContent).replace(/[^0-9]/g,''),10)||0; });
       var sc=tr.querySelector('.cm-sum'); if(sc) sc.textContent=sum||'';
+      tong+=sum;
       if(sum<=0) allDone=false;
     });
     var st=box.querySelector('.cm-st');
     if(st){ st.textContent=allDone?'✓ đã điền':'⚠ chưa hoàn thiện'; st.style.color=allDone?'var(--green-600)':'var(--red-600)'; }
+    // Σ CÁC MÀU phải bằng Số Line của dòng đơn — điền thiếu/thừa là thấy ngay
+    var tt=box.querySelector('.cm-tot'), need=+box.getAttribute('data-cmneed')||0;
+    if(tt && need) cmTotTxt(tt, tong, need);
     box.style.borderColor=allDone?'var(--border)':'var(--red-500)';
   }
   document.addEventListener('focusout', function(ev){
@@ -4164,6 +4207,35 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   });
   // Khi RỜI bước Mix Label (hoặc bất kỳ điều hướng nào) → áp dữ liệu mix màu vào tính toán 1 lần
   window.__cmGate = colorMixAllComplete;
+  /* NHẢY TỚI Bảng Mix Màu CHƯA ĐIỀN đầu tiên (chốt 20/8): bị chặn sang bước sau, bấm OK là
+     app đưa thẳng tới đúng bảng còn thiếu + đặt con trỏ vào ô trống đầu tiên — khỏi phải cuộn
+     tìm giữa mấy chục bảng. Bảng đang bị ô lọc "mã đơn" ẩn thì tự lọc về đúng đơn đó. */
+  window.__cmJumpFirst = function(){
+    try{
+      var o=(colorMixRows()||[]).filter(function(x){ return !colorMixComplete(x); })[0];
+      if(!o) return;
+      var key=cmKey(o), esc2=function(s){ return (window.CSS&&window.CSS.escape)?window.CSS.escape(s):s; };
+      var sel='.cmix-tbl[data-cmkey="'+esc2(key)+'"]';
+      var box=document.querySelector(sel);
+      if(box && box.offsetParent===null){          // đang bị ẩn vì lọc mã đơn → lọc về đơn này
+        var f=document.getElementById('s4-madon');
+        if(f && f.value!==o.maDon){
+          f.value=o.maDon;
+          try{ applyAllFilters(); }catch(e){ logErr('cmJump.filter', e); }
+          try{ logLine('Lọc bước Mix Label về đơn '+o.maDon+' để điền Bảng Mix Màu còn thiếu'); }catch(e){ logErr('cmJump.log', e); }
+          box=document.querySelector(sel);
+        }
+      }
+      if(!box) return;
+      try{ box.scrollIntoView({block:'center', inline:'nearest', behavior:'smooth'}); }catch(e){ box.scrollIntoView(); }
+      box.classList.add('cm-jump');
+      setTimeout(function(){ box.classList.remove('cm-jump'); }, 2400);
+      // con trỏ vào Ô TRỐNG đầu tiên (không có thì ô đầu tiên) — gõ số được ngay
+      var cells=box.querySelectorAll('td[data-cmmm]'), oTrong=cells[0];
+      for(var i=0;i<cells.length;i++){ if(!String(cells[i].textContent||'').trim()){ oTrong=cells[i]; break; } }
+      if(oTrong) setTimeout(function(){ try{ oTrong.focus(); }catch(e){ logErr('cmJump.focus', e); } }, 380);
+    }catch(e){ logErr('cmJumpFirst', e); }
+  };
   // Có cột độ cong CÓ SỐ nhưng KHÔNG nhận diện được (nguy cơ mất số liệu) → dùng để CHẶN bước sau
   window.__hasUnmappedCurl = function(){ return (state.files||[]).some(function(F){ return F && F.meta && F.meta.curlUnmapped && F.meta.curlUnmapped.length; }); };
   // Còn cột QUY ĐỔI chưa DUYỆT → chặn bước sau (bắt admin kiểm tra quy đổi độ cong)
@@ -5459,7 +5531,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(r.type!=='row' || !keep(r)) return;
       // gom theo Mã Đơn | Code Sợi | Tên gọi nguyên liệu (cùng code khác material tách dòng)
       var k=r.maDon+'|'+r.codeSoi+'|'+(r.material||'');
-      if(agg[k]==null){ agg[k]={maDon:r.maDon, code:r.codeSoi, material:r.material||'', day:0, multiMat:r.multiMat}; order.push(k); }
+      if(agg[k]==null){ agg[k]={maDon:r.maDon, code:r.codeSoi, material:r.material||'', day:0, multiMat:r.multiMat, cmix:r.cmix}; order.push(k); }
       agg[k].day+=r.tong||0; tot+=r.tong||0;
     });
     order.sort(function(a,b){ return a.localeCompare(b,'vi',{numeric:true}); });
@@ -5468,7 +5540,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function htmlPivotCode(A){
     return A.order.map(function(k){
       var g=A.agg[k];
-      return '<tr class="'+(g.multiMat?'cl-multimat':'')+'"><td>'+esc(khOf(g.maDon))+'</td><td>'+esc(donOf(g.maDon))+'</td><td class="txt'+(g.multiMat?' cl-matcell':'')+'">'+nl2br(g.code)+'</td><td class="txt'+(g.multiMat?' cl-matcell':'')+'">'+nl2br(g.material||'')+'</td><td class="qty">'+fmtN(g.day)+'</td></tr>';
+      var pc=(g.multiMat?' cl-matcell':'')+(g.cmix?' cl-cmixcell':'');
+      return '<tr class="'+((g.multiMat?'cl-multimat':'')+(g.cmix?' cl-cmixrow':'')).trim()+'"><td>'+esc(khOf(g.maDon))+'</td><td>'+esc(donOf(g.maDon))+'</td><td class="txt'+pc+'">'+nl2br(g.code)+'</td><td class="txt'+pc+'">'+nl2br(g.material||'')+'</td><td class="qty">'+fmtN(g.day)+'</td></tr>';
     }).join('')+'<tr class="grand"><td colspan="4" class="txt">Grand Total</td><td>'+fmtN(A.tot)+'</td></tr>';
   }
   function aggPivotKeo(keep){
