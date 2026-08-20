@@ -111,6 +111,10 @@
       xuongMa: String(raw.xuongMa == null ? '' : raw.xuongMa).trim().toUpperCase(),   // TH · HY · '' (ND)
       xuongTH: !!raw.xuongTH || String(raw.xuongMa || '').toUpperCase() === 'TH',
       _colorBlocks: (raw._colorBlocks && raw._colorBlocks.length) ? raw._colorBlocks : null,   // phân bổ mix màu do admin nhập (per-dòng)
+      /* HÀNG PREMADE (mẫu 2026): cột "Số Line" ghi chữ "Premade" thay vì con số → hàng đặt
+         sẵn, KHÔNG cuốn dải line, chỉ tính SỐ HỘP. Giữ cờ để các bước sau đừng đòi bảng Mix
+         và đừng báo "thiếu dây" cho mấy dòng này (C213-785P, 20/8/2026). */
+      premade: !!raw.premade || /premade/i.test(String(raw.lineRaw == null ? '' : raw.lineRaw)),
       _manual: !!raw._manual,
     };
   }
@@ -1875,7 +1879,17 @@
     var mixSheets = [];
     var mixWarnings = [];
     (function () {
-      var byLb = {}, order = [];
+      /* KHÓA BẢNG MIX = "dải|số line" — GIỐNG mẫu cũ (chốt 11/07), KHÔNG phải dải trần.
+         1 đơn có thể có 2 bảng CÙNG DẢI khác số line: C213-785P có 6-13mm 8 Lines (hàng
+         thường) VÀ 6-13mm 16 Lines (dòng "Mix Color" No.45). Gom theo dải trần thì khối
+         16 Lines bị khối 8 Lines ghi đè → dòng Mix Color tra ra 8 sợi thay vì 16, thiếu
+         đúng một nửa: 10 hộp × 8 ÷ 2 = 40 thay vì 80 (bug 20/08/2026, lệch 40 dải).
+         Số line của khối = Σ cột "Số Line" các dòng mm trong khối đó — TÍNH LẠI từ bảng
+         chi tiết, khớp cả cột "Số Line" của bảng chính và khối "Mix Length". */
+      var byKey = {}, order = [], linesOfNo = {};
+      Object.keys(byNo).forEach(function (n) {
+        var s2 = 0; byNo[n].forEach(function (d) { s2 += d.line || 0; }); linesOfNo[n] = s2;
+      });
       detail.forEach(function (d) {
         if (!d.label) return;                                  // trống = dòng Single
         var declared = (String(d.label).match(/\.(\d+)\s*$/) || [])[1];
@@ -1885,28 +1899,45 @@
            mix trong khi đơn chỉ có 1 dải 6-13mm — chốt 19/8). */
         var _r = parseRange(rg);
         if (!_r || _r.lo === _r.hi) return;
-        var s = byLb[rg];
-        if (!s) { s = byLb[rg] = { dist: {}, no: d.no, declared: declared ? +declared : null }; order.push(rg); }
+        var lines = declared ? +declared : (linesOfNo[d.no] || 0);
+        var key = rg + '|' + lines, s = byKey[key];
+        if (!s) { s = byKey[key] = { rg: rg, lines: lines, dist: {}, no: d.no, colors: {}, colorOrder: [] }; order.push(key); }
         var mm = mmOf(d.mm); if (mm == null) return;
         if (d.no === s.no) s.dist[mm] = d.line;
         else if ((s.dist[mm] || 0) !== d.line) s.mismatch = 1;
+        /* MÀU: cột "Nguyên Liệu" ghi RIÊNG cho từng mm — 1 label có thể XEN KẼ nhiều màu
+           (No.45: 33.MK.Violet.85 ở mm 6/8/10/12 · 32.MK.LViolet.85 ở mm 7/9/11/13). */
+        if (d.no === s.no && d.nl) {
+          var c = s.colors[d.nl];
+          if (!c) { c = s.colors[d.nl] = { color: d.nl, dist: {}, lines: 0 }; s.colorOrder.push(d.nl); }
+          c.dist[mm] = (c.dist[mm] || 0) + (d.line || 0);
+          c.lines += (d.line || 0);
+        }
       });
       if (!order.length) return;
-      order.forEach(function (rg) {
-        if (byLb[rg].mismatch) mixWarnings.push('Dải Mix "' + rg + '" có phân bố mm KHÁC NHAU giữa các dòng đơn');
+      order.forEach(function (k) {
+        var s3 = byKey[k];
+        if (s3.mismatch) mixWarnings.push('Dải Mix "' + s3.rg + '" (' + s3.lines + ' Lines) có phân bố mm KHÁC NHAU giữa các dòng đơn');
       });
       var mmSet = {};
-      order.forEach(function (rg) { Object.keys(byLb[rg].dist).forEach(function (m) { mmSet[m] = 1; }); });
+      order.forEach(function (k) { Object.keys(byKey[k].dist).forEach(function (m) { mmSet[m] = 1; }); });
       var mmList = Object.keys(mmSet).map(Number).sort(function (a, b) { return a - b; });
+      /* BẢNG MIX MÀU: khối nào có ≥2 "Nguyên Liệu" khác nhau = 1 label dán xen kẽ nhiều màu
+         → đổ vào colorBlocks để bước 3 vẽ Bảng Mix Màu RIÊNG (không phải điền tay nữa, file
+         đã khai đủ từng mm từng màu). Client tra colorBlocks theo DẢI TRẦN nên 1 dải chỉ
+         giữ 1 bảng màu — lấy khối nhiều màu đầu tiên. */
+      var colorBlocks = {};
+      order.forEach(function (k) {
+        var s4 = byKey[k];
+        if (s4.colorOrder.length < 2 || colorBlocks[s4.rg]) return;
+        colorBlocks[s4.rg] = s4.colorOrder.map(function (nm) { return s4.colors[nm]; });
+      });
       mixSheets.push({
         maDon: maDon, mmList: mmList,
-        matrix: mmList.map(function (mm) { return order.map(function (rg) { return byLb[rg].dist[mm] || 0; }); }),
-        ranges: order,
-        lineCounts: order.map(function (rg) {
-          if (byLb[rg].declared) return byLb[rg].declared;
-          var s2 = 0; Object.keys(byLb[rg].dist).forEach(function (m) { s2 += byLb[rg].dist[m]; }); return s2;
-        }),
-        colorBlocks: {},
+        matrix: mmList.map(function (mm) { return order.map(function (k) { return byKey[k].dist[mm] || 0; }); }),
+        ranges: order.map(function (k) { return byKey[k].rg; }),
+        lineCounts: order.map(function (k) { return byKey[k].lines || null; }),
+        colorBlocks: colorBlocks,
       });
     })();
 

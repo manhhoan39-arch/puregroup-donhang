@@ -600,7 +600,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608191713</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608201340</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -2169,8 +2169,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         // Bảng MIX MÀU (chỉ xem, từ file): ẨN nếu đơn đã có bảng "BẮT BUỘC điền" (tránh trùng lặp)
         var cmHas={}; colorMixRows().forEach(function(o){ cmHas[o.maDon]=1; });
         if(s.colorBlocks && !cmHas[s.maDon]){
-          var cards='';
-          ranges.forEach(function(rg){ var blocks=s.colorBlocks[rg];
+          // 1 đơn có thể có 2 bảng Mix CÙNG DẢI khác số line (6-13mm 8L + 6-13mm 16L của
+          // dòng Mix Color) → ranges lặp tên dải; colorBlocks tra theo dải trần nên phải
+          // chống vẽ TRÙNG cùng một Bảng Mix Màu 2 lần.
+          var cards='', seenCmRg={};
+          ranges.forEach(function(rg){ if(seenCmRg[rg]) return; seenCmRg[rg]=1;
+            var blocks=s.colorBlocks[rg];
             if(blocks && blocks.length){ cards += buildColorTableOne(s.maDon, rg, blocks); } });
           if(cards) colorTablesHtml += '<div class="cmix-row" style="display:flex;gap:18px;align-items:flex-start;flex-wrap:nowrap;overflow-x:auto;margin-top:16px">'+cards+'</div>';
         }
@@ -2491,6 +2495,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var out=[];
     (R.orders||[]).forEach(function(o){
       if(o.mixSingle!=='Mix') return;
+      /* HÀNG PREMADE (cột "Số Line" ghi chữ "Premade") — hàng đặt sẵn, KHÔNG cuốn dải line,
+         chỉ tính số hộp. Độ Dài vẫn là dải (5-13mm) nên trước đây bị bắt vào đây và in
+         cảnh báo oan "không có bảng Mix cho dải này · thiếu ~0 dây" (C213-785P 20/8/2026). */
+      if(o.premade) return;
       /* Dòng Mix NHIỀU MÀU đã điền bảng Mix màu thì engine tự tách theo màu (_colorBlocks),
          không cần bảng Mix chung → đừng báo "không có bảng Mix cho dải này" nữa. */
       if(o._colorBlocks && o._colorBlocks.length &&
@@ -7362,8 +7370,25 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var FL=cmp2Fields();
     var nc=function(c){return String(c||'').replace(/\s+/g,'').toLowerCase();};
     var nl=function(l){return (E.normalizeLength?E.normalizeLength(l):String(l||''));};
-    var infoRow=function(f){ var m=f.meta||{}; return { maDon:m.maDon||f.name, khach:m.khach||'', tk:m.tongKhay!=null?m.tongKhay:'', td:m.tongDay!=null?m.tongDay:'', nd:(f.orders||[]).length, nk:(f.keoRows||[]).length, nm:(f.mixSheets||[]).length }; };
-    var INFO=[['Tên/Mã',function(o){return o.maDon;},true],['Khách',function(o){return o.khach;},true],['Tổng khay (khai)',function(o){return o.tk;}],['Tổng dây (khai)',function(o){return o.td;}],['Số dòng đơn',function(o){return o.nd;}],['Số dòng keo',function(o){return o.nk;}],['Số bảng Mix',function(o){return o.nm;}]];
+    /* TÍNH LẠI số lượng THỰC TẾ từ các dòng đơn — KHÔNG tin ô khách khai ở đầu file.
+       Khách thêm/bớt/sửa dòng nhưng ô "CLS / Lines CLS" vẫn giữ số cũ, nên nếu chỉ so số
+       KHAI thì 2 đơn số lượng khác nhau vẫn báo "giống" (bug 20/08/2026 · CS212-737P:
+       27 vs 28 dòng, khai cả 2 đều 2110 khay / 16880 dây, thực tế 2040/16320 vs 2110/16880).
+       Khay = Σ số hộp các dòng · Dây = Σ dòng bảng Line Cuốn (chạy lại pipeline). */
+    var cmpTotals=function(f){
+      if(f._cmpTot) return f._cmpTot;
+      var khay=0; (f.orders||[]).forEach(function(o){ khay+=(o.sl||0); });
+      var day=null;
+      try{
+        var R=E.runPipeline({ rawOrders:f.orders||[], mixSheets:f.mixSheets||[], keoRows:f.keoRows||[] });
+        day=0; ((R.cuonSheet&&R.cuonSheet.rows)||[]).forEach(function(r){ if(r.type==='row') day+=r.tong||0; });
+      }catch(e){ day=null; try{ logErr('cmpTotals', e); }catch(_e){} }
+      f._cmpTot={khay:khay, day:day}; return f._cmpTot;
+    };
+    // "2040 ⚠ khai 2110" — vừa so A↔B, vừa chỉ luôn bên nào có ô khai đã lạc hậu
+    var vsKhai=function(real, khai){ if(real==null) return ''; return String(real)+((khai!=null&&khai!==''&&Number(khai)!==Number(real))?(' ⚠ khai '+khai):''); };
+    var infoRow=function(f){ var m=f.meta||{}, t=cmpTotals(f); return { maDon:m.maDon||f.name, khach:m.khach||'', tk:m.tongKhay!=null?m.tongKhay:'', td:m.tongDay!=null?m.tongDay:'', tkr:vsKhai(t.khay,m.tongKhay), tdr:vsKhai(t.day,m.tongDay), nd:(f.orders||[]).length, nk:(f.keoRows||[]).length, nm:(f.mixSheets||[]).length }; };
+    var INFO=[['Tên/Mã',function(o){return o.maDon;},true],['Khách',function(o){return o.khach;},true],['Tổng khay (tính lại)',function(o){return o.tkr;},true],['Tổng dây (tính lại)',function(o){return o.tdr;},true],['Tổng khay (khai)',function(o){return o.tk;}],['Tổng dây (khai)',function(o){return o.td;}],['Số dòng đơn',function(o){return o.nd;}],['Số dòng keo',function(o){return o.nk;}],['Số bảng Mix',function(o){return o.nm;}]];
     var flatMix=function(sheets){ var out=[]; (sheets||[]).forEach(function(s){ (s.mmList||[]).forEach(function(mm,i){ (s.ranges||[]).forEach(function(rg,j){ var v=(s.matrix&&s.matrix[i]&&s.matrix[i][j])||0; if(v) out.push({rg:String(rg),mm:mm,v:v}); }); }); }); return out; };
     var MIX=[['Dải',function(o){return o.rg;},true],['MM',function(o){return o.mm;}],['Số sợi',function(o){return o.v;}]];
     var KEO=[['Loại Keo',function(o){return o.loaiKeo||'';},true],['Loại Sợi',function(o){return o.loaiSoi||'';},true],['Độ dày',function(o){return o.doDay||'';},true],['Độ dài',function(o){return o.doDai||'';},true],['Ghi chú',function(o){return o.ghiChu||'';},true]];
@@ -7377,11 +7402,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     s.push(cmpSect('Ghi chú','📝', noteRows(fa), noteRows(fb), NOTE, function(o){return o.loai;}, onlyDiff));
     tblEl.innerHTML = s.map(function(x){return x.html;}).join('');
     var totAll=s.reduce(function(a,x){return a+x.tot;},0);
-    var hopA=0,hopB=0; (fa.orders||[]).forEach(function(o){hopA+=(o.sl||0);}); (fb.orders||[]).forEach(function(o){hopB+=(o.sl||0);});
+    var tA=cmpTotals(fa), tB=cmpTotals(fb), hopA=tA.khay, hopB=tB.khay;
+    var dayBadge='';
+    if(tA.day!=null && tB.day!=null) dayBadge='<span class="badge '+(tA.day===tB.day?'pass':'fail')+'">Tổng dây: A='+fmtN(tA.day)+' · B='+fmtN(tB.day)+(tA.day===tB.day?' ✓':' (lệch '+fmtN(tB.day-tA.day)+')')+'</span>';
     sumEl.innerHTML='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px">'+
       '<span class="badge '+(totAll?'warn':'pass')+'" style="font-weight:700">'+(totAll?('⚠ '+totAll+' KHÁC BIỆT (tất cả bảng)'):'✓ GIỐNG NHAU hoàn toàn')+'</span>'+
       s.map(function(x,i){ var nm=['Thông tin','Mix','Keo','Số lượng','Ghi chú'][i]; return '<span class="badge '+(x.tot?'warn':'pass')+'">'+nm+': '+(x.tot||'✓')+'</span>'; }).join('')+
       '<span class="badge '+(hopA===hopB?'pass':'fail')+'">Tổng hộp: A='+fmtN(hopA)+' · B='+fmtN(hopB)+(hopA===hopB?' ✓':' (lệch '+fmtN(hopB-hopA)+')')+'</span>'+
+      dayBadge+
       '</div>';
   }
   // Tải 1 file đơn từ máy → parse ĐỘC LẬP (GỬI XƯỞNG hoặc nội bộ) → lưu vào slot A/B để so sánh
