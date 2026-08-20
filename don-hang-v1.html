@@ -603,7 +603,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608201556</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608201626</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1467,13 +1467,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // GOM NHÓM theo chữ ký — mỗi bảng duy nhất 1 lần (nhiều dòng đơn giống nhau dùng chung)
     var groups=[], seenG={};
     rows.forEach(function(o){ var k=cmKey(o); if(seenG[k]){ seenG[k].cnt++; return; } var it={o:o,cnt:1}; seenG[k]=it; groups.push(it); });
-    var html='<div style="margin-top:20px"><div style="font-weight:800;color:var(--accent);font-size:13px;margin-bottom:2px">🎨 Bảng Mix Màu — BẮT BUỘC điền</div>'+
+    var html='<div id="cmix-block" style="margin-top:20px"><div style="font-weight:800;color:var(--accent);font-size:13px;margin-bottom:2px">🎨 Bảng Mix Màu — BẮT BUỘC điền</div>'+
       '<div class="mini" style="color:var(--text-2);margin-bottom:8px">Đơn có "Mix Color" nhiều màu: nhập SỐ SỢI từng màu theo từng mm. KHÔNG tự chia đều — điền đủ mới sang bước sau.</div>';
     // GOM THEO MÃ ĐƠN: mỗi đơn 1 hàng ngang riêng (không lẫn đơn khác)
     var byMd={}, mdOrder=[];
     groups.forEach(function(it){ var m=it.o.maDon; if(!byMd[m]){ byMd[m]=[]; mdOrder.push(m); } byMd[m].push(it); });
     mdOrder.forEach(function(md){
-      html+='<div style="font-weight:700;font-size:12px;margin:10px 0 4px">📌 '+esc(md)+' <span class="mini" style="color:var(--text-3)">('+byMd[md].length+' bảng)</span></div>'+
+      /* MỖI MÃ ĐƠN nằm trong 1 khối .cmix-order có data-madon — chọn 1 đơn ở ô lọc thì
+         applyColorMixFilter ẩn luôn CẢ nhãn "📌 mã đơn (N bảng)" của đơn khác. Trước đây chỉ
+         ẩn từng bảng nên nhãn của mấy đơn kia vẫn nằm đó, trông như còn bảng phải điền. */
+      html+='<div class="cmix-order" data-madon="'+esc(md)+'">'+
+        '<div style="font-weight:700;font-size:12px;margin:10px 0 4px">📌 '+esc(md)+' <span class="mini" style="color:var(--text-3)">('+byMd[md].length+' bảng)</span></div>'+
         '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">';
       byMd[md].forEach(function(it){
       var o=it.o;
@@ -1503,7 +1507,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         '<table class="sheet" style="width:auto;white-space:nowrap"><thead><tr><th>Màu \\ MM</th>'+th+'<th>Σ</th></tr></thead><tbody>'+body+'</tbody></table>'+
       '</div>';
       });
-      html+='</div>';
+      html+='</div></div>';     // đóng flex-row + khối .cmix-order của mã đơn này
     });
     return html+'</div>';
   }
@@ -2209,7 +2213,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           ranges.forEach(function(rg){ if(seenCmRg[rg]) return; seenCmRg[rg]=1;
             var blocks=s.colorBlocks[rg];
             if(blocks && blocks.length){ cards += buildColorTableOne(s.maDon, rg, blocks); } });
-          if(cards) colorTablesHtml += '<div class="cmix-row" style="display:flex;gap:18px;align-items:flex-start;flex-wrap:nowrap;overflow-x:auto;margin-top:16px">'+cards+'</div>';
+          if(cards) colorTablesHtml += '<div class="cmix-row" data-madon="'+esc(s.maDon)+'" style="display:flex;gap:18px;align-items:flex-start;flex-wrap:nowrap;overflow-x:auto;margin-top:16px">'+cards+'</div>';
         }
       });
       if(!mixRows) mixRows = '<tr data-noflt="1"><td colspan="'+(3+maxN)+'" class="txt mini">Chưa có bảng Mix — upload file có sheet Label / bảng Mix khách.</td></tr>';
@@ -5276,11 +5280,6 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var col=chosen>tot?'var(--red-600)':(chosen===tot&&tot>0?'var(--accent)':'var(--text-2)');
     var fnote=chosen>tot?('⚠ Vượt tổng '+fmtN(chosen-tot)+' hộp'):(tot-chosen>0?('Còn lại '+fmtN(tot-chosen)+' hộp'):(tot>0?'✓ Đã phân bổ đủ':''));
     var noteItems=[]; if(bt && bt.notes) bt.notes.forEach(function(n){ String(n).split(/\r?\n/).forEach(function(x){ x=x.trim(); if(x) noteItems.push(x); }); });
-    var stale=!!(bt && !(bt.v>=2));                     // ghi chú lấy từ dữ liệu lưu bằng bản cũ
-    var warn=stale ? '<div style="color:#b1102e;font-weight:700;font-size:12px;line-height:1.45;'+
-        'background:#ffe8ee;border:1px solid #f7bfd0;border-radius:8px;padding:7px 10px;margin:2px 0 9px">'+
-        '⚠ Ghi chú này đang lấy từ dữ liệu đã lưu (đọc bằng bản cũ) nên thiếu nhiều dòng.<br>'+
-        'Bấm <b>↻ Đọc lại từ file Excel</b> rồi chọn lại file đơn, sau đó bấm Lưu.</div>' : '';
     // Đơn gốc để ghi chú thành NHIỀU CỘT cạnh nhau → dựng lại đúng như vậy, không dồn 1 cột.
     // Cột toàn dòng ngắn (nhãn Box/Tape/Curl/Stick) để co theo nội dung, cột dài chia đều phần còn lại.
     var cols=(bt && bt.noteCols && bt.noteCols.length>1) ? bt.noteCols : null;
@@ -5295,11 +5294,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     } else {
       listHtml='<ol class="bt-notelist">'+noteItems.map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('')+'</ol>';
     }
+    /* BỎ nút "↻ Đọc lại từ file Excel" (chốt 20/08/2026): mỗi lần bấm "▶ Xử lý" là app đọc lại
+       ghi chú Bảng Hộp / Bảng Độ Cong từ chính file Excel, kể cả khi xử lý lại đơn trùng tên —
+       nên luôn là dữ liệu mới nhất, nút đó chỉ làm rối. Bỏ luôn banner "dữ liệu đã lưu bằng
+       bản cũ" vì nó chỉ để hướng người dùng bấm nút này. */
     var gen=noteItems.length ? '<div class="bt-general"><div class="bt-gtitle">📝 Note · '+noteItems.length+' dòng'+
-      (cols?' · '+cols.length+' cột':'')+
-      '<button class="btn sm" id="bt-reread" style="float:right;font-weight:600">↻ Đọc lại từ file Excel</button></div>'+warn+listHtml+'</div>'
-      : '<div class="bt-general"><div class="bt-gtitle">📝 Note · 0 dòng'+
-        '<button class="btn sm" id="bt-reread" style="float:right;font-weight:600">↻ Đọc lại từ file Excel</button></div>'+warn+'</div>';
+      (cols?' · '+cols.length+' cột':'')+'</div>'+listHtml+'</div>'
+      : '<div class="bt-general"><div class="bt-gtitle">📝 Note · 0 dòng</div></div>';
     var card='<div class="boxtypes-card"><table class="boxtypes" data-tot="'+tot+'">'+
         '<thead><tr><th class="bt-h1">📦 Bảng Hộp'+(md?' · '+esc(md):'')+'</th><th class="bt-h2">'+fmtN(tot)+'</th><th class="bt-h3">Ghi Chú</th></tr></thead>'+
         '<tbody>'+rows+'</tbody>'+
@@ -5308,52 +5309,6 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // ghi chú dán tem (lấy từ tiêu đề cột độ cong của đơn) đặt NGAY TRÊN Bảng Hộp
     pb.innerHTML = temNoteHtml(md) + (gen ? ('<div class="boxtypes-wrap">'+card+gen+'</div>') : card) + anhDonHtml(md);
   }
-  /* Ghi chú Bảng Hộp chỉ được đọc lúc NHẬP file Excel rồi lưu vào project. Sau khi sửa
-     cách đọc, dữ liệu cũ vẫn còn nguyên trong project → phải nhập lại cả file mới thấy.
-     Nút này đọc lại RIÊNG phần ghi chú (Bảng Hộp + Bảng Độ Cong) từ file Excel, không đụng
-     gì tới số liệu đơn hàng. */
-  function rereadBoxNotes(){
-    if(needXLSX(rereadBoxNotes)) return;
-    var inp=document.createElement('input');
-    inp.type='file'; inp.accept='.xlsx,.xls'; inp.style.display='none';
-    inp.onchange=function(){
-      var f=inp.files&&inp.files[0]; if(!f) return;
-      var fr=new FileReader();
-      fr.onload=function(ev){
-        try{
-          var wb=XLSX.read(new Uint8Array(ev.target.result), {type:'array'});
-          var hit=0, names=[];
-          for(var si=0; si<wb.SheetNames.length; si++){
-            var A=aoa(wb.Sheets[wb.SheetNames[si]]);
-            var gx=null; try{ gx=parseGX(A, f.name); }catch(e){ logErr('reread.parseGX', e); }
-            var md=gx&&gx.meta&&gx.meta.maDon; if(!md) continue;
-            var bt=null, dc=null;
-            try{ bt=parseBoxTable(A); }catch(e){ logErr('reread.box', e); }
-            try{ dc=parseDoCongTable(A); }catch(e){ logErr('reread.docong', e); }
-            if(bt){ state.boxTableByMadon[md]=bt; hit++; names.push(md+' ('+(bt.notes||[]).length+' dòng)'); }
-            if(dc) state.doCongByMadon[md]=dc;
-            (state.files||[]).forEach(function(F){          // ghi vào meta để lần Lưu sau giữ được
-              if(!F||!F.meta) return;
-              var mds=(F.maDons&&F.maDons.length)?F.maDons:(F.meta.maDon?[F.meta.maDon]:[]);
-              if(mds.indexOf(md)<0) return;
-              if(bt) F.meta.boxTable=bt;
-              if(dc) F.meta.doCong=dc;
-            });
-          }
-          if(!hit){ alert('File này không có Bảng Hộp đọc được.'); return; }
-          updateBoxTotals(); renderDoCong();      // vẽ lại kèm đúng tổng + mã đơn đang lọc
-          alert('Đã đọc lại ghi chú: '+names.join(', ')+'.\nNhớ bấm Lưu để giữ lại.');
-        }catch(e){ logErr('rereadBoxNotes', e); alert('Không đọc được file: '+(e&&e.message||e)); }
-      };
-      fr.readAsArrayBuffer(f);
-    };
-    document.body.appendChild(inp); inp.click();
-    setTimeout(function(){ if(inp.parentNode) inp.parentNode.removeChild(inp); }, 60000);
-  }
-  document.addEventListener('click', function(e){
-    var b=e.target&&e.target.closest?e.target.closest('#bt-reread'):null;
-    if(b){ e.preventDefault(); rereadBoxNotes(); }
-  });
   function updateBoxTotals(R){
     R=R||state.R; if(!R) return;
     var md=getVal('s10-madon');
@@ -5512,12 +5467,27 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return Object.keys(cf).length>0 || !!nrm(getVal('s6-search')) || String(getVal('s6-th-mode')||'all')!=='all';
   }
   // Ẩn/hiện Bảng Mix Màu (.cmix-tbl) theo mã đơn đang chọn (giống các bảng khác).
+  /* Lọc khu Bảng Mix Màu ở bước 3 theo ô "mã đơn". Phải ẩn CẢ 3 tầng, không chỉ từng bảng:
+       .cmix-order — khối 1 mã đơn (gồm nhãn "📌 mã đơn (N bảng)") ở bảng BẮT BUỘC ĐIỀN
+       .cmix-row   — hàng ngang bảng Mix Màu CHỈ XEM đọc từ file
+       .cmix-tbl   — từng bảng
+     Trước chỉ ẩn .cmix-tbl nên chọn 1 đơn mà nhãn của mấy đơn khác vẫn nằm đó, trông như
+     còn bảng phải điền (báo lỗi 20/8). Hết đơn nào khớp thì ẩn luôn cả tiêu đề khu. */
   function applyColorMixFilter(){
     var md=getVal('s4-madon');
-    Array.prototype.forEach.call(document.querySelectorAll('.cmix-tbl'), function(el){
-      var m=el.getAttribute('data-madon');
-      el.style.display=(!md || m===md)?'':'none';
-    });
+    var hien=function(sel){
+      var n=0;
+      Array.prototype.forEach.call(document.querySelectorAll(sel), function(el){
+        var m=el.getAttribute('data-madon'), okM=(!md || m===null || m===md);
+        el.style.display=okM?'':'none';
+        if(okM) n++;
+      });
+      return n;
+    };
+    hien('.cmix-tbl'); hien('.cmix-row');
+    var n1=hien('.cmix-order');
+    var blk=document.getElementById('cmix-block');
+    if(blk) blk.style.display=n1?'':'none';   // đơn đang chọn không có bảng nào → ẩn cả tiêu đề
   }
   function applyAllFilters(){ Object.keys(TBLS).forEach(applyTable); updateLineSummary(); updateBoxTotals(); updateBoxCurlNotes(); renderS6Keo(); applyColorMixFilter(); try{ if(document.getElementById('s7')&&document.getElementById('s7').classList.contains('active')) renderS7(); }catch(e){ logErr('applyAllFilters', e); } try{ var pv=document.getElementById('pack-summary-view'); if(pv&&pv.style.display!=='none'&&typeof renderPackSummary==='function') renderPackSummary(); }catch(e){ logErr('applyAllFilters', e); } }
 

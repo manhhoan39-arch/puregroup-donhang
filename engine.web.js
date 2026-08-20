@@ -1849,6 +1849,11 @@
       var gcX = PS(col.gcXuong >= 0 ? row[col.gcXuong] : '');    // "Faux Mink 0.085"
       var thick = (gcX.match(/0[.,]\d+/) || [])[0] || '';
       if (!thick) { var cm = code.match(/\.(\d+)$/); if (cm) thick = cm[1]; }
+      /* QUY TẮC CHỐT 20/08/2026 (Hoàn): CHỈ hàng "MULTI COLOR" luôn là sợi độ dày 0.085 —
+         "Mix Color" thì GIỮ NGUYÊN độ dày khách ghi (đã chốt lại chiều 20/8, đừng gộp 2 loại).
+         Đặt cứng ở đây thì mục F dựng bảng keo cũng lấy 0.085 (info đọc chính o.thickness)
+         ⇒ hai bên cùng khóa, keo điền được. */
+      if (/multi\s*colou?r/i.test(gcX + ' ' + code + ' ' + PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''))) thick = '0.085';
       var curls = {};
       CURLS.forEach(function (k) {
         var ci = curlCol[k];
