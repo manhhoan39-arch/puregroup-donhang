@@ -339,6 +339,12 @@ td.dc-note[data-tip]{cursor:help;text-decoration:underline dotted var(--text-3);
 .grp-spec{background:var(--grp-spec)} .grp-qty{background:var(--grp-qty)} .grp-sys{background:var(--grp-sys)}
 .cell-err{background:var(--red-50)!important;box-shadow:inset 0 0 0 1.5px var(--red-500);border-radius:4px;position:relative}
 .cell-warn{background:var(--amber-50)!important;box-shadow:inset 0 0 0 1.5px var(--amber-500)}
+/* BẢNG KEO NHẬP NHẰNG (chốt 21/8): cùng độ dày mà 2 mã keo khác nhau, cả 3 cột phân biệt
+   (Loại Sợi · Độ Dài · Ghi Chú) đều trống → app không có căn cứ chọn. Tô đỏ nhạt cả dòng,
+   viền đỏ mép trái; ô "Keo nhiệt" ở Bảng Line Cuốn của mấy độ dày đó cũng tô để soi lại. */
+tr.keo-amb > td{ background:#FFEEF2!important; }
+tr.keo-amb > td:first-child{ box-shadow:inset 3px 0 0 var(--red-600); }
+td.keo-amb-keo{ background:#FFEEF2; color:var(--red-700); font-weight:700; }
 /* Ô CẢNH BÁO đã xác nhận đã kiểm: hạ tông vàng → xám, vẫn nhận ra được nhưng hết báo động */
 td.cell-warn.err-ack{background:var(--surface-3)!important;color:var(--text-2)!important;box-shadow:none!important}
 td.cell-warn.err-ack::after{content:" ✓";color:var(--accent);font-weight:800}
@@ -603,7 +609,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608210827</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608211320</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -864,9 +870,8 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
         <option value="th" title="Chỉ hàng xưởng Thanh Hóa — code sợi đuôi -TH">Xưởng TH</option>
         <option value="hy" title="Chỉ hàng xưởng Hưng Yên — code sợi đuôi -HY">Xưởng HY</option>
       </select>
-      <select id="s6-dai" title="Lọc bảng theo BẢNG MIX (dải) — vd 6~13 · 12~20. 2 bảng Σ và Tổng Dây tính lại theo lựa chọn này; KHÔNG ảnh hưởng bản in và file xuất" style="padding:3px 6px;margin-right:6px;font-size:11.5px">
-        <option value="" selected>Tất cả dải</option>
-      </select>
+      <!-- BỎ ô xổ "Tất cả dải" (chốt 21/8): mỗi dải Mix giờ là 1 DÒNG riêng và cột S/M ghi
+           luôn dải, nên lọc theo bảng Mix dùng ngay nút ▼ của cột S/M — khỏi 2 chỗ làm 1 việc. -->
       <button class="btn sm" id="btn-th-cuon" style="color:var(--accent);font-weight:700" title="In bảng Tổng hợp Cuốn (code × S/M × mm × độ cong)">🖨 Tổng hợp Cuốn</button>
       <div class="spacer"></div>
       <button class="btn sm" id="btn-dl-linecuon">⬇ Xuất LineCuon.xlsx</button>
@@ -1161,9 +1166,6 @@ function go(id){
   if(id==='s6'){
     var _tm=document.getElementById('s6-th-mode');
     if(_tm && _tm.value!=='all'){ _tm.value='all'; try{ __capReflow(); }catch(e){ logErr('go.thmode', e); } }
-    // ô lọc "dải" (bảng Mix) cũng về Tất cả — cùng lý do
-    var _td=document.getElementById('s6-dai');
-    if(_td && _td.value!==''){ _td.value=''; try{ __capReflow(); }catch(e){ logErr('go.dai', e); } }
   }
   // Bảng của bước này bị HOÃN vẽ lúc trước (đang ẩn) → vẽ ngay bây giờ.
   // Dùng lại kết quả đã tính, KHÔNG tính lại → số liệu không thể lệch.
@@ -2251,7 +2253,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         String(r.codeSoi||'').split(/\r?\n/).forEach(function(ln){ var w2=ln.length*6.6+18; if(w2>csW) csW=w2; });
       }); }catch(e){ logErr('buildColorTableOne', e); }
       mdW=Math.min(Math.round(mdW),150); csW=Math.min(Math.round(csW),200); khW=Math.min(Math.round(khW),90);
-      cbHead.innerHTML = '<th style="width:40px">STT</th><th style="width:'+khW+'px">Mã KH'+fb(1)+'</th><th style="width:'+mdW+'px">Mã Đơn'+fb(2)+'</th><th style="width:'+csW+'px">Code Sợi'+fb(3)+'</th><th style="width:135px">Tên Gọi Nguyên Liệu'+fb(4)+'</th><th style="width:52px">S/M'+fb(5)+'</th><th style="width:40px">MM'+fb(6)+'</th><th style="width:92px">Keo nhiệt'+fb(7)+'</th>'+
+      cbHead.innerHTML = '<th style="width:40px">STT</th><th style="width:'+khW+'px">Mã KH'+fb(1)+'</th><th style="width:'+mdW+'px">Mã Đơn'+fb(2)+'</th><th style="width:'+csW+'px">Code Sợi'+fb(3)+'</th><th style="width:135px">Tên Gọi Nguyên Liệu'+fb(4)+'</th><th style="width:66px" title="Single hoặc DẢI của bảng Mix — điền chi tiết như cột LENGTH (MM) ở bước 2. Mỗi dải Mix là 1 dòng riêng, số lượng của đúng bảng Mix đó.">S/M'+fb(5)+'</th><th style="width:40px">MM'+fb(6)+'</th><th style="width:92px">Keo nhiệt'+fb(7)+'</th>'+
         state.usedCurls.map(function(k){ return '<th class="curl">'+esc(k.replace('Curl-CT','CT'))+'</th>'; }).join('')+
         '<th style="width:64px">Tổng</th>';
     }
@@ -2267,8 +2269,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var th=r.xuongTH?' cl-throw':'';    // hàng xưởng Thanh Hóa → tô nền vàng nhạt
         var cmx=r.cmix?' cl-cmixrow':'';    // dòng tách từ Mix nhiều màu → tô hồng cột Code Sợi + Tên gọi NL
         var cell2=(r.multiMat?' cl-matcell':'')+(r.cmix?' cl-cmixcell':'');
-        var keoTd='<td class="txt" style="font-size:10px"'+(r.ovrRow?' title="Độ cong đặc biệt '+esc(OVR.join('/'))+' → Keo 2mm"':'')+'>'+esc(r.keo||'')+'</td>';
-        return '<tr class="'+(mc+ovr+th+cmx).trim()+'" data-cbk="1" data-xuong="'+esc(xuongCuaDong(r))+'" data-dai="'+esc(daiCuaDong(r).join('|'))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+cell2+'" title="'+(r.cmix?'Dòng tách từ Mix nhiều màu':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+cell2+'" style="font-size:10px">'+nl2br(r.material||'')+'</td><td>'+r.mixSingle+'</td><td>'+r.mm+'</td>'+keoTd+
+        /* Độ dày NHẬP NHẰNG (2 keo, không cột nào phân biệt) → keo lấy theo BẢNG CHI TIẾT của
+           khách, tô đỏ nhạt để user soi lại rồi sửa Bảng Keo nếu cần (chốt 21/8). */
+        var keoTd='<td class="txt'+(r.keoAmb?' keo-amb-keo':'')+'" style="font-size:10px"'+
+          (r.keoAmb?' title="Bảng Keo có 2 mã keo cùng độ dày '+esc(r.thickness||'')+' mà không cột nào phân biệt → đang lấy keo theo BẢNG CHI TIẾT của khách. Kiểm rồi sửa Bảng Keo (bước 4) nếu cần."'
+                  :(r.ovrRow?' title="Độ cong đặc biệt '+esc(OVR.join('/'))+' → Keo 2mm"':''))+'>'+esc(r.keo||'')+'</td>';
+        return '<tr class="'+(mc+ovr+th+cmx).trim()+'" data-cbk="1" data-search="'+esc(timKiemCuaDong(r))+'" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+cell2+'" title="'+(r.cmix?'Dòng tách từ Mix nhiều màu':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+cell2+'" style="font-size:10px">'+nl2br(r.material||'')+'</td><td data-sm="1" title="'+esc(smTitle(r))+'">'+nl2br(smText(r))+'</td><td>'+r.mm+'</td>'+keoTd+
           UC.map(function(k){ return '<td class="cw">'+q(r.curls[k])+'</td>'; }).join('')+
           '<td class="qty">'+r.tong+'</td></tr>';
       }
@@ -4970,6 +4976,26 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var bad=keoBad(v); if(!bad.length) return { cls:'', ti:'' };
     return { cls:' err', ti:' title="Mã keo '+esc(bad.join(', '))+' không có trong danh sách chuẩn — sửa lại cho đúng"' };
   }
+  /* Dòng Bảng Keo này có nằm trong nhóm NHẬP NHẰNG không (cùng độ dày, 2 mã keo, không cột
+     nào phân biệt) → trả về danh sách keo đang tranh nhau, không thì null. Engine tính sẵn
+     bản đồ R.keoAmbig; chưa Xử lý (chưa có R) thì tự tính từ state.keoRows. */
+  var __ambKey=null, __ambMap=null;
+  function keoAmbCuaDong(k){
+    try{
+      var m=(state.R&&state.R.keoAmbig)||null;
+      if(!m){
+        var key=JSON.stringify((state.keoRows||[]).map(function(x){ return [x.maDon,x.loaiKeo,x.loaiSoi,x.doDay,x.doDai,x.ghiChu]; }));
+        if(__ambKey!==key){ __ambKey=key; __ambMap=E.timKeoNhapNhang(state.keoRows||[]); }
+        m=__ambMap;
+      }
+      return E.keoNhapNhangCuaDong(m, k);
+    }catch(e){ logErr('keoAmbCuaDong', e); return null; }
+  }
+  function keoAmbTitle(ds){
+    return 'CẦN KIỂM: cùng độ dày này khách ghi '+ds.length+' mã keo khác nhau ('+ds.join(' · ')+
+           ') mà cột Loại Sợi · Độ Dài · Ghi Chú đều trống → app không có căn cứ để chọn. '+
+           'Bảng Line Cuốn đang lấy keo theo BẢNG CHI TIẾT của khách; điền điều kiện vào 1 trong 3 cột đó là app tự tính lại.';
+  }
   // ---- Bảng Keo đầy đủ (s5): mọi Mã Đơn + cảnh báo thiếu thông tin ----
   function renderKeoFull(R){
     var tb=document.getElementById('eng-keo-full'); if(!tb) return;
@@ -4980,6 +5006,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       // "thiếu thông tin" = trống CẢ cột thuộc tính LẪN Ghi Chú (dữ liệu gốc để keo trong Ghi Chú vẫn hợp lệ)
       var miss=!(k.loaiSoi&&String(k.loaiSoi).trim()) && !(k.doDay&&String(k.doDay).trim()) && !(k.doDai&&String(k.doDai).trim()) && !(k.ghiChu&&String(k.ghiChu).trim());
       if(miss) warn++;
+      var amb=keoAmbCuaDong(k); if(amb) warn++;
+      var ambAttr=amb?(' class="keo-amb" title="'+esc(keoAmbTitle(amb))+'"'):'';
       var wc=miss?'cell-warn':'';
       // ô SỬA ĐƯỢC cho admin (contenteditable + data-keoedit/data-keoidx → handler chung cập nhật state.keoRows)
       /* seed = giá trị app TỰ BÓC TÁCH từ Ghi Chú, chưa có trong dữ liệu gốc. Vẫn cho gõ đè,
@@ -5000,7 +5028,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var kbl=k._daTach?null:parseKeoByLength(k.ghiChu);   // đã bung thành dòng thật → khỏi vẽ dòng dẫn xuất
       if(kbl){
         kbl.forEach(function(seg,si){
-          rows.push('<tr data-madon="'+esc(k.maDon)+'" data-makh="'+esc(khOf(k.maDon))+'" data-keoidx="'+idx+'">'+
+          rows.push('<tr'+ambAttr+' data-madon="'+esc(k.maDon)+'" data-makh="'+esc(khOf(k.maDon))+'" data-keoidx="'+idx+'">'+
             '<td class="chkcol">'+(si===0?'<input type="checkbox" class="keo-chk">':'')+'</td>'+
             '<td class="freeze">'+esc(khOf(k.maDon))+'</td>'+
             '<td class="txt">'+esc(donOf(k.maDon))+'</td>'+
@@ -5018,7 +5046,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         if(pn && String(pn[field]||'').trim()) return ed(field, pn[field], ((extra||'txt')+' keo-der'), pn[field]);
         return ed(field,val,extra);
       };
-      rows.push('<tr data-madon="'+esc(k.maDon)+'" data-makh="'+esc(khOf(k.maDon))+'" data-keoidx="'+idx+'">'+
+      rows.push('<tr'+ambAttr+' data-madon="'+esc(k.maDon)+'" data-makh="'+esc(khOf(k.maDon))+'" data-keoidx="'+idx+'">'+
         '<td class="chkcol"><input type="checkbox" class="keo-chk"></td>'+
         '<td class="freeze">'+esc(khOf(k.maDon))+'</td>'+
         '<td class="txt">'+esc(donOf(k.maDon))+'</td>'+
@@ -5031,7 +5059,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     setRows('eng-keo-full', rows.length?rows.join(''):'<tr data-noflt="1"><td colspan="8" class="txt mini">Chưa có dữ liệu Keo.</td></tr>');
     applyTable('eng-keo-full');
     var chip=document.getElementById('keo-warn-chip');
-    if(chip){ chip.style.display=warn?'':'none'; chip.textContent=warn+' dòng thiếu thông tin'; }
+    if(chip){ chip.style.display=warn?'':'none'; chip.textContent=warn+' dòng cần kiểm'; }
   }
 
   // ---- Tổng hợp Box (s10) ----
@@ -5429,15 +5457,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var _che=String(getVal('s6-th-mode')||'all'), _x=tr.getAttribute('data-xuong')||'';
         if(_che==='nd') okX=!_x; else if(_che==='th') okX=(_x==='TH'); else if(_che==='hy') okX=(_x==='HY');
       }
-      /* Bảng Line Cuốn: lọc theo BẢNG MIX (dải). Chỉ dòng CHI TIẾT mang data-dai; dòng Σ code
-         sợi gộp nhiều dải nên khi lọc dải thì ẨN luôn (giống lọc cột ▼ vốn cũng ẩn dòng Σ) —
-         số tổng đã có ở 2 bảng Σ + thanh Tổng Dây, chúng tính lại theo đúng bộ lọc. */
-      var okD=true;
-      if(laCuon){
-        var _d=String(getVal('s6-dai')||'');
-        if(_d){ var _rd=tr.getAttribute('data-dai'); okD = _rd!=null && ('|'+_rd+'|').indexOf('|'+_d+'|')>=0; }
-      }
-      var hien=(okM&&okKH&&okQ&&okC&&okX&&okD);
+      var hien=(okM&&okKH&&okQ&&okC&&okX);
       tr.style.display=hien?'':'none';
       if(hien) hienRows.push(tr);
       /* Bảng Line Cuốn: STT đánh lại từ 1 theo ĐÚNG những dòng đang hiện — lọc còn 1 đơn mà
@@ -5466,7 +5486,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // nl2br → textContent nối liền, không có dấu cách: phải bỏ xuống dòng cho khớp DOM
     if(ci===3) return String(r.codeSoi||'').replace(/\r?\n/g,'');
     if(ci===4) return String(r.material||'').replace(/\r?\n/g,'');
-    if(ci===5) return String(r.mixSingle||'');
+    // cột 5 ghi Single / DẢI (nl2br → textContent nối liền, bỏ xuống dòng cho khớp DOM)
+    if(ci===5) return String(smText(r)).replace(/\r?\n/g,'');
     if(ci===6) return String(r.mm==null?'':r.mm);
     if(ci===7) return String(r.keo||'');
     var i=ci-8;
@@ -5496,12 +5517,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(che==='hy') return x==='HY';
     return true;
   }
-  /* ===== LỌC BẢNG LINE CUỐN THEO BẢNG MIX (DẢI) — chốt 21/8 =====
-     Ô xổ "Tất cả dải" cạnh nút in: chọn 6~13 · 12~20 … để soi riêng từng bảng Mix. Lọc ở
-     DỮ LIỆU nên 2 bảng Σ + thanh Tổng Dây tự nhảy theo; bản in và file xuất KHÔNG đi theo
-     ô lọc này (giống ô "xưởng làm" — bản in đọc thẳng state.R.cuonSheet.rows).
-     1 dòng Line Cuốn có thể GỘP nhiều dải cùng phủ 1 mm (đơn 740P: 6-14 · 7-14 · 7-15 · 7-16mm
-     đều phủ mm 11) → giữ CẢ danh sách r.lengths, khớp 1 dải là dòng đó hiện. */
+  /* ===== DẢI (BẢNG MIX) CỦA 1 DÒNG LINE CUỐN =====
+     Mỗi dải Mix là 1 DÒNG riêng (engine không gộp mấy dải cùng phủ 1 mm nữa — chốt 21/8), nên
+     danh sách này bình thường chỉ có 1 phần tử. Dùng để ghi cột "S/M" và cho nút lọc ▼ của cột
+     đó — muốn xem riêng 1 bảng Mix thì bấm ▼ ở cột S/M rồi chọn dải, khỏi cần ô xổ riêng. */
   function daiCuaDong(r){
     var ds=(r && r.lengths && r.lengths.length) ? r.lengths : [(r&&r.length)||''];
     var out=[], seen={};
@@ -5514,31 +5533,31 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     });
     return out;
   }
-  function hopDaiLoc(r){
-    var d=String(getVal('s6-dai')||''); if(!d) return true;
-    return daiCuaDong(r).indexOf(d)>=0;
+  /* ===== CỘT "S/M" CỦA BẢNG LINE CUỐN GHI LUÔN DẢI (chốt 21/8) =====
+     Trước cột này chỉ ghi "Mix" / "Single" nên lọc theo bảng Mix xong vẫn không biết dòng
+     đang hiện thuộc dải nào (báo lỗi 21/8: "các độ dài bảng mix khác cũng hiện ra"). Giờ ghi
+     LUÔN dải, điền chi tiết như cột LENGTH (MM) ở bước 2: "12~20". Dòng Single ghi "Single".
+     TIÊU ĐỀ cột vẫn để "S/M" như cũ (user chốt 21/8).
+     Engine cũng đã TÁCH mỗi dải thành 1 dòng riêng nên bình thường ô này chỉ có 1 dải; hàm
+     vẫn xử lý được trường hợp nhiều dải để nếu sau này gộp lại thì không sai.
+     Bản in "Tổng hợp Cuốn" + file xuất Line Cuốn cũng lấy chuỗi này cho ô S/M — nếu vẫn in
+     "Mix" thì mấy dòng tách theo dải trông y hệt nhau, xưởng không biết dòng nào của bảng nào. */
+  function smText(r){
+    if(!r) return '';
+    if(/single/i.test(String(r.mixSingle||''))) return 'Single';
+    var ds=daiCuaDong(r);
+    return ds.length ? ds.join('\n') : String(r.mixSingle||'');
   }
-  /* Danh sách dải cho ô xổ — lấy từ chính các dòng của ĐƠN/KH đang chọn (chọn 1 đơn thì
-     không liệt kê dải của đơn khác), giữ nguyên lựa chọn cũ nếu vẫn còn trong danh sách. */
-  var __daiKey=null;
-  function fillDaiSelect(){
-    var el=document.getElementById('s6-dai'); if(!el) return;
-    var R=state.R, md=getVal('s6-madon'), kh=getVal('s6-makh');
-    var key=(R?'R':'-')+'|'+md+'|'+kh+'|'+((R&&R.cuonSheet&&R.cuonSheet.rows.length)||0);
-    if(__daiKey===key) return;                 // chưa đổi gì → khỏi dựng lại
-    __daiKey=key;
-    var ds=[], seen={};
-    if(R && R.cuonSheet) R.cuonSheet.rows.forEach(function(r){
-      if(r.type!=='row') return;
-      if(md && r.maDon!==md) return;
-      if(kh && khOf(r.maDon)!==kh) return;
-      daiCuaDong(r).forEach(function(x){ if(!seen[x]){ seen[x]=1; ds.push(x); } });
-    });
-    ds.sort(function(a,b){ return String(a).localeCompare(String(b),'vi',{numeric:true}); });
-    var cu=el.value;
-    el.innerHTML='<option value="">Tất cả dải</option>'+
-      ds.map(function(x){ return '<option value="'+esc(x)+'">'+esc(x)+'</option>'; }).join('');
-    el.value=(ds.indexOf(cu)>=0)?cu:'';
+  /* Chuỗi để Ô TÌM của bước 5 dò — DÙNG CHUNG cho DOM (data-search) và bộ lọc dữ liệu, nhờ
+     vậy bảng ẩn dòng nào thì 2 bảng Σ cũng bỏ đúng dòng đó. Giữ cả "Mix"/"Single" lẫn dải để
+     gõ kiểu nào cũng ra. */
+  function timKiemCuaDong(r){
+    return [khOf(r.maDon),donOf(r.maDon),r.codeSoi,r.material,r.mixSingle,daiCuaDong(r).join(' '),r.mm,r.keo].join(' ');
+  }
+  function smTitle(r){
+    var ds=daiCuaDong(r);
+    if(ds.length>1) return 'Dòng gộp '+ds.length+' bảng Mix cùng phủ mm '+r.mm+': '+ds.join(' · ');
+    return ds.length===1 ? ('Bảng Mix '+ds[0]) : String(r.mixSingle||'');
   }
   function cbLocRows(boQua){
     var R=state.R; if(!R||!R.cuonSheet) return [];
@@ -5550,10 +5569,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(md && r.maDon!==md) return false;
       if(kh && khOf(r.maDon)!==kh) return false;
       if(!hopXuongLoc(r)) return false;
-      if(!hopDaiLoc(r)) return false;
       if(nq){
-        var hay=[khOf(r.maDon),donOf(r.maDon),r.codeSoi,r.material,r.mixSingle,r.mm,r.keo].join(' ');
-        if(nrm(hay).indexOf(nq)<0) return false;
+        if(nrm(timKiemCuaDong(r)).indexOf(nq)<0) return false;
       }
       for(var ci in cf){
         if(boQua!=null && +ci===+boQua) continue;
@@ -5566,8 +5583,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function cbCoLocCot(){
     var cf=colFilters['eng-cuonbox']||{};
     // Ô "xưởng làm" cũng là một bộ lọc → Σ và Tổng Dây phải tính lại theo nó (chốt 19/8)
-    return Object.keys(cf).length>0 || !!nrm(getVal('s6-search')) || String(getVal('s6-th-mode')||'all')!=='all'
-        || !!String(getVal('s6-dai')||'');   // ô "dải" cũng là bộ lọc → Σ phải tính lại theo
+    return Object.keys(cf).length>0 || !!nrm(getVal('s6-search')) || String(getVal('s6-th-mode')||'all')!=='all';
   }
   // Ẩn/hiện Bảng Mix Màu (.cmix-tbl) theo mã đơn đang chọn (giống các bảng khác).
   /* Lọc khu Bảng Mix Màu ở bước 3 theo ô "mã đơn". Phải ẩn CẢ 3 tầng, không chỉ từng bảng:
@@ -5592,7 +5608,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var blk=document.getElementById('cmix-block');
     if(blk) blk.style.display=n1?'':'none';   // đơn đang chọn không có bảng nào → ẩn cả tiêu đề
   }
-  function applyAllFilters(){ try{ fillDaiSelect(); }catch(e){ logErr('applyAllFilters.dai', e); } Object.keys(TBLS).forEach(applyTable); updateLineSummary(); updateBoxTotals(); updateBoxCurlNotes(); renderS6Keo(); applyColorMixFilter(); try{ if(document.getElementById('s7')&&document.getElementById('s7').classList.contains('active')) renderS7(); }catch(e){ logErr('applyAllFilters', e); } try{ var pv=document.getElementById('pack-summary-view'); if(pv&&pv.style.display!=='none'&&typeof renderPackSummary==='function') renderPackSummary(); }catch(e){ logErr('applyAllFilters', e); } }
+  function applyAllFilters(){ Object.keys(TBLS).forEach(applyTable); updateLineSummary(); updateBoxTotals(); updateBoxCurlNotes(); renderS6Keo(); applyColorMixFilter(); try{ if(document.getElementById('s7')&&document.getElementById('s7').classList.contains('active')) renderS7(); }catch(e){ logErr('applyAllFilters', e); } try{ var pv=document.getElementById('pack-summary-view'); if(pv&&pv.style.display!=='none'&&typeof renderPackSummary==='function') renderPackSummary(); }catch(e){ logErr('applyAllFilters', e); } }
 
   /* ===== 2 bảng Σ của bước Line Cuốn — tách riêng để CHỖ NÀO CŨNG DÙNG CHUNG.
      Bước 2 (bấm 1 đơn ở bảng Tổng hợp đơn) vẽ lại đúng 2 bảng này; dùng chung một
@@ -5665,10 +5681,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     }
     var keo=(R.keoByOrder&&R.keoByOrder[md])||[];
     var malformed = R.keoMalformed && R.keoMalformed[md];
+    // Keo NHẬP NHẰNG của đơn này: cùng độ dày mà 2 mã keo, không cột nào phân biệt (21/8)
+    var ambDs=[]; (function(){
+      var m=(R.keoAmbig)||{};
+      Object.keys(m).forEach(function(k){ if(k.indexOf(md+'|')===0) ambDs.push(k.slice(md.length+1)+'mm: '+m[k].join(' · ')); });
+    })();
     var canEdit = canEditStep('s6');
     var warnRow = malformed
       ? '<tr data-noflt="1"><td colspan="7" style="background:var(--red-50);color:var(--red-700);font-weight:600;font-size:11px;white-space:normal">⚠ Bảng keo đơn '+esc(md)+' SAI CẤU TRÚC — cột "Keo nhiệt" đã để TRỐNG. Sửa các ô bên dưới cho đúng (Độ Dày = số như 0.07; hoặc để trống và ghi điều kiện vào Ghi Chú) → keo tự tính lại.</td></tr>'
       : '';
+    /* Cảnh báo NHẬP NHẰNG: nói rõ độ dày nào đang có 2 keo, và app đang lấy keo ở bảng chi tiết. */
+    if(ambDs.length) warnRow += '<tr data-noflt="1"><td colspan="7" style="background:#FFEEF2;color:var(--red-700);font-weight:600;font-size:11px;white-space:normal">⚠ CẦN KIỂM — '+ambDs.length+' độ dày có 2 mã keo mà cột Loại Sợi · Độ Dài · Ghi Chú đều trống: '+esc(ambDs.join(' ; '))+'. App KHÔNG đoán: mấy dòng đó đang lấy keo theo BẢNG CHI TIẾT của khách (ô "Keo nhiệt" tô đỏ nhạt ở bảng dưới). Ghi thêm điều kiện vào 1 trong 3 cột là app tự tính lại.</td></tr>';
     tbody.innerHTML = warnRow + (keo.length ? keo.map(function(k){
       var idx = state.keoRows.indexOf(k);
       var ed = function(field,val,seed){
@@ -5680,10 +5703,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
                  (seed!=null?' data-keoseed="'+esc(seed)+'"':'')+' style="white-space:pre-wrap"' : '';
         return '<td class="txt'+der+ke.cls+'"'+ce+ti+'>'+esc(val==null?'':val)+'</td>';
       };
+      var amb=keoAmbCuaDong(k);
+      var ambCls=amb?' keo-amb':'', ambTi=amb?(' title="'+esc(keoAmbTitle(amb))+'"'):'';
       var kbl=k._daTach?null:parseKeoByLength(k.ghiChu);   // đã bung thành dòng thật → khỏi vẽ dòng dẫn xuất
       if(kbl){
         return kbl.map(function(seg,si){
-          return '<tr'+(malformed?' class="cell-warn"':'')+' data-keoidx="'+idx+'">'+
+          return '<tr class="'+((malformed?'cell-warn':'')+ambCls).trim()+'"'+ambTi+' data-keoidx="'+idx+'">'+
             '<td>'+esc(khOf(k.maDon))+'</td><td>'+esc(donOf(k.maDon))+'</td>'+
             '<td class="txt keo-der">'+esc(seg.keo)+'</td><td></td><td class="txt">'+esc(k.doDay||'')+'</td>'+
             '<td class="txt keo-der">'+esc(seg.doDai)+'</td>'+
@@ -5698,7 +5723,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         if(pn && String(pn[field]||'').trim()) return ed(field, pn[field], pn[field]);
         return ed(field,val);
       };
-      return '<tr'+(malformed?' class="cell-warn"':'')+' data-keoidx="'+idx+'" title="Chuột phải để thêm/xóa/nhân bản dòng">'+
+      return '<tr class="'+((malformed?'cell-warn':'')+ambCls).trim()+'" data-keoidx="'+idx+'" title="'+(amb?esc(keoAmbTitle(amb)):'Chuột phải để thêm/xóa/nhân bản dòng')+'">'+
         '<td>'+esc(khOf(k.maDon))+'</td><td>'+esc(donOf(k.maDon))+'</td>'+ed('loaiKeo',k.loaiKeo)+col('loaiSoi',k.loaiSoi)+col('doDay',k.doDay)+col('doDai',k.doDai)+ed('ghiChu',k.ghiChu)+
         '</tr>';
     }).join('') : '<tr><td colspan="7" class="txt mini">Đơn '+esc(md)+' không có bảng keo trong file.</td></tr>');
@@ -5830,7 +5855,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   ['s4-search','s5-search','s6-search','s10-search'].forEach(function(id){ var el=document.getElementById(id); if(el) el.addEventListener('input', debounce(applyAllFilters, 160)); });
   /* Đổi ô "xưởng làm" ở bước 5 → lọc lại bảng + tính lại 2 bảng Σ và thanh Tổng Dây */
   /* Đổi ô "dải" (bảng Mix) ở bước 5 → y hệt: lọc lại bảng + tính lại 2 bảng Σ và Tổng Dây */
-  ['s6-th-mode','s6-dai'].forEach(function(id){
+  ['s6-th-mode'].forEach(function(id){
     var el=document.getElementById(id); if(!el) return;
     el.addEventListener('change', function(){
       try{ __capReflow(); }catch(e){ logErr(id, e); }
@@ -5909,7 +5934,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var R=state.R; if(!R||!R.cuonSheet) return alert('Chưa có dữ liệu Line Cuốn.');
     var head=['STT','Mã Đơn','Code Sợi','Tên Gọi Nguyên Liệu','S/M','MM','Keo Nhiệt'].concat(CURLS).concat(['Tổng']);
     var rows=locXuat(R.cuonSheet.rows.filter(function(r){ return r.type==='row'; })).map(function(r){
-      return [r.stt,r.maDon,r.codeSoi,r.material||'',r.mixSingle,r.mm,r.keo||''].concat(CURLS.map(function(k){ return (r.curls&&r.curls[k])||''; })).concat([r.tong]);
+      return [r.stt,r.maDon,r.codeSoi,r.material||'',smText(r),r.mm,r.keo||''].concat(CURLS.map(function(k){ return (r.curls&&r.curls[k])||''; })).concat([r.tong]);
     });
     if(!rows.length) return alert('Không có dòng Line Cuốn nào của đơn đang chọn để xuất.');
     var wb=XLSX.utils.book_new();
@@ -6936,7 +6961,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(!rows.length) return;
       // gom theo code, sắp xếp keo → S/M → mm để merge như bảng Line
       var byCode={}, codeOrder=[];
-      rows.forEach(function(r){ var code=r.codeSoi||''; if(!byCode[code]){byCode[code]=[];codeOrder.push(code);} byCode[code].push({keo:r.keo||'', sm:r.mixSingle||'', mm:+r.mm, tong:r.tong||0, curls:r.curls||{}}); });
+      rows.forEach(function(r){ var code=r.codeSoi||''; if(!byCode[code]){byCode[code]=[];codeOrder.push(code);} byCode[code].push({keo:r.keo||'', sm:smText(r), mm:+r.mm, tong:r.tong||0, curls:r.curls||{}}); });
       var body='', grand=0, grandCurl={};
       codeOrder.forEach(function(code){
         var list=byCode[code].slice();
@@ -7530,7 +7555,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       try{
         var R=E.runPipeline({ rawOrders:f.orders||[], mixSheets:f.mixSheets||[], keoRows:f.keoRows||[] });
         day=0; ((R.cuonSheet&&R.cuonSheet.rows)||[]).forEach(function(r){ if(r.type==='row') day+=r.tong||0; });
-      }catch(e){ day=null; try{ logErr('cmpTotals', e); }catch(_e){} }
+      }catch(e){ day=null; try{ logErr('cmpTotals', e); }catch(_e){} /* logErr-self */ }
       f._cmpTot={khay:khay, day:day}; return f._cmpTot;
     };
     // "2040 ⚠ khai 2110" — vừa so A↔B, vừa chỉ luôn bên nào có ô khai đã lạc hậu
@@ -7773,7 +7798,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // 4. Line Cuốn
     add([['STT','Mã Đơn','Code Sợi','Tên Gọi Nguyên Liệu','S/M','MM','Keo Nhiệt'].concat(CURLS).concat(['Tổng'])].concat(
       locXuat(R.cuonSheet.rows.filter(function(r){ return r.type==='row'; })).map(function(r){
-        return [r.stt,r.maDon,r.codeSoi,r.material||'',r.mixSingle,r.mm,r.keo||''].concat(CURLS.map(function(k){ return (r.curls&&r.curls[k])||''; })).concat([r.tong]);
+        return [r.stt,r.maDon,r.codeSoi,r.material||'',smText(r),r.mm,r.keo||''].concat(CURLS.map(function(k){ return (r.curls&&r.curls[k])||''; })).concat([r.tong]);
       })), 'Line Cuốn');
     // 5. Tổng Hợp Box
     var no=0;
