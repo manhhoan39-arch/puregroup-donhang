@@ -609,7 +609,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608211320</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608211510</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -2272,7 +2272,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         /* Độ dày NHẬP NHẰNG (2 keo, không cột nào phân biệt) → keo lấy theo BẢNG CHI TIẾT của
            khách, tô đỏ nhạt để user soi lại rồi sửa Bảng Keo nếu cần (chốt 21/8). */
         var keoTd='<td class="txt'+(r.keoAmb?' keo-amb-keo':'')+'" style="font-size:10px"'+
-          (r.keoAmb?' title="Bảng Keo có 2 mã keo cùng độ dày '+esc(r.thickness||'')+' mà không cột nào phân biệt → đang lấy keo theo BẢNG CHI TIẾT của khách. Kiểm rồi sửa Bảng Keo (bước 4) nếu cần."'
+          (r.keoAmb?' title="1 độ dày sử dụng 2 loại keo — keo này lấy theo bảng chi tiết của khách"'
                   :(r.ovrRow?' title="Độ cong đặc biệt '+esc(OVR.join('/'))+' → Keo 2mm"':''))+'>'+esc(r.keo||'')+'</td>';
         return '<tr class="'+(mc+ovr+th+cmx).trim()+'" data-cbk="1" data-search="'+esc(timKiemCuaDong(r))+'" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+cell2+'" title="'+(r.cmix?'Dòng tách từ Mix nhiều màu':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+cell2+'" style="font-size:10px">'+nl2br(r.material||'')+'</td><td data-sm="1" title="'+esc(smTitle(r))+'">'+nl2br(smText(r))+'</td><td>'+r.mm+'</td>'+keoTd+
           UC.map(function(k){ return '<td class="cw">'+q(r.curls[k])+'</td>'; }).join('')+
@@ -4991,10 +4991,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       return E.keoNhapNhangCuaDong(m, k);
     }catch(e){ logErr('keoAmbCuaDong', e); return null; }
   }
+  // Tooltip NGẮN GỌN (user chốt 21/8) — chỉ cần biết "1 độ dày dùng mấy loại keo"
   function keoAmbTitle(ds){
-    return 'CẦN KIỂM: cùng độ dày này khách ghi '+ds.length+' mã keo khác nhau ('+ds.join(' · ')+
-           ') mà cột Loại Sợi · Độ Dài · Ghi Chú đều trống → app không có căn cứ để chọn. '+
-           'Bảng Line Cuốn đang lấy keo theo BẢNG CHI TIẾT của khách; điền điều kiện vào 1 trong 3 cột đó là app tự tính lại.';
+    return '1 độ dày sử dụng '+ds.length+' loại keo ('+ds.join(' · ')+')';
   }
   // ---- Bảng Keo đầy đủ (s5): mọi Mã Đơn + cảnh báo thiếu thông tin ----
   function renderKeoFull(R){
@@ -5681,17 +5680,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     }
     var keo=(R.keoByOrder&&R.keoByOrder[md])||[];
     var malformed = R.keoMalformed && R.keoMalformed[md];
-    // Keo NHẬP NHẰNG của đơn này: cùng độ dày mà 2 mã keo, không cột nào phân biệt (21/8)
-    var ambDs=[]; (function(){
-      var m=(R.keoAmbig)||{};
-      Object.keys(m).forEach(function(k){ if(k.indexOf(md+'|')===0) ambDs.push(k.slice(md.length+1)+'mm: '+m[k].join(' · ')); });
-    })();
     var canEdit = canEditStep('s6');
     var warnRow = malformed
       ? '<tr data-noflt="1"><td colspan="7" style="background:var(--red-50);color:var(--red-700);font-weight:600;font-size:11px;white-space:normal">⚠ Bảng keo đơn '+esc(md)+' SAI CẤU TRÚC — cột "Keo nhiệt" đã để TRỐNG. Sửa các ô bên dưới cho đúng (Độ Dày = số như 0.07; hoặc để trống và ghi điều kiện vào Ghi Chú) → keo tự tính lại.</td></tr>'
       : '';
-    /* Cảnh báo NHẬP NHẰNG: nói rõ độ dày nào đang có 2 keo, và app đang lấy keo ở bảng chi tiết. */
-    if(ambDs.length) warnRow += '<tr data-noflt="1"><td colspan="7" style="background:#FFEEF2;color:var(--red-700);font-weight:600;font-size:11px;white-space:normal">⚠ CẦN KIỂM — '+ambDs.length+' độ dày có 2 mã keo mà cột Loại Sợi · Độ Dài · Ghi Chú đều trống: '+esc(ambDs.join(' ; '))+'. App KHÔNG đoán: mấy dòng đó đang lấy keo theo BẢNG CHI TIẾT của khách (ô "Keo nhiệt" tô đỏ nhạt ở bảng dưới). Ghi thêm điều kiện vào 1 trong 3 cột là app tự tính lại.</td></tr>';
     tbody.innerHTML = warnRow + (keo.length ? keo.map(function(k){
       var idx = state.keoRows.indexOf(k);
       var ed = function(field,val,seed){

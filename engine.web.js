@@ -211,10 +211,18 @@
       errors.push({ seri: 0, keoIdx: i, maDon: k.maDon, col: 'loaiKeo', code: 'E-KEO', level: 'error',
         msg: 'Mã keo ' + bad.map(function (c) { return '"' + c + '"'; }).join(', ') + ' không có trong danh sách chuẩn' });
     });
+    /* 1 ĐỘ DÀY DÙNG 2 LOẠI KEO → ô sai chuẩn ở Bảng Keo (user chốt 21/8: cứ mặc định là báo,
+       để tự kiểm). Gắn keoIdx để giao diện tô đúng dòng. */
+    var _amb = timKeoNhapNhang(opt.keoRows || []);
+    if (Object.keys(_amb).length) (opt.keoRows || []).forEach(function (k, i) {
+      var ds = keoNhapNhangCuaDong(_amb, k); if (!ds) return;
+      errors.push({ seri: 0, keoIdx: i, maDon: k.maDon, col: 'doDay', code: 'E-KEO2', level: 'error',
+        msg: '1 độ dày sử dụng ' + ds.length + ' loại keo (' + ds.join(', ') + ')' });
+    });
     var FORMAT_CODES = ['E-MIX', 'E-STAR'];
     var isErr = function (e) { return e.level === 'error'; };
     // lỗi mã keo KHÔNG thuộc dòng đơn nào → không tính vào "dòng hỏng"
-    var errRows = {}; errors.forEach(function (e) { if (isErr(e) && e.code !== 'E-KEO') errRows[e.maDon + '#' + e.seri] = 1; });
+    var errRows = {}; errors.forEach(function (e) { if (isErr(e) && !/^E-KEO/.test(e.code)) errRows[e.maDon + '#' + e.seri] = 1; });
     var stats = {
       total: orders.length,
       errorCells: errors.filter(isErr).length,   // gồm CẢ lỗi cấu trúc E-MIX/E-STAR
@@ -778,19 +786,19 @@
     (_dd.match(/\d+/g) || []).forEach(function (n) { var t = thickKey(n); if (t) out.push(t); });
     return out;
   }
-  /* ===== BẢNG KEO NHẬP NHẰNG (chốt 21/8) =====
-     Cùng một ĐỘ DÀY mà khách ghi 2 mã keo khác nhau, trong khi CẢ 3 cột phân biệt
-     (Loại Sợi · Độ Dài · Ghi Chú) đều TRỐNG → app không có căn cứ nào để chọn, trước đây
-     lặng lẽ lấy quy tắc đầu tiên (đơn K54-754P độ dày 0.06: Cam837.2 vs Nau155C.2).
-     Giờ: BÁO ĐỎ mấy dòng đó ở Bảng Keo, và dòng đơn thuộc độ dày đó lấy keo theo BẢNG CHI TIẾT
-     (cột "Keo Nhiệt" của khách) để xưởng/user tự kiểm rồi sửa.
-     CHỈ đếm những dòng có đủ 3 cột trống — dòng nào có điều kiện thì nó tự phân biệt được
-     (754P độ dày 0.10: "từ 7mm trở lên" vs "4-6mm" → KHÔNG báo). */
+  /* ===== 1 ĐỘ DÀY DÙNG 2 LOẠI KEO → CẢNH BÁO (chốt 21/8, nới rộng chiều 21/8) =====
+     MẶC ĐỊNH: cùng một ĐỘ DÀY mà khách ghi ≥2 mã keo khác nhau là TÔ MÀU + tính vào "ô sai
+     chuẩn" để user tự kiểm — KHÔNG xét mấy cột phân biệt nữa.
+     Lý do nới: đơn C41-775P độ dày 0.05 có Nau155C.2 vs Vang80.2, cả 2 dòng đều ghi chú
+     "Khách đã xác nhận dùng keo này" — ghi chú THỪA, chẳng phân biệt được gì, nên luật cũ
+     (chỉ báo khi 3 cột đều trống) bỏ sót.
+     Cảnh báo ≠ đổi cách điền keo: việc lấy keo theo BẢNG CHI TIẾT chỉ xảy ra khi tra quy tắc
+     bị HOÀ ĐIỂM (glueFor trả về out.tranh) — 754P độ dày 0.10 có ghi chú "từ 7mm trở lên" /
+     "4-6mm" phân biệt được thì vẫn tra theo quy tắc như cũ. */
   function timKeoNhapNhang(keoRows) {
     var nhom = {};
     (keoRows || []).forEach(function (k) {
       var glue = cleanKeoName(PS(k.loaiKeo)); if (!glue) return;
-      if (PS(k.loaiSoi) || PS(k.doDai) || PS(k.ghiChu)) return;   // có điều kiện → phân biệt được
       thicksOfDoDay(k.doDay).forEach(function (t) {
         var key = k.maDon + '|' + t, g = nhom[key] || (nhom[key] = []);
         if (g.indexOf(glue) < 0) g.push(glue);
@@ -803,7 +811,6 @@
   /** Dòng Bảng Keo này có nằm trong nhóm nhập nhằng không → trả về danh sách keo đang tranh nhau. */
   function keoNhapNhangCuaDong(amb, k) {
     if (!amb || !k) return null;
-    if (PS(k.loaiSoi) || PS(k.doDai) || PS(k.ghiChu)) return null;
     var ds = thicksOfDoDay(k.doDay);
     for (var i = 0; i < ds.length; i++) { var g = amb[k.maDon + '|' + ds[i]]; if (g) return g; }
     return null;
@@ -913,13 +920,13 @@
     });
     return hit;
   }
-  function glueFor(rules, comp) {
+  function glueFor(rules, comp, out) {
     var mat = normTxt(comp.material).replace(/\d+(?:[.,]\d+)?/g, ' ').replace(/\s+/g, ' ').trim();
     var mm = Number(comp.mm);
     // Code sợi có thể mang NHIỀU độ dày (vd "0.07/0.08") → khớp nếu BẤT KỲ độ dày nào nằm trong rule
     var compThicks = (String(comp.thickness == null ? '' : comp.thickness).match(/\d+(?:[.,]\d+)?/g) || []).map(thickKey).filter(function (x) { return x; });
     var tk = compThicks[0] || '';
-    var best = null, bestScore = -1;
+    var best = null, bestScore = -1, dsBest = [];
     (rules || []).forEach(function (r) {
       if (comp.maDon && r.maDon && r.maDon !== comp.maDon) return;
       var hasMat = r.mats && r.mats.length, hasThick = r.thick && r.thick.length;
@@ -949,8 +956,13 @@
       // Material trọng số cao nhất (rule chỉ-định-material luôn thắng); rồi Thickness; rồi Length
       // (khoảng độ dài đặc hiệu spec3 > nửa hở spec2 > tất cả spec0) chỉ để phá hoà bậc thấp nhất.
       var score = (matHit + (hasMat ? 1 : 0)) * 1000000 + (hasThick ? 1000 : 0) + (r.spec || 0);
-      if (score > bestScore) { best = r; bestScore = score; }
+      /* HOÀ ĐIỂM mà 2 keo KHÁC NHAU = app không có căn cứ chọn (775P độ dày 0.05: 2 quy tắc
+         y hệt nhau, chỉ khác mã keo). Gom lại vào out.tranh để nơi gọi biết mà lấy keo theo
+         BẢNG CHI TIẾT thay vì im lặng lấy quy tắc đầu tiên. */
+      if (score > bestScore) { best = r; bestScore = score; dsBest = [r.glue]; }
+      else if (score === bestScore && r.glue && dsBest.indexOf(r.glue) < 0) dsBest.push(r.glue);
     });
+    if (out) out.tranh = (dsBest.length > 1) ? dsBest.slice().sort() : null;
     return best ? best.glue : '';
   }
   // ===== OVERRIDE KEO THEO ĐỘ CONG (cấu hình chung, KHÔNG hardcode theo đơn) =====
@@ -1036,10 +1048,9 @@
       .map(function (x) { x = x.trim(); return x ? (/-NC$/.test(x) ? x : x + '-NC') : x; })
       .join('\n');
   }
-  function buildCuonBoxSheet(data1, orders, keoRules, keoMalformed, keoHasRules, keoAmbig) {
+  function buildCuonBoxSheet(data1, orders, keoRules, keoMalformed, keoHasRules) {
     keoMalformed = keoMalformed || {};
     keoHasRules = keoHasRules || {};
-    keoAmbig = keoAmbig || {};
     // nhóm theo MÃ ĐƠN + Code Sợi (cùng code ở 2 đơn khác nhau không gộp lẫn)
     orders = orders || []; var meta = {};
     orders.forEach(function (o) { meta[o.maDon + '|' + o.codeSoi + '|' + o.length] = o; });
@@ -1073,19 +1084,21 @@
         if (keoRules && keoRules.length) {
           var _ctx = { maDon: r.maDon, material: r.material || '', thickness: r.thickness, mm: r.mm, codeSoi: r.codeSoi, detail: r.detail, loaiHang: r.loaiHang, label: r.label, ghiChu: r.ghiChu };
           // độ cong THƯỜNG: bỏ qua quy tắc chỉ dành riêng cho LB/LC/LJ/LC+
-          k1 = glueFor(keoRules, Object.assign({}, _ctx, { curlNhom: false }));
+          var _tr = {};
+          k1 = glueFor(keoRules, Object.assign({}, _ctx, { curlNhom: false }), _tr);
           /* LB/LC/LJ/LC+: nếu khách CÓ ghi rõ keo cho mấy độ cong này thì dùng ĐÚNG keo đó
              (750P: "Độ cong LB, LC, LJ, LC+" → XanhBLu150.2). Không ghi thì giữ nguyên luật
              cũ — "keo 2mm" = keo của dải ngắn nhất. */
-          k2 = glueForCurlOnly(keoRules, _ctx) || glueForShort(keoRules, _ctx);
+          var _kCurl = glueForCurlOnly(keoRules, _ctx);
+          k2 = _kCurl || glueForShort(keoRules, _ctx);
+          /* TRA RA 2 KEO CÙNG ĐIỂM → KHÔNG ĐOÁN: lấy đúng keo khách ghi ở BẢNG CHI TIẾT của
+             dòng đó, đánh dấu để bước 5 tô ô "Keo nhiệt" cho user soi lại (21/8). */
+          if (_tr.tranh) { k1 = r.ghiChuKeo || ''; if (!_kCurl) k2 = k1; ambRow = true; }
         }
         /* CHỈ mượn cột "Keo Nhiệt" của khách khi đơn đó KHÔNG CÓ Bảng Keo nào dùng được.
            Đơn CÓ Bảng Keo mà tra không ra thì phải ĐỂ TRỐNG — trước đây lặng lẽ lấy keo trong
            cột của khách, nên xoá một dòng trong Bảng Keo vẫn thấy có keo (mà là keo lạ, không
            hề có trong bảng), tưởng app tính đúng. Trống mới thấy ngay là bảng còn thiếu. */
-        /* ĐỘ DÀY NHẬP NHẰNG (2 keo, không có điều kiện nào phân biệt) → KHÔNG ĐOÁN.
-           Lấy đúng keo khách ghi ở BẢNG CHI TIẾT của dòng đó; user tự kiểm rồi sửa (21/8). */
-        if (keoAmbig[r.maDon + '|' + thickKey(r.thickness)]) { k1 = r.ghiChuKeo || ''; k2 = k1; ambRow = true; }
         if (!k1 && !keoHasRules[r.maDon]) k1 = r.ghiChuKeo || '';
         if (!k2) k2 = k1;
       }
@@ -1201,7 +1214,7 @@
       lineByOrder[m] = lm;
     });
     var cuon = buildCuonBox(data1, s1.orders);
-    var cuonSheet = buildCuonBoxSheet(data1, s1.orders, keoRules, keoMalformed, keoUsable, keoAmbig);
+    var cuonSheet = buildCuonBoxSheet(data1, s1.orders, keoRules, keoMalformed, keoUsable);
     var keoByOrder = {};
     var maDons = {}; s1.orders.forEach(function (o) { maDons[o.maDon] = 1; });
     Object.keys(maDons).forEach(function (m) { keoByOrder[m] = (input.keoRows || []).filter(function (k) { return k.maDon === m; }); });
