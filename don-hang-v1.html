@@ -537,6 +537,11 @@ kbd{background:var(--surface-3);border:1px solid var(--border);border-bottom-wid
 .fbtn:hover{opacity:1;background:var(--surface-2)}
 .fbtn.on{opacity:1;color:var(--accent)}
 .fmenu-list{max-height:min(250px,38vh);overflow:auto;margin:2px 0}
+/* Ô TÌM trong menu lọc ▼ (kiểu Google Sheets) — chốt 21/8 */
+.fmenu-tim{padding:0 8px 5px}
+.fmenu-tim input{width:100%;box-sizing:border-box;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:7px;background:var(--surface)}
+.fmenu-tim input:focus{outline:none;border-color:var(--accent)}
+.fmenu-list .fm-trong{padding:7px 11px;font-size:11.5px;color:var(--text-3)}
 .fmenu-list label{display:flex;gap:8px;align-items:center;padding:5px 11px;border-radius:6px;cursor:pointer;font-size:12px}
 .fmenu-list label:hover{background:var(--surface-3)}
 tr.flash td{animation:flashbg 1.4s ease}
@@ -609,7 +614,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608211510</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608212100</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -4599,30 +4604,33 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var m = document.createElement('div'); m.id='af-ctx'; m.className='ctx-menu';
       m.innerHTML =
         '<div style="padding:6px 11px;font-weight:700">Lọc: '+esc(label)+'</div>'+
+        fmenuOTim()+
         '<div class="fmenu-list">'+
           keys.map(function(v){
             var chk = (!cur || cur[v]) ? ' checked' : '';
-            return '<label><input type="checkbox" data-v="'+esc(v)+'"'+chk+'> <span>'+(v===''?'<i>(trống)</i>':esc(v))+'</span> <span class="mini">('+vals[v]+')</span></label>';
+            return '<label data-lv="'+esc(v)+'"><input type="checkbox" data-v="'+esc(v)+'"'+chk+'> <span>'+(v===''?'<i>(trống)</i>':esc(v))+'</span> <span class="mini">('+vals[v]+')</span></label>';
           }).join('')+
         '</div><hr>'+
-        '<div class="mi" data-fact="all">☑️ Chọn tất cả</div>'+
-        '<div class="mi" data-fact="none">⬜ Bỏ chọn tất cả</div><hr>'+
+        /* 1 nút DUY NHẤT "Chọn tất cả" bật/tắt (chốt 21/8); đang gõ ô tìm thì đổi thành
+           "Chỉ chọn N kết quả tìm" — xem fmenuVe(). */
+        fmenuNutChon()+'<hr>'+
         '<div class="mi" data-fact="ok"><b>✔ Áp dụng lọc</b></div>'+
         '<div class="mi danger" data-fact="clear">✕ Xóa lọc cột này</div>';
       document.body.appendChild(m);
-      var mw=230, mh=330;
-      m.style.left = Math.min(x, (window.innerWidth||1200)-mw-8)+'px';
-      m.style.top  = Math.min(y, (window.innerHeight||800)-mh-8)+'px';
+      /* ĐO chiều cao THẬT rồi mới đặt chỗ (giống menu lọc của các bảng khác). Trước trừ hao
+         cứng 330px, thêm ô tìm là hộp cao hơn thế → nút "Áp dụng" tụt dưới đáy màn hình. */
+      (function(){
+        var W=window.innerWidth||1200, H=window.innerHeight||800, r=m.getBoundingClientRect();
+        m.style.left=Math.max(8, Math.min(x, W-(r.width||230)-8))+'px';
+        m.style.top =Math.max(8, Math.min(y, H-(r.height||360)-8))+'px';
+      })();
       m.addEventListener('click', function(ev){
         ev.stopPropagation();
         var mi = ev.target && ev.target.closest ? ev.target.closest('.mi') : null;
         if(!mi) return;
         var act = mi.getAttribute('data-fact');
         var boxes = m.querySelectorAll('input[type="checkbox"]');
-        if(act==='all'||act==='none'){
-          Array.prototype.forEach.call(boxes, function(b){ b.checked = act==='all'; });
-          return;
-        }
+        if(act==='toggle'){ fmenuToggle(m); return; }
         if(act==='clear'){ setFilter(key, null); closeCtxMenu(); return; }
         if(act==='ok'){
           var sel={}, total=0, picked=0;
@@ -4631,6 +4639,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           closeCtxMenu();
         }
       });
+      // ô TÌM giá trị (kiểu Google Sheets) — Enter = Áp dụng
+      fmenuGanTim(m, function(){ var ok=m.querySelector('.mi[data-fact="ok"]'); if(ok) ok.click(); });
       setTimeout(function(){
         document.addEventListener('click', function h(ev){
           if(m.contains && m.contains(ev.target)) return;
@@ -4661,15 +4671,38 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // bỏ lọc/tìm kiếm để chắc chắn dòng keo đó đang hiện (giống lúc nhảy ở Bảng Nhập Đơn)
     state.filters={}; gridQuery='';
     try{ applyGridFilter(); }catch(err){ logErr('jumpToKeo', err); }
+    /* Bảng Keo có bộ lọc RIÊNG (mã đơn · mã KH · ô tìm · lọc cột ▼). Đang lọc đơn khác thì
+       dòng cần tới bị ẩn → xoá sạch mấy bộ lọc đó trước khi nhảy (21/8). */
+    try{
+      ['s5-madon','s5-makh','s5-search'].forEach(function(id){ var el=document.getElementById(id); if(el && el.value){ el.value=''; } });
+      if(typeof colFilters==='object' && colFilters['eng-keo-full']) delete colFilters['eng-keo-full'];
+      __capReflow();
+      if(typeof applyAllFilters==='function') applyAllFilters();
+    }catch(err){ logErr('jumpToKeo.loc', err); }
     // bảng chỉ vẽ khi vào đúng bước → thử lại vài nhịp cho tới khi có dòng
     var tries=0;
     (function find(){
       var tb=document.getElementById('eng-keo-full');
       var tr=tb && tb.querySelector('tr[data-keoidx="'+e.keoIdx+'"]');
+      /* Bảng chia trang: dòng keo nằm ở trang khác thì không có trong DOM → tìm trong POOL
+         rồi LẬT ĐÚNG TRANG chứa nó (giống jumpToError của Bảng Nhập Đơn). */
+      if(!tr){
+        try{
+          var pool=poolRows('eng-keo-full');
+          for(var k=0;k<pool.length;k++){
+            if(pool[k].getAttribute && String(pool[k].getAttribute('data-keoidx'))===String(e.keoIdx)){
+              if(pgToiDong('eng-keo-full', pool[k])) tr=(tb&&tb.querySelector('tr[data-keoidx="'+e.keoIdx+'"]'))||pool[k];
+              break;
+            }
+          }
+        }catch(err){ logErr('jumpToKeo.trang', err); }
+      }
       if(!tr){ if(++tries<12) return setTimeout(find, 60); return; }
       if(tr.scrollIntoView) tr.scrollIntoView({block:'center', behavior:'smooth'});
       if(tr.classList){ tr.classList.add('flash'); setTimeout(function(){ tr.classList.remove('flash'); }, 1500); }
-      var td=tr.querySelector('td[data-keoedit="loaiKeo"]') || tr.querySelector('td.txt');
+      // tô ĐÚNG ô của lỗi: E-KEO → cột Loại Keo, E-KEO2 → cột Độ Dày
+      var td=(e.col && tr.querySelector('td[data-keoedit="'+e.col+'"]')) || tr.querySelector('td[data-keoedit="loaiKeo"]') || tr.querySelector('td.txt');
+      Array.prototype.forEach.call(document.querySelectorAll('td.jump-hit'), function(x){ x.classList.remove('jump-hit'); });
       if(td){
         if(td.scrollIntoView) td.scrollIntoView({block:'center',inline:'center'});
         td.classList.add('jump-hit');
@@ -4730,7 +4763,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   /* Tách số ô đỏ theo BẢNG chứa nó. Lỗi mã keo (E-KEO) không thuộc dòng đơn nào
      (seri = 0) nên không bao giờ hiện ở Bảng Nhập Đơn. */
-  function errIsKeo(e){ return e && (e.code==='E-KEO' || e.col==='loaiKeo'); }
+  /* Mọi mã bắt đầu bằng E-KEO đều là ô của BẢNG KEO: E-KEO = mã keo lạ (cột Loại Keo),
+     E-KEO2 = 1 độ dày dùng 2 loại keo (cột Độ Dày). Nhận thiếu là bấm ô sai chuẩn xong app
+     nhảy sang Bảng Nhập Đơn tìm dòng seri 0 → không thấy gì, tưởng app đơ (lỗi 21/8). */
+  function errIsKeo(e){ return e && (/^E-KEO/.test(e.code||'') || e.col==='loaiKeo'); }
   function errShownSplit(R){
     R=R||state.R; var n={don:0,keo:0}; if(!R) return n;
     (R.errors||[]).forEach(function(e){
@@ -4753,7 +4789,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      đánh số lại 1..N mỗi lần gộp file, nạp thêm 1 file là toàn bộ "đã kiểm" lệch khoá và
      6 ô vừa tích lại đỏ trở lại. Vẫn đọc được khoá cũ để project đã lưu không mất dấu. */
   function rowKey(x){ return (x.maDon||'')+'|'+(x.seriGoc!=null?x.seriGoc:x.seri); }
-  function errAckKey(e){ return rowKey(e)+'|'+e.col; }
+  /* E-KEO2: 1 đơn có thể có nhiều độ dày nhập nhằng, mà mọi lỗi keo đều seri 0 → phải thêm
+     chỉ số dòng keo, không thì tích "đã kiểm" 1 ô là mất luôn mấy ô còn lại. */
+  function errAckKey(e){ return rowKey(e)+'|'+e.col+((e.code==='E-KEO2'&&e.keoIdx!=null)?('|k'+e.keoIdx):''); }
   /* CHỈ nhận khoá theo seri GỐC. Đã BỎ việc đọc thêm khoá cũ (bám seri hiển thị): seri đó
      bị đánh số lại mỗi lần gộp file, nên dấu "đã kiểm" của phiên trước rơi trúng dòng khác
      → đơn vừa xử lý xong đã thấy ✓ dù chưa ai xác nhận. Thà mất dấu cũ 1 lần còn hơn đánh dấu sai. */
@@ -4911,6 +4949,56 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   var boxSel = {};                                    // lựa chọn Thùng theo dòng: key -> "Box 1"...
   var BOX_OPTIONS = (function(){ var a=[]; for(var i=1;i<=50;i++) a.push('Box '+i); return a; })();
   function nrm(s){ s=String(s==null?'':s); return (s.normalize?s.normalize('NFC'):s).toLowerCase(); }
+  /* ===== Ô TÌM trong menu lọc ▼ (kiểu Google Sheets) — chốt 21/8 =====
+     Cột nhiều giá trị (Code Sợi cả nhà máy có hàng trăm dòng) thì cuộn tay không xong. Gõ vào ô
+     tìm là danh sách lọc theo ngay; lúc đó nút "Chọn tất cả" đổi thành "Chỉ chọn N kết quả tìm"
+     — bấm 1 lần là tích đúng mấy dòng đang tìm ra và BỎ hết dòng khác (1 bấm ra đúng ý, khỏi
+     phải bỏ chọn tất cả rồi mới tích). Không gõ gì thì nút vẫn là bật/tắt chọn tất cả.
+     Dùng CHUNG cho cả 2 menu lọc (bảng Nhập Đơn + các bảng khác) để 2 chỗ không bao giờ lệch. */
+  function fmenuOTim(){ return '<div class="fmenu-tim"><input class="fsearch" type="text" placeholder="🔍 Tìm giá trị…" autocomplete="off"></div>'; }
+  function fmenuNutChon(){ return '<div class="mi" data-fact="toggle"><span data-tgl>☑️</span> <span data-tgllb>Chọn tất cả</span></div>'; }
+  function fmenuKhop(l, q){ return !q || nrm(l.getAttribute('data-lv')||'').indexOf(q)>=0; }
+  function fmenuVe(m){
+    var inp=m.querySelector('.fsearch'), ic=m.querySelector('[data-tgl]'), lb=m.querySelector('[data-tgllb]');
+    var q=inp?nrm(inp.value).trim():'', ls=m.querySelectorAll('.fmenu-list label'), n=0, hetTich=true;
+    Array.prototype.forEach.call(ls, function(l){
+      var hien=fmenuKhop(l,q); l.style.display=hien?'':'none';
+      if(hien){ n++; var b=l.querySelector('input'); if(b && !b.checked) hetTich=false; }
+    });
+    var tr=m.querySelector('.fm-trong');
+    if(!n && q){ if(!tr){ tr=document.createElement('div'); tr.className='fm-trong'; tr.textContent='Không có giá trị nào khớp.'; m.querySelector('.fmenu-list').appendChild(tr); } tr.style.display=''; }
+    else if(tr) tr.style.display='none';
+    if(lb) lb.textContent = q ? ('Chỉ chọn '+n+' kết quả tìm') : 'Chọn tất cả';
+    if(ic) ic.textContent = (n && hetTich) ? '☑️' : '⬜';
+  }
+  function fmenuToggle(m){
+    var inp=m.querySelector('.fsearch'), q=inp?nrm(inp.value).trim():'';
+    var hien=[], an=[];
+    Array.prototype.forEach.call(m.querySelectorAll('.fmenu-list label'), function(l){
+      var b=l.querySelector('input'); if(!b) return; (fmenuKhop(l,q)?hien:an).push(b);
+    });
+    var duHien = hien.length>0 && hien.every(function(b){ return b.checked; });
+    if(q){
+      /* ĐANG TÌM: bấm lần đầu = "chỉ chọn kết quả tìm" (tích mấy dòng đang hiện, BỎ hết dòng
+         khác) — kể cả khi ban đầu đang tích hết, vì lúc đó việc cần làm là THU HẸP lại.
+         Đã đúng y như vậy rồi (hiện tích hết + ẩn bỏ hết) thì bấm nữa là bỏ sạch. */
+      var anSach = an.every(function(b){ return !b.checked; });
+      var dungRoi = duHien && anSach;
+      hien.forEach(function(b){ b.checked = !dungRoi; });
+      an.forEach(function(b){ b.checked = false; });
+    } else {
+      hien.forEach(function(b){ b.checked = !duHien; });   // không tìm gì: bật/tắt chọn tất cả
+    }
+    fmenuVe(m);
+  }
+  function fmenuGanTim(m, apDung){
+    var inp=m.querySelector('.fsearch'); if(!inp) return;
+    inp.addEventListener('input', function(){ fmenuVe(m); });
+    inp.addEventListener('keydown', function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); if(apDung) apDung(); } });
+    m.addEventListener('change', function(){ fmenuVe(m); });   // tích/bỏ tay → đổi dấu ☑️/⬜
+    fmenuVe(m);
+    setTimeout(function(){ try{ inp.focus(); }catch(e){ logErr('fmenuGanTim', e); } }, 0);
+  }
   function getVal(id){ var el=document.getElementById(id); return el?String(el.value||''):''; }
   /* Danh sách mã đơn cho MỌI bộ lọc (mọi bước) — ĐƠN MỚI NHẤT LÊN ĐẦU (chốt 18/8), dùng
      chung cách xếp với bảng Tổng hợp đơn ở bước 2 để không nơi này nơi kia khác nhau. */
@@ -5802,8 +5890,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var cur=(colFilters[tbodyId]||{})[colIdx];
     var m=document.createElement('div'); m.id='af-ctx'; m.className='ctx-menu';
     m.innerHTML='<div style="padding:6px 11px;font-weight:700">Lọc: '+esc(label)+'</div>'+
-      '<div class="fmenu-list">'+order.map(function(v){ var chk=(!cur||cur[v])?' checked':''; return '<label><input type="checkbox" data-v="'+esc(v)+'"'+chk+'> <span>'+(v===''?'<i>(trống)</i>':esc(v))+'</span> <span class="mini">('+vals[v]+')</span></label>'; }).join('')+'</div><hr>'+
-      '<div class="mi" data-fact="all">☑️ Chọn tất cả</div><div class="mi" data-fact="none">⬜ Bỏ chọn tất cả</div><hr>'+
+      fmenuOTim()+
+      '<div class="fmenu-list">'+order.map(function(v){ var chk=(!cur||cur[v])?' checked':''; return '<label data-lv="'+esc(v)+'"><input type="checkbox" data-v="'+esc(v)+'"'+chk+'> <span>'+(v===''?'<i>(trống)</i>':esc(v))+'</span> <span class="mini">('+vals[v]+')</span></label>'; }).join('')+'</div><hr>'+
+      /* 1 nút DUY NHẤT "Chọn tất cả" bật/tắt (chốt 21/8); đang gõ ô tìm thì đổi thành
+         "Chỉ chọn N kết quả tìm" — xem fmenuVe(). */
+      fmenuNutChon()+'<hr>'+
       '<div class="mi" data-fact="ok"><b>✔ Áp dụng</b></div><div class="mi danger" data-fact="clear">✕ Xóa lọc cột này</div>';
     document.body.appendChild(m);
     /* ĐO chiều cao THẬT rồi mới đặt chỗ. Trước đây trừ hao cứng 344px trong khi danh sách dài
@@ -5818,13 +5909,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       ev.stopPropagation();
       var mi=ev.target&&ev.target.closest?ev.target.closest('.mi'):null; if(!mi) return;
       var act=mi.getAttribute('data-fact'), boxes=m.querySelectorAll('input[type="checkbox"]');
-      if(act==='all'||act==='none'){ Array.prototype.forEach.call(boxes,function(b){ b.checked=act==='all'; }); return; }
+      if(act==='toggle'){ fmenuToggle(m); return; }
       if(act==='clear'){ if(colFilters[tbodyId]) delete colFilters[tbodyId][colIdx]; if(typeof closeCtxMenu==='function') closeCtxMenu(); applyTable(tbodyId); veLaiTheoLoc(tbodyId); return; }
       if(act==='ok'){ var sel={},total=0,picked=0; Array.prototype.forEach.call(boxes,function(b){ total++; if(b.checked){ picked++; sel[b.getAttribute('data-v')]=1; } });
         colFilters[tbodyId]=colFilters[tbodyId]||{};
         if(picked===total) delete colFilters[tbodyId][colIdx]; else colFilters[tbodyId][colIdx]=sel;
         if(typeof closeCtxMenu==='function') closeCtxMenu(); applyTable(tbodyId); veLaiTheoLoc(tbodyId); }
     });
+    // ô TÌM giá trị (kiểu Google Sheets) — Enter = Áp dụng
+    fmenuGanTim(m, function(){ var ok=m.querySelector('.mi[data-fact="ok"]'); if(ok) ok.click(); });
     /* Bấm ra ngoài thì đóng. Handler phải TỰ THÁO khi hộp của chính nó đã đóng — trước đây
        bấm "Áp dụng" (stopPropagation) nên handler cũ còn treo, lần sau mở hộp lọc là bị nó
        đóng ngay, tưởng nút Áp dụng không bấm được (lỗi 13/8). */

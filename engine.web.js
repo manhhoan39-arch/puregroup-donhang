@@ -775,30 +775,56 @@
     }
     return -1;
   }
-  /* Bóc DANH SÁCH ĐỘ DÀY từ ô "Độ Dày" của Bảng Keo. 2 kiểu ghi (tránh nhập nhằng dấu phẩy):
+  /* ===== ĐỌC Ô "ĐỘ DÀY" CỦA BẢNG KEO =====
+     Kiểu ghi ĐỘ DÀY (tránh nhập nhằng dấu phẩy):
        · số THẬP PHÂN "0.07 / 0,085 / 0.10" → dấu phẩy là dấu thập phân, giữ nguyên
        · MÃ độ dày NGUYÊN "6,7,85,10" → dấu phẩy là dấu TÁCH LIST
-     Dùng chung cho buildKeoRules và bộ phát hiện keo nhập nhằng để 2 chỗ không bao giờ lệch. */
-  function thicksOfDoDay(doDay) {
-    var _dd = String(doDay == null ? '' : doDay), out = [];
-    (_dd.match(/0[.,]\d+/g) || []).forEach(function (d) { var t = thickKey(d); if (t) out.push(t); });
-    _dd = _dd.replace(/0[.,]\d+/g, ' ');
-    (_dd.match(/\d+/g) || []).forEach(function (n) { var t = thickKey(n); if (t) out.push(t); });
+     Khách còn viết kèm ĐIỀU KIỆN ĐỘ DÀI ngay trong ô này: "15 (6-8mm)" / "15 (9-13mm)"
+     (đơn K21-761P). Mấy số trong ngoặc / dải "6-8mm" là ĐỘ DÀI, KHÔNG phải độ dày — trước
+     đây bóc bừa thành độ dày 6 và 8 nên:
+       · quy tắc keo XanhBLu150.2 ăn cả sợi 0.06/0.08 (sai keo, im lặng), và
+       · bộ cảnh báo tưởng độ dày 0.06 có 2 keo (Cam837.2 vs XanhBLu150.2) → BÁO OAN (21/8).
+     tachDoDay() trả riêng { thicks, dai } để buildKeoRules dùng "dai" làm điều kiện độ dài. */
+  function _thicksTho(s) {
+    var out = [];
+    (s.match(/0[.,]\d+/g) || []).forEach(function (d) { var t = thickKey(d); if (t) out.push(t); });
+    s = s.replace(/0[.,]\d+/g, ' ');
+    (s.match(/\d+/g) || []).forEach(function (n) { var t = thickKey(n); if (t) out.push(t); });
     return out;
   }
-  /* ===== 1 ĐỘ DÀY DÙNG 2 LOẠI KEO → CẢNH BÁO (chốt 21/8, nới rộng chiều 21/8) =====
-     MẶC ĐỊNH: cùng một ĐỘ DÀY mà khách ghi ≥2 mã keo khác nhau là TÔ MÀU + tính vào "ô sai
-     chuẩn" để user tự kiểm — KHÔNG xét mấy cột phân biệt nữa.
-     Lý do nới: đơn C41-775P độ dày 0.05 có Nau155C.2 vs Vang80.2, cả 2 dòng đều ghi chú
-     "Khách đã xác nhận dùng keo này" — ghi chú THỪA, chẳng phân biệt được gì, nên luật cũ
-     (chỉ báo khi 3 cột đều trống) bỏ sót.
-     Cảnh báo ≠ đổi cách điền keo: việc lấy keo theo BẢNG CHI TIẾT chỉ xảy ra khi tra quy tắc
-     bị HOÀ ĐIỂM (glueFor trả về out.tranh) — 754P độ dày 0.10 có ghi chú "từ 7mm trở lên" /
-     "4-6mm" phân biệt được thì vẫn tra theo quy tắc như cũ. */
+  function tachDoDay(doDay) {
+    var s = String(doDay == null ? '' : doDay), dai = [];
+    s = s.replace(/\(([^)]*)\)/g, function (_m, x) { dai.push(x); return ' '; });          // phần trong ngoặc
+    s = s.replace(/\d+\s*[-~]\s*\d+\s*mm/gi, function (x) { dai.push(x); return ' '; });  // dải "6-8mm"
+    return { thicks: _thicksTho(s), dai: dai.join(' ').replace(/\s+/g, ' ').trim() };
+  }
+  function thicksOfDoDay(doDay) { return tachDoDay(doDay).thicks; }
+  /* ===== 1 ĐỘ DÀY DÙNG 2 LOẠI KEO MÀ KHÔNG PHÂN BIỆT ĐƯỢC → CẢNH BÁO (chốt 21/8) =====
+     Cùng một ĐỘ DÀY mà khách ghi ≥2 mã keo khác nhau, và mấy dòng đó KHÔNG có thông tin gì để
+     phân biệt → app không có căn cứ chọn: TÔ MÀU + tính vào "ô sai chuẩn" cho user tự kiểm.
+     "CÓ thông tin phân biệt" = cột Loại Sợi hoặc Độ Dài có chữ, HOẶC Ghi Chú chứa ĐIỀU KIỆN
+     THẬT (dải mm / độ dày / phạm vi độ cong). Ghi chú chỉ là câu nói suông thì KHÔNG tính —
+     `parseKeoCond` bóc cả câu thành "tên nguyên liệu" nên không thể tin mats. Ca thật:
+       · 785P độ dày 0.07/0.05 — Loại Sợi ghi rõ "GHIACCIO 0.07" / "BORDEAUX 0.05" → KHÔNG báo
+       · 672P "4-8mm" vs "9-18mm" · 731P "7-9mm" vs "10-14mm" · 754P "từ 7mm trở lên" vs
+         "4-6mm" · 750P "6-8mm … không phải LB/LC/LJ/LC+" → có điều kiện → KHÔNG báo
+       · 775P độ dày 0.05 — cả 2 dòng chỉ ghi "Khách đã xác nhận dùng keo này" (ghi chú THỪA,
+         không phân biệt gì) → BÁO
+       · 754P độ dày 0.06 — cả 3 cột trống → BÁO */
+  function keoCoDieuKien(k) {
+    if (!k) return false;
+    if (PS(k.loaiSoi) || PS(k.doDai)) return true;
+    // dải độ dài viết KÈM trong ô Độ Dày: "15 (6-8mm)" vs "15 (9-13mm)" → phân biệt được
+    if (tachDoDay(k.doDay).dai) return true;
+    var gh = PS(k.ghiChu); if (!gh) return false;
+    var c = parseKeoCond(gh);
+    return c.lo != null || (c.thicks && c.thicks.length > 0) || !!c.curlOnly || !!c.curlNot || /đ[ộo]\s*cong/i.test(gh);
+  }
   function timKeoNhapNhang(keoRows) {
     var nhom = {};
     (keoRows || []).forEach(function (k) {
       var glue = cleanKeoName(PS(k.loaiKeo)); if (!glue) return;
+      if (keoCoDieuKien(k)) return;                 // có căn cứ phân biệt → không phải ca nhập nhằng
       thicksOfDoDay(k.doDay).forEach(function (t) {
         var key = k.maDon + '|' + t, g = nhom[key] || (nhom[key] = []);
         if (g.indexOf(glue) < 0) g.push(glue);
@@ -811,6 +837,7 @@
   /** Dòng Bảng Keo này có nằm trong nhóm nhập nhằng không → trả về danh sách keo đang tranh nhau. */
   function keoNhapNhangCuaDong(amb, k) {
     if (!amb || !k) return null;
+    if (keoCoDieuKien(k)) return null;
     var ds = thicksOfDoDay(k.doDay);
     for (var i = 0; i < ds.length; i++) { var g = amb[k.maDon + '|' + ds[i]]; if (g) return g; }
     return null;
@@ -844,9 +871,11 @@
       // Cột Độ Dày = chỉ chứa độ dày. Xử lý 2 kiểu ghi (tránh nhập nhằng dấu phẩy):
       //  · số THẬP PHÂN "0.07 / 0,085 / 0.10" → giữ nguyên (dấu phẩy là dấu thập phân)
       //  · MÃ độ dày NGUYÊN "6,7,85,10" hoặc "7,10" → dấu phẩy là dấu tách LIST (không phải thập phân)
-      var dayThicks = thicksOfDoDay(k.doDay);
+      var _dd = tachDoDay(k.doDay), dayThicks = _dd.thicks;
       var thicks = dayThicks.concat(soi.thicks);
-      // Điều kiện ĐỘ DÀI: ưu tiên cột Độ Dài; nếu trống lấy từ Loại Sợi, rồi Ghi Chú.
+      /* Điều kiện ĐỘ DÀI: ưu tiên cột Độ Dài → dải ghi KÈM trong ô Độ Dày ("15 (6-8mm)")
+         → Loại Sợi → Ghi Chú. */
+      if (len.lo == null && _dd.dai) { var _dl = parseKeoCond(_dd.dai); if (_dl.lo != null) len = _dl; }
       if (len.lo == null && soi.lo != null) { len = soi; }
       var _ghDescLen = (PS(k.loaiSoi) || PS(k.doDay) || PS(k.doDai)) && /(^|[\s("'•*-])keo(\s|$)/i.test(PS(k.ghiChu));
       if (len.lo == null && ghi.lo != null && !_ghDescLen) { len = ghi; }
@@ -2292,7 +2321,8 @@
     buildKeoRules: buildKeoRules, expandKeoRows: expandKeoRows, glueFor: glueFor, glueForShort: glueForShort, orderGlues: orderGlues,
     OVERRIDE_2MM_CURLS: OVERRIDE_2MM_CURLS, isOverrideCurl: isOverrideCurl,
     parseKeoCond: parseKeoCond, thickKey: thickKey,
-    thicksOfDoDay: thicksOfDoDay, timKeoNhapNhang: timKeoNhapNhang, keoNhapNhangCuaDong: keoNhapNhangCuaDong,
+    thicksOfDoDay: thicksOfDoDay, tachDoDay: tachDoDay, timKeoNhapNhang: timKeoNhapNhang, keoNhapNhangCuaDong: keoNhapNhangCuaDong,
+    keoCoDieuKien: keoCoDieuKien,
     buildData1: buildData1, buildLineMatrix: buildLineMatrix, STRATEGIES: STRATEGIES,
     buildCuonBox: buildCuonBox, buildCuonBoxSheet: buildCuonBoxSheet, buildSummary: buildSummary,
     runPipeline: runPipeline,
