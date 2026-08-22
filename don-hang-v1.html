@@ -614,7 +614,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608220120</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608221045</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -4368,8 +4368,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   document.addEventListener('mousedown', function(ev){ var cc=cmCoord(ev.target); if(!cc){ if(cmA&&!(ev.target.closest&&ev.target.closest('td[data-cmk]'))){ cmA=cmH=null; cmPaint(); } return; } cmA=cc; cmH=cc; cmDrag=true; cmPaint(); });
   document.addEventListener('mousemove', function(ev){ if(!cmDrag||ev.buttons!==1) return; var el=document.elementFromPoint(ev.clientX,ev.clientY); var cc=el?cmCoord(el):null; if(!cc||cc.k!==cmA.k) return; if(!cmH||cc.r!==cmH.r||cc.c!==cmH.c){ cmH=cc; if(cc.r!==cmA.r||cc.c!==cmA.c){ try{window.getSelection().removeAllRanges();}catch(e){ logErr('cmWrite', e); } } cmPaint(); } });
   document.addEventListener('mouseup', function(){ cmDrag=false; });
-  document.addEventListener('copy', function(ev){ if(!cmMulti()) return; var rg=cmRange(),out=[]; for(var r=rg.r1;r<=rg.r2;r++){ var line=[]; for(var c=rg.c1;c<=rg.c2;c++){ var el=cmCellAt(rg.k,r,c); line.push(el?el.textContent.trim():''); } out.push(line.join('\t')); } var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text',out.join('\n')); ev.preventDefault(); } });
-  document.addEventListener('cut', function(ev){ if(!cmMulti()) return; var rg=cmRange(),out=[]; pushUndo(); for(var r=rg.r1;r<=rg.r2;r++){ var line=[]; for(var c=rg.c1;c<=rg.c2;c++){ var el=cmCellAt(rg.k,r,c); line.push(el?el.textContent.trim():''); cmWrite(el,0); if(el) el.textContent=''; } out.push(line.join('\t')); } var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text',out.join('\n')); ev.preventDefault(); } cmDirty=true; cmSync(rg.k); });
+  document.addEventListener('copy', function(ev){ if(trongONhap(ev)) return; if(!cmMulti()) return; var rg=cmRange(),out=[]; for(var r=rg.r1;r<=rg.r2;r++){ var line=[]; for(var c=rg.c1;c<=rg.c2;c++){ var el=cmCellAt(rg.k,r,c); line.push(el?el.textContent.trim():''); } out.push(line.join('\t')); } var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text',out.join('\n')); ev.preventDefault(); } });
+  document.addEventListener('cut', function(ev){ if(trongONhap(ev)) return; if(!cmMulti()) return; var rg=cmRange(),out=[]; pushUndo(); for(var r=rg.r1;r<=rg.r2;r++){ var line=[]; for(var c=rg.c1;c<=rg.c2;c++){ var el=cmCellAt(rg.k,r,c); line.push(el?el.textContent.trim():''); cmWrite(el,0); if(el) el.textContent=''; } out.push(line.join('\t')); } var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text',out.join('\n')); ev.preventDefault(); } cmDirty=true; cmSync(rg.k); });
   document.addEventListener('paste', function(ev){ var cc=cmCoord(ev.target); if(!cc) return; var cd=ev.clipboardData||window.clipboardData; var text=cd&&cd.getData?cd.getData('text'):''; if(!text) return; ev.preventDefault();
     var g=parseClipboard(text); pushUndo();
     g.forEach(function(cells,ri){ cells.forEach(function(val,cj){
@@ -4459,8 +4459,22 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(!td||td.__ttChecked) return; td.__ttChecked=true;
     if(td.scrollWidth>td.clientWidth+2 && !td.getAttribute('title')) td.setAttribute('title', String(td.innerText||'').trim());
   });
+  /* ===== Ô TÌM KIẾM / ô nhập của thanh công cụ: copy · cắt · dán như thường (lỗi 22/8) =====
+     Đang bôi đen 1 ô trong bảng rồi bấm Ctrl+V ở ô tìm thì handler "dán KHỐI" nuốt mất phím và
+     báo "Không dán được: vùng đích không có ô sửa được". Mọi handler clipboard DÙNG CHUNG phải
+     nhường cho ô nhập/ô tìm — con trỏ đang ở <input>/<textarea>/<select> thì để trình duyệt tự lo. */
+  function trongONhap(ev){
+    var t=(ev&&ev.target)||null;
+    if(t && t.closest && t.closest('input,textarea,select')) return true;
+    /* Chỉ khi sự kiện bắn thẳng vào document/body (vài trình duyệt làm vậy) mới xét ô đang focus.
+       Xét lúc nào cũng thì bấm ô trong bảng mà con trỏ còn ở ô tìm là mất luôn dán khối. */
+    if(t && t.nodeType===1 && t.tagName!=='BODY' && t.tagName!=='HTML') return false;
+    var a=document.activeElement;
+    return !!(a && /^(input|textarea|select)$/i.test(a.tagName||''));
+  }
   // Copy vùng chọn → TSV (dán ra Excel được). Hỗ trợ cả 1 ô (copy cả ô) lẫn nhiều ô.
   document.addEventListener('copy', function(ev){
+    if(trongONhap(ev)) return;
     if(!(gsA&&gsH&&gsA.tb===gsH.tb)) return;
     var single=(gsA.r===gsH.r&&gsA.c===gsH.c);
     if(single){ try{ if(String(window.getSelection()||'').length) return; }catch(e){ logErr('gsPaint', e); } }   // đang bôi text trong ô → để copy mặc định
@@ -4508,6 +4522,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   // CẮT: copy vùng ra clipboard rồi xóa nội dung các ô sửa được
   document.addEventListener('cut', function(ev){
     if(ev.defaultPrevented) return;                         // bảng khác đã xử lý (Mix Màu · Packing Slip)
+    if(trongONhap(ev)) return;                              // con trỏ ở ô tìm / ô nhập → cắt như thường
     var rg=gsSelRange(); if(!rg) return;
     if(gsInEdit()){ try{ if(String(window.getSelection()||'').length) return; }catch(e){ logErr('gsClear', e); } }   // đang bôi text trong ô → cắt mặc định
     var cd=ev.clipboardData||window.clipboardData; if(!cd) return;
@@ -4519,13 +4534,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   document.addEventListener('keydown', function(ev){
     if(ev.key!=='Delete' && ev.key!=='Backspace') return;
     if(gsInEdit()) return;                                  // đang gõ trong ô → để xóa ký tự
-    var a=document.activeElement; if(a && /input|textarea|select/i.test(a.tagName||'')) return;
+    if(trongONhap(ev)) return;                              // con trỏ ở ô tìm / ô nhập → xóa ký tự như thường
     var rg=gsSelRange(); if(!rg) return;
     ev.preventDefault(); gsClear(rg);
   });
   // DÁN KHỐI: từ Excel/Sheets hoặc trong app → ghi từ ô góc trên-trái của vùng chọn
   document.addEventListener('paste', function(ev){
     if(ev.defaultPrevented) return;                         // bảng đã có handler riêng (vd Bảng Keo) xử lý trước
+    if(trongONhap(ev)) return;                              // con trỏ ở ô tìm / ô nhập → dán như thường
     var rg=gsSelRange(); if(!rg) return;
     var ae=document.activeElement, aCell=(ae&&ae.closest)?ae.closest('td'):null;
     var cd=ev.clipboardData||window.clipboardData; var text=cd&&cd.getData?cd.getData('text'):'';
