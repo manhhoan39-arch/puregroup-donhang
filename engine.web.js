@@ -1440,6 +1440,36 @@
      mẫu giờ chỉ lấy số lượng ở BẢNG HỘP + khối "Mix Length" ở đầu sheet, rồi tự sinh bảng
      Line / Keo / Mix y như mẫu cũ; Mix nhiều màu thì admin điền tay ở bước 3.
      hrSkip = dòng header bảng đơn (cũng có chữ "Độ Dài"...) → bỏ qua để không nhận nhầm. */
+  /* ===== BẢNG MIX MÀU NẰM NGANG (chốt 22/8, đơn C213-785P) =====
+     Khách có 2 cách ghi bảng màu của 1 dải:
+       (a) NẰM DỌC  — từng cặp "9mm | Tên màu" xuống dưới  (xem khối colorCols bên dưới)
+       (b) NẰM NGANG— ô dải, bên phải là TRỤC mm (6 7 8 … 13), mỗi dòng dưới là 1 màu:
+              6-13mm | 6 | 7 | 8 | … | 13
+              32.MK.LViolet.85 | 1 | 1 | 1 | … | 1
+              33.MK.Violet.85  | 1 | 1 | 1 | … | 1
+     Kiểu (b) trước đây bị đọc thành 8 CỘT DẢI mới tên "6","7"…"13" → bảng Mix hiện 16 ô đỏ
+     "mm ngoài dải" và app vẫn đòi điền tay bảng Mix Màu, dù khách đã ghi đủ màu.
+     Trả về { cols, blocks } khi đúng kiểu (b); null thì cứ xử lý như cột dải bình thường. */
+  function khoiMauNgang(aoa, r, cc) {
+    var head = aoa[r] || [], cols = [], mms = [], j, s, m;
+    for (j = cc + 1; j < head.length; j++) {
+      s = PS(head[j]); if (!s) break;
+      m = s.match(/^(\d{1,2})$/); if (!m) break;      // SỐ TRẦN (không có "mm") = trục mm nằm ngang
+      cols.push(j); mms.push(+m[1]);
+    }
+    if (cols.length < 2) return null;
+    var blocks = [], q, rw, ten, dist, tong, v;
+    for (q = r + 1; q < aoa.length; q++) {
+      rw = aoa[q] || []; ten = PS(rw[cc]).trim();
+      if (!ten) { if (blocks.length) break; else continue; }
+      if (/^\d+\s*mm$/i.test(ten)) break;             // dưới là cột mm → là cột dải kiểu dọc, không phải khối ngang
+      dist = {}; tong = 0;
+      for (j = 0; j < cols.length; j++) { v = PN(rw[cols[j]]); if (v > 0) { dist[mms[j]] = (dist[mms[j]] || 0) + v; tong += v; } }
+      if (!tong) { if (blocks.length) break; else continue; }
+      blocks.push({ color: ten, dist: dist, lines: tong });
+    }
+    return blocks.length ? { cols: cols, blocks: blocks } : null;
+  }
   function parseMixLengthBlocks(aoa, hrSkip, maDon, colEnd) {
     var r, row, i, v, q, rw;
     /* colEnd = cột BẮT ĐẦU của bảng khác nằm cùng dòng bên phải (mẫu 2026: cột "Mã BR" của
@@ -1457,10 +1487,12 @@
       for (i = 0; i < row.length; i++) {
         if (PS(row[i]).toLowerCase() !== 'mix length') continue;
         var mi = i;
-        var ranges = [], rangeCols = [], lineCounts = [], ci;
+        var ranges = [], rangeCols = [], lineCounts = [], ci, mauNgang = {}, boQuaCot = {};
         for (ci = mi + 1; ci < row.length && ci < CE; ci++) {
           v = PS(row[ci]);
           if (!v) continue;
+          if (boQuaCot[ci]) continue;        // cột thuộc BẢNG MÀU NẰM NGANG đã nhận ở trên
+
           if (v.toLowerCase() === 'mix length') break;   // gặp bảng Mix kế bên → dừng bảng này
           var lm = v.match(/\((\d+)\s*lines?\)/i);       // "6~13mm (16 Lines)"
           // BỎ MỌI khoảng trắng: khách hay ghi "12-20 mm" / "6 ~ 13 mm" → khóa phải là "12-20mm"
@@ -1471,6 +1503,14 @@
              này" và thiếu dây. Giờ chỉ lấy phần DẢI ở ĐẦU, phần chữ sau bỏ qua. */
           var _mrg = rg.match(/^\*?\d+(?:-\d+)?mm/); if (_mrg) rg = _mrg[0];
           if (!parseRange(rg.replace(/mm$/, ''))) continue;   // không phải cột dải → bỏ qua
+          /* Ô dải này thực ra là đầu BẢNG MÀU NẰM NGANG (trục mm ở bên phải) → lấy bảng màu,
+             KHÔNG nhận thêm cột dải nào nữa (mấy ô "6".."13" bên phải không phải dải). */
+          var _kmn = khoiMauNgang(aoa, r, ci);
+          if (_kmn) {
+            mauNgang[rg] = _kmn.blocks;
+            _kmn.cols.forEach(function (c0) { boQuaCot[c0] = 1; });
+            continue;                        // bỏ cả trục mm của nó, rồi quét tiếp (bảng dải có thể còn ở bên phải)
+          }
           ranges.push(rg); rangeCols.push(ci); lineCounts.push(lm ? +lm[1] : null);
         }
         if (!ranges.length) continue;
@@ -1520,6 +1560,12 @@
             }
             break;   // chỉ xét ô không-rỗng ĐẦU TIÊN dưới header
           }
+        });
+        /* Bảng màu ghi NẰM NGANG cũng là bảng màu của dải đó — gộp vào colorBlocks để bước 3
+           tự điền sẵn (khách đã ghi đủ thì không phải điền tay nữa). Kiểu dọc có trước thì
+           giữ nguyên, không ghi đè. */
+        Object.keys(mauNgang).forEach(function (k) {
+          if (!colorBlocksByRange[k]) colorBlocksByRange[k] = mauNgang[k];
         });
         var mmList = [], matrix = [];
         for (q = r + 1; q < aoa.length; q++) {
@@ -2329,6 +2375,7 @@
     parseNhapDonRows: parseNhapDonRows, parseLabelRows: parseLabelRows,
     parseKeoRows: parseKeoRows, parseWorkbookData: parseWorkbookData,
     parseGuiXuongSheet: parseGuiXuongSheet, parseMixColorAOA: parseMixColorAOA,
+    parseMixLengthBlocks: parseMixLengthBlocks, khoiMauNgang: khoiMauNgang,
     sinhKeoTuDonHang: sinhKeoTuDonHang,
     parseGuiXuong2026: parseGuiXuong2026, isGuiXuong2026: isGuiXuong2026, parseGuiXuongAny: parseGuiXuongAny,
     SPECIAL_TAGS: SPECIAL_TAGS, SPECIAL_SUF_RE: SPECIAL_SUF_RE,

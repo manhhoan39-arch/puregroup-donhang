@@ -614,7 +614,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608221045</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608221515</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -817,7 +817,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <button class="btn sm" id="btn-add-mixrow" style="color:var(--teal-600)" title="Thêm dòng MM (chọn Mã Đơn trước)">➕ Thêm dòng</button>
       <button class="btn sm" id="btn-add-mixcol" style="color:var(--teal-600)" title="Thêm cột dải (chọn Mã Đơn trước). Xóa cột: bấm ✕ ngay trên cột đã thêm.">➕ Thêm cột</button>
       <div class="spacer"></div>
-      <span class="badge fail" id="mix-err-chip" style="margin-right:6px;display:none;cursor:pointer" title="Số lỗi bảng Mix">—</span>
+      <span class="badge fail" id="mix-err-chip" style="margin-right:6px;display:none;cursor:pointer" title="Bấm để nhảy tới từng ô lỗi trong bảng Mix">—</span>
       <button class="btn sm" id="btn-dl-mix">⬇ Xuất MixLabel.xlsx</button>
       <button class="btn primary sm" onclick="go('s5')">Sinh bảng Keo →</button>
     </div>
@@ -1447,6 +1447,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   // khóa theo CHỮ KÝ (mã đơn + dải + bộ code) — các dòng/file trùng nhau dùng CHUNG 1 bảng, không lặp
   function cmKey(o){ return o.maDon+'#'+String(o.length||'').toLowerCase().replace(/~/g,'-')+'#'+cmCodes(o).join(';'); }
   function cmNormRg(s){ var k=String(s||'').toLowerCase().replace(/~/g,'-').replace(/\s|mm/g,''); return k+'mm'; }
+  function cmTenChuan(s){ return String(s==null?'':s).toLowerCase().replace(/\s+/g,''); }   // so tên màu: bỏ hoa/thường + khoảng trắng
   // nếu FILE đã có bảng mix màu (colorBlocks) khớp đơn+dải+số màu → lấy làm dữ liệu ban đầu (admin sửa được)
   function cmSeedFromFile(o,key){
     state.colorMix=state.colorMix||{}; if(state.colorMix[key]) return;
@@ -1457,7 +1458,19 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         if(state.colorMix[key] || cmNormRg(rg)!==cmNormRg(o.length)) return;
         var blocks=s.colorBlocks[rg];
         if(blocks && blocks.length===codes.length){
-          var g={}; blocks.forEach(function(b,i){ var row={}; Object.keys(b.dist||{}).forEach(function(mm){ var v=+b.dist[mm]||0; if(v>0) row[mm]=v; }); g[i]=row; });
+          /* KHỚP THEO TÊN MÀU trước: thứ tự màu trong file khách không nhất thiết giống thứ tự
+             code sợi của dòng đơn (785P file ghi 32.MK.LViolet trước, đơn ghi 33.MK.Violet
+             trước). Xếp theo thứ tự là gán lệch phân bổ của 2 màu. Tên không khớp hết
+             (khách ghi tắt) thì mới đành xếp theo thứ tự như cũ. */
+          var theoTen={}, duTen=true;
+          blocks.forEach(function(b){ theoTen[cmTenChuan(b.color)]=b; });
+          codes.forEach(function(c){ if(!theoTen[cmTenChuan(c)]) duTen=false; });
+          var g={};
+          codes.forEach(function(c,i){
+            var b=duTen?theoTen[cmTenChuan(c)]:blocks[i], row={};
+            Object.keys((b&&b.dist)||{}).forEach(function(mm){ var v=+b.dist[mm]||0; if(v>0) row[mm]=v; });
+            g[i]=row;
+          });
           state.colorMix[key]=g;
         }
       });
@@ -2264,7 +2277,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         ml.innerHTML = '<div class="tbl-wrap"><table class="sheet prev-table" id="mix-table">'+
           '<thead id="mix-head">'+mixHead+'</thead><tbody id="eng-mix-body"></tbody></table></div>'+
           '<div class="ctx-hint">'+
-          (mixErrTotal?('<b style="color:var(--red-600)">⚠ '+mixErrTotal+' lỗi bảng Mix</b>'):'<b style="color:var(--green-600)">✓ bảng Mix hợp lệ</b>')+'</div>'+
+          (mixErrTotal?('<b id="mix-err-jump" style="color:var(--red-600);cursor:pointer;text-decoration:underline dotted" title="Bấm để nhảy tới từng ô lỗi (mm nằm ngoài dải của cột)">⚠ '+mixErrTotal+' lỗi bảng Mix — bấm để xem từng ô</b>'):'<b style="color:var(--green-600)">✓ bảng Mix hợp lệ</b>')+'</div>'+
           colorTablesHtml + buildColorMixInputs();
         setRows('eng-mix-body', mixRows); applyTable('eng-mix-body');       // dựng dòng vào pool rồi chia trang
         if(typeof applyColorMixFilter==='function') applyColorMixFilter();  // áp lọc mã đơn cho Bảng Mix Màu
@@ -4776,6 +4789,56 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       }
     })();
   }
+  /* ---- "N lỗi bảng Mix": BẤM là nhảy tới từng ô đỏ (user báo 22/8) ----
+     Ô đỏ trong Bảng Mix Label = số Lines nằm NGOÀI dải của cột (vd điền ở mm 14 trong cột
+     4-7mm). Trước đây chỉ hiện con số, bấm không đi đâu. Nay bấm lần lượt qua từng ô: lần 1
+     ô thứ nhất, lần 2 ô thứ hai… hết thì quay lại đầu. */
+  var __mixErrI=0;
+  function mixErrCells(){
+    var ds=[];
+    try{
+      Array.prototype.forEach.call(poolRows('eng-mix-body'), function(tr){
+        if(tr.getAttribute && tr.getAttribute('data-noflt')) return;
+        Array.prototype.forEach.call(tr.querySelectorAll('td.err'), function(td){ ds.push({tr:tr, td:td}); });
+      });
+    }catch(e){ logErr('mixErrCells', e); }
+    return ds;
+  }
+  function jumpToMixErr(){
+    if(typeof go==='function') go('s4');          // s4 = Bảng Mix Label (số 3 trên thanh bên)
+    /* Bảng Mix có bộ lọc riêng (mã đơn · mã KH · ô tìm · lọc cột ▼) — đang lọc đơn khác thì
+       ô lỗi bị ẩn, bấm xong chẳng thấy gì. Xoá sạch trước khi nhảy (giống nhảy ở Bảng Keo). */
+    try{
+      ['s4-madon','s4-makh','s4-search'].forEach(function(id){ var el=document.getElementById(id); if(el && el.value) el.value=''; });
+      if(typeof colFilters==='object' && colFilters['eng-mix-body']) delete colFilters['eng-mix-body'];
+      __capReflow();
+      if(typeof applyAllFilters==='function') applyAllFilters();
+    }catch(e){ logErr('jumpToMixErr.loc', e); }
+    var tries=0;
+    (function tim(){
+      var ds=mixErrCells();
+      // bảng chỉ vẽ khi ĐANG XEM bước Mix Label → chờ vài nhịp cho nó dựng xong
+      if(!ds.length){ if(++tries<12) return setTimeout(tim, 60); gsMsg('Bảng Mix không còn ô lỗi nào.'); return; }
+      if(__mixErrI>=ds.length) __mixErrI=0;
+      var idx=__mixErrI, o=ds[idx]; __mixErrI=(idx+1)%ds.length;
+      try{ pgToiDong('eng-mix-body', o.tr); }catch(e){ logErr('jumpToMixErr.trang', e); }   // ô ở trang khác → lật trang
+      var tr=o.tr, td=o.td;
+      if(tr.scrollIntoView) tr.scrollIntoView({block:'center', behavior:'smooth'});
+      if(tr.classList){ tr.classList.add('flash'); setTimeout(function(){ tr.classList.remove('flash'); }, 1500); }
+      Array.prototype.forEach.call(document.querySelectorAll('td.jump-hit'), function(x){ x.classList.remove('jump-hit'); });
+      if(td.scrollIntoView) td.scrollIntoView({block:'center', inline:'center'});
+      if(td.classList) td.classList.add('jump-hit');
+      setTimeout(function(){ if(td.classList) td.classList.remove('jump-hit'); }, 2600);
+      gsMsg('Ô lỗi '+(idx+1)+'/'+ds.length+(td.getAttribute('title')?(' · '+td.getAttribute('title')):'')+
+            (ds.length>1?' — bấm nữa để xem ô kế tiếp':''));
+    })();
+  }
+  document.addEventListener('click', function(ev){
+    var el=ev.target&&ev.target.closest?ev.target.closest('#mix-err-chip,#mix-err-jump'):null;
+    if(!el) return;
+    ev.preventDefault(); ev.stopPropagation();
+    jumpToMixErr();
+  });
   function jumpToError(seri, mdon, col){
     if(typeof go==='function') go('s3');   // sang Bảng Nhập Đơn
     state.filters={}; gridQuery=''; try{ applyGridFilter(); }catch(e){ logErr('jumpToError', e); }   // bỏ lọc để chắc chắn thấy dòng
