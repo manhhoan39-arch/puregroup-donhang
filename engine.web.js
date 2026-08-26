@@ -243,6 +243,12 @@
       if (cv) next.curls[ck] = cv; else delete next.curls[ck];
     } else next[col] = typeof value === 'string' ? value.trim() : value;
     if (col === 'length') { var r = parseRange(next.length); next.mixSingle = r && r.lo === r.hi ? 'Single' : 'Mix'; }
+    /* Sửa ô "LINES" (cột chữ, vd "16 lines" / "Premade") thì SỐ LINE dùng để tính dây phải đổi
+       theo — không thì bảng vẫn hiện số mới mà dây tính theo số cũ (chốt 22/8). */
+    if (col === 'lineRaw') {
+      next.line = Number(String(value == null ? '' : value).replace(/lines?/i, '').trim()) || 0;
+      next.premade = /premade/i.test(String(value == null ? '' : value));
+    }
     if (col === 'mixSingle') {
       if (/^mix$/i.test(next.mixSingle)) next.mixSingle = 'Mix';
       else if (/^single$/i.test(next.mixSingle)) next.mixSingle = 'Single';
