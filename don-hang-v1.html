@@ -635,7 +635,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608262110</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608262340</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -3288,6 +3288,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     else if(F.stats.warnCells) badge='<span class="badge warn">'+F.stats.warnCells+' cảnh báo · '+F.stats.total+' dòng</span>';
     else badge='<span class="badge pass">PASS · '+F.stats.total+' dòng</span>';
     if(F.kind) note='<div class="mini" style="margin-top:3px">↳ định dạng: '+esc(F.kind)+'</div>';
+    // BẢN CŨ của đơn đã có (cùng mã đơn + cùng tiêu đề) → nói rõ là không tính vào số liệu
+    if(F.banCu){
+      badge='<span class="badge" style="background:var(--surface-3);color:var(--text-2)" title="Không tính vào số liệu">BẢN CŨ</span>';
+      note+='<div class="mini" style="margin-top:2px;color:var(--text-2);font-weight:700">♻ Đơn '+esc(F.banCu.maDon)+
+        ' đã lấy theo bản mới "'+esc(F.banCu.boi)+'" — file này giữ lại để đối chiếu, KHÔNG tính vào số liệu.</div>';
+    }
     if(F.curlWarn) note+='<div class="mini" style="margin-top:2px;color:var(--red-600);font-weight:700">⚠ Độ cong LỆCH cấu trúc chuẩn: '+esc(F.curlWarn.join(' · '))+'</div>';
     var delBtn='<button class="file-x" data-fileidx="'+idx+'" title="Xóa file này khỏi danh sách" style="flex:0 0 auto;width:22px;height:22px;border:1px solid var(--red-500);border-radius:6px;background:var(--red-50);color:var(--red-600);cursor:pointer;font-size:12px;font-weight:800;line-height:1;display:inline-flex;align-items:center;justify-content:center">✕</button>';
     return '<li data-fileidx="'+idx+'" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
@@ -3508,6 +3514,35 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      File TRÙNG TÊN không bị đụng: khâu đọc file đã thay bản cũ nên chỉ còn 1 file.
      IDEMPOTENT: mỗi lần Xử lý trả mã đơn về GỐC (theo F._mdRen) rồi đánh số lại từ đầu →
      bấm Xử lý nhiều lần KHÔNG cộng dồn hậu tố (.2 → .2.2 → …). */
+  /* "TIÊU ĐỀ" của 1 file đơn = phần tên file CÒN LẠI sau khi bỏ những thứ KHÔNG phân biệt đơn:
+     chữ "Đơn gửi xưởng", chính mã KH / mã đơn, đuôi .xlsx, dấu nhân bản của Windows
+     ("(1)", "- Copy"), và mọi dấu câu / khoảng trắng.
+       · "Đơn gửi xưởng   C213785P  ND.xlsx"  → "nd"
+       · "Đơn gửi xưởng   C213785P  HY.xlsx"  → "hy"     ⇒ khác nhau = 2 ĐƠN THẬT
+       · "Đơn gửi xưởng-CS378-726P.xlsx"      → ""
+       · "Đơn gửi xưởng - CS378-726P (1).xlsx"→ ""       ⇒ giống nhau = 1 ĐƠN, bản sau thay bản trước
+     KHÔNG bỏ ngày/tháng ("T10.25", "Xuất lần 1"): thà tách thừa (như cũ) còn hơn gộp nhầm
+     2 đơn khác nhau. */
+  function tieuDeDon(ten, maDons){
+    var s=String(ten||'');
+    s=s.replace(/\.(xlsx|xlsm|xls)\s*$/i,' ');
+    // bỏ chính mã đơn / mã KH (mã dài bỏ trước, vd "C213785P" chứa cả "C213" và "785P")
+    var tok=[];
+    (maDons||[]).forEach(function(m){
+      String(m||'').split(/[^0-9A-Za-z]+/).forEach(function(p){ if(p && p.length>=2) tok.push(p); });
+    });
+    tok.sort(function(a,b){ return b.length-a.length; }).forEach(function(p){
+      s=s.split(new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi')).join(' ');
+    });
+    // logErr-self: tên file có ký tự lạ thì cứ so nguyên dạng, không cần ghi sổ lỗi
+    try{ s=s.normalize('NFD').replace(/[̀-ͯ]/g,''); }catch(e){ s=String(s); }
+    s=s.replace(/[Đđ]/g,'d').toLowerCase()
+       .replace(/don gui xuong/g,' ')
+       .replace(/\(\s*\d+\s*\)/g,' ')          // "(1)" của Windows/Chrome khi tải trùng tên
+       .replace(/-\s*copy/g,' ')               // "- Copy" của Windows
+       .replace(/[^a-z0-9]+/g,' ');
+    return s.trim();
+  }
   function datMaDonDuyNhat(okFiles){
     var apDung=function(F, map){
       if(!F || !F.data) return;
@@ -3520,23 +3555,59 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       }
       F.maDons=(F.maDons||[]).map(function(m){ return map[m]||m; });
     };
-    // B1 — bỏ hậu tố app đã gắn lần trước, về đúng mã đơn GỐC của file
-    okFiles.forEach(function(F){ if(F._mdRen){ apDung(F, F._mdRen); F._mdRen=null; } });
-    // B2 — đánh số theo THỨ TỰ FILE: file đầu giữ mã gốc, các file sau +.2 / .3 …
-    var dem={}, nDoi=0;
-    okFiles.forEach(function(F){
-      var map={}, nguoc={};
+    // B1 — bỏ hậu tố app đã gắn lần trước + xoá dấu "bản cũ", về đúng mã đơn GỐC của file
+    okFiles.forEach(function(F){ if(F._mdRen){ apDung(F, F._mdRen); F._mdRen=null; } F.banCu=null; });
+    /* B2 — GOM THEO TIÊU ĐỀ, không phải cứ trùng mã đơn là tách (sửa 26/8).
+       User: "rõ ràng nhập file cùng tiêu đề cùng mã đơn, chỉ cập nhật code sợi, mà lại báo
+       khác tiêu đề". Trước đây hàm này CHỈ đếm số file có cùng mã đơn rồi gắn .2 / .3 — không
+       hề so tiêu đề, nên nạp lại BẢN MỚI của đúng đơn đó (tên file lệch một chút: thiếu dấu
+       cách, có "(1)", có "- Copy") là app dựng thêm một đơn ".2" ảo.
+       Nay: cùng mã đơn thì so TIÊU ĐỀ (xem tieuDeDon):
+         · KHÁC tiêu đề (785P "ND" vs "HY") → 2 đơn thật → vẫn tách .2 / .3 như đã chốt 20/8;
+         · CÙNG tiêu đề → CÙNG MỘT ĐƠN → lấy bản nạp SAU CÙNG, bản cũ để nguyên trong danh
+           sách nhưng không đưa vào số liệu (đánh dấu F.banCu). */
+    var nhom={}, thuTuMd=[];
+    okFiles.forEach(function(F, i){
+      var td=tieuDeDon(F.name, F.maDons);
       (F.maDons||[]).forEach(function(m){
         if(!m) return;
-        dem[m]=(dem[m]||0)+1;
-        if(dem[m]>1){ var moi=m+'.'+dem[m]; map[m]=moi; nguoc[moi]=m; }
+        if(!nhom[m]){ nhom[m]={ ds:[], theo:{} }; thuTuMd.push(m); }
+        var g=nhom[m];
+        if(!g.theo[td]){ g.theo[td]=[]; g.ds.push(td); }
+        g.theo[td].push(i);
       });
-      if(!Object.keys(map).length) return;
-      var mota=Object.keys(map).map(function(m){ return m+' ⇒ '+map[m]; }).join(', ');
-      apDung(F, map); F._mdRen=nguoc; nDoi++;
-      try{ logLine('⚠ Cùng mã đơn nhưng khác tiêu đề file → tách thành đơn riêng: "'+F.name+'" · '+mota); }catch(e){ logErr('datMaDonDuyNhat', e); }
     });
-    return nDoi;
+    var moc=function(F){ return (F&&(F.importedAt||F.addedAt))||0; };
+    var nTach=0, nThay=0, doiTheoFile={};
+    thuTuMd.forEach(function(m){
+      var g=nhom[m];
+      g.ds.forEach(function(td, k){
+        var ids=g.theo[td];
+        if(ids.length>1){                      // cùng mã đơn + CÙNG tiêu đề = 1 đơn
+          var giu=ids.slice().sort(function(a,b){ return (moc(okFiles[b])-moc(okFiles[a])) || (b-a); })[0];
+          ids.forEach(function(i){
+            if(i===giu) return;
+            okFiles[i].banCu={ maDon:m, boi:okFiles[giu].name };
+            nThay++;
+            try{ logLine('♻ Cùng mã đơn + CÙNG tiêu đề → dùng BẢN MỚI cho đơn '+m+': lấy theo "'+
+              okFiles[giu].name+'", bỏ bản cũ "'+okFiles[i].name+'"'); }catch(e){ logErr('datMaDonDuyNhat', e); }
+          });
+          ids=[giu];
+        }
+        if(k>0){                               // tiêu đề thứ 2 trở đi → đơn riêng .2 / .3
+          var i2=ids[0];
+          (doiTheoFile[i2]=doiTheoFile[i2]||{})[m]=m+'.'+(k+1);
+        }
+      });
+    });
+    Object.keys(doiTheoFile).forEach(function(i){
+      var F=okFiles[i], map=doiTheoFile[i], nguoc={};
+      Object.keys(map).forEach(function(m){ nguoc[map[m]]=m; });
+      var mota=Object.keys(map).map(function(m){ return m+' ⇒ '+map[m]; }).join(', ');
+      apDung(F, map); F._mdRen=nguoc; nTach++;
+      try{ logLine('⚠ Cùng mã đơn nhưng KHÁC tiêu đề file → tách thành đơn riêng: "'+F.name+'" · '+mota); }catch(e){ logErr('datMaDonDuyNhat', e); }
+    });
+    return { tach:nTach, thay:nThay };
   }
   function processFiles(silent, onlyImported){
     // onlyImported=true (khi XÓA 1 file): chỉ dựng lại từ file ĐÃ NHẬP — không tự xử lý các file đang chờ ở "File đã chọn"
@@ -3548,8 +3619,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
        (vd xoá bớt 1 file) KHÔNG được dời giờ của các file cũ; còn upload đè lại cùng tên
        thì bản cũ đã bị gỡ ở khâu đọc → file mới nhận giờ mới. Lưu kèm project. */
     okFiles.forEach(function(F){ if(!F.importedAt) F.importedAt=Date.now(); });
-    // 2 file khác tiêu đề mà cùng mã đơn → tách thành đơn riêng (.2 / .3) trước khi gom
-    var soDonTach=0; try{ soDonTach=datMaDonDuyNhat(okFiles); }catch(e){ logErr('datMaDonDuyNhat', e); }
+    /* Cùng mã đơn: KHÁC tiêu đề → tách thành đơn riêng (.2 / .3); CÙNG tiêu đề → là bản mới
+       của chính đơn đó, lấy bản sau cùng và BỎ bản cũ ra khỏi số liệu (26/8). */
+    var soDonTach=0, soBanCu=0;
+    try{ var _kq=datMaDonDuyNhat(okFiles)||{}; soDonTach=_kq.tach||0; soBanCu=_kq.thay||0; }
+    catch(e){ logErr('datMaDonDuyNhat', e); }
+    var allFiles=okFiles;                        // giữ cả bản cũ để còn tắt cờ _new / hiện trong danh sách
+    okFiles=okFiles.filter(function(F){ return !F.banCu; });
     var t0 = Date.now();   // đo thời gian xử lý thật
     var orders=[], mixSheets=[], keoRows=[], seenMix={};
     okFiles.forEach(function(F){
@@ -3716,13 +3792,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       (khopTxt?'<br>'+khopTxt:'')+dcTxt+
       // báo rõ khi app tự tách đơn trùng mã — người dùng thấy ngay vì sao có mã đơn ".2"
       (soDonTach?'<br><span style="color:var(--accent);font-weight:700">🔀 '+soDonTach+' file cùng mã đơn nhưng khác tiêu đề → đã tách thành đơn riêng (hậu tố .2 / .3). Chi tiết ở Lịch sử thay đổi.</span>':'')+
+      // cùng mã đơn + cùng tiêu đề = bản mới của chính đơn đó → nói rõ là ĐÃ THAY, không phải tách
+      (soBanCu?'<br><span style="color:var(--green-700);font-weight:700">♻ '+soBanCu+' file là BẢN CŨ của đơn đã có (cùng mã đơn, cùng tiêu đề) → số liệu lấy theo bản mới nhất.</span>':'')+
       (curlWarnAll.length?'<br><span style="color:var(--red-600);font-weight:700">⚠ ĐỘ CONG LỆCH CẤU TRÚC CHUẨN</span><br><span style="color:var(--red-600)">'+curlWarnAll.join('<br>')+'</span>':'')+
       '<hr style="border:0;border-top:1px solid var(--line);margin:10px 0">'+
       '<span style="color:var(--text-2)">Toàn bộ: '+okFiles.length+' file · '+orders.length+' dòng · '+
         fmtN(khay2)+' khay · '+fmtN(state.R.cuonSheet.summary.day)+' dây · '+
         errShown(state.R)+' ô sai chuẩn</span>');
     // đã báo rồi thì thôi — lần Xử lý sau không lặp lại cảnh báo của mấy file này nữa
-    okFiles.forEach(function(F){ F._new=false; });
+    allFiles.forEach(function(F){ F._new=false; });
   }
 
   // wire nút chọn file + kéo thả
