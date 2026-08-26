@@ -345,6 +345,10 @@ td.dc-note[data-tip]{cursor:help;text-decoration:underline dotted var(--text-3);
 tr.keo-amb > td{ background:#FFEEF2!important; }
 tr.keo-amb > td:first-child{ box-shadow:inset 3px 0 0 var(--red-600); }
 td.keo-amb-keo{ background:#FFEEF2; color:var(--red-700); font-weight:700; }
+/* Dòng Bảng Keo ĐÃ XÁC NHẬN ĐÃ KIỂM (nút ✓ Đã kiểm ở bước 4): hết đỏ/vàng, còn vạch xanh mép
+   trái để vẫn nhận ra là dòng từng cần kiểm — bấm "↺ Hiện lại" là trả về như cũ. */
+tr.keo-ok > td{ background:var(--green-50)!important; }
+tr.keo-ok > td:first-child{ box-shadow:inset 3px 0 0 var(--green-600); }
 /* Ô CẢNH BÁO đã xác nhận đã kiểm: hạ tông vàng → xám, vẫn nhận ra được nhưng hết báo động */
 td.cell-warn.err-ack{background:var(--surface-3)!important;color:var(--text-2)!important;box-shadow:none!important}
 td.cell-warn.err-ack::after{content:" ✓";color:var(--accent);font-weight:800}
@@ -623,7 +627,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608261520</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608261715</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -848,6 +852,10 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <button class="btn sm" id="btn-del-keo" style="color:var(--red-600)">🗑️ Xóa dòng chọn</button>
       <div class="spacer"></div>
       <span class="badge warn" id="keo-warn-chip" style="margin-right:6px;display:none;cursor:pointer" title="Cảnh báo bảng Keo">—</span>
+      <button class="btn sm" id="keo-ack" style="display:none;color:var(--green-700);margin-right:6px"
+        title="Kiểm xong rồi thì bấm đây — mấy dòng này hết cảnh báo, ô sai chuẩn ở bước 1 và 2 cũng hết theo. Có tích chọn dòng thì chỉ xác nhận đúng mấy dòng đã tích.">✓ Đã kiểm</button>
+      <button class="btn sm" id="keo-unack" style="display:none;margin-right:6px"
+        title="Hiện lại mấy dòng đã xác nhận để xem lại">↺ Hiện lại</button>
       <button class="btn sm" id="btn-dl-keo">⬇ Xuất BangKeo.xlsx</button>
       <button class="btn primary sm" onclick="go('s6')">Xem Bảng Line Cuốn →</button>
     </div>
@@ -5238,22 +5246,93 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function keoAmbTitle(ds){
     return '1 độ dày sử dụng '+ds.length+' loại keo ('+ds.join(' · ')+')';
   }
+  /* ---- "ĐÃ KIỂM" cho từng dòng BẢNG KEO (chốt 26/8) ----
+     User: "Đã kiểm 2 dòng ở bảng keo nhưng chưa có nút xác nhận, vì thế ở step nhập đơn vẫn
+     thông báo 2 ô sai chuẩn." Trước đây chỉ bước 2 mới có nút xác nhận, kiểm xong ở Bảng Keo
+     không có chỗ nào bấm. Nay xác nhận ngay tại chỗ.
+     Khoá dùng CHUNG kho `state.errAck` (lưu vào project · hoàn tác được · "Hiện lại" bỏ được):
+       · dòng 1 độ dày 2 keo → ĐÚNG khoá của lỗi E-KEO2 `maDon|0|doDay|k<idx>` ⇒ xác nhận ở đây
+         là ô sai chuẩn ở bước 1 và bước 2 hết luôn, không phải bấm 2 nơi.
+       · dòng thiếu sạch thông tin → khoá riêng `maDon|0|keoMiss|k<idx>` (dòng này không sinh
+         ô sai chuẩn, chỉ nằm ở chip "N dòng cần kiểm"). */
+  function keoAckKey(maDon, idx, loai){ return (maDon||'')+'|0|'+(loai==='miss'?'keoMiss':'doDay')+'|k'+idx; }
+  function keoDaKiem(k, idx, loai){ return !!(state.errAck||{})[keoAckKey(k&&k.maDon, idx, loai)]; }
+  // Lý do "cần kiểm" của 1 dòng keo → ['miss'] · ['amb'] · cả hai · [] nếu không có gì
+  function keoLyDoKiem(k, idx){
+    var ds=[];
+    if(!k) return ds;
+    var trong=function(v){ return !(v!=null && String(v).trim()); };
+    if(trong(k.loaiSoi) && trong(k.doDay) && trong(k.doDai) && trong(k.ghiChu)) ds.push('miss');
+    if(keoAmbCuaDong(k)) ds.push('amb');
+    return ds;
+  }
+  /* Xác nhận / bỏ xác nhận cho mấy dòng cần kiểm.
+     Có tích chọn dòng (ô vuông đầu dòng) → chỉ làm đúng mấy dòng đã tích; không tích thì làm
+     cho MỌI dòng cần kiểm đang hiện (đang lọc đơn nào thì chỉ đơn đó). */
+  function keoAckRows(on){
+    var tick=[], daTick={};
+    try{
+      Array.prototype.forEach.call(document.querySelectorAll('#eng-keo-full .keo-chk:checked'), function(cb){
+        var tr=cb.closest?cb.closest('tr'):null, i=tr&&tr.getAttribute('data-keoidx');
+        if(i!=null && i!=='' && !daTick[i]){ daTick[i]=1; tick.push(+i); }
+      });
+    }catch(e){ logErr('keoAckRows.tick', e); }
+    var idxs=tick;
+    if(!idxs.length){                       // không tích dòng nào → lấy mấy dòng ĐANG HIỆN
+      var xong={};
+      try{
+        Array.prototype.forEach.call(poolRows('eng-keo-full'), function(tr){
+          if(tr.style && tr.style.display==='none') return;      // đang bị lọc ẩn thì bỏ qua
+          var i=tr.getAttribute&&tr.getAttribute('data-keoidx');
+          if(i==null||i===''||xong[i]) return; xong[i]=1; idxs.push(+i);
+        });
+      }catch(e){ logErr('keoAckRows.hien', e); }
+    }
+    state.errAck=state.errAck||{};
+    var doi=[];
+    idxs.forEach(function(i){
+      var k=(state.keoRows||[])[i]; if(!k) return;
+      keoLyDoKiem(k, i).forEach(function(loai){
+        var key=keoAckKey(k.maDon, i, loai);
+        if(on ? !state.errAck[key] : !!state.errAck[key]) doi.push(key);
+      });
+    });
+    if(!doi.length){
+      gsMsg(on?'Không còn dòng nào cần xác nhận.':'Chưa có dòng nào được xác nhận.');
+      return;
+    }
+    try{ pushUndo(); }catch(e){ logErr('keoAckRows.undo', e); }
+    doi.forEach(function(key){ if(on) state.errAck[key]=1; else delete state.errAck[key]; });
+    logLine((on?'Xác nhận đã kiểm ':'Bỏ xác nhận ')+doi.length+' dòng Bảng Keo'+
+            (tick.length?(' (đã tích chọn)'):''));
+    gsMsg((on?'✓ Đã xác nhận ':'↺ Đã bỏ xác nhận ')+doi.length+' dòng Bảng Keo'+
+          (on?' — ô sai chuẩn ở bước 1 và 2 cũng bớt theo.':'.'));
+    try{ render(); }catch(e){ logErr('keoAckRows.render', e); }
+  }
   // ---- Bảng Keo đầy đủ (s5): mọi Mã Đơn + cảnh báo thiếu thông tin ----
   function renderKeoFull(R){
     var tb=document.getElementById('eng-keo-full'); if(!tb) return;
-    var rows=[], warn=0;
+    var rows=[], warn=0, daKiem=0;
     // lặp trực tiếp trên state.keoRows để có chỉ số ổn định phục vụ xóa hàng loạt
     var canEdit=canEditStep('s5');
     (state.keoRows||[]).forEach(function(k, idx){
       // "thiếu thông tin" = trống CẢ cột thuộc tính LẪN Ghi Chú (dữ liệu gốc để keo trong Ghi Chú vẫn hợp lệ)
       var miss=!(k.loaiSoi&&String(k.loaiSoi).trim()) && !(k.doDay&&String(k.doDay).trim()) && !(k.doDai&&String(k.doDai).trim()) && !(k.ghiChu&&String(k.ghiChu).trim());
-      if(miss) warn++;
-      var amb=keoAmbCuaDong(k); if(amb) warn++;
+      var amb=keoAmbCuaDong(k);
+      /* Đã bấm "✓ Đã kiểm" cho dòng này thì thôi báo nữa (26/8) — nhưng vẫn để vạch xanh mép
+         trái (tr.keo-ok) cho biết đây là dòng từng cần kiểm, và "↺ Hiện lại" trả về như cũ. */
+      var okMiss=miss&&keoDaKiem(k,idx,'miss'), okAmb=amb&&keoDaKiem(k,idx,'amb');
+      if(miss && !okMiss) warn++;
+      if(amb  && !okAmb ) warn++;
+      var conBao=(miss&&!okMiss)||(amb&&!okAmb);
+      if((miss||amb) && !conBao) daKiem++;
       /* Dòng cần kiểm (thiếu thông tin, hoặc 1 độ dày 2 keo) được đánh dấu để chip
          "N dòng cần kiểm" bấm vào là nhảy tới đúng dòng (user chốt 26/8). */
-      var canKiem=(miss||amb)?' data-keowarn="1"':'';
-      var ambAttr=(amb?(' class="keo-amb" title="'+esc(keoAmbTitle(amb))+'"'):'')+canKiem;
-      var wc=miss?'cell-warn':'';
+      var canKiem=conBao?' data-keowarn="1"':'';
+      var cls=(amb&&!okAmb)?'keo-amb':(((miss||amb)&&!conBao)?'keo-ok':'');
+      var ti=(amb?keoAmbTitle(amb):'')+((miss||amb)&&!conBao?((amb?' — ':'')+'✓ đã xác nhận đã kiểm'):'');
+      var ambAttr=(cls?(' class="'+cls+'"'):'')+(ti?(' title="'+esc(ti)+'"'):'')+canKiem;
+      var wc=(miss&&!okMiss)?'cell-warn':'';
       // ô SỬA ĐƯỢC cho admin (contenteditable + data-keoedit/data-keoidx → handler chung cập nhật state.keoRows)
       /* seed = giá trị app TỰ BÓC TÁCH từ Ghi Chú, chưa có trong dữ liệu gốc. Vẫn cho gõ đè,
          nhưng gắn data-keoseed để handler biết: y nguyên seed = chưa sửa gì → đừng ghi vào
@@ -5306,6 +5385,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var chip=document.getElementById('keo-warn-chip');
     if(chip){ chip.style.display=warn?'':'none'; chip.textContent=warn+' dòng cần kiểm';
       chip.title='Bấm để nhảy tới từng dòng cần kiểm (thiếu thông tin, hoặc 1 độ dày dùng 2 loại keo)'; }
+    // Nút xác nhận / hiện lại ngay tại Bảng Keo (26/8)
+    var bAck=document.getElementById('keo-ack');
+    if(bAck){ bAck.style.display=warn?'':'none'; bAck.textContent='✓ Đã kiểm '+warn+' dòng'; }
+    var bUn=document.getElementById('keo-unack');
+    if(bUn){ bUn.style.display=daKiem?'':'none'; bUn.textContent='↺ Hiện lại '+daKiem+' dòng'; }
   }
   /* ---- Chip "N dòng cần kiểm" của Bảng Keo: bấm là NHẢY TỚI từng dòng (chốt 26/8) ----
      Trước đây chỉ hiện con số, bấm không đi đâu — phải tự dò trong bảng vài trăm dòng. */
@@ -5351,6 +5435,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   (function(){ var c=document.getElementById('keo-warn-chip');
     if(c && c.addEventListener) c.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); jumpToKeoWarn(); });
+    var a=document.getElementById('keo-ack');
+    if(a && a.addEventListener) a.addEventListener('click', function(ev){ ev.preventDefault(); keoAckRows(true); });
+    var u=document.getElementById('keo-unack');
+    if(u && u.addEventListener) u.addEventListener('click', function(ev){ ev.preventDefault(); keoAckRows(false); });
   })();
 
   // ---- Tổng hợp Box (s10) ----
@@ -6005,7 +6093,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         return '<td class="txt'+der+ke.cls+'"'+ce+ti+'>'+esc(val==null?'':val)+'</td>';
       };
       var amb=keoAmbCuaDong(k);
-      var ambCls=amb?' keo-amb':'', ambTi=amb?(' title="'+esc(keoAmbTitle(amb))+'"'):'';
+      // đã bấm "✓ Đã kiểm" ở Bảng Keo thì bảng bên này cũng hết đỏ, chỉ còn vạch xanh
+      var okAmb=amb&&idx>=0&&keoDaKiem(k,idx,'amb');
+      var ambCls=amb?(okAmb?' keo-ok':' keo-amb'):'';
+      var ambTi=amb?(' title="'+esc(keoAmbTitle(amb)+(okAmb?' — ✓ đã xác nhận đã kiểm':''))+'"'):'';
       var kbl=k._daTach?null:parseKeoByLength(k.ghiChu);   // đã bung thành dòng thật → khỏi vẽ dòng dẫn xuất
       if(kbl){
         return kbl.map(function(seg,si){
