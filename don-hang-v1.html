@@ -627,7 +627,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608261715</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608261930</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -2989,16 +2989,34 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(!A||!A.length) return null;
     var low=function(s){ try{ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[Đđ]/g,'d').toLowerCase().replace(/\s+/g,' ').trim(); }catch(e){ return String(s||'').toLowerCase().trim(); } };
     var cell=function(r,c){ var row=A[r]||[]; var v=row[c]; return v==null?'':String(v).trim(); };
-    var hr=-1;
-    for(var r=0;r<Math.min(A.length,14);r++){ if(low(cell(r,1))==='note'){ hr=r; break; } }
-    if(hr<0) return null;
-    var out=[];
-    for(var r2=hr+1;r2<A.length && r2-hr<=20;r2++){
-      var v=cell(r2,1), l=low(v);
-      if(l.indexOf('lines check')===0 || l.indexOf('bang hop')===0) break;   // sang khối khác → dừng
-      if(v) out.push(v);
+    var hr=-1, hc=1;
+    for(var r=0;r<Math.min(A.length,14) && hr<0;r++){
+      for(var c=0;c<=3;c++){ if(low(cell(r,c))==='note'){ hr=r; hc=c; break; } }
     }
-    return out.length ? out : null;
+    if(hr<0) return null;
+    /* MỞ RỘNG VÙNG (26/8): mẫu 2026 không chỉ ghi ở 1 cột — 792P còn nhãn "Tem và vị trí tem"
+       ở cột E (chú thích cho ảnh tem bên cạnh). Bề ngang của vùng = tới NGAY TRƯỚC bảng kế bên
+       trên cùng dòng tiêu đề ("Label Type" ở cột H) — quét quá là lấn sang bảng Mix Length. */
+    var hrow=A[hr]||[], maxC=hc;
+    for(var c2=hc+1;c2<hrow.length && c2<=hc+12;c2++){ if(cell(hr,c2)) break; maxC=c2; }
+    // đáy vùng: dòng "Lines Check" / "Bảng Hộp" ở cột tiêu đề — mốc thật của mẫu 2026
+    var endR=hr;
+    for(var r2=hr+1;r2<A.length && r2-hr<=24;r2++){
+      var l=low(cell(r2,hc));
+      if(l.indexOf('lines check')===0 || l.indexOf('bang hop')===0) break;
+      endR=r2;
+    }
+    // gom theo TỪNG CỘT để giữ nguyên bố cục nhiều cột của đơn gốc
+    var out=[], cols=[];
+    for(var c3=hc;c3<=maxC;c3++){
+      var list=[];
+      for(var r3=hr+1;r3<=endR;r3++){
+        var v=cell(r3,c3);
+        if(v && out.indexOf(v)<0){ out.push(v); list.push(v); }
+      }
+      if(list.length) cols.push(list);
+    }
+    return out.length ? { notes:out, cols:cols } : null;
   }
   function parseBoxTable(A){
     if(!A||!A.length) return null;
@@ -3029,16 +3047,33 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // 355P chỉ ra 4 nhãn Box/Tape/Curl/Stick, mất sạch nội dung.
     // Quét cả vùng, gom theo TỪNG CỘT (mỗi cột là một danh sách dọc riêng, không trộn vào nhau).
     if(noteCol>=0 && noteCol!==gcCol){
-      // Dừng theo KHOẢNG TRỐNG của chính vùng Note (4 dòng trống liên tiếp), không dừng theo
-      // tên section ở cột B: nhiều file (499P) có "Bảng Độ Cong" bắt đầu ở cột B trong khi
-      // cột Note vẫn còn chạy tiếp — dừng theo cột B là mất nửa phần ghi chú.
-      var endR=hr, maxC=noteCol, blank=0;
-      for(var r3=hr+1;r3<A.length && r3-hr<=24;r3++){
-        var row3=A[r3]||[], has=false;
+      /* MỞ RỘNG VÙNG (26/8) — đơn 741P báo "Note · 0 dòng".
+         Không dừng theo tên section ở cột B: nhiều file (499P) có "Bảng Độ Cong" bắt đầu ở cột
+         B trong khi cột Note vẫn còn chạy tiếp — dừng theo cột B là mất nửa phần ghi chú.
+         Cũng KHÔNG dừng theo khoảng trống nữa: 741P để trống 4 dòng ngay dưới tiêu đề rồi mới
+         viết (K30), giữa các mục còn cách nhau tới 9 dòng trống (K38 · K48) → luật "4 dòng
+         trống là hết" cắt mất SẠCH ghi chú.
+         Nay quét tới MỐC THẬT của trang, cái nào tới trước:
+           · dòng tiêu đề bảng Đơn Gửi Xưởng bên dưới ("STT" / "Đơn Gửi Xưởng" ở cột A·B)
+           · dải tổng "CLS · YW · PF" nằm ngay trên bảng đơn (cũng lọt trong vùng cột Note) */
+      var TONG={ 'cls':1,'yw':1,'pf':1,'easyfan':1,'prfan':1,'yy-w':1,'lines cls':1,'lines clas':1 };
+      var endR=hr, maxC=noteCol;
+      for(var r3=hr+1;r3<A.length && r3-hr<=60;r3++){
+        var la=low(cell(r3,0)), lb=low(cell(r3,1));
+        if(la==='stt' || lb==='stt' || lb.indexOf('don gui xuong')===0) break;
+        var row3=A[r3]||[], has=false, tong=0;
         for(var c3=noteCol;c3<row3.length && c3<=noteCol+15;c3++){
-          if(cell(r3,c3)){ has=true; if(c3>maxC) maxC=c3; }
+          var v3=cell(r3,c3); if(!v3) continue;
+          if(TONG[low(v3)]) tong++;
+          has=true;
         }
-        if(has){ endR=r3; blank=0; } else if(++blank>=4) break;   // 355P có 3 dòng trống giữa các nhãn
+        if(tong>=2) break;             // dải tổng CLS|YW|PF → hết vùng Note
+        if(has) endR=r3;
+      }
+      // bề ngang chỉ tính trên NHỮNG DÒNG ĐƯỢC GIỮ (đừng để dải tổng nong cột ra)
+      for(var r5=hr+1;r5<=endR;r5++){
+        var row5=A[r5]||[];
+        for(var c5=noteCol;c5<row5.length && c5<=noteCol+15;c5++){ if(cell(r5,c5) && c5>maxC) maxC=c5; }
       }
       for(var c4=noteCol;c4<=maxC;c4++){
         var colList=[];
@@ -3120,8 +3155,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
                 // mẫu 2026: ghi chú nằm ở khối "Note" đầu sheet → ghép vào cho hiện đúng chỗ
                 try{
                   var _n26=parseNote2026(gxAOA);
-                  if(_n26 && meta.boxTable && !(meta.boxTable.noteCols||[]).length){
-                    meta.boxTable.notes=_n26; meta.boxTable.noteCols=[_n26]; meta.boxTable.v=3;
+                  if(_n26 && _n26.notes.length){
+                    // chưa có Bảng Hộp mà vẫn có ghi chú → vẫn dựng khung để phần Note hiện ra
+                    if(!meta.boxTable) meta.boxTable={ v:3, total:'', rows:[], notes:[], noteCols:[] };
+                    if(!(meta.boxTable.noteCols||[]).length){
+                      meta.boxTable.notes=_n26.notes; meta.boxTable.noteCols=_n26.cols; meta.boxTable.v=3;
+                    }
                   }
                 }catch(e){ logErr('parseNote2026', e); }
                 try{ meta.doCong=parseDoCongTable(gxAOA); }catch(e){ /* bỏ qua nếu không có Bảng Độ Cong */ }
