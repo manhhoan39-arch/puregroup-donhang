@@ -468,9 +468,17 @@ body.gs-selecting{user-select:none}
 .anh-don .anh-ds{display:flex;gap:8px;flex-wrap:wrap;padding:8px}
 img.anh-th{height:120px;width:auto;max-width:220px;object-fit:cover;border:1px solid var(--border);border-radius:8px;cursor:zoom-in;background:var(--surface-2)}
 img.anh-th:hover{border-color:var(--accent);box-shadow:0 2px 10px rgba(0,0,0,.18)}
-#anh-to{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.82);align-items:center;justify-content:center;flex-direction:column;cursor:zoom-out}
-#anh-to img{max-width:94vw;max-height:88vh;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.6)}
-#anh-to .anh-dong{color:#fff;font:600 12.5px Inter,system-ui,sans-serif;margin-top:10px;opacity:.85}
+#anh-to{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.82);align-items:center;justify-content:center;flex-direction:column;cursor:zoom-out;overflow:hidden;user-select:none}
+#anh-to img{max-width:94vw;max-height:88vh;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.6);transform-origin:center center}
+/* đang phóng to → con trỏ đổi thành bàn tay để biết là KÉO ĐƯỢC */
+#anh-to.phong img{cursor:grab}
+#anh-to.phong.dang-keo img{cursor:grabbing}
+/* Dòng chữ hướng dẫn: ảnh phóng to sẽ trùm qua nó → cho nền mờ + nổi lên trên để còn đọc được */
+#anh-to .anh-dong{position:relative;z-index:2;color:#fff;font:600 12.5px Inter,system-ui,sans-serif;
+  margin-top:10px;text-align:center;background:rgba(0,0,0,.62);padding:6px 14px;border-radius:20px}
+#anh-to .anh-zoom{color:var(--teal-500)}
+/* Mở ảnh to thì KHOÁ cuộn trang dữ liệu phía sau (chốt 26/8) */
+html.anh-mo, html.anh-mo body{overflow:hidden!important}
 /* CHỈ ô lỗi và ô ĐANG gõ mới cho xuống dòng. Để pre-wrap cho MỌI ô sửa được thì cả cột
    Detail · Material bị wrap → trình duyệt chia lại bề rộng, bảng đổi khác hẳn (lỗi 26/8).
    .prev-table vốn white-space:nowrap — giữ đúng như vậy cho ô chỉ xem. */
@@ -627,7 +635,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608261930</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608262110</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1585,6 +1593,42 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return n;
   }
   var __editN=0, __editSnap=null;
+  /* ===== XEM ẢNH TO (bước 6): LĂN CHUỘT CHỈ PHÓNG TO / THU NHỎ ẢNH (chốt 26/8) =====
+     User: "sửa chức năng lăn roll chuột chỉ phóng to thu nhỏ hình, không phóng to thu nhỏ
+     trang step dữ liệu". Trước đây khung xem ảnh không nhận cú lăn nào: lăn thường thì
+     CUỘN TRANG dữ liệu phía sau (mở lại ảnh là mất chỗ đang xem), Ctrl+lăn thì trình duyệt
+     PHÓNG TO CẢ TRANG (bảng bé tí, phải Ctrl+0 mới về được).
+     Nay đang mở ảnh thì chặn hẳn mọi cú lăn (preventDefault, kể cả Ctrl+lăn) và dùng nó để
+     phóng to/thu nhỏ ĐÚNG cái ảnh, phóng quanh điểm đang trỏ chuột. */
+  var __anhZ=1, __anhX=0, __anhY=0, __anhKeo=null, __anhDi=0;
+  function anhMoRa(){ var ov=document.getElementById('anh-to'); return !!(ov && ov.style.display==='flex'); }
+  function anhVe(){
+    var ov=document.getElementById('anh-to'); if(!ov) return;
+    var im=ov.querySelector('img'); if(!im) return;
+    im.style.transform='translate('+Math.round(__anhX)+'px,'+Math.round(__anhY)+'px) scale('+__anhZ.toFixed(3)+')';
+    ov.classList.toggle('phong', __anhZ>1.01);
+    var d=ov.querySelector('.anh-zoom'); if(d) d.textContent=Math.round(__anhZ*100)+'%';
+  }
+  /* Phóng quanh ĐIỂM ĐANG TRỎ CHUỘT: transform là translate(...) scale(...) nên phần dịch
+     nằm ngoài, không bị nhân theo tỉ lệ → chỉ cần bù đúng khoảng lệch của điểm đó so với tâm. */
+  function anhZoom(z, cx, cy){
+    var ov=document.getElementById('anh-to'), im=ov&&ov.querySelector('img'); if(!im) return;
+    z=Math.max(0.3, Math.min(8, z));
+    if(cx!=null && __anhZ>0){
+      var r=im.getBoundingClientRect(), k=z/__anhZ;
+      __anhX -= (cx-(r.left+r.width/2))*(k-1);
+      __anhY -= (cy-(r.top+r.height/2))*(k-1);
+    }
+    __anhZ=z;
+    if(__anhZ<=1.01){ __anhX=0; __anhY=0; }      // về cỡ gốc thì canh giữa lại cho gọn
+    anhVe();
+  }
+  function anhDong(){
+    var ov=document.getElementById('anh-to'); if(!ov) return;
+    ov.style.display='none'; ov.classList.remove('phong','dang-keo');
+    document.documentElement.classList.remove('anh-mo');
+    __anhZ=1; __anhX=0; __anhY=0; __anhKeo=null; __anhDi=0;
+  }
   if(document.body){
     document.addEventListener('click', function(ev){
       var im=ev.target && ev.target.closest ? ev.target.closest('img.anh-th') : null;
@@ -1592,14 +1636,52 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(im){
         var a=(state.imgStore||{})[im.getAttribute('data-anh')]; if(!a) return;
         if(!ov){ ov=document.createElement('div'); ov.id='anh-to'; document.body.appendChild(ov); }
-        ov.innerHTML='<img src="'+a.d+'"><div class="anh-dong">✕ Đóng (bấm ra ngoài hoặc Esc)</div>';
-        ov.style.display='flex'; return;
+        ov.innerHTML='<img src="'+a.d+'" draggable="false">'+
+          '<div class="anh-dong">🔍 <b class="anh-zoom">100%</b> · lăn chuột để phóng to / thu nhỏ ẢNH'+
+          ' · kéo để di chuyển · bấm đúp ảnh về 100% · ✕ Đóng (bấm ra ngoài hoặc Esc)</div>';
+        ov.style.display='flex';
+        // khoá cuộn trang phía sau: mở ảnh ra là chỉ làm việc với ảnh
+        document.documentElement.classList.add('anh-mo');
+        __anhZ=1; __anhX=0; __anhY=0; __anhDi=0; anhVe();
+        return;
       }
-      if(ov && ov.style.display==='flex' && ev.target.closest && ev.target.closest('#anh-to')) ov.style.display='none';
+      if(!anhMoRa() || !ev.target.closest || !ev.target.closest('#anh-to')) return;
+      if(__anhDi>4){ __anhDi=0; return; }                       // vừa KÉO ảnh, không phải bấm để đóng
+      // đang phóng to mà bấm vào chính cái ảnh thì giữ nguyên (còn xem tiếp / bấm đúp về 100%)
+      if(__anhZ>1.01 && ev.target.tagName==='IMG') return;
+      anhDong();
+    });
+    document.addEventListener('wheel', function(ev){
+      if(!anhMoRa()) return;
+      ev.preventDefault();          // chặn CUỘN TRANG và cả Ctrl+lăn (phóng to cả trang)
+      anhZoom(__anhZ*(ev.deltaY<0?1.18:1/1.18), ev.clientX, ev.clientY);
+    }, {passive:false});
+    document.addEventListener('mousedown', function(ev){
+      if(!anhMoRa() || ev.button!==0) return;
+      __anhKeo={x:ev.clientX, y:ev.clientY, ox:__anhX, oy:__anhY}; __anhDi=0;
+      document.getElementById('anh-to').classList.add('dang-keo');
+    });
+    document.addEventListener('mousemove', function(ev){
+      if(!__anhKeo) return;
+      var dx=ev.clientX-__anhKeo.x, dy=ev.clientY-__anhKeo.y;
+      __anhDi=Math.max(__anhDi, Math.abs(dx)+Math.abs(dy));
+      if(__anhZ>1.01){ __anhX=__anhKeo.ox+dx; __anhY=__anhKeo.oy+dy; anhVe(); }
+    });
+    document.addEventListener('mouseup', function(){
+      __anhKeo=null;
+      var ov=document.getElementById('anh-to'); if(ov) ov.classList.remove('dang-keo');
+    });
+    document.addEventListener('dblclick', function(ev){
+      if(!anhMoRa() || !ev.target.closest || !ev.target.closest('#anh-to')) return;
+      ev.preventDefault(); __anhZ=1; __anhX=0; __anhY=0; anhVe();      // về đúng 100%
     });
     document.addEventListener('keydown', function(ev){
-      if(ev.key!=='Escape') return;
-      var ov=document.getElementById('anh-to'); if(ov) ov.style.display='none';
+      if(!anhMoRa()) return;
+      if(ev.key==='Escape'){ anhDong(); return; }
+      // bàn phím cho ai không thích lăn chuột
+      if(ev.key==='+'||ev.key==='='){ ev.preventDefault(); anhZoom(__anhZ*1.25); }
+      else if(ev.key==='-'||ev.key==='_'){ ev.preventDefault(); anhZoom(__anhZ/1.25); }
+      else if(ev.key==='0'){ ev.preventDefault(); __anhZ=1; __anhX=0; __anhY=0; anhVe(); }
     });
   }
   /** Khung ảnh của đơn ở bước 6 — bấm ảnh để xem to. */
