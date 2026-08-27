@@ -86,6 +86,8 @@
     function splitMats(s){ s = String(s == null ? '' : s).trim(); if (s.indexOf('\n') >= 0) return s;
       var byC = splitByComma(s); if (byC) return byC;
       var o = s.replace(/(0[.,]\d+)(?=[A-ZĐ])/g,'$1\n'); return o.split('\n').length > 1 ? o : s; }
+    var _csNorm = splitCodes(raw.codeSoi);
+    var _xuongMa = String(raw.xuongMa == null ? '' : raw.xuongMa).trim().toUpperCase() || xuongTuCode(_csNorm);
     return {
       seri: raw.seri,
       /* seriGoc = SỐ THỨ TỰ GỐC trong file khách, KHÔNG BAO GIỜ đổi.
@@ -94,7 +96,7 @@
          không thì nạp thêm 1 file là mất sạch. */
       seriGoc: (raw.seriGoc != null ? raw.seriGoc : raw.seri),
       maDon: String(raw.maDon || '').trim(),
-      codeSoi: splitCodes(raw.codeSoi), detail: raw.detail || '',
+      codeSoi: _csNorm, detail: raw.detail || '',
       length: lenNorm,
       mixSingle: ms,
       curls: curls,
@@ -108,8 +110,10 @@
       thickness: thN,
       label: raw.label == null ? '' : String(raw.label).trim(),
       mixDist: (raw.mixDist && typeof raw.mixDist === 'object') ? raw.mixDist : null,
-      xuongMa: String(raw.xuongMa == null ? '' : raw.xuongMa).trim().toUpperCase(),   // TH · HY · '' (ND)
-      xuongTH: !!raw.xuongTH || String(raw.xuongMa || '').toUpperCase() === 'TH',
+      /* Ưu tiên CỘT đánh dấu của file khách; cột trống thì đọc ĐUÔI "-TH"/"-HY" của Code Sợi
+         (kể cả do người dùng gõ tay ở bước 2) — xem xuongTuCode. */
+      xuongMa: _xuongMa,   // TH · HY · '' (ND)
+      xuongTH: !!raw.xuongTH || _xuongMa === 'TH',
       _colorBlocks: (raw._colorBlocks && raw._colorBlocks.length) ? raw._colorBlocks : null,   // phân bổ mix màu do admin nhập (per-dòng)
       /* HÀNG PREMADE (mẫu 2026): cột "Số Line" ghi chữ "Premade" thay vì con số → hàng đặt
          sẵn, KHÔNG cuốn dải line, chỉ tính SỐ HỘP. Giữ cờ để các bước sau đừng đòi bảng Mix
@@ -140,13 +144,45 @@
   // Hậu tố hàng đặc biệt gắn ở cuối Code Sợi / Mã Đơn (có thể nhiều tầng: -LZ-DU)
   var SPECIAL_TAGS = ['LZ', '1ES', '2ES', 'DU', 'U', 'W'];
   var SPECIAL_SUF_RE = new RegExp('(?:-(?:' + SPECIAL_TAGS.join('|') + '))+$', 'i');
+  /* ===== ĐUÔI "-TH" / "-HY" GÕ TAY TRONG CODE SỢI = KÝ HIỆU XƯỞNG NGOÀI (chốt 27/8) =====
+     User: "Kể cả khi sửa trực tiếp từ step 2 bảng nhập đơn có đuôi TH, HY thì cũng hiểu đó là
+     hàng Thanh Hóa. Như vậy step 5 sẽ phải tô màu code sợi TH đó và bảng in line thì không có
+     code sợi TH đó."
+     Trước đây cờ xưởng CHỈ đọc từ CỘT đánh dấu trong file khách; gõ tay "-TH" vào Code Sợi thì
+     app coi như một code sợi bình thường ⇒ (1) báo E-CODE "thiếu độ dài", (2) bước 5 không tô
+     nền vàng, (3) bản in Tổng hợp Line vẫn in hàng của xưởng Thanh Hóa.
+     Đuôi xưởng có thể đứng LẪN với hậu tố hàng đặc biệt ("...-LZ-TH" · "...-TH-LZ"). */
+  var XUONG_SUF_RE = /-(TH|HY)$/i;
+  function boDuoiXuong(code) {
+    var x = String(code == null ? '' : code).trim();
+    for (var i = 0; i < 4; i++) {
+      var y = x.replace(SPECIAL_SUF_RE, '').replace(XUONG_SUF_RE, '');
+      if (y === x) break; x = y;
+    }
+    return x;
+  }
+  /** Xưởng suy từ đuôi Code Sợi: 'TH' · 'HY' · '' (nhiều code 1 ô → lấy cái đầu tiên thấy). */
+  function xuongTuCode(code) {
+    var ds = String(code == null ? '' : code).split(/\r?\n/);
+    for (var i = 0; i < ds.length; i++) {
+      var x = ds[i].trim(); if (!x) continue;
+      for (var k = 0; k < 4; k++) {
+        var m = x.match(XUONG_SUF_RE);
+        if (m) return m[1].toUpperCase();
+        var y = x.replace(SPECIAL_SUF_RE, '');
+        if (y === x) break; x = y;
+      }
+    }
+    return '';
+  }
   function validateOrder(o, opt) {
     opt = opt || {}; var minMM = opt.minMM || MM_MIN, maxMM = opt.maxMM || MM_MAX, errs = [];
     var push = function (col, code, level, msg) { errs.push({ seri: o.seri, col: col, code: code, level: level, msg: msg }); };
     // Code sợi có thể mang HẬU TỐ HÀNG ĐẶC BIỆT do chính app gắn vào lúc đọc đơn
     // (laser/liigos→LZ, easy fan→1ES/2ES, <số>D-U→DU, hàng U/W…). Phải bỏ hậu tố rồi mới
     // xét "thiếu độ dài", nếu không "131.SKV.10-LZ" bị báo sai chuẩn oan.
-    var _codeBase = String(o.codeSoi || '').replace(SPECIAL_SUF_RE, '');
+    // …và bỏ luôn đuôi XƯỞNG ("-TH" · "-HY") gõ tay, nếu không "229.SPK2S.7-TH" bị báo oan
+    var _codeBase = boDuoiXuong(o.codeSoi);
     if (!/\.\d+$/.test(_codeBase)) push('codeSoi', 'E-CODE', 'error', '"' + o.codeSoi + '" thiếu độ dài — kỳ vọng <mã>.<số>');
     var rg = parseRange(o.length);
     if (!rg) push('length', 'E-LEN', 'error', 'Độ dài "' + o.length + '" không đọc được');

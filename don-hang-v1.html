@@ -648,7 +648,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2708271700</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2708272230</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -2445,7 +2445,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(r.type==='row'){
         var mc=r.multiMat?' cl-multimat':'';
         var ovr=r.ovrRow?' cl-ovrrow':'';   // dòng độ cong ĐẶC BIỆT (LB/LC/LJ/LC+) đã tách → chữ hồng đỏ
-        var th=r.xuongTH?' cl-throw':'';    // hàng xưởng Thanh Hóa → tô nền vàng nhạt
+        var th=laHangTH(r)?' cl-throw':'';  // hàng xưởng Thanh Hóa (kể cả đuôi -TH gõ tay) → nền vàng nhạt
         var cmx=r.cmix?' cl-cmixrow':'';    // dòng tách từ Mix nhiều màu → tô hồng cột Code Sợi + Tên gọi NL
         var cell2=(r.multiMat?' cl-matcell':'')+(r.cmix?' cl-cmixcell':'');
         /* Độ dày NHẬP NHẰNG (2 keo, không cột nào phân biệt) → keo lấy theo BẢNG CHI TIẾT của
@@ -2458,7 +2458,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           '<td class="qty">'+r.tong+'</td></tr>';
       }
       if(r.type==='subtotal'){
-        return '<tr class="subtotal'+(r.xuongTH?' cl-throw':'')+(r.cmix?' cl-cmixrow':'')+'" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td></td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+(r.cmix?' cl-cmixcell':'')+'">Tổng '+r.codeSoi+'</td><td></td><td></td><td></td><td></td>'+
+        return '<tr class="subtotal'+(laHangTH(r)?' cl-throw':'')+(r.cmix?' cl-cmixrow':'')+'" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td></td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+(r.cmix?' cl-cmixcell':'')+'">Tổng '+r.codeSoi+'</td><td></td><td></td><td></td><td></td>'+
           curlTds(r.curls)+'<td>'+fmtN(r.tong)+'</td></tr>';
       }
       // nhãn TỔNG TẤT CẢ nằm SÁT LỀ TRÁI (gộp 8 ô đầu) như dòng Σ của các bảng khác
@@ -4961,6 +4961,29 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     }
     return true;
   }
+  /* Dòng đơn nào ĐANG LỌC — bỏ qua bộ lọc của 1 cột (dùng cho menu ▼: liệt kê giá trị theo
+     đúng đơn/KH/ô tìm đang chọn, chứ không phải cả 1.700 dòng của mọi đơn — chốt 27/8). */
+  function donTruCot(boQuaKey){
+    var q = gridQuery ? (gridQuery.normalize ? gridQuery.normalize('NFC').toLowerCase() : gridQuery.toLowerCase()) : '';
+    return (state.orders||[]).filter(function(o){
+      if(!o) return false;
+      if(gridMadon && o.maDon!==gridMadon) return false;
+      if(gridMakh && khOf(o.maDon)!==gridMakh) return false;
+      for(var k in state.filters){
+        if(k===boQuaKey) continue;
+        var set=state.filters[k];
+        if(set && !set[getFVal(o,k)]) return false;
+      }
+      if(q){
+        var txt='';
+        FCOLS.forEach(function(c){ txt += ' ' + getFVal(o,c.key); });
+        CURLS.forEach(function(k2){ if(o.curls&&o.curls[k2]) txt += ' ' + o.curls[k2]; });
+        if(txt.normalize) txt=txt.normalize('NFC');
+        if(txt.toLowerCase().indexOf(q)<0) return false;
+      }
+      return true;
+    });
+  }
   function applyGridFilter(){
     if(!grid || !grid.querySelectorAll) return;
     // TỰ ĐỒNG BỘ: mã đơn / KH đang lọc KHÔNG còn trong dữ liệu (vd nạp file mới) → bỏ lọc, tránh lưới TRỐNG
@@ -5017,9 +5040,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     try{
       if(!document.body || !document.createElement) return;
       closeCtxMenu();
-      // gom giá trị duy nhất + đếm
+      // gom giá trị duy nhất + đếm — CHỈ trên những đơn đang lọc (xem donTruCot)
       var vals = {};
-      state.orders.forEach(function(o){ var v=getFVal(o,key); vals[v]=(vals[v]||0)+1; });
+      donTruCot(key).forEach(function(o){ var v=getFVal(o,key); vals[v]=(vals[v]||0)+1; });
       var keys = Object.keys(vals).sort(function(a,b){ return a.localeCompare(b,'vi',{numeric:true}); });
       // cột Mã Đơn: đơn mới nhất lên đầu
       if(key==='maDon'){ try{ var _co=keys.filter(function(v){ return v!==''; }); keys=xepDonMoiTruoc(_co).concat(keys.indexOf('')>=0?['']:[]); }catch(e){ logErr('showFilterMenu.xep', e); } }
@@ -6200,6 +6223,33 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(coPool) pgShow(tbodyId, hienRows);   // chỉ đưa dòng của TRANG ĐANG XEM vào DOM
     danhDauCotLoc(tbodyId);
   }
+  /* ===== DANH SÁCH GIÁ TRỊ CỦA MENU ▼ = CHỈ NHỮNG DÒNG ĐANG LỌC (chốt 27/8) =====
+     User: "khi đã chọn đơn thì chỉ lọc các dữ liệu của đơn đó, không lọc tất cả các đơn."
+     Trước đây menu ▼ liệt kê giá trị của TOÀN BỘ bảng: chọn đơn K133-776P mà ô lọc Code Sợi
+     vẫn kê 1.MK.5 (41) · 3.MK.7 (114)… của mọi đơn → tích vào cũng chẳng ra dòng nào.
+     Nay lấy đúng những dòng thoả MỌI bộ lọc đang bật (mã đơn · mã KH · ô tìm · xưởng làm ·
+     các cột khác) — TRỪ chính cột đang mở, để còn bỏ tích lại được. */
+  function rowsTruCot(tbodyId, boQuaCol){
+    var cfg=TBLS[tbodyId]||{}, tb=document.getElementById(tbodyId); if(!tb) return [];
+    var nq=nrm(getVal(cfg.search||'')), md=getVal(cfg.madon||''), kh=getVal(cfg.makh||''), cf=colFilters[tbodyId]||{};
+    var laCuon=(tbodyId==='eng-cuonbox'), out=[];
+    Array.prototype.forEach.call(poolRows(tbodyId), function(tr){
+      if(tr.getAttribute('data-noflt')) return;
+      var mv=tr.getAttribute('data-madon'); if(md && mv!=null && mv!==md) return;
+      var kv=tr.getAttribute('data-makh'); if(kh && kv!=null && kv!==kh) return;
+      var hay=tr.getAttribute('data-search'); if(hay==null) hay=tr.textContent;
+      if(nq && nrm(hay).indexOf(nq)<0) return;
+      for(var ci in cf){ if(+ci===+boQuaCol) continue; var set=cf[ci]; if(set && !set[cellText(tr,+ci)]) return; }
+      if(laCuon && tr.hasAttribute('data-xuong')){
+        var _che=String(getVal('s6-th-mode')||'all'), _x=tr.getAttribute('data-xuong')||'';
+        if(_che==='nd' && _x) return;
+        if(_che==='th' && _x!=='TH') return;
+        if(_che==='hy' && _x!=='HY') return;
+      }
+      out.push(tr);
+    });
+    return out;
+  }
   /* Cột nào đang lọc thì dấu ▼ SÁNG LÊN (.on) — bảng Nhập Đơn vốn đã có, nay áp cho MỌI bảng
      dùng colFilters, để nhìn là biết đang lọc cột nào (chốt 21/8). */
   function danhDauCotLoc(tbodyId){
@@ -6529,8 +6579,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         if(!(v in vals)){ vals[v]=0; order.push(v); } vals[v]++;
       });
     } else {
-      // lấy từ POOL = toàn bộ dòng của bảng, không phải mỗi trang đang xem
-      Array.prototype.forEach.call(poolRows(tbodyId), function(tr){ if(tr.getAttribute('data-noflt'))return; var v=cellText(tr,colIdx); if(!(v in vals)){ vals[v]=0; order.push(v); } vals[v]++; });
+      /* Lấy đúng những dòng ĐANG LỌC (mã đơn · mã KH · ô tìm · cột khác), bỏ qua chính
+         cột đang mở — không phải toàn bộ bảng (chốt 27/8, xem rowsTruCot). */
+      rowsTruCot(tbodyId, colIdx).forEach(function(tr){ var v=cellText(tr,colIdx); if(!(v in vals)){ vals[v]=0; order.push(v); } vals[v]++; });
     }
     order.sort(function(a,b){ return String(a).localeCompare(String(b),'vi',{numeric:true}); });
     /* Cột MÃ ĐƠN thì xếp ĐƠN MỚI NHẤT LÊN ĐẦU (chốt 18/8) — giống mọi bộ lọc khác. */
@@ -7920,6 +7971,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var trs=bodyRows(t), g=luoi(trs), cu=t.__ftSel[c]||null, vals={}, order=[], r;
       for(r=0;r<trs.length;r++){
         if(laTong(trs[r])) continue;
+        /* Chỉ kê giá trị của những dòng CÒN LẠI sau các bộ lọc cột KHÁC (đồng bộ với bảng
+           trong app, chốt 27/8) — bỏ qua chính cột đang mở để còn bỏ tích lại được. */
+        var boQua=false;
+        for(var cc in t.__ftSel){
+          if(+cc===+c) continue;
+          var setK=t.__ftSel[cc];
+          if(setK && !setK[txt(g[r] && g[r][cc])]){ boQua=true; break; }
+        }
+        if(boQua) continue;
         var v=txt(g[r] && g[r][c]);
         if(vals[v]===undefined){ vals[v]=0; order.push(v); }
         vals[v]++;
@@ -8198,6 +8258,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(String(r.xuongMa||'').toUpperCase()==='HY') return true;
     return String(r.codeSoi||'').split(/\r?\n/).some(function(x){ return /-HY$/.test(x.trim()); });
   }
+  /** Dòng hàng xưởng Thanh Hóa? (code sợi đuôi "-TH" · cờ xuongTH/xuongMa của engine).
+      Xét CẢ đuôi code sợi để hàng gõ tay ở bước 2 cũng nhận ra, không phụ thuộc cờ (27/8). */
+  function laHangTH(r){
+    if(!r) return false;
+    if(r.xuongTH || String(r.xuongMa||'').toUpperCase()==='TH') return true;
+    return String(r.codeSoi||'').split(/\r?\n/).some(function(x){ return /-TH$/i.test(x.trim()); });
+  }
   function printTongHopCuon(){
     var md=getVal('s6-madon');
     if(!md) return alert('Hãy CHỌN 1 mã đơn ở ô lọc trước khi in "Tổng hợp Cuốn".');
@@ -8247,7 +8314,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
        và bảng ở bước 5 vẫn giữ đủ để đối chiếu. */
     /* BẢN IN KHÔNG ĐI THEO Ô LỌC TRÊN MÀN HÌNH (chốt 19/8): ô xổ cạnh nút chỉ để LỌC BẢNG.
        Tổng hợp Line luôn in hàng xưởng nhà — bỏ hàng "-TH" (chốt 17/8). */
-    var rows=thRows(md).filter(function(r){ return r.maDon===md && !r.xuongTH; });
+    var rows=thRows(md).filter(function(r){ return r.maDon===md && !laHangTH(r); });
     if(!rows.length) return alert('Đơn "'+md+'" không có dòng Line nào cần in (hàng "-TH" của xưởng Thanh Hóa không tính).');
     var nhanCheDo = '';
     /* Cột ĐỘ CONG thay cho cột "Nhân viên" (chốt 17/8) — giống bảng Tổng hợp Cuốn.
