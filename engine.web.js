@@ -550,6 +550,26 @@
   /* Cụm chữ chỉ phạm vi áp dụng, KHÔNG phải tên nguyên liệu. Khớp cả câu (^…$) để không
      cắt nhầm tên thật (vd "Cashmere Silk cho hàng chung" vẫn giữ nguyên là nguyên liệu). */
   var NOT_MAT_RE = /^(cho\s+)?(cả|toàn\s*bộ|toàn|tất\s*cả|mọi|chung|dùng\s*chung|áp\s*dụng)([\s\S]*)?$|^(cho|dùng|áp\s*dụng|theo|như)\s+.*(đơn|hàng|bảng|trên|dưới|này)$|^(đơn|hàng|bảng|các|những)$|^(các|mọi|toàn\s*bộ)?\s*độ\s*(dài|cong|dày)$/i;
+  /* ===== GHI CHÚ CHỈ NHẬN "TÊN NGUYÊN LIỆU THẬT" (chốt 27/8) =====
+     Cột Ghi Chú là câu chữ tự do, mà `parseKeoCond` cắt phần chữ còn lại ra làm TÊN NGUYÊN
+     LIỆU. Câu nói suông thành "nguyên liệu" thì quy tắc đòi khớp một thứ không tồn tại ⇒ độ
+     dày đó MẤT KEO. Đã vấp nhiều lần và mỗi lần lại một câu khác:
+       · 265S  "Keo xanh blue 150BT 2mm"                    (chặn được vì có chữ "keo")
+       · 737P  "Khách đã xác nhận dùng keo như bảng sau"     (chặn được vì có chữ "keo")
+       · 776P  "Khách đã xác nhận"  ← KHÔNG có chữ "keo" nên lọt ⇒ độ dày 0.10 và 0.085 mất keo
+     Nên ĐỔI CHIỀU: chỉ nhận khi trông GIỐNG tên nguyên liệu — có từ khoá nguyên liệu / tên màu
+     / chữ "màu" / đúng dạng code sợi. Câu nào không có thì coi như KHÔNG ràng buộc nguyên liệu
+     (vẫn giữ điều kiện độ dày · độ dài của dòng keo đó).
+     Cột "Loại Sợi" là cột CÓ CẤU TRÚC nên KHÔNG lọc — khách ghi gì thì tin. */
+  var MAT_KW = /(mink|silk|matte|mờ|faux|premium|super|ultra|velvet|\bvel\b|cashmere|flat|glossy|laser|liigos|easy\s*fan|easyfan|pr\s*fan|prfan|volume|lash|premade|hybrid|camellia|chocolate|cocoa|caf[eé]|noir|espresso|mocha|caramel|honey|pecan|wine|raku|cappuccino|neon|silver|nude|beige|cream|bordeaux|ghiaccio|tip|line)/i;
+  function laTenMatThat(x) {
+    var t = String(x == null ? '' : x).trim();
+    if (!t) return false;
+    if (laCodeSoi(t)) return true;                 // code sợi ("3.MK.7")
+    if (COLOR_KW.test(t) || COLOR_NAME.test(t)) return true;   // "hàng màu" · "Bordeaux" · "Blue"…
+    return MAT_KW.test(t);
+  }
+  function locMatGhiChu(list) { return (list || []).filter(laTenMatThat); }
   /* RÁC còn lại sau khi bóc điều kiện độ dài — TUYỆT ĐỐI không được thành "tên nguyên liệu",
      vì quy tắc keo sẽ đòi khớp một nguyên liệu không tồn tại ⇒ cả đơn mất keo (đơn K47-772P):
        · "độ dài 4mm-5mm-6mm"      → còn "- mm- mm"
@@ -883,6 +903,7 @@
       if (!hasStructured && gh && /\d/.test(gh)) {
         gh.split(/\r?\n/).forEach(function (ln) {
           var c = parseKeoCond(ln);
+          c.mats = locMatGhiChu(c.mats);       // câu nói suông KHÔNG được thành tên nguyên liệu
           if (!c.thickRaw.length && !c.mats.length && c.lo == null && !c.curlOnly && !c.curlNot) return;
           rules.push({ maDon: k.maDon, glue: PS(k.loaiKeo), mats: c.mats, thick: c.thicks, lo: c.lo, hi: c.hi, spec: c.spec,
                        dsMm: c.dsMm || null,
@@ -922,7 +943,7 @@
            · 737P: "Khách đã xác nhận dùng keo như bảng sau" → thành "nguyên liệu" ⇒ 0.10 mất keo.
          Điều kiện thật của khách nằm ở cột Độ Dày/Loại Sợi/Độ Dài, cứ theo đó mà tra. */
       var ghDesc = hasStructured && /(^|[\s("'•*-])keo(\s|$)/i.test(gh);
-      var mats = soi.mats.length ? soi.mats : ((ghNoteHasGlue || ghDesc) ? [] : ghi.mats);
+      var mats = soi.mats.length ? soi.mats : ((ghNoteHasGlue || ghDesc) ? [] : locMatGhiChu(ghi.mats));
       // Độ dày: ưu tiên cột Độ Dày; nếu cột này trống thì lấy từ Ghi Chú.
       if (!dayThicks.length && !soi.thicks.length && ghi.thicks.length && !ghDesc) { thicks = ghi.thicks; }
       // Ô keo GỘP nhiều keo + ghi chú map theo độ dài → TÁCH mỗi keo 1 dải (mỗi mm ra đúng 1 keo).
