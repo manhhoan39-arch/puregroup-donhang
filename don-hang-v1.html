@@ -482,6 +482,9 @@ html.anh-mo, html.anh-mo body{overflow:hidden!important}
 /* CHỈ ô lỗi và ô ĐANG gõ mới cho xuống dòng. Để pre-wrap cho MỌI ô sửa được thì cả cột
    Detail · Material bị wrap → trình duyệt chia lại bề rộng, bảng đổi khác hẳn (lỗi 26/8).
    .prev-table vốn white-space:nowrap — giữ đúng như vậy cho ô chỉ xem. */
+.prev-table td[contenteditable="true"]:not(.dang-sua),.sheet td[contenteditable="true"]:not(.dang-sua){cursor:cell}
+/* Ô đang MỞ ra sửa (bấm đúp) — viền teal cho biết đang gõ được, bấm ra ngoài là đóng */
+td.dang-sua{cursor:text;box-shadow:inset 0 0 0 2px var(--teal-500)!important}
 #eng-nhapdon td[contenteditable].err,
 #eng-nhapdon td[contenteditable].cell-warn,
 #eng-nhapdon td[contenteditable]:focus{white-space:pre-wrap}
@@ -635,7 +638,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2708261650</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2708261940</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -4706,9 +4709,47 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     }
     updateSelStats();
   }
+  /* ===== BẤM 1 LẦN = CHỌN · BẤM ĐÚP = SỬA (user chốt 27/8) =====
+     "Ô nào cho phép chỉnh sửa thì phải bấm đúp chuột mới chỉnh sửa. Còn nếu chỉ bấm 1 lần thì
+     xem như bôi đen chọn để tính tổng/đếm/TB."
+     Trước đây ô sửa được là contenteditable nên bấm phát là con trỏ nhảy vào ô: lỡ tay gõ hay
+     dán nhầm là bảng "đang sửa dở", mà muốn cộng vài ô thì cứ bị nhảy con trỏ.
+     Nay chặn focus ở CÚ BẤM ĐẦU (preventDefault trong mousedown) — bấm đúp mới mở ô ra sửa. */
+  function oDangSua(td){ return !!(td && td.classList && td.classList.contains('dang-sua')); }
+  function timOSua(t){ return (t && t.closest) ? t.closest('td[contenteditable="true"]') : null; }
+  function dongOSua(td){ if(td && td.classList) td.classList.remove('dang-sua'); }
+  function moOSua(td, x, y){
+    if(!td) return;
+    td.classList.add('dang-sua');
+    try{
+      td.focus({preventScroll:true});
+      // đặt con trỏ ĐÚNG chỗ vừa bấm đúp (không có thì trình duyệt tự lo)
+      if(x!=null && document.caretRangeFromPoint){
+        var rg=document.caretRangeFromPoint(x,y);
+        if(rg && td.contains(rg.startContainer)){ var s=window.getSelection(); s.removeAllRanges(); s.addRange(rg); }
+      }
+    }catch(e){ logErr('moOSua', e); }
+  }
+  document.addEventListener('dblclick', function(ev){
+    var td=timOSua(ev.target); if(!td) return;
+    ev.preventDefault(); moOSua(td, ev.clientX, ev.clientY);
+  });
+  // rời ô là đóng lại → lần sau muốn sửa phải bấm đúp tiếp
+  document.addEventListener('focusout', function(ev){ dongOSua(ev.target); });
+  document.addEventListener('keydown', function(ev){
+    if(ev.key==='Escape' && oDangSua(document.activeElement)){ try{ document.activeElement.blur(); }catch(e){ logErr('escOSua', e); } }
+  });
   document.addEventListener('mousedown', function(ev){
     if(ev.button!==0) return;
     if(ev.target.closest&&ev.target.closest('input,button,select,a,.fbtn,#sel-stats')) return;
+    var tdSua=timOSua(ev.target);
+    if(!oDangSua(tdSua)){
+      /* Đang mở 1 ô khác → phải BLUR tay: preventDefault chặn luôn việc đổi focus nên
+         'focusout' không tự bắn, ô vừa gõ sẽ không được lưu. */
+      var dang=document.querySelector('td.dang-sua');
+      if(dang && dang!==tdSua){ try{ dang.blur(); }catch(e){ logErr('blurOSua', e); } dongOSua(dang); }
+      if(tdSua) ev.preventDefault();          // bấm 1 lần: KHÔNG cho con trỏ vào ô, chỉ chọn
+    }
     var cc=gsCoord(ev.target);
     if(!cc){ if(gsA||gsLock.length){ gsA=gsH=null; gsClearLock(); gsPaint(); } return; }
     if(ev.ctrlKey||ev.metaKey) gsLockCurrent();   // giữ Ctrl → cộng dồn thêm vùng
@@ -6924,9 +6965,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           td.addEventListener('mousedown', function(e){
             if(e.button!==0) return;
             if(e.target.classList.contains('rz-row')||e.target.classList.contains('rz-col')) return;
-            /* Ô SỬA ĐƯỢC: bấm thường thì gõ như cũ, nhưng GIỮ CTRL là để cộng dồn vùng chọn
-               → phải nhận, không thì mấy bảng in (ô nào cũng sửa được) Ctrl+bấm vô tác dụng. */
-            if(td.isContentEditable && !(e.ctrlKey||e.metaKey)){ clearAll(); return; }
+            /* BẤM 1 LẦN = CHỌN · BẤM ĐÚP = SỬA (user chốt 27/8). Trước đây ô sửa được thì
+               bấm phát là con trỏ nhảy vào ô, muốn cộng vài ô là chịu. Ô đang mở sửa
+               (.rz-sua) thì để trình duyệt lo con trỏ như thường. */
+            if(td.classList.contains('rz-sua')) return;
+            var dangSua=document.querySelector('.rz-sua');
+            if(dangSua && dangSua!==td){ try{ dangSua.blur(); }catch(er){ console.warn(er); } dangSua.classList.remove('rz-sua'); }
             if(e.ctrlKey||e.metaKey) khoaHienTai(); else xoaKhoa();   // Ctrl → giữ vùng cũ, cộng tiếp
             var p=posOf(t,td); if(!p) return; selecting='cell'; anchor={r:p.r,c:p.c}; setBlock(t,p.r,p.c,p.r,p.c); document.body.classList.add('rz-sel'); e.preventDefault();
           });
@@ -7016,6 +7060,22 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       document.addEventListener('mousemove', function(e){ if(selecting==='cell'){ dragX=e.clientX; dragY=e.clientY; extendToPoint(dragX,dragY); if(!scrollRAF) scrollRAF=requestAnimationFrame(edgeScroll); } });
       document.addEventListener('mouseup', function(){ if(selecting){ if(selecting==='cell') commitHp(); selecting=null; document.body.classList.remove('rz-sel'); if(scrollRAF){ cancelAnimationFrame(scrollRAF); scrollRAF=null; } } });
       window.addEventListener('beforeprint', function(){ clr('rz-selcol'); clr('rz-selcell'); closeMenu(); });
+      // BẤM ĐÚP mới mở ô ra sửa (bấm 1 lần chỉ để chọn / cộng Tổng · Đếm · TB)
+      document.addEventListener('dblclick', function(e){
+        var td=e.target&&e.target.closest?e.target.closest('[contenteditable="true"]'):null;
+        if(!td) return;
+        e.preventDefault(); clearAll(); td.classList.add('rz-sua');
+        try{
+          td.focus();
+          if(document.caretRangeFromPoint){
+            var rg=document.caretRangeFromPoint(e.clientX,e.clientY);
+            if(rg && td.contains(rg.startContainer)){ var sl=window.getSelection(); sl.removeAllRanges(); sl.addRange(rg); }
+          }
+        }catch(er){ console.warn(er); }
+      });
+      document.addEventListener('focusout', function(e){
+        if(e.target && e.target.classList && e.target.classList.contains('rz-sua')) e.target.classList.remove('rz-sua');
+      });
       // Nhận chuột phải ở BẤT KỲ đâu trong bảng — kể cả hàng tiêu đề (trước đây chỉ nhận ô
       // trong thân bảng nên bấm vào tiêu đề thì ra menu mặc định của Chrome, tưởng hỏng).
       document.addEventListener('contextmenu', function(e){
@@ -7038,7 +7098,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     window.__rzBoot=function(){ try{ init(); }catch(e){ console.warn(e); } };
     if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded', init);
   }
-  var RZ_CSS='th{position:relative;cursor:cell}.rz-col{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;z-index:5}.rz-row{position:absolute;left:0;bottom:-4px;height:8px;width:100%;cursor:row-resize;z-index:5}body.rz-active{cursor:col-resize}body.rz-active,body.rz-sel{user-select:none}.rz-selcol{background:rgba(0,207,200,.22);box-shadow:inset 0 0 0 2px #00CFC8}.rz-selcell{background:rgba(0,207,200,.20);box-shadow:inset 0 0 0 1px #00CFC8}.rz-selkhoa{background:rgba(0,207,200,.20);box-shadow:inset 0 0 0 1px #00CFC8}.rz-stats{position:fixed!important;left:auto!important;top:auto!important;right:16px!important;bottom:14px!important;width:auto!important;display:none;background:#fff;border:1.5px solid #E8185C;color:#E8185C;font-weight:800;font-size:13px;padding:7px 14px;border-radius:7px;box-shadow:0 2px 10px rgba(0,0,0,.18);z-index:100}.rz-hint{font-size:11px;color:#888;margin:0 10px}.rz-btn{margin-left:4px;padding:3px 9px;cursor:pointer}.rz-btn:disabled{opacity:.4;cursor:default}.rz-ctx{position:fixed;z-index:300;background:#fff;border:1px solid #e2e2e2;border-radius:9px;box-shadow:0 6px 22px rgba(0,0,0,.22);padding:5px;font-size:13px;min-width:172px}.rz-mi{padding:7px 12px;cursor:pointer;border-radius:6px;white-space:nowrap}.rz-mi:hover{background:rgba(0,207,200,.16)}.rz-danger{color:#b1102e}.rz-danger:hover{background:rgba(232,24,92,.12)}@media print{.rz-col,.rz-row,.rz-ctx,.rz-stats{display:none!important}.noprint{display:none!important}.rz-selcol,.rz-selcell,.rz-selkhoa{background:none!important;box-shadow:none!important}}';
+  var RZ_CSS='th{position:relative;cursor:cell}.rz-col{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;z-index:5}.rz-row{position:absolute;left:0;bottom:-4px;height:8px;width:100%;cursor:row-resize;z-index:5}body.rz-active{cursor:col-resize}body.rz-active,body.rz-sel{user-select:none}.rz-selcol{background:rgba(0,207,200,.22);box-shadow:inset 0 0 0 2px #00CFC8}.rz-selcell{background:rgba(0,207,200,.20);box-shadow:inset 0 0 0 1px #00CFC8}.rz-selkhoa{background:rgba(0,207,200,.20);box-shadow:inset 0 0 0 1px #00CFC8}[contenteditable="true"]:not(.rz-sua){cursor:cell}.rz-sua{cursor:text!important;box-shadow:inset 0 0 0 2px #00CFC8}.rz-stats{position:fixed!important;left:auto!important;top:auto!important;right:16px!important;bottom:14px!important;width:auto!important;display:none;background:#fff;border:1.5px solid #E8185C;color:#E8185C;font-weight:800;font-size:13px;padding:7px 14px;border-radius:7px;box-shadow:0 2px 10px rgba(0,0,0,.18);z-index:100}.rz-hint{font-size:11px;color:#888;margin:0 10px}.rz-btn{margin-left:4px;padding:3px 9px;cursor:pointer}.rz-btn:disabled{opacity:.4;cursor:default}.rz-ctx{position:fixed;z-index:300;background:#fff;border:1px solid #e2e2e2;border-radius:9px;box-shadow:0 6px 22px rgba(0,0,0,.22);padding:5px;font-size:13px;min-width:172px}.rz-mi{padding:7px 12px;cursor:pointer;border-radius:6px;white-space:nowrap}.rz-mi:hover{background:rgba(0,207,200,.16)}.rz-danger{color:#b1102e}.rz-danger:hover{background:rgba(232,24,92,.12)}@media print{.rz-col,.rz-row,.rz-ctx,.rz-stats{display:none!important}.noprint{display:none!important}.rz-selcol,.rz-selcell,.rz-selkhoa,.rz-sua{background:none!important;box-shadow:none!important}}';
   var RZ_BAR='<button id="rz-undo" class="rz-btn" onclick="__rzUndo()" title="Hoàn tác (Ctrl+Z)">↶ Undo</button><button id="rz-redo" class="rz-btn" onclick="__rzRedo()" title="Làm lại (Ctrl+Y)">↷ Redo</button>'+
     '<button id="rz-xl" class="rz-btn" onclick="__xlSave()" title="Tải về .xlsx giữ nguyên cột, màu nền, viền và phông đang thấy">⬇ Excel</button>';
   /* ĐÃ THỬ VÀ LOẠI (kiểm chứng bằng Print preview thật của Chrome — đừng làm lại):
@@ -7995,7 +8055,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function thUsedCurls(rows){ var UC=state.usedCurls||CURLS; return UC.filter(function(k){ return rows.some(function(r){ return (r.curls&&r.curls[k])>0; }); }); }
   function thPrint(title, body, pageHead, land){
     var w=window.open('','_blank'); if(!w) return alert('Trình duyệt chặn cửa sổ in — cho phép popup rồi thử lại.');
-    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Calibri,Arial,sans-serif;padding:6px 14px 14px;color:#111}h2{margin:4px 0 6px;font-size:16px}h2 .dc{font-weight:700;font-size:13.5px;color:#111;margin-left:14px}.hd2{margin:4px 0 8px}.hd-r{margin-top:4px}.hd-t2{font:700 11.5px Calibri,Arial,sans-serif;margin:0 0 2px}.hd-t{width:100%;table-layout:fixed;margin:0 0 4px;font-size:10.5px;border-collapse:collapse}.hd-t th,.hd-t td{border:1px solid #333;padding:2px 5px;text-align:center;white-space:normal;word-break:break-word;vertical-align:top}.hd-t th{background:#f0f0f0}table{border-collapse:collapse;width:100%;margin-bottom:14px;font-size:12px}th,td{border:1px solid #333;padding:3px 6px;text-align:center}th{background:#f0f0f0}td.l,th.l{text-align:left}.tot{font-weight:800;background:#ffe6ef}.edit{background:#fffef2;word-break:break-word;white-space:normal;outline:none;cursor:text}.edit:focus{background:#fff8c4;box-shadow:inset 0 0 0 2px #E8185C}@media print{.noprint{display:none}.edit{background:transparent!important;box-shadow:none!important}}'+RZ_CSS+PG_CSS+ST_CSS+'</style></head><body class="pg-doc" data-ttl="'+esc(pageHead||'')+'" data-land="'+(land?'1':'0')+'"><div class="noprint" style="text-align:right;margin-bottom:8px"><span class="rz-hint">Bấm ▼ ở tên cột để LỌC · chuột phải 1 dòng để Thêm/Nhân bản/Xóa · kéo tiêu đề chọn cột · kéo trên ô chọn khối · <b>Ctrl+bấm/kéo cộng dồn nhiều vùng</b> (Tổng · Đếm · TB ở góc dưới) · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Calibri,Arial,sans-serif;padding:6px 14px 14px;color:#111}h2{margin:4px 0 6px;font-size:16px}h2 .dc{font-weight:700;font-size:13.5px;color:#111;margin-left:14px}.hd2{margin:4px 0 8px}.hd-r{margin-top:4px}.hd-t2{font:700 11.5px Calibri,Arial,sans-serif;margin:0 0 2px}.hd-t{width:100%;table-layout:fixed;margin:0 0 4px;font-size:10.5px;border-collapse:collapse}.hd-t th,.hd-t td{border:1px solid #333;padding:2px 5px;text-align:center;white-space:normal;word-break:break-word;vertical-align:top}.hd-t th{background:#f0f0f0}table{border-collapse:collapse;width:100%;margin-bottom:14px;font-size:12px}th,td{border:1px solid #333;padding:3px 6px;text-align:center}th{background:#f0f0f0}td.l,th.l{text-align:left}.tot{font-weight:800;background:#ffe6ef}.edit{background:#fffef2;word-break:break-word;white-space:normal;outline:none;cursor:text}.edit:focus{background:#fff8c4;box-shadow:inset 0 0 0 2px #E8185C}@media print{.noprint{display:none}.edit{background:transparent!important;box-shadow:none!important}}'+RZ_CSS+PG_CSS+ST_CSS+'</style></head><body class="pg-doc" data-ttl="'+esc(pageHead||'')+'" data-land="'+(land?'1':'0')+'"><div class="noprint" style="text-align:right;margin-bottom:8px"><span class="rz-hint">Bấm ▼ ở tên cột để LỌC · chuột phải 1 dòng để Thêm/Nhân bản/Xóa · kéo tiêu đề chọn cột · <b>bấm đúp ô mới sửa được</b> · kéo trên ô chọn khối · <b>Ctrl+bấm/kéo cộng dồn nhiều vùng</b> (Tổng · Đếm · TB ở góc dưới) · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
       '<div class="pr-scope pg-sheet">'+body+'</div>'+RZ_JS_TAG+'</body></html>');
     w.document.close();
   }
@@ -8634,7 +8694,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       'table.pl th{color:#E8185C;border:1px solid #E8185C;padding:4px 3px;font-weight:700;overflow:hidden}'+
       'table.pl td{border:1px solid #f2a8c6;padding:3px 4px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}table.pl td.l{text-align:left}';
     var doc='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Packing List</title><style>'+css+RZ_CSS+PG_CSS+PL_CSS+ST_CSS+'</style></head><body class="pl-doc">'+
-      '<div class="noprint" style="text-align:right;padding:6px 10px"><span class="rz-hint">Bấm ▼ ở tên cột để LỌC · chuột phải 1 dòng để Thêm/Nhân bản/Xóa · kéo tiêu đề chọn cột · kéo trên ô chọn khối · <b>Ctrl+bấm/kéo cộng dồn nhiều vùng</b> (Tổng · Đếm · TB ở góc dưới) · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
+      '<div class="noprint" style="text-align:right;padding:6px 10px"><span class="rz-hint">Bấm ▼ ở tên cột để LỌC · chuột phải 1 dòng để Thêm/Nhân bản/Xóa · kéo tiêu đề chọn cột · <b>bấm đúp ô mới sửa được</b> · kéo trên ô chọn khối · <b>Ctrl+bấm/kéo cộng dồn nhiều vùng</b> (Tổng · Đếm · TB ở góc dưới) · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
       '<div class="pr-scope">'+pages+'</div>'+RZ_JS_TAG+PL_JS_TAG+'</body></html>';
     // mở TAB HIỂN THỊ (thấy màu thật trước khi in) thay vì iframe ẩn.
     // Lưu ý: máy in đen trắng (VD Canon LBP2900) sẽ luôn preview xám —
