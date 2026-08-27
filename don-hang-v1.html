@@ -14,9 +14,17 @@ window.logErr = window.logErr || function (where, e) {
   try { window.__earlyErrs.push([where, e]); if (console && console.warn) console.warn('[CL]', where, e); } catch (_) {} /* logErr-self: KHÔNG gọi logErr ở đây (đệ quy) */
 };
 
-/* PWA: đăng ký service worker (network-first) — online luôn lấy bản mới, offline dùng cache.
- * Phát hiện SW bản mới → nhắc/tự cập nhật (không cần Ctrl+Shift+R). */
+/* PWA: đăng ký service worker (CACHE-FIRST — mở app không phải chờ mạng), sw.js vẫn hỏi
+ * server ở nền; có bản mới thì nhắc/tự cập nhật (không cần Ctrl+Shift+R). */
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  /* Nghe SỚM, ngay lúc này, chứ KHÔNG đợi sự kiện 'load': sw.js có thể phát hiện bản mới và
+     nhắn về trước khi trang dựng xong. Lúc đó __clNewVersion (cuối trang) chưa có → ghi cờ,
+     đoạn tự-cập-nhật ở cuối trang đọc cờ này rồi hiện băng-rôn. */
+  navigator.serviceWorker.addEventListener('message', function (ev) {
+    if (!ev || ev.data !== 'cl-new-version') return;
+    if (typeof window.__clNewVersion === 'function') window.__clNewVersion();
+    else window.__clSWBanMoi = true;
+  });
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function (reg) {
       // kiểm tra bản SW mới định kỳ
@@ -33,6 +41,8 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
         });
       });
     }).catch(function () {});
+    // hỏi lại SW: lúc trang đang dựng nó có phát hiện bản mới không (phòng khi lỡ tin nhắn)
+    try { if (navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage('hoi-ban-moi'); } catch(e){ logErr('app', e); }
     // SW mới nắm quyền → nạp lại 1 lần để chạy bản mới (nếu chưa reload thủ công)
     var reloaded = false;
     navigator.serviceWorker.addEventListener('controllerchange', function () {
@@ -638,7 +648,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2708262115</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2708262330</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -9264,6 +9274,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   function poll(){ if(checking||notified) return; checking=true; sig().then(function(s){ checking=false; if(!s) return; if(initSig==null){ initSig=s; return; } if(s!==initSig) onNew(); }); }
   window.__clNewVersion = onNew;   // cho Service Worker gọi khi phát hiện bản mới
+  if (window.__clSWBanMoi) onNew();   // SW đã nhắn lúc trang chưa dựng xong → hiện ngay
   sig().then(function(s){ initSig=s; });
   setInterval(poll, 90000);                                   // kiểm tra 90s/lần
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) poll(); });
