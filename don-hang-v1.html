@@ -635,7 +635,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2608262340</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2708261650</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -894,7 +894,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <input id="s6-makh" class="madon-pick" list="dl-makh" placeholder="Tất cả KH" title="Lọc theo Mã KH — đồng bộ mọi bước" autocomplete="off" style="min-width:120px;margin-right:6px">
       <input id="s6-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
       <button class="btn sm" id="btn-th-line" style="color:var(--accent);font-weight:700" title="In bảng Tổng hợp Line (theo code sợi × mm)">🖨 Tổng hợp Line</button>
-      <select id="s6-th-mode" title="Lọc bảng theo xưởng làm — 2 bảng Σ và Tổng Dây tính lại theo lựa chọn này (không ảnh hưởng bản in)" style="padding:3px 6px;margin-right:6px;font-size:11.5px">
+      <select id="s6-th-mode" title="Lọc bảng theo xưởng làm — 2 bảng tổng hợp và Tổng Dây tính lại theo lựa chọn này (không ảnh hưởng bản in)" style="padding:3px 6px;margin-right:6px;font-size:11.5px">
         <option value="all" selected>Tất cả</option>
         <option value="nd" title="Chỉ hàng xưởng NĐ — bỏ code sợi đuôi -TH và -HY">Xưởng NĐ</option>
         <option value="th" title="Chỉ hàng xưởng Thanh Hóa — code sợi đuôi -TH">Xưởng TH</option>
@@ -948,29 +948,29 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
             <tr><td>3</td><td class="txt">107.SKS.Cafe.85</td><td>4-8mm</td><td>6</td><td></td><td></td><td class="qty">5</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="qty">5</td><td>Box đen</td><td>Mix</td></tr>
             <tr><td>4</td><td class="txt">107.SKS.Cafe.85</td><td>6-13mm</td><td>8</td><td></td><td></td><td class="qty">10</td><td></td><td></td><td></td><td class="qty">10</td><td></td><td></td><td></td><td></td><td></td><td class="qty">20</td><td>Box đen</td><td>Mix</td></tr>
             <tr><td>5</td><td class="txt">107.SKS.Cafe.85</td><td>6-13mm</td><td>9</td><td></td><td></td><td class="qty">15</td><td></td><td></td><td></td><td class="qty">15</td><td></td><td></td><td></td><td></td><td></td><td class="qty">30</td><td>Box đen</td><td>Mix</td></tr>
-            <tr class="subtotal"><td></td><td class="txt">Σ 107.SKS.Cafe.85</td><td colspan="2">5 dòng</td><td></td><td></td><td>40</td><td></td><td></td><td></td><td>25</td><td></td><td></td><td></td><td></td><td></td><td>65</td><td>—</td><td>Mix</td></tr>
+            <tr class="subtotal"><td></td><td class="txt">Tổng 107.SKS.Cafe.85</td><td colspan="2">5 dòng</td><td></td><td></td><td>40</td><td></td><td></td><td></td><td>25</td><td></td><td></td><td></td><td></td><td></td><td>65</td><td>—</td><td>Mix</td></tr>
             <tr><td>6</td><td class="txt">245.MKPS.7</td><td>6-14mm</td><td>9</td><td></td><td></td><td></td><td class="qty">15</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="qty">15</td><td>Box trắng</td><td>Single</td></tr>
             <tr><td>7</td><td class="txt">245.MKPS.7</td><td>6-14mm</td><td>10</td><td></td><td></td><td></td><td class="qty">15</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="qty">15</td><td>Box trắng</td><td>Single</td></tr>
             <tr><td>8</td><td class="txt">245.MKPS.7</td><td>6-14mm</td><td>11</td><td></td><td></td><td></td><td class="qty">15</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="qty">15</td><td>Box trắng</td><td>Single</td></tr>
             <tr><td>9</td><td class="txt">245.MKPS.7</td><td>13-16mm</td><td>13</td><td></td><td></td><td></td><td></td><td class="qty">10</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="qty">10</td><td>Box trắng</td><td>Single</td></tr>
-            <tr class="subtotal"><td></td><td class="txt">Σ 245.MKPS.7</td><td colspan="2">4 dòng</td><td></td><td></td><td></td><td>45</td><td>10</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>55</td><td>—</td><td>Single</td></tr>
+            <tr class="subtotal"><td></td><td class="txt">Tổng 245.MKPS.7</td><td colspan="2">4 dòng</td><td></td><td></td><td></td><td>45</td><td>10</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>55</td><td>—</td><td>Single</td></tr>
             <tr><td>10</td><td class="txt">135.SKS.Wland.85</td><td>6-13mm</td><td>7</td><td></td><td class="qty">13</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="qty">13</td><td>Box đen</td><td>Mix</td></tr>
             <tr><td>11</td><td class="txt">135.SKS.Wland.85</td><td>6-13mm</td><td>8</td><td></td><td class="qty">13</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="qty">13</td><td>Box đen</td><td>Mix</td></tr>
-            <tr class="subtotal"><td></td><td class="txt">Σ 135.SKS.Wland.85</td><td colspan="2">2 dòng</td><td></td><td>26</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>26</td><td>—</td><td>Mix</td></tr>
-            <tr class="grand"><td></td><td class="txt">Σ GRAND TOTAL</td><td colspan="2">3 code · 11 dòng</td><td></td><td>26</td><td>40</td><td>45</td><td>10</td><td></td><td>25</td><td></td><td></td><td></td><td></td><td></td><td>146</td><td>—</td><td>—</td></tr>
+            <tr class="subtotal"><td></td><td class="txt">Tổng 135.SKS.Wland.85</td><td colspan="2">2 dòng</td><td></td><td>26</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>26</td><td>—</td><td>Mix</td></tr>
+            <tr class="grand"><td></td><td class="txt">TỔNG TẤT CẢ</td><td colspan="2">3 code · 11 dòng</td><td></td><td>26</td><td>40</td><td>45</td><td>10</td><td></td><td>25</td><td></td><td></td><td></td><td></td><td></td><td>146</td><td>—</td><td>—</td></tr>
           </tbody>
         </table>
       </div>
-      <!-- DƯỚI BẢNG CHI TIẾT: 2 cột đối xứng — Σ Tổng hợp Code Sợi | Σ Tổng hợp Keo -->
+      <!-- DƯỚI BẢNG CHI TIẾT: 2 cột đối xứng — Tổng hợp Code Sợi | Tổng hợp Keo -->
       <div id="s6-bottom" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;align-items:start">
         <div>
-          <div style="font-weight:700;font-size:12px;margin-bottom:6px">Σ Tổng hợp Code Sợi · Số Dây</div>
+          <div style="font-weight:700;font-size:12px;margin-bottom:6px">Tổng hợp Code Sợi · Số Dây</div>
           <div class="tbl-wrap" style="max-height:300px">
             <table class="sheet" style="width:100%;font-size:11px"><thead><tr><th style="width:44px">Mã KH <span class="fbtn" data-coltbl="s6-code-pivot" data-col="0" title="Lọc cột Mã KH">▼</span></th><th style="width:56px">Mã Đơn <span class="fbtn" data-coltbl="s6-code-pivot" data-col="1" title="Lọc cột Mã Đơn">▼</span></th><th>Code Sợi <span class="fbtn" data-coltbl="s6-code-pivot" data-col="2" title="Lọc cột Code Sợi">▼</span></th><th>Tên Gọi NL <span class="fbtn" data-coltbl="s6-code-pivot" data-col="3" title="Lọc cột Tên Gọi NL">▼</span></th><th style="width:56px">Số Dây <span class="fbtn" data-coltbl="s6-code-pivot" data-col="4" title="Lọc cột Số Dây">▼</span></th></tr></thead><tbody id="s6-code-pivot"></tbody></table>
           </div>
         </div>
         <div>
-          <div style="font-weight:700;font-size:12px;margin-bottom:6px">🧷 Σ Tổng hợp Keo</div>
+          <div style="font-weight:700;font-size:12px;margin-bottom:6px">🧷 Tổng hợp Keo</div>
           <div class="tbl-wrap" style="max-height:300px">
             <table class="sheet" style="width:100%;font-size:11px"><thead><tr><th style="width:44px">Mã KH <span class="fbtn" data-coltbl="s6-keo-pivot" data-col="0" title="Lọc cột Mã KH">▼</span></th><th style="width:56px">Mã Đơn <span class="fbtn" data-coltbl="s6-keo-pivot" data-col="1" title="Lọc cột Mã Đơn">▼</span></th><th>Loại Keo <span class="fbtn" data-coltbl="s6-keo-pivot" data-col="2" title="Lọc cột Loại Keo">▼</span></th><th style="width:58px">SL (dây) <span class="fbtn" data-coltbl="s6-keo-pivot" data-col="3" title="Lọc cột SL (dây)">▼</span></th></tr></thead><tbody id="s6-keo-pivot"></tbody></table>
           </div>
@@ -1466,7 +1466,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function cmMMs(o){ var pr=E.parseRange(o.length); if(!pr) return []; var a=[]; for(var m=pr.lo;m<=pr.hi;m++) a.push(m); return a; }
   /* Σ CÁC MÀU phải bằng SỐ LINE của dòng đơn (C213-785P Mix Color: 8 + 8 = 16). Dùng chung
      cho lúc dựng bảng (HTML) và lúc cập nhật tại chỗ (textContent) để không lệch cách hiện. */
-  function cmTotStr(tong, need){ return 'Σ '+tong+'/'+need+((tong===need)?' ✓':' ⚠ lệch '+(tong-need)); }
+  function cmTotStr(tong, need){ return 'Tổng '+tong+'/'+need+((tong===need)?' ✓':' ⚠ lệch '+(tong-need)); }
   function cmTotHtml(tong, need){ return '<span class="cm-tot" style="color:'+((tong===need)?'var(--green-600)':'var(--red-600)')+'">'+cmTotStr(tong,need)+'</span>'; }
   function cmTotTxt(el, tong, need){ el.textContent=cmTotStr(tong,need); el.style.color=(tong===need)?'var(--green-600)':'var(--red-600)'; }
   // khóa theo CHỮ KÝ (mã đơn + dải + bộ code) — các dòng/file trùng nhau dùng CHUNG 1 bảng, không lặp
@@ -1560,7 +1560,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       html+='<div class="cmix-tbl" data-cmkey="'+esc(key)+'" data-madon="'+esc(o.maDon)+'" data-cmneed="'+need+'" style="border:1px solid '+(done?'var(--border)':'var(--red-500)')+';border-radius:9px;padding:8px;max-width:100%;overflow:auto;flex:0 0 auto">'+
         '<div class="mini" style="font-weight:700;margin-bottom:5px">'+esc(o.maDon)+' · dải '+esc(o.length||'')+' · '+codes.length+' màu'+(it.cnt>1?' · dùng cho '+it.cnt+' dòng':'')+' — <span class="cm-st" style="color:'+(done?'var(--green-600)':'var(--red-600)')+'">'+(done?'✓ đã điền':'⚠ chưa hoàn thiện')+'</span>'+
         (need?' · '+cmTotHtml(tongMau,need):'')+'</div>'+
-        '<table class="sheet" style="width:auto;white-space:nowrap"><thead><tr><th>Màu \\ MM</th>'+th+'<th>Σ</th></tr></thead><tbody>'+body+'</tbody></table>'+
+        '<table class="sheet" style="width:auto;white-space:nowrap"><thead><tr><th>Màu \\ MM</th>'+th+'<th>Tổng</th></tr></thead><tbody>'+body+'</tbody></table>'+
       '</div>';
       });
       html+='</div></div>';     // đóng flex-row + khối .cmix-order của mã đơn này
@@ -2283,7 +2283,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(lchead){
         lchead.innerHTML = '<th class="freeze">MM \\ Dải độ dài</th>'+
           lcRanges.map(function(r){ return '<th>'+esc(lcLbl(r))+'</th>'; }).join('')+
-          '<th style="background:var(--accent-soft);color:var(--accent)">Σ MM</th>';
+          '<th style="background:var(--accent-soft);color:var(--accent)">Tổng MM</th>';
       }
       setTxt('lcranges', lcRanges.length+' dải');
       var fmt=function(v){ return v?('<span class="qty" style="color:var(--accent)">'+v.toFixed(1)+'</span>'):'<span style="color:var(--text-3)">·</span>'; };
@@ -2295,7 +2295,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           '<td style="background:var(--accent-soft);font-weight:800;color:var(--accent)">'+rt.toFixed(1)+'</td></tr>';
       }).join('');
       document.getElementById('lcfoot').innerHTML =
-        '<tr style="background:var(--accent);color:#fff;font-weight:800"><td class="freeze" style="background:var(--accent);color:#fff;text-align:left">Σ TỔNG LINE</td>'+
+        '<tr style="background:var(--accent);color:#fff;font-weight:800"><td class="freeze" style="background:var(--accent);color:#fff;text-align:left">TỔNG LINE</td>'+
         lcRanges.map(function(r){ return '<td>'+(lc.colTotal[r]||0).toFixed(1)+'</td>'; }).join('')+
         '<td>'+lc.grand.toFixed(1)+'</td></tr>';
       setTxt('lctotal', lc.grand.toFixed(1)+' line');
@@ -2445,11 +2445,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           '<td class="qty">'+r.tong+'</td></tr>';
       }
       if(r.type==='subtotal'){
-        return '<tr class="subtotal'+(r.xuongTH?' cl-throw':'')+(r.cmix?' cl-cmixrow':'')+'" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td></td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+(r.cmix?' cl-cmixcell':'')+'">Σ '+r.codeSoi+'</td><td></td><td></td><td></td><td></td>'+
+        return '<tr class="subtotal'+(r.xuongTH?' cl-throw':'')+(r.cmix?' cl-cmixrow':'')+'" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td></td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+(r.cmix?' cl-cmixcell':'')+'">Tổng '+r.codeSoi+'</td><td></td><td></td><td></td><td></td>'+
           curlTds(r.curls)+'<td>'+fmtN(r.tong)+'</td></tr>';
       }
-      // nhãn Σ GRAND TOTAL nằm SÁT LỀ TRÁI (gộp 8 ô đầu) như dòng Σ của các bảng khác
-      return '<tr class="grand"><td class="txt" colspan="8">Σ GRAND TOTAL</td>'+
+      // nhãn TỔNG TẤT CẢ nằm SÁT LỀ TRÁI (gộp 8 ô đầu) như dòng Σ của các bảng khác
+      return '<tr class="grand"><td class="txt" colspan="8">TỔNG TẤT CẢ</td>'+
         curlTds(r.curls)+'<td>'+fmtN(r.tong)+'</td></tr>';
     }).join('')); applyTable('eng-cuonbox'); }
 
@@ -2983,11 +2983,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function rptDetailHtml(md){
     var keep=function(r){ return r.maDon===md; };
     return '<div class="rpt-dt-2">'+
-        '<div><div class="rpt-dt-t">Σ Tổng hợp Code Sợi · Số Dây</div>'+
+        '<div><div class="rpt-dt-t">Tổng hợp Code Sợi · Số Dây</div>'+
           '<div class="tbl-wrap" style="max-height:300px"><table class="sheet" style="width:100%;font-size:11px">'+
           '<thead><tr><th style="width:44px">Mã KH</th><th style="width:56px">Mã Đơn</th><th>Code Sợi</th><th>Tên Gọi NL</th><th style="width:56px">Số Dây</th></tr></thead>'+
           '<tbody data-gs="1">'+htmlPivotCode(aggPivotCode(keep))+'</tbody></table></div></div>'+
-        '<div><div class="rpt-dt-t">🧷 Σ Tổng hợp Keo</div>'+
+        '<div><div class="rpt-dt-t">🧷 Tổng hợp Keo</div>'+
           '<div class="tbl-wrap" style="max-height:300px"><table class="sheet" style="width:100%;font-size:11px">'+
           '<thead><tr><th style="width:44px">Mã KH</th><th style="width:56px">Mã Đơn</th><th>Loại Keo</th><th style="width:58px">SL (dây)</th></tr></thead>'+
           '<tbody data-gs="1">'+htmlPivotKeo(aggPivotKeo(keep))+'</tbody></table></div></div>'+
@@ -3578,7 +3578,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       });
     });
     var moc=function(F){ return (F&&(F.importedAt||F.addedAt))||0; };
-    var nTach=0, nThay=0, doiTheoFile={};
+    var nTach=0, nThay=0, doiTheoFile={}, dsThay=[], dsTach=[];
     thuTuMd.forEach(function(m){
       var g=nhom[m];
       g.ds.forEach(function(td, k){
@@ -3589,6 +3589,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             if(i===giu) return;
             okFiles[i].banCu={ maDon:m, boi:okFiles[giu].name };
             nThay++;
+            dsThay.push({ maDon:m, giu:okFiles[giu].name, bo:okFiles[i].name,
+                          moi:!!(okFiles[giu]._new||okFiles[i]._new) });
             try{ logLine('♻ Cùng mã đơn + CÙNG tiêu đề → dùng BẢN MỚI cho đơn '+m+': lấy theo "'+
               okFiles[giu].name+'", bỏ bản cũ "'+okFiles[i].name+'"'); }catch(e){ logErr('datMaDonDuyNhat', e); }
           });
@@ -3605,9 +3607,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       Object.keys(map).forEach(function(m){ nguoc[map[m]]=m; });
       var mota=Object.keys(map).map(function(m){ return m+' ⇒ '+map[m]; }).join(', ');
       apDung(F, map); F._mdRen=nguoc; nTach++;
+      dsTach.push({ mota:mota, ten:F.name, moi:!!F._new });
       try{ logLine('⚠ Cùng mã đơn nhưng KHÁC tiêu đề file → tách thành đơn riêng: "'+F.name+'" · '+mota); }catch(e){ logErr('datMaDonDuyNhat', e); }
     });
-    return { tach:nTach, thay:nThay };
+    return { tach:nTach, thay:nThay, dsThay:dsThay, dsTach:dsTach };
   }
   function processFiles(silent, onlyImported){
     // onlyImported=true (khi XÓA 1 file): chỉ dựng lại từ file ĐÃ NHẬP — không tự xử lý các file đang chờ ở "File đã chọn"
@@ -3621,8 +3624,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     okFiles.forEach(function(F){ if(!F.importedAt) F.importedAt=Date.now(); });
     /* Cùng mã đơn: KHÁC tiêu đề → tách thành đơn riêng (.2 / .3); CÙNG tiêu đề → là bản mới
        của chính đơn đó, lấy bản sau cùng và BỎ bản cũ ra khỏi số liệu (26/8). */
-    var soDonTach=0, soBanCu=0;
-    try{ var _kq=datMaDonDuyNhat(okFiles)||{}; soDonTach=_kq.tach||0; soBanCu=_kq.thay||0; }
+    var soDonTach=0, soBanCu=0, dsTach=[], dsThay=[];
+    try{
+      var _kq=datMaDonDuyNhat(okFiles)||{};
+      /* POPUP CHỈ NÓI VỀ ĐỢT NÀY (user chốt 27/8): hàm trên chạy lại trên TOÀN BỘ file mỗi lần
+         bấm Xử lý nên nó thấy cả mấy cặp trùng từ đợt trước — báo lại là người dùng tưởng đơn
+         vừa nạp có vấn đề. Chỉ giữ cặp nào có dính file VỪA NẠP (x.moi); mấy cặp cũ vẫn còn
+         nguyên huy hiệu "BẢN CŨ" ở danh sách file và dòng ghi trong Lịch sử thay đổi. */
+      dsTach=(_kq.dsTach||[]).filter(function(x){ return x.moi; });
+      dsThay=(_kq.dsThay||[]).filter(function(x){ return x.moi; });
+      soDonTach=dsTach.length; soBanCu=dsThay.length;
+    }
     catch(e){ logErr('datMaDonDuyNhat', e); }
     var allFiles=okFiles;                        // giữ cả bản cũ để còn tắt cờ _new / hiện trong danh sách
     okFiles=okFiles.filter(function(F){ return !F.banCu; });
@@ -3791,9 +3803,20 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       head+
       (khopTxt?'<br>'+khopTxt:'')+dcTxt+
       // báo rõ khi app tự tách đơn trùng mã — người dùng thấy ngay vì sao có mã đơn ".2"
-      (soDonTach?'<br><span style="color:var(--accent);font-weight:700">🔀 '+soDonTach+' file cùng mã đơn nhưng khác tiêu đề → đã tách thành đơn riêng (hậu tố .2 / .3). Chi tiết ở Lịch sử thay đổi.</span>':'')+
+      /* Nói rõ ĐƠN NÀO · FILE NÀO (26/8) và CHỈ nói về đợt vừa nạp (27/8): trước đây chỉ ghi
+         "N file …" nằm ngay dưới tên đơn vừa nạp nên tưởng là nói về chính đơn đó, trong khi
+         thật ra là 2 file cũ trùng nhau từ đợt trước. */
+      (soDonTach?'<br><span style="color:var(--accent);font-weight:700">🔀 '+soDonTach+' file cùng mã đơn nhưng khác tiêu đề → tách thành đơn riêng'+
+        ':</span>'+
+        '<div class="mini" style="color:var(--text-2);text-align:left;margin:2px 0 0 10px">'+
+        dsTach.slice(0,4).map(function(x){ return '· '+esc(x.mota)+' — “'+esc(x.ten)+'”'; }).join('<br>')+
+        (dsTach.length>4?('<br>· … và '+(dsTach.length-4)+' file nữa'):'')+'</div>':'')+
       // cùng mã đơn + cùng tiêu đề = bản mới của chính đơn đó → nói rõ là ĐÃ THAY, không phải tách
-      (soBanCu?'<br><span style="color:var(--green-700);font-weight:700">♻ '+soBanCu+' file là BẢN CŨ của đơn đã có (cùng mã đơn, cùng tiêu đề) → số liệu lấy theo bản mới nhất.</span>':'')+
+      (soBanCu?'<br><span style="color:var(--green-700);font-weight:700">♻ '+soBanCu+' file là BẢN CŨ của đơn đã có (cùng mã đơn, cùng tiêu đề) → lấy bản mới nhất'+
+        ':</span>'+
+        '<div class="mini" style="color:var(--text-2);text-align:left;margin:2px 0 0 10px">'+
+        dsThay.slice(0,4).map(function(x){ return '· Đơn <b>'+esc(x.maDon)+'</b>: dùng “'+esc(x.giu)+'”, bỏ “'+esc(x.bo)+'”'; }).join('<br>')+
+        (dsThay.length>4?('<br>· … và '+(dsThay.length-4)+' file nữa'):'')+'</div>':'')+
       (curlWarnAll.length?'<br><span style="color:var(--red-600);font-weight:700">⚠ ĐỘ CONG LỆCH CẤU TRÚC CHUẨN</span><br><span style="color:var(--red-600)">'+curlWarnAll.join('<br>')+'</span>':'')+
       '<hr style="border:0;border-top:1px solid var(--line);margin:10px 0">'+
       '<span style="color:var(--text-2)">Toàn bộ: '+okFiles.length+' file · '+orders.length+' dòng · '+
@@ -4639,7 +4662,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(/^-?[\d.,]+$/.test(t)){ var v=/^\d{1,3}(\.\d{3})+$/.test(t)?parseFloat(t.replace(/\./g,'')):parseFloat(t.replace(',','.')); if(isFinite(v)){ sum+=v; nums++; } }
     });
     var f=function(n){ n=Math.round(n*100)/100; return fmtN(n); };
-    bar.innerHTML='Σ <b>'+f(sum)+'</b> &nbsp;·&nbsp; Đếm: <b>'+cnt+'</b>'+(nums?' &nbsp;·&nbsp; TB: <b>'+f(sum/nums)+'</b>':'');
+    bar.innerHTML='Tổng <b>'+f(sum)+'</b> &nbsp;·&nbsp; Đếm: <b>'+cnt+'</b>'+(nums?' &nbsp;·&nbsp; TB: <b>'+f(sum/nums)+'</b>':'');
     bar.style.display='block';   // CSS #sel-stats mặc định display:none → phải set 'block' mới hiện
   }
   // ==== CHỌN VÙNG kéo chuột cho các bảng dữ liệu (Step 2·3·4·5·6) ====
@@ -5682,7 +5705,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var origTot=0; try{ boxDataRows(state.R).filter(function(o){return !md||o.maDon===md;}).forEach(function(o){ origTot+=boxHop(o); }); }catch(e){ logErr('renderSlipSummary', e); }
     var lack=origTot-tot;
     var bxs=Object.keys(perBox).sort(function(a,b){return String(a).localeCompare(String(b),'vi',{numeric:true});});
-    var th='<th style="background:var(--accent-soft);color:var(--accent)">CHƯA GÁN</th><th style="background:var(--surface-3)">Σ TỔNG</th>'+bxs.map(function(b){return '<th>'+esc(b)+'</th>';}).join('');
+    var th='<th style="background:var(--accent-soft);color:var(--accent)">CHƯA GÁN</th><th style="background:var(--surface-3)">TỔNG</th>'+bxs.map(function(b){return '<th>'+esc(b)+'</th>';}).join('');
     var td='<td class="qty" style="color:'+(un?'var(--red-600)':'var(--text-3)')+'">'+fmtN(un)+'</td><td class="qty"><b>'+fmtN(tot)+'</b></td>'+bxs.map(function(b){return '<td class="qty">'+fmtN(perBox[b])+'</td>';}).join('');
     box.innerHTML='<div style="display:flex;align-items:center;gap:10px;max-width:100%">'+
       '<span style="font-weight:800;font-size:13px;color:var(--accent);white-space:nowrap;flex:0 0 auto">📦 Theo Thùng ('+bxs.length+' box)</span>'+
@@ -5983,7 +6006,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       /* Dòng Σ phải ĐÚNG số cột của bảng (13 + độ cong + 1 = như tiêu đề). Trước đây thừa
          1 ô "N thùng" → bảng tự đẻ thêm 1 cột, dòng Σ thò ra khỏi mép phải, nhìn như lỗi
          (thấy rõ khi bảng chia trang chỉ còn 50 dòng). Gộp "N thùng" vào ô nhãn. */
-      foot.innerHTML='<tr class="grand"><td colspan="13" class="txt">Σ Tổng Số Hộp (từ đơn gửi xưởng)'+
+      foot.innerHTML='<tr class="grand"><td colspan="13" class="txt">Tổng Số Hộp (từ đơn gửi xưởng)'+
         (nThung?' · '+nThung+' thùng':'')+'</td>'+curlSumTds+'<td>'+fmtN(tot)+'</td></tr>';
     }
   }
@@ -6342,7 +6365,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var R=state.R; if(!R||!R.cuonSheet) return;
     try{ renderKhopWarn(); }catch(e){ logErr('renderKhopWarn', e); }   // #8: chạy TRƯỚC mọi return sớm
     var md=getVal('s6-madon');
-    /* Thanh Tổng Dây / Single / Mix và dòng Σ GRAND TOTAL cũng đi theo bộ lọc đang bật —
+    /* Thanh Tổng Dây / Single / Mix và dòng TỔNG TẤT CẢ cũng đi theo bộ lọc đang bật —
        để trên bảng còn 3 code sợi mà tổng vẫn là của cả đơn thì không đối chiếu được. */
     var rows=cbCoLocCot() ? cbLocRows()
            : R.cuonSheet.rows.filter(function(r){ return r.type==='row' && (!md || r.maDon===md); });
@@ -6358,7 +6381,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     /* 8 ô trước vùng độ cong (STT · Mã KH · Mã Đơn · Code Sợi · Tên Gọi NL · S/M · MM · Keo nhiệt)
        → GỘP HẾT 8 ô làm nhãn để chữ nằm sát lề trái như dòng Σ của các bảng khác (chốt 18/8).
        Tổng số ô vẫn khớp header, không được lệch cột. */
-    gr.innerHTML='<td class="txt" colspan="8">Σ GRAND TOTAL'+(md?(' · '+esc(md)):'')+'</td>'+
+    gr.innerHTML='<td class="txt" colspan="8">TỔNG TẤT CẢ'+(md?(' · '+esc(md)):'')+'</td>'+
       CURLS.map(function(k){ return '<td class="cw">'+(gc[k]?fmtN(gc[k]):'')+'</td>'; }).join('')+
       '<td>'+fmtN(tot)+'</td>';
   }
@@ -6703,22 +6726,64 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     function isOrigin(g,r,c){ var cell=g[r][c]; return (r===0||g[r-1][c]!==cell)&&(c===0||g[r][c-1]!==cell); }
     function posOf(t,cell){ var g=grid(t); for(var r=0;r<g.length;r++){ var row=g[r]||[]; for(var c=0;c<row.length;c++){ if(row[c]===cell && isOrigin(g,r,c)) return {r:r,c:c}; } } return null; }
     function clr(cls){ var x=document.querySelectorAll('.'+cls),i; for(i=0;i<x.length;i++) x[i].classList.remove(cls); }
-    function clearAll(){ clr('rz-selcol'); clr('rz-selcell'); selColIdx=[]; selRowIdx=[]; block=null; selTable=null; if(statsBar) statsBar.style.display='none'; }
+    /* ---- Ctrl + bấm / kéo = CỘNG DỒN NHIỀU VÙNG (chốt 27/8) ----
+       User: "ở các bảng in thêm chức năng ấn Ctrl + tô đen các ô vẫn hiện tổng, đếm, TB như
+       bảng ở step". Trước đây cửa sổ in chỉ cộng ĐÚNG MỘT khối đang kéo, bấm chỗ khác là mất
+       vùng cũ — muốn cộng 3 ô rời nhau ở 3 chỗ thì chịu. Nay giống hệt bảng trong app: giữ
+       Ctrl rồi bấm / kéo tiếp thì vùng cũ được KHÓA lại (class rz-selkhoa) và cộng chung. */
+    var selKhoa=[];
+    function xoaKhoa(){
+      for(var i=0;i<selKhoa.length;i++){ try{ selKhoa[i].classList.remove('rz-selkhoa'); }catch(e){ /* logErr-self: ô đã bị vẽ lại */ } }
+      selKhoa=[];
+    }
+    function khoaHienTai(){                      // giữ vùng đang chọn lại rồi cho chọn tiếp
+      oChon().forEach(function(cell){ if(selKhoa.indexOf(cell)<0){ selKhoa.push(cell); cell.classList.add('rz-selkhoa'); } });
+    }
+    /* Mọi ô ĐANG được tính: vùng đã khóa + khối đang kéo; chọn cả CỘT (bấm tên cột) thì lấy
+       mấy ô trong thân bảng của cột đó — không thì bấm tên cột xong chẳng thấy Σ đâu. */
+    function oChon(){
+      var ds=[], i, r, c, cell;
+      for(i=0;i<selKhoa.length;i++){ cell=selKhoa[i]; if(cell && cell.isConnected && ds.indexOf(cell)<0) ds.push(cell); }
+      if(block){
+        var g=grid(block.t);
+        for(r=block.r0;r<=block.r1;r++) for(c=block.c0;c<=block.c1;c++){
+          cell=g[r]&&g[r][c]; if(cell && isOrigin(g,r,c) && ds.indexOf(cell)<0) ds.push(cell);
+        }
+      } else if(selTable && selColIdx.length){
+        var g2=grid(selTable);
+        for(r=0;r<g2.length;r++) for(i=0;i<selColIdx.length;i++){
+          c=selColIdx[i]; cell=g2[r]&&g2[r][c];
+          if(cell && isOrigin(g2,r,c) && ds.indexOf(cell)<0) ds.push(cell);
+        }
+      }
+      return ds;
+    }
+    function clearAll(){ clr('rz-selcol'); clr('rz-selcell'); xoaKhoa(); selColIdx=[]; selRowIdx=[]; block=null; selTable=null; if(statsBar) statsBar.style.display='none'; }
     function fmtN(n){ n=Math.round(n*100)/100; try{ return n.toLocaleString('vi-VN'); }catch(e){ return ''+n; } }
     function updateStats(){
       if(!statsBar) return;
-      if(!block){ statsBar.style.display='none'; return; }
-      var g=grid(block.t), seen=[], sum=0, cnt=0, num=0, r, c;
-      for(r=block.r0;r<=block.r1;r++){ for(c=block.c0;c<=block.c1;c++){ var cell=g[r]&&g[r][c]; if(!cell||!isOrigin(g,r,c)) continue; if(seen.indexOf(cell)>=0) continue; seen.push(cell);
-        var t=cellText(cell); if(t!==''){ cnt++; if(/^-?[\d., ]+$/.test(t)){ var v=parseFloat(t.replace(/[, ]/g,'')); if(!isNaN(v)){ sum+=v; num++; } } } } }
-      if(seen.length<=1){ statsBar.style.display='none'; return; }
-      var parts=[]; if(num) parts.push('Σ '+fmtN(sum)); parts.push('Đếm '+cnt); if(num) parts.push('TB '+fmtN(sum/num));
+      var ds=oChon(), sum=0, cnt=0, num=0;
+      ds.forEach(function(cell){
+        var t=cellText(cell); if(t==='') return;
+        cnt++;
+        // bỏ đuôi kiểu "15 ⚠" cho vẫn cộng được, y như bảng trong app
+        t=t.replace(/[^\d.,\- ]+$/,'').trim();
+        if(/^-?[\d., ]+$/.test(t)){ var v=parseFloat(t.replace(/[, ]/g,'')); if(!isNaN(v)){ sum+=v; num++; } }
+      });
+      if(ds.length<=1){ statsBar.style.display='none'; return; }
+      var parts=[]; if(num) parts.push('Tổng '+fmtN(sum)); parts.push('Đếm '+cnt); if(num) parts.push('TB '+fmtN(sum/num));
       statsBar.textContent=parts.join('   ·   '); statsBar.style.display='block';
     }
     function setCols(t,a,b){
       clr('rz-selcol'); clr('rz-selcell'); block=null;
       var lo=Math.min(a,b),hi=Math.max(a,b),ths=thsOf(t); selColIdx=[]; selRowIdx=[]; selTable=t;
       for(var i=lo;i<=hi;i++){ if(ths[i]){ ths[i].classList.add('rz-selcol'); selColIdx.push(i); } }
+      // tô luôn mấy ô trong thân bảng của cột đó → nhìn là biết đang cộng những ô nào
+      var g=grid(t);
+      for(var r=0;r<g.length;r++) for(var k=0;k<selColIdx.length;k++){
+        var cell=g[r]&&g[r][selColIdx[k]]; if(cell) cell.classList.add('rz-selcell');
+      }
+      updateStats();      // chọn cả cột cũng phải ra Tổng · Đếm · TB
     }
     function setBlock(t,r0,c0,r1,c1){
       clr('rz-selcol'); clr('rz-selcell');
@@ -6806,7 +6871,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         // khung và tay kéo của cột cuối nằm ngoài màn hình nên không tóm được.
         th.style.boxSizing='border-box';
         th.style.width=th.offsetWidth+'px';
-        th.addEventListener('mousedown', function(e){ if(e.button!==0) return; if(e.target.classList.contains('rz-col')) return; selecting='col'; setCols(t,ci,ci); document.body.classList.add('rz-sel'); e.preventDefault(); });
+        th.addEventListener('mousedown', function(e){ if(e.button!==0) return; if(e.target.classList.contains('rz-col')) return;
+          if(e.ctrlKey||e.metaKey) khoaHienTai(); else xoaKhoa();   // Ctrl → cộng dồn thêm cột nữa
+          selecting='col'; setCols(t,ci,ci); document.body.classList.add('rz-sel'); e.preventDefault(); });
         th.addEventListener('mouseenter', function(){ if(selecting==='col'&&selTable===t){ setCols(t, selColIdx.length?selColIdx[0]:ci, ci); } });
         var g=document.createElement('span'); g.className='rz-col'; th.appendChild(g);
         g.addEventListener('mousedown', function(e){
@@ -6857,7 +6924,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           td.addEventListener('mousedown', function(e){
             if(e.button!==0) return;
             if(e.target.classList.contains('rz-row')||e.target.classList.contains('rz-col')) return;
-            if(td.isContentEditable){ clearAll(); return; }   // ô sửa → gõ bình thường
+            /* Ô SỬA ĐƯỢC: bấm thường thì gõ như cũ, nhưng GIỮ CTRL là để cộng dồn vùng chọn
+               → phải nhận, không thì mấy bảng in (ô nào cũng sửa được) Ctrl+bấm vô tác dụng. */
+            if(td.isContentEditable && !(e.ctrlKey||e.metaKey)){ clearAll(); return; }
+            if(e.ctrlKey||e.metaKey) khoaHienTai(); else xoaKhoa();   // Ctrl → giữ vùng cũ, cộng tiếp
             var p=posOf(t,td); if(!p) return; selecting='cell'; anchor={r:p.r,c:p.c}; setBlock(t,p.r,p.c,p.r,p.c); document.body.classList.add('rz-sel'); e.preventDefault();
           });
           td.addEventListener('mouseenter', function(){ if(selecting==='cell'&&selTable===t){ var p=posOf(t,td); if(p) setBlock(t,anchor.r,anchor.c,p.r,p.c); } });
@@ -6933,7 +7003,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     }
     function init(){
       hp=document.createElement('textarea'); hp.style.cssText='position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0'; document.body.appendChild(hp);
-      statsBar=document.createElement('div'); statsBar.className='rz-stats noprint'; document.body.appendChild(statsBar);
+      statsBar=document.createElement('div'); statsBar.className='rz-stats'; document.body.appendChild(statsBar);
+      /* KHÔNG gắn class "noprint": PG_CSS có luật `body > .noprint` (kiểu thanh công cụ dính
+         đầu trang) — thanh này cũng là con của body nên bị biến thành khối chạy hết bề ngang
+         nằm dưới đáy trang, chữ dạt sang TRÁI (lỗi 27/8). Thay bằng luật @media print riêng
+         trong RZ_CSS để in ra giấy vẫn không có nó. */
       hp.addEventListener('paste', function(e){ var cd=(e.clipboardData||window.clipboardData); if(!cd) return; var txt=cd.getData('text'); if(txt==null) return; e.preventDefault(); doPaste(txt); });
       var ts=document.querySelectorAll('table'), i; for(i=0;i<ts.length;i++) initTable(ts[i]);
       var eds=document.querySelectorAll('[contenteditable]'), k;
@@ -6964,7 +7038,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     window.__rzBoot=function(){ try{ init(); }catch(e){ console.warn(e); } };
     if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded', init);
   }
-  var RZ_CSS='th{position:relative;cursor:cell}.rz-col{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;z-index:5}.rz-row{position:absolute;left:0;bottom:-4px;height:8px;width:100%;cursor:row-resize;z-index:5}body.rz-active{cursor:col-resize}body.rz-active,body.rz-sel{user-select:none}.rz-selcol{background:rgba(0,207,200,.22);box-shadow:inset 0 0 0 2px #00CFC8}.rz-selcell{background:rgba(0,207,200,.20);box-shadow:inset 0 0 0 1px #00CFC8}.rz-stats{position:fixed;right:16px;bottom:14px;display:none;background:#fff;border:1.5px solid #E8185C;color:#E8185C;font-weight:800;font-size:13px;padding:7px 14px;border-radius:7px;box-shadow:0 2px 10px rgba(0,0,0,.18);z-index:100}.rz-hint{font-size:11px;color:#888;margin:0 10px}.rz-btn{margin-left:4px;padding:3px 9px;cursor:pointer}.rz-btn:disabled{opacity:.4;cursor:default}.rz-ctx{position:fixed;z-index:300;background:#fff;border:1px solid #e2e2e2;border-radius:9px;box-shadow:0 6px 22px rgba(0,0,0,.22);padding:5px;font-size:13px;min-width:172px}.rz-mi{padding:7px 12px;cursor:pointer;border-radius:6px;white-space:nowrap}.rz-mi:hover{background:rgba(0,207,200,.16)}.rz-danger{color:#b1102e}.rz-danger:hover{background:rgba(232,24,92,.12)}@media print{.rz-col,.rz-row,.rz-ctx{display:none!important}.noprint{display:none!important}.rz-selcol,.rz-selcell{background:none!important;box-shadow:none!important}}';
+  var RZ_CSS='th{position:relative;cursor:cell}.rz-col{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;z-index:5}.rz-row{position:absolute;left:0;bottom:-4px;height:8px;width:100%;cursor:row-resize;z-index:5}body.rz-active{cursor:col-resize}body.rz-active,body.rz-sel{user-select:none}.rz-selcol{background:rgba(0,207,200,.22);box-shadow:inset 0 0 0 2px #00CFC8}.rz-selcell{background:rgba(0,207,200,.20);box-shadow:inset 0 0 0 1px #00CFC8}.rz-selkhoa{background:rgba(0,207,200,.20);box-shadow:inset 0 0 0 1px #00CFC8}.rz-stats{position:fixed!important;left:auto!important;top:auto!important;right:16px!important;bottom:14px!important;width:auto!important;display:none;background:#fff;border:1.5px solid #E8185C;color:#E8185C;font-weight:800;font-size:13px;padding:7px 14px;border-radius:7px;box-shadow:0 2px 10px rgba(0,0,0,.18);z-index:100}.rz-hint{font-size:11px;color:#888;margin:0 10px}.rz-btn{margin-left:4px;padding:3px 9px;cursor:pointer}.rz-btn:disabled{opacity:.4;cursor:default}.rz-ctx{position:fixed;z-index:300;background:#fff;border:1px solid #e2e2e2;border-radius:9px;box-shadow:0 6px 22px rgba(0,0,0,.22);padding:5px;font-size:13px;min-width:172px}.rz-mi{padding:7px 12px;cursor:pointer;border-radius:6px;white-space:nowrap}.rz-mi:hover{background:rgba(0,207,200,.16)}.rz-danger{color:#b1102e}.rz-danger:hover{background:rgba(232,24,92,.12)}@media print{.rz-col,.rz-row,.rz-ctx,.rz-stats{display:none!important}.noprint{display:none!important}.rz-selcol,.rz-selcell,.rz-selkhoa{background:none!important;box-shadow:none!important}}';
   var RZ_BAR='<button id="rz-undo" class="rz-btn" onclick="__rzUndo()" title="Hoàn tác (Ctrl+Z)">↶ Undo</button><button id="rz-redo" class="rz-btn" onclick="__rzRedo()" title="Làm lại (Ctrl+Y)">↷ Redo</button>'+
     '<button id="rz-xl" class="rz-btn" onclick="__xlSave()" title="Tải về .xlsx giữ nguyên cột, màu nền, viền và phông đang thấy">⬇ Excel</button>';
   /* ĐÃ THỬ VÀ LOẠI (kiểm chứng bằng Print preview thật của Chrome — đừng làm lại):
@@ -7609,7 +7683,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         hien[r]=okr;
       }
       /* KHỐI của mỗi dòng tổng = mấy dòng chi tiết ngay trên nó (từ dòng tổng trước).
-         Dòng "Σ TỔNG SỐ LƯỢNG" ở cuối có khối rỗng → nó là tổng CẢ BẢNG. */
+         Dòng "TỔNG SỐ LƯỢNG" ở cuối có khối rỗng → nó là tổng CẢ BẢNG. */
       var khoi=[], cur=[], chiTiet=[];
       for(r=0;r<trs.length;r++){
         if(laTong(trs[r])){ khoi[r]=cur.slice(); cur=[]; } else { cur.push(r); chiTiet.push(r); }
@@ -7921,7 +7995,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function thUsedCurls(rows){ var UC=state.usedCurls||CURLS; return UC.filter(function(k){ return rows.some(function(r){ return (r.curls&&r.curls[k])>0; }); }); }
   function thPrint(title, body, pageHead, land){
     var w=window.open('','_blank'); if(!w) return alert('Trình duyệt chặn cửa sổ in — cho phép popup rồi thử lại.');
-    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Calibri,Arial,sans-serif;padding:6px 14px 14px;color:#111}h2{margin:4px 0 6px;font-size:16px}h2 .dc{font-weight:700;font-size:13.5px;color:#111;margin-left:14px}.hd2{margin:4px 0 8px}.hd-r{margin-top:4px}.hd-t2{font:700 11.5px Calibri,Arial,sans-serif;margin:0 0 2px}.hd-t{width:100%;table-layout:fixed;margin:0 0 4px;font-size:10.5px;border-collapse:collapse}.hd-t th,.hd-t td{border:1px solid #333;padding:2px 5px;text-align:center;white-space:normal;word-break:break-word;vertical-align:top}.hd-t th{background:#f0f0f0}table{border-collapse:collapse;width:100%;margin-bottom:14px;font-size:12px}th,td{border:1px solid #333;padding:3px 6px;text-align:center}th{background:#f0f0f0}td.l,th.l{text-align:left}.tot{font-weight:800;background:#ffe6ef}.edit{background:#fffef2;word-break:break-word;white-space:normal;outline:none;cursor:text}.edit:focus{background:#fff8c4;box-shadow:inset 0 0 0 2px #E8185C}@media print{.noprint{display:none}.edit{background:transparent!important;box-shadow:none!important}}'+RZ_CSS+PG_CSS+ST_CSS+'</style></head><body class="pg-doc" data-ttl="'+esc(pageHead||'')+'" data-land="'+(land?'1':'0')+'"><div class="noprint" style="text-align:right;margin-bottom:8px"><span class="rz-hint">Bấm ▼ ở tên cột để LỌC · chuột phải 1 dòng để Thêm/Nhân bản/Xóa · kéo tiêu đề chọn cột · kéo trên ô chọn khối · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Calibri,Arial,sans-serif;padding:6px 14px 14px;color:#111}h2{margin:4px 0 6px;font-size:16px}h2 .dc{font-weight:700;font-size:13.5px;color:#111;margin-left:14px}.hd2{margin:4px 0 8px}.hd-r{margin-top:4px}.hd-t2{font:700 11.5px Calibri,Arial,sans-serif;margin:0 0 2px}.hd-t{width:100%;table-layout:fixed;margin:0 0 4px;font-size:10.5px;border-collapse:collapse}.hd-t th,.hd-t td{border:1px solid #333;padding:2px 5px;text-align:center;white-space:normal;word-break:break-word;vertical-align:top}.hd-t th{background:#f0f0f0}table{border-collapse:collapse;width:100%;margin-bottom:14px;font-size:12px}th,td{border:1px solid #333;padding:3px 6px;text-align:center}th{background:#f0f0f0}td.l,th.l{text-align:left}.tot{font-weight:800;background:#ffe6ef}.edit{background:#fffef2;word-break:break-word;white-space:normal;outline:none;cursor:text}.edit:focus{background:#fff8c4;box-shadow:inset 0 0 0 2px #E8185C}@media print{.noprint{display:none}.edit{background:transparent!important;box-shadow:none!important}}'+RZ_CSS+PG_CSS+ST_CSS+'</style></head><body class="pg-doc" data-ttl="'+esc(pageHead||'')+'" data-land="'+(land?'1':'0')+'"><div class="noprint" style="text-align:right;margin-bottom:8px"><span class="rz-hint">Bấm ▼ ở tên cột để LỌC · chuột phải 1 dòng để Thêm/Nhân bản/Xóa · kéo tiêu đề chọn cột · kéo trên ô chọn khối · <b>Ctrl+bấm/kéo cộng dồn nhiều vùng</b> (Tổng · Đếm · TB ở góc dưới) · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
       '<div class="pr-scope pg-sheet">'+body+'</div>'+RZ_JS_TAG+'</body></html>');
     w.document.close();
   }
@@ -8019,7 +8093,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         UC.map(function(k){return '<th style="width:'+wCong+'px">'+esc(k.replace('Curl-CT','CT'))+'</th>';}).join('')+'<th style="width:64px">Tổng</th></tr>';
       html+=thHead2(esc(m)+' · TỔNG HỢP CUỐN', thDoCongInfo(m))+
         '<table style="table-layout:fixed"><thead>'+thead+'</thead><tbody>'+body+
-        '<tr class="tot" style="color:#E8185C;font-size:13px"><td class="l" colspan="4">Σ TỔNG SỐ LƯỢNG '+esc(m)+'</td>'+UC.map(function(k){return '<td>'+(grandCurl[k]||'')+'</td>';}).join('')+'<td>'+grand+'</td></tr></tbody></table>';
+        '<tr class="tot" style="color:#E8185C;font-size:13px"><td class="l" colspan="4">TỔNG SỐ LƯỢNG '+esc(m)+'</td>'+UC.map(function(k){return '<td>'+(grandCurl[k]||'')+'</td>';}).join('')+'<td>'+grand+'</td></tr></tbody></table>';
     });
     // Cuốn nhiều cột độ cong → mặc định giấy NGANG (đổi được ở ô "Hướng giấy")
     thPrint('Tổng hợp Cuốn · '+(md||(mds.length?mds.join(', '):'Tất cả đơn')), html, (md||mds.join(', '))+' · TỔNG HỢP CUỐN', true);
@@ -8071,7 +8145,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       body+='<tr class="tot" style="color:#E8185C"><td class="l" colspan="3">Tổng số '+esc(code)+'</td>'+oCong(codeCur)+'<td>'+codeTot+'</td></tr>';
     });
     // Dòng TỔNG CẢ ĐƠN ở cuối — giống bảng Tổng hợp Cuốn, để xưởng đối chiếu nhanh
-    body+='<tr class="tot" style="color:#E8185C;font-size:13px"><td class="l" colspan="3">Σ TỔNG SỐ LƯỢNG '+esc(md)+'</td>'+
+    body+='<tr class="tot" style="color:#E8185C;font-size:13px"><td class="l" colspan="3">TỔNG SỐ LƯỢNG '+esc(md)+'</td>'+
       oCong(grandCur)+'<td>'+grand+'</td></tr>';
     /* HƯỚNG GIẤY LINH ĐỘNG: ưu tiên khổ DỌC, nhưng nhiều cột độ cong thì bảng tràn lề
        (mất đất, chữ bị bó) → tự quay NGANG. Bề rộng thật của 1 cột = width + padding 6+6
@@ -8560,7 +8634,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       'table.pl th{color:#E8185C;border:1px solid #E8185C;padding:4px 3px;font-weight:700;overflow:hidden}'+
       'table.pl td{border:1px solid #f2a8c6;padding:3px 4px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}table.pl td.l{text-align:left}';
     var doc='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Packing List</title><style>'+css+RZ_CSS+PG_CSS+PL_CSS+ST_CSS+'</style></head><body class="pl-doc">'+
-      '<div class="noprint" style="text-align:right;padding:6px 10px"><span class="rz-hint">Bấm ▼ ở tên cột để LỌC · chuột phải 1 dòng để Thêm/Nhân bản/Xóa · kéo tiêu đề chọn cột · kéo trên ô chọn khối · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
+      '<div class="noprint" style="text-align:right;padding:6px 10px"><span class="rz-hint">Bấm ▼ ở tên cột để LỌC · chuột phải 1 dòng để Thêm/Nhân bản/Xóa · kéo tiêu đề chọn cột · kéo trên ô chọn khối · <b>Ctrl+bấm/kéo cộng dồn nhiều vùng</b> (Tổng · Đếm · TB ở góc dưới) · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
       '<div class="pr-scope">'+pages+'</div>'+RZ_JS_TAG+PL_JS_TAG+'</body></html>';
     // mở TAB HIỂN THỊ (thấy màu thật trước khi in) thay vì iframe ẩn.
     // Lưu ý: máy in đen trắng (VD Canon LBP2900) sẽ luôn preview xám —
