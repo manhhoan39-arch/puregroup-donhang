@@ -648,7 +648,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2708262330</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2708271130</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -3084,9 +3084,24 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(!A||!A.length) return null;
     var low=function(s){ try{ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[Đđ]/g,'d').toLowerCase().replace(/\s+/g,' ').trim(); }catch(e){ return String(s||'').toLowerCase().trim(); } };
     var cell=function(r,c){ var row=A[r]||[]; var v=row[c]; return v==null?'':String(v).trim(); };
+    /* Tiêu đề khối Note của mẫu 2026 KHÔNG phải lúc nào cũng đúng chữ "Note":
+       đơn 746P ghi "Note xưởng HY", đơn khác ghi "Note xưởng NĐ" → trước đây so ĐÚNG BẰNG
+       'note' nên trượt sạch, Step 6 báo "Note · 0 dòng".
+       Quét 2 lượt: lượt 1 tìm đúng chữ "note" (giữ y nguyên cách nhận của 792P), trượt thì
+       lượt 2 nhận tiêu đề NGẮN bắt đầu bằng "note" (≤4 từ, không có ':' và không mở đầu bằng
+       '*') — đủ để bắt "Note xưởng HY" mà KHÔNG nuốt dòng nội dung kiểu "*NOTE: đơn cũ…". */
+    var laTieuDe=function(s){
+      var t=low(s); if(t.indexOf('note')!==0) return false;
+      if(t.length>28 || t.indexOf(':')>=0) return false;
+      if(String(s||'').trim().charAt(0)==='*') return false;
+      return t.split(' ').length<=4;
+    };
     var hr=-1, hc=1;
     for(var r=0;r<Math.min(A.length,14) && hr<0;r++){
       for(var c=0;c<=3;c++){ if(low(cell(r,c))==='note'){ hr=r; hc=c; break; } }
+    }
+    for(var rb=0;rb<Math.min(A.length,14) && hr<0;rb++){
+      for(var cb=0;cb<=3;cb++){ if(laTieuDe(cell(rb,cb))){ hr=rb; hc=cb; break; } }
     }
     if(hr<0) return null;
     /* MỞ RỘNG VÙNG (26/8): mẫu 2026 không chỉ ghi ở 1 cột — 792P còn nhãn "Tem và vị trí tem"
@@ -4643,11 +4658,26 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function cmCellAt(k,r,c){ return document.querySelector('td[data-cmk="'+(window.CSS&&CSS.escape?CSS.escape(k):k)+'"][data-cmci="'+r+'"][data-cmc="'+c+'"]'); }
   function cmRange(){ if(!cmA||!cmH||cmA.k!==cmH.k) return null; return {k:cmA.k,r1:Math.min(cmA.r,cmH.r),r2:Math.max(cmA.r,cmH.r),c1:Math.min(cmA.c,cmH.c),c2:Math.max(cmA.c,cmH.c)}; }
   function cmMulti(){ var rg=cmRange(); return rg&&(rg.r1!==rg.r2||rg.c1!==rg.c2); }
-  function cmPaint(){ Array.prototype.forEach.call(document.querySelectorAll('td[data-cmk].cell-sel'),function(e){e.classList.remove('cell-sel');}); var rg=cmRange(); if(rg){ for(var r=rg.r1;r<=rg.r2;r++)for(var c=rg.c1;c<=rg.c2;c++){ var el=cmCellAt(rg.k,r,c); if(el) el.classList.add('cell-sel'); } } try{ updateSelStats(); }catch(e){ logErr('cmPaint', e); } }
+  /* 27/8 — Ctrl+bấm CỘNG DỒN vùng ở Bảng Mix Màu, y như mọi bảng khác. Trước đây bấm chỗ khác
+     là mất vùng cũ nên không cộng được mấy ô rời nhau. */
+  var cmLock=[];
+  function cmClearLock(){ cmLock.forEach(function(td){ try{ td.classList.remove('cm-lock','cell-sel'); }catch(e){ logErr('cmClearLock', e); } }); cmLock=[]; }
+  function cmLockCurrent(){ Array.prototype.forEach.call(document.querySelectorAll('td[data-cmk].cm-sel'), function(td){ if(cmLock.indexOf(td)<0){ cmLock.push(td); td.classList.add('cm-lock'); } }); }
+  function cmPaint(){
+    Array.prototype.forEach.call(document.querySelectorAll('td[data-cmk].cm-sel'),function(e){ e.classList.remove('cm-sel','cell-sel'); });
+    cmLock=cmLock.filter(function(td){ return td && td.isConnected; });   // ô bị vẽ lại thì bỏ khỏi kho
+    cmLock.forEach(function(td){ td.classList.add('cell-sel'); });
+    var rg=cmRange();
+    if(rg){ for(var r=rg.r1;r<=rg.r2;r++)for(var c=rg.c1;c<=rg.c2;c++){ var el=cmCellAt(rg.k,r,c); if(el) el.classList.add('cm-sel','cell-sel'); } }
+    try{ updateSelStats(); }catch(e){ logErr('cmPaint', e); }
+  }
   function cmWrite(el,val){ if(!el) return; var k=el.getAttribute('data-cmk'), ci=+el.getAttribute('data-cmci'), mm=el.getAttribute('data-cmmm');
     state.colorMix=state.colorMix||{}; var g=state.colorMix[k]=state.colorMix[k]||{}; var row=g[ci]=g[ci]||{};
     if(val>0) row[mm]=val; else delete row[mm]; }
-  document.addEventListener('mousedown', function(ev){ var cc=cmCoord(ev.target); if(!cc){ if(cmA&&!(ev.target.closest&&ev.target.closest('td[data-cmk]'))){ cmA=cmH=null; cmPaint(); } return; } cmA=cc; cmH=cc; cmDrag=true; cmPaint(); });
+  document.addEventListener('mousedown', function(ev){ var cc=cmCoord(ev.target);
+    if(!cc){ if((cmA||cmLock.length)&&!(ev.target.closest&&ev.target.closest('td[data-cmk]'))){ cmA=cmH=null; cmClearLock(); cmPaint(); } return; }
+    if(ev.ctrlKey||ev.metaKey) cmLockCurrent(); else cmClearLock();   // giữ Ctrl → cộng dồn thêm vùng
+    cmA=cc; cmH=cc; cmDrag=true; cmPaint(); });
   document.addEventListener('mousemove', function(ev){ if(!cmDrag||ev.buttons!==1) return; var el=document.elementFromPoint(ev.clientX,ev.clientY); var cc=el?cmCoord(el):null; if(!cc||cc.k!==cmA.k) return; if(!cmH||cc.r!==cmH.r||cc.c!==cmH.c){ cmH=cc; if(cc.r!==cmA.r||cc.c!==cmA.c){ try{window.getSelection().removeAllRanges();}catch(e){ logErr('cmWrite', e); } } cmPaint(); } });
   document.addEventListener('mouseup', function(){ cmDrag=false; });
   document.addEventListener('copy', function(ev){ if(trongONhap(ev)) return; if(!cmMulti()) return; var rg=cmRange(),out=[]; for(var r=rg.r1;r<=rg.r2;r++){ var line=[]; for(var c=rg.c1;c<=rg.c2;c++){ var el=cmCellAt(rg.k,r,c); line.push(el?el.textContent.trim():''); } out.push(line.join('\t')); } var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text',out.join('\n')); ev.preventDefault(); } });
@@ -4660,7 +4690,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     }); });
     cmDirty=true; cmSync(cc.k);
     logLine('Dán vùng '+g.length+'×'+(g[0]?g[0].length:0)+' vào Bảng Mix Màu '+cc.k); });
-  document.addEventListener('keydown', function(ev){ if(ev.key==='Delete'&&cmMulti()){ ev.preventDefault(); var rg=cmRange(); pushUndo(); for(var r=rg.r1;r<=rg.r2;r++)for(var c=rg.c1;c<=rg.c2;c++){ var el=cmCellAt(rg.k,r,c); cmWrite(el,0); if(el) el.textContent=''; } cmDirty=true; cmSync(rg.k); } });
+  document.addEventListener('keydown', function(ev){
+    // Esc bỏ vùng chọn ở Bảng Mix Màu (trừ khi đang mở 1 ô ra sửa — lúc đó Esc là đóng ô)
+    if(ev.key==='Escape' && (cmA||cmLock.length) && !document.querySelector('td[data-cmk].dang-sua')){ cmA=cmH=null; cmClearLock(); cmPaint(); return; }
+    if(ev.key==='Delete'&&cmMulti()){ ev.preventDefault(); var rg=cmRange(); pushUndo(); for(var r=rg.r1;r<=rg.r2;r++)for(var c=rg.c1;c<=rg.c2;c++){ var el=cmCellAt(rg.k,r,c); cmWrite(el,0); if(el) el.textContent=''; } cmDirty=true; cmSync(rg.k); } });
 
   // ==== THỐNG KÊ VÙNG CHỌN (Σ · Đếm · TB) kiểu Google Sheets — dùng chung mọi bảng ====
   function updateSelStats(){
@@ -4681,7 +4714,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   // ==== CHỌN VÙNG kéo chuột cho các bảng dữ liệu (Step 2·3·4·5·6) ====
   var gsA=null,gsH=null,gsDrag=false;
   // Bảng bôi đen được: + 2 bảng tổng hợp Step 5 (Code Sợi · Keo) để kéo chọn ô số lượng ra Σ · Đếm · TB
-  var GS_TB={'eng-nhapdon':1,'eng-mix-body':1,'eng-keo-full':1,'eng-cuonbox':1,'eng-box':1,'s6-code-pivot':1,'s6-keo-pivot':1};
+  /* 27/8 — thêm 'eng-keo': Bảng Keo hiện kèm trong bước Bảng Line Cuốn. Ô của nó SỬA ĐƯỢC
+     (contenteditable + data-keoedit) nhưng bảng lại không nằm trong danh sách này → bấm 1 lần
+     KHÔNG tô chọn được gì, mà luật chung đã chặn con trỏ vào ô ⇒ bấm phát như không có gì xảy
+     ra. Vào danh sách rồi thì: bấm 1 lần = chọn · Ctrl+bấm = cộng dồn · bấm đúp = sửa. */
+  var GS_TB={'eng-nhapdon':1,'eng-mix-body':1,'eng-keo-full':1,'eng-keo':1,'eng-cuonbox':1,'eng-box':1,'s6-code-pivot':1,'s6-keo-pivot':1};
   /* Bảng nào muốn kéo chọn thì hoặc có id trong GS_TB, hoặc gắn data-gs="1" trên <tbody>
      (bảng vẽ động ở bước 2: bảng Tổng hợp đơn + 2 bảng Σ trong phần chi tiết). */
   function gsCoord(el){ var td=el&&el.closest?el.closest('td'):null; if(!td) return null; var tb=td.closest('tbody'); if(!tb||!(GS_TB[tb.id]||tb.getAttribute('data-gs'))) return null; var tr=td.parentNode; var r=Array.prototype.indexOf.call(tb.rows,tr); if(r<0) return null; return {tb:tb,r:r,c:td.cellIndex}; }
@@ -6442,7 +6479,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
              '<td class="txt dc-note"'+(n?(' data-tip="'+esc(n)+'"'):'')+'>'+esc(n)+'</td></tr>';
     }).join('');
     box.innerHTML='<table class="sheet" style="width:100%;font-size:11px;table-layout:fixed"><thead><tr>'+
-      '<th style="width:130px">Độ Cong</th><th>Ghi Chú</th></tr></thead><tbody>'+rows+'</tbody></table>';
+      '<th style="width:130px">Độ Cong</th><th>Ghi Chú</th></tr></thead><tbody data-gs="1">'+rows+'</tbody></table>';
   }
 
   // Tổng hợp Line Cuốn tính theo Mã Đơn đang chọn (Tổng Dây/Single/Mix + dòng GRAND TOTAL)

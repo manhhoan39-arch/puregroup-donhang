@@ -446,7 +446,7 @@
        xuống dòng thành dấu cách nên trước đây dính lại thành MỘT tên "Faux Mink Super Silk",
        chẳng khớp nguyên liệu nào. Đổi xuống dòng thành dấu ';' để tách như dấu phẩy. */
     var s = ' ' + PS(String(text == null ? '' : text).replace(/\r?\n+/g, ' ; ')) + ' ';
-    var lo = null, hi = null, spec = 0, m;
+    var lo = null, hi = null, spec = 0, m, dsMm = null;
     /* "N mm TRỞ LÊN / TRỞ XUỐNG / TRỞ ĐI" — phải bóc TRƯỚC mấy nhánh dưới. Đơn K54-754P ghi
        "cho độ dài từ 7mm trở lên": nhánh "từ N" cũ lấy đúng lo=7 nhưng để LẠI chữ "trở lên",
        chữ đó rơi xuống phần tách nguyên liệu → quy tắc đòi nguyên liệu chứa "trở lên" nên
@@ -461,6 +461,16 @@
     else if ((m = s.match(/(?:>|trên)\s*(\d+)\s*(?:mm)?/i))) { lo = +m[1] + 1; hi = 999; spec = 2; s = s.replace(m[0], ' '); }     // trên N / >N (KHÔNG gồm N)
     else if ((m = s.match(/(?:<=|≤|đến|tối\s*đa)\s*(\d+)\s*(?:mm)?/i))) { lo = 0; hi = +m[1]; spec = 2; s = s.replace(m[0], ' '); } // đến/tối đa N / <=N (GỒM N)
     else if ((m = s.match(/(?:<|dưới)\s*(\d+)\s*(?:mm)?/i))) { lo = 0; hi = +m[1] - 1; spec = 2; s = s.replace(m[0], ' '); }       // dưới N / <N (KHÔNG gồm N)
+    /* LIỆT KÊ nhiều mm rời nhau: "4mm-5mm-6mm" · "4mm, 5mm, 6mm" · "4mm và 6mm" (đơn K47-772P
+       ghi "độ dài 4mm-5mm-6mm"). Nhánh "đúng N mm" bên dưới chỉ lấy được 4mm rồi bỏ 5·6, mà
+       phần "-5mm-6mm" còn lại rơi xuống chỗ tách nguyên liệu thành rác "- mm- mm" ⇒ quy tắc
+       đòi một nguyên liệu không tồn tại, cả đơn KHÔNG dòng nào có keo.
+       Giữ ĐÚNG danh sách trong dsMm (không suy ra khoảng kín) để "4mm và 9mm" không kéo theo 5…8. */
+    else if ((m = s.match(/\d+\s*mm(?:\s*(?:[-–~,\/]|v[àa])\s*\d+\s*mm)+/i))) {
+      dsMm = (m[0].match(/\d+/g) || []).map(Number);
+      lo = Math.min.apply(null, dsMm); hi = Math.max.apply(null, dsMm); spec = 3;
+      s = s.replace(m[0], ' ');
+    }
     else if ((m = s.match(/(\d+)\s*mm/i))) { lo = +m[1]; hi = +m[1]; spec = 3; s = s.replace(m[0], ' '); }                        // đúng N mm
     /* "Tất cả (các) độ dài" = KHÔNG ràng buộc độ dài → xoá khỏi phần chữ.
        Trước chỉ nhận "tất cả độ dài"; khách ghi "Tất cả CÁC độ dài" (672P) thì còn lại
@@ -505,7 +515,8 @@
           return t.replace(/^\s*(?:cho|d[ùu]ng cho|d[ùu]ng|[áa]p d[ụu]ng cho|[áa]p d[ụu]ng|v[ớo]i|c[ủu]a)\s+/i, '').replace(/\s+/g, ' ').trim();
         })
         .filter(function (t) { return t && !/^mm$/i.test(t) && t !== '-' && t !== '.'; })
-        .filter(function (t) { return !NOT_MAT_RE.test(t.replace(/\s+/g, ' ').trim()); });
+        .filter(function (t) { return !NOT_MAT_RE.test(t.replace(/\s+/g, ' ').trim()); })
+        .filter(function (t) { return !laRacMat(t); });
     };
     matsNot = matsNot ? tachMat(matsNot) : null;
     if (matsNot && !matsNot.length) matsNot = null;
@@ -516,8 +527,9 @@
       /* Ghi chú kiểu "Cho cả đơn", "Dùng chung", "Áp dụng toàn bộ"… KHÔNG phải tên nguyên liệu.
          Nhận nhầm thì quy tắc keo đòi khớp một nguyên liệu không tồn tại → không dòng nào khớp,
          cả đơn mất keo (đơn 356P từng bị: 76 dòng đều phải mượn keo trong cột của khách). */
-      .filter(function (t) { return !NOT_MAT_RE.test(t.replace(/\s+/g, ' ').trim()); });
-    return { lo: lo, hi: hi, spec: spec, thickRaw: thickRaw, thicks: thickRaw.map(thickKey), mats: mats,
+      .filter(function (t) { return !NOT_MAT_RE.test(t.replace(/\s+/g, ' ').trim()); })
+      .filter(function (t) { return !laRacMat(t); });
+    return { lo: lo, hi: hi, spec: spec, dsMm: dsMm, thickRaw: thickRaw, thicks: thickRaw.map(thickKey), mats: mats,
              matsNot: matsNot, curlOnly: curlOnly, curlNot: curlNot };
   }
   // Nhận diện tên độ cong trong câu — token DÀI trước để "LC+" không bị cắt thành "LC", "CC" không thành "C"
@@ -538,6 +550,17 @@
   /* Cụm chữ chỉ phạm vi áp dụng, KHÔNG phải tên nguyên liệu. Khớp cả câu (^…$) để không
      cắt nhầm tên thật (vd "Cashmere Silk cho hàng chung" vẫn giữ nguyên là nguyên liệu). */
   var NOT_MAT_RE = /^(cho\s+)?(cả|toàn\s*bộ|toàn|tất\s*cả|mọi|chung|dùng\s*chung|áp\s*dụng)([\s\S]*)?$|^(cho|dùng|áp\s*dụng|theo|như)\s+.*(đơn|hàng|bảng|trên|dưới|này)$|^(đơn|hàng|bảng|các|những)$|^(các|mọi|toàn\s*bộ)?\s*độ\s*(dài|cong|dày)$/i;
+  /* RÁC còn lại sau khi bóc điều kiện độ dài — TUYỆT ĐỐI không được thành "tên nguyên liệu",
+     vì quy tắc keo sẽ đòi khớp một nguyên liệu không tồn tại ⇒ cả đơn mất keo (đơn K47-772P):
+       · "độ dài 4mm-5mm-6mm"      → còn "- mm- mm"
+       · "từ độ dài 7mm trở lên"   → còn "từ"
+     Bỏ số · dấu · chữ "mm" đi mà không còn chữ nào, hoặc chỉ còn 1 từ nối, thì đó là rác. */
+  function laRacMat(t) {
+    var x = String(t == null ? '' : t).replace(/\bmm\b/gi, ' ')
+      .replace(/[^A-Za-zÀ-ỹ]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!x) return true;
+    return /^(t[ừu]|k[ểe] t[ừu]|cho|d[ùu]ng|[áa]p d[ụu]ng|v[ớo]i|c[ủu]a|theo|nh[ưu]|trong|v[àa]|đ[ếe]n|t[ớo]i|l[êe]n|xu[ốo]ng)$/i.test(x);
+  }
   /** keoRows → rules[{maDon, glue, mats[], thick[] (khóa chữ số), lo, hi, spec}]. */
   // Chuẩn hoá tên keo: "Nau155C. 2" → "Nau155C.2"
   function cleanKeoName(s) { return PS(s).replace(/\s*\.\s*/g, '.').replace(/\s+/g, ' ').trim(); }
@@ -862,6 +885,7 @@
           var c = parseKeoCond(ln);
           if (!c.thickRaw.length && !c.mats.length && c.lo == null && !c.curlOnly && !c.curlNot) return;
           rules.push({ maDon: k.maDon, glue: PS(k.loaiKeo), mats: c.mats, thick: c.thicks, lo: c.lo, hi: c.hi, spec: c.spec,
+                       dsMm: c.dsMm || null,
                        curlOnly: c.curlOnly || null, curlNot: c.curlNot || null, matsNot: c.matsNot || null });
         });
         return;
@@ -907,7 +931,7 @@
       rules.push({
         maDon: k.maDon, glue: cleanKeoName(k.loaiKeo),
         mats: mats, thick: thicks,
-        lo: len.lo, hi: len.hi, spec: len.spec,
+        lo: len.lo, hi: len.hi, spec: len.spec, dsMm: len.dsMm || null,
         // phạm vi ĐỘ CONG (nếu ghi chú có nói) — ưu tiên Ghi Chú, rồi Loại Sợi, rồi Độ Dài
         curlOnly: ghi.curlOnly || soi.curlOnly || len.curlOnly || null,
         curlNot:  ghi.curlNot  || soi.curlNot  || len.curlNot  || null,
@@ -970,6 +994,8 @@
       if (comp.curlNhom != null && !ruleHopCurl(r, !!comp.curlNhom)) return;
       // ---- ĐIỀU KIỆN LỌC CỨNG: vi phạm bất kỳ → LOẠI ----
       if (r.lo != null) { if (!isFinite(mm) || mm < r.lo || mm > r.hi) return; }
+      // khách LIỆT KÊ từng mm ("4mm-5mm-6mm") → chỉ đúng mấy mm đó mới khớp, không suy ra khoảng kín
+      if (r.dsMm && r.dsMm.length && r.dsMm.indexOf(mm) < 0) return;
       // Sợi MÀU khớp quy tắc keo màu theo ĐỘ DÀI, BỎ ràng buộc độ dày (điều kiện độ dày trong ghi chú là cho Super Silk).
       var ruleColor = !!(r.mats && r.mats.some(isColorMat)), compColor = ruleColor && isColorComp(comp);
       if (hasThick && !compColor) {
