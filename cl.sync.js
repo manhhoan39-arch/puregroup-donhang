@@ -259,6 +259,13 @@
       var goi = rec.goi || {}, id = rec.id || idMoi(), now = new Date().toISOString();
       var cuRow = jget(K.dsItem(id), null);
       var cu = (cuRow && cuRow.payload && cuRow.payload.__goi) ? cuRow.payload : null;
+      /* ⚠ PHANH AN TOÀN (thêm 28/8 sau sự cố): bản lưu cũ đang có đơn mà bản mới KHÔNG có đơn
+         nào thì đây gần như chắc chắn là ghi đè nhầm lúc app vừa nạp hụt — từ chối lưu, giữ
+         nguyên bản cũ. Muốn xoá thật thì dùng nút "Xóa tất cả" rồi lưu tay. */
+      if (cu && (cu.manh || []).length && !(goi.manh || []).length) {
+        return Promise.reject(new Error('Bỏ qua lần lưu này: dữ liệu đang TRỐNG mà bản lưu cũ có ' +
+          (cu.manh || []).length + ' đơn — không ghi đè để khỏi mất đơn.'));
+      }
       var cuTheoMd = {}; if (cu) (cu.manh || []).forEach(function (m) { cuTheoMd[m.md] = m; });
       var dongMoi = [], dsManh = [], daDung = {};
       function phan(khoa, obj, kind, ten, cuMuc) {
@@ -287,14 +294,15 @@
           var idx = CLCloud.listCached().filter(function (d) { return d.id !== id; });
           idx.unshift({ id: id, factory_id: row.factory_id, name: row.name, kind: 'orders', created_by: row.created_by, updated_at: now, created_at: now });
           jset(K.dsIndex(profile.factory_id), idx);
-          // dọn mảnh cũ không còn ai dùng (đơn đã bị xoá khỏi kho)
-          var thua = [];
-          if (cu) { (cu.manh || []).forEach(function (m) { if (m.id && !daDung[m.id]) thua.push(m.id); });
-                    if (cu.anh && cu.anh.id && !daDung[cu.anh.id]) thua.push(cu.anh.id); }
-          thua.forEach(function (x) { jdel(K.dsItem(x)); });
+          /* ⚠⚠ KHÔNG BAO GIỜ XOÁ MẢNH CŨ (sửa 28/8 sau sự cố mất dữ liệu).
+             Bản đầu có đoạn "dọn mảnh không còn ai dùng". Nhưng chỉ cần MỘT lần app lưu nhầm
+             trạng thái RỖNG (vd vừa nạp lại hụt) là danh sách mảnh mới trống ⇒ toàn bộ mảnh
+             của mọi đơn bị coi là thừa ⇒ XOÁ SẠCH, không lấy lại được.
+             Mảnh không còn ai trỏ tới chỉ nằm chiếm chỗ, mỗi mảnh vài chục KB — rẻ hơn rất
+             nhiều so với rủi ro mất đơn. Chúng cũng CHÍNH LÀ phao cứu sinh khi bản lưu hỏng.
+             Muốn dọn thì dọn tay, có nhìn tận mắt. */
           if (!configured()) return row;
-          if (!online()) { dongMoi.concat([row]).forEach(function (d) { enqueue({ op: 'upsert', row: d }); });
-                           thua.forEach(function (x) { enqueue({ op: 'delete', id: x }); }); return row; }
+          if (!online()) { dongMoi.concat([row]).forEach(function (d) { enqueue({ op: 'upsert', row: d }); }); return row; }
           return ensureClient().then(function (c) {
             if (!c) { dongMoi.concat([row]).forEach(function (d) { enqueue({ op: 'upsert', row: d }); }); return row; }
             // mảnh trước, CHỈ MỤC sau — chỉ mục lên rồi mà mảnh chưa có là bản lưu hỏng
@@ -304,7 +312,6 @@
               return c.from('datasets').upsert(row).select();
             }).then(function (r) {
               if (r && r.error) throw new Error('Lưu đám mây thất bại: ' + r.error.message);
-              if (thua.length) return c.from('datasets').delete().in('id', thua).then(function () { return row; });
               return row;
             });
           });
@@ -316,6 +323,9 @@
     fetchGoi: function (id) {
       return Promise.resolve(CLCloud.fetchOne(id)).then(function (d) {
         var p = d && d.payload;
+        /* ⚠ Không đọc được thì phải BÁO HỎNG, TUYỆT ĐỐI không trả về rỗng: chỗ gọi nó làm
+           `loadData(payload || {})`, mà loadData rỗng là XOÁ TRẮNG màn hình (sự cố 28/8). */
+        if (!d) return Promise.reject(new Error('Không đọc được bản lưu — kiểm tra mạng rồi thử lại. Dữ liệu đang mở KHÔNG bị đụng tới.'));
         if (!p || !p.__goi) return d;                       // bản lưu kiểu cũ — trả nguyên
         var ids = (p.manh || []).map(function (m) { return m.id; });
         if (p.anh && p.anh.id) ids.push(p.anh.id);
@@ -333,19 +343,51 @@
           var caiGi = [];
           (p.manh || []).forEach(function (m) { caiGi.push({ loai: 'manh', md: m.md, id: m.id }); });
           if (p.anh && p.anh.id) caiGi.push({ loai: 'anh', id: p.anh.id });
+          var mat = caiGi.filter(function (x) { var r = jget(K.dsItem(x.id), null); return !r || !r.payload; });
+          if (mat.length) return Promise.reject(new Error('Bản lưu thiếu ' + mat.length + ' mảnh (' +
+            mat.slice(0, 3).map(function (x) { return x.md || 'ảnh'; }).join(', ') +
+            (mat.length > 3 ? '…' : '') + ') — chưa mở được. Dữ liệu đang mở KHÔNG bị đụng tới; kiểm tra mạng rồi bấm ⭳ Nạp lại.'));
           return Promise.all(caiGi.map(function (x) {
             var row = jget(K.dsItem(x.id), null);
-            if (!row || !row.payload) return Promise.reject(new Error('Thiếu mảnh bản lưu (' + (x.md || 'ảnh') + ') — không mở được, hãy kiểm tra mạng rồi thử lại.'));
             return giaiNen({ n: row.payload.n, d: row.payload.d }).then(function (v) { return { loai: x.loai, v: v }; });
           })).then(function (ds) {
             return giaiNen({ n: p.nc, d: p.chung }).then(function (chung) {
               var goi = { chung: chung || {}, manh: [], anh: {} };
               ds.forEach(function (x) { if (x.loai === 'anh') goi.anh = x.v || {}; else goi.manh.push(x.v); });
-              var payload = (root.__CLAPP && root.__CLAPP.gopLuu) ? root.__CLAPP.gopLuu(goi) : null;
-              return Object.assign({}, d, { payload: payload || {} });
+              if (!(root.__CLAPP && root.__CLAPP.gopLuu))
+                return Promise.reject(new Error('Bản app đang chạy quá cũ, chưa biết ghép bản lưu chia mảnh — tải lại trang (Ctrl+F5) rồi thử lại.'));
+              var payload = root.__CLAPP.gopLuu(goi);
+              if (!payload || (!(payload.orders || []).length && !(payload.files || []).length))
+                return Promise.reject(new Error('Ghép bản lưu ra RỖNG — không nạp để khỏi xoá mất dữ liệu đang mở.'));
+              return Object.assign({}, d, { payload: payload });
             });
           });
         });
+      });
+    },
+    /* ===== CỨU DỮ LIỆU (thêm 28/8 sau sự cố mất dữ liệu) =====
+       Quét MỌI mảnh còn nằm trong bộ nhớ trình duyệt rồi ghép lại, KHÔNG cần dòng chỉ mục.
+       Dùng khi chỉ mục hỏng/ghi đè nhầm mà mảnh thì vẫn còn — đây là lý do bản mới KHÔNG bao
+       giờ tự xoá mảnh nữa. Trả về payload (như bản lưu) hoặc null nếu chẳng còn gì. */
+    cuuManh: function () {
+      var ds = [];
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (!k || k.indexOf('clc_ds_') !== 0) continue;
+          var row = jget(k, null);
+          if (row && row.payload && row.payload.__manh) ds.push(row);
+        }
+      } catch (_) {}
+      if (!ds.length) return Promise.resolve(null);
+      return Promise.all(ds.map(function (r) {
+        return giaiNen({ n: r.payload.n, d: r.payload.d }).catch(function () { return null; });
+      })).then(function (vs) {
+        var manh = [], anh = {};
+        vs.forEach(function (v) { if (!v) return; if (v.md != null) manh.push(v); else if (v.imgStore) anh = v; });
+        if (!manh.length || !(root.__CLAPP && root.__CLAPP.gopLuu)) return null;
+        var payload = root.__CLAPP.gopLuu({ chung: { mds: manh.map(function (g) { return g.md; }) }, manh: manh, anh: anh });
+        return (payload && (payload.orders || []).length) ? payload : null;
       });
     },
     remove: function (id) {

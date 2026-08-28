@@ -648,7 +648,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2808282250</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2808290030</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1762,15 +1762,27 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var keo=function(ten, m){ var g=lay(m); var k=ten+'|'+m; var i=dem[k]||0; dem[k]=i+1; return (g[ten]||[])[i]; };
     _MANG_LUU.forEach(function(p){
       var ten=p[0], tt=chung.dsMd?chung.dsMd[ten]:null;
-      if(!tt){ st[ten]= (ten==='pack') ? null : []; return; }
+      /* CỨU DỮ LIỆU: gom mảnh rời từ bộ nhớ máy thì KHÔNG có chỉ mục (chung.dsMd) — lúc đó cứ
+         nối các mảnh lại theo thứ tự tìm được. Thứ tự các ĐƠN có thể khác lúc đầu, nhưng dòng
+         trong từng đơn vẫn nguyên và không mất dòng nào. Còn hơn là trả về rỗng. */
+      if(!tt){
+        if(!chung.dsMd){
+          var noi=[]; manh.forEach(function(g){ noi=noi.concat((g&&g[ten])||[]); });
+          noi=noi.concat((chung[ten]||[]));
+          st[ten]= (ten==='pack' && !noi.length) ? null : noi;
+          return;
+        }
+        st[ten]= (ten==='pack') ? null : [];
+        return;
+      }
       st[ten]=tt.map(function(m){ return keo(ten, m); });
     });
-    if(!chung.coPack) st.pack=null;
+    if(chung.dsMd && !chung.coPack) st.pack=null;
     var ttk=chung.dsMd?chung.dsMd.khachCuon:null;
     st.khachCuon = (chung.coKhachCuon && ttk) ? { rows: ttk.map(function(m){ return keo('khachCuon', m); }) } : null;
     _MAP_LUU.forEach(function(p){
       var ten=p[0], ra={};
-      (chung.mds||[]).forEach(function(m){ var g=theoMd[m]; if(!g) return; var o=g[ten]||{}; for(var k in o) ra[k]=o[k]; });
+      manh.forEach(function(g){ var o=(g&&g[ten])||{}; for(var k in o) ra[k]=o[k]; });
       var oc=chung[ten]||{}; for(var k2 in oc) ra[k2]=oc[k2];
       st[ten]=ra;
     });

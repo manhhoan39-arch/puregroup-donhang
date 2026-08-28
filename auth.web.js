@@ -58,11 +58,21 @@
     return e;
   }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
+  /* Lời nhắc XẾP CHỒNG LÊN NHAU theo chiều dọc, không đè khít một chỗ (sửa 28/8).
+     Trước đây cái nào cũng nằm đúng "bottom:20px" nên vài cái hiện cùng lúc là bóng đổ của
+     chúng cộng dồn thành một MẢNG ĐEN to sau lời nhắc. Trùng nội dung thì bỏ luôn cái sau. */
+  function xepToast() {   // xếp lại chỗ đứng sau mỗi lần thêm/bớt — cái cũ nhất nằm dưới cùng
+    [].slice.call(document.querySelectorAll('.cl-toast'))
+      .forEach(function (t, i) { t.style.bottom = (20 + i * 46) + 'px'; });
+  }
   function toast(msg, kind) {
+    var dang = [].slice.call(document.querySelectorAll('.cl-toast'));
+    for (var i = 0; i < dang.length; i++) if (dang[i].textContent === String(msg)) return;   // trùng lời thì thôi
+    while (dang.length >= 4) { dang.shift().remove(); }                                      // nhiều quá thì bỏ cái cũ nhất
     var t = h('div', { class: 'cl-toast ' + (kind || '') , html: esc(msg) });
-    document.body.appendChild(t);
+    document.body.appendChild(t); xepToast();
     setTimeout(function () { t.classList.add('show'); }, 10);
-    setTimeout(function () { t.classList.remove('show'); setTimeout(function () { t.remove(); }, 300); }, 3200);
+    setTimeout(function () { t.classList.remove('show'); setTimeout(function () { t.remove(); xepToast(); }, 300); }, 3200);
   }
   var ROLE_LABEL = { super_admin: 'Super Admin', factory_admin: 'Factory Admin', user: 'Nhân viên' };
 
@@ -222,7 +232,7 @@
       permissions: CLOUD_PERMS[profile.role] || CLOUD_PERMS.user
     };
   }
-  var cloudRTChannel = null;
+  var cloudRTChannel = null, _dsRTHen = null;
   function startCloudSession(profile) {
     setSession(cloudToSession(profile));
     S.cloud = true;
@@ -240,9 +250,21 @@
             if (myId && String(row.id) === String(myId)) { try { applyLivePerms(); } catch (_) {} }
             return;
           }
-          // Dữ liệu (datasets) đổi từ máy khác → tự nạp bản mới nhất.
-          toast('Có dữ liệu mới từ máy khác — đang cập nhật…', 'ok');
-          try { autoLoadLatest(true); } catch (_) {}
+          /* Dữ liệu (datasets) đổi từ máy khác → tự nạp bản mới nhất.
+             ⚠ Từ 28/8 một lần lưu ghi NHIỀU dòng (chỉ mục + mỗi mã đơn 1 mảnh + ảnh), nên
+             realtime bắn về mấy chục sự kiện liền nhau. Trước đây mỗi sự kiện là 1 lời nhắc
+             + 1 lần nạp lại ⇒ mấy chục lời nhắc chồng khít lên nhau (bóng đổ cộng dồn, nhìn
+             thành MẢNG ĐEN) và nạp lại mấy chục lần liên tiếp.
+             Nay: bỏ qua dòng MẢNH (chúng chỉ là ruột của bản lưu, dòng CHỈ MỤC mới là thật),
+             rồi gộp cả đợt thành MỘT lần nhắc + MỘT lần nạp. */
+          var _r = (ev.payload && (ev.payload.new || ev.payload.old)) || {};
+          if (_r.kind === 'orders-manh' || _r.kind === 'orders-anh') return;
+          if (_dsRTHen) clearTimeout(_dsRTHen);
+          _dsRTHen = setTimeout(function () {
+            _dsRTHen = null;
+            toast('Có dữ liệu mới từ máy khác — đang cập nhật…', 'ok');
+            try { autoLoadLatest(true); } catch (_) {}
+          }, 1200);
         }).then(function (ch) { cloudRTChannel = ch; });
       }
     } catch (e) {}
@@ -440,7 +462,11 @@
   function loadDataset(id) {
     var get = (S.cloud && window.CLCloud) ? (window.CLCloud.fetchGoi || window.CLCloud.fetchOne)(id) : api('GET', '/api/datasets/' + id);
     Promise.resolve(get).then(function (d) {
-      if (window.__CLAPP) window.__CLAPP.loadData((d && d.payload) || {});
+      var pl = (d && d.payload) || null;
+      // Nạp tay cũng vậy: bản đọc ra rỗng thì báo, KHÔNG đè lên dữ liệu đang mở
+      if (!pl || (!(pl.orders || []).length && !(pl.files || []).length))
+        throw new Error('Bản lưu này đọc ra RỖNG — không nạp để khỏi xoá mất dữ liệu đang mở.');
+      if (window.__CLAPP) window.__CLAPP.loadData(pl);
       closeModal();
       toast('Đã nạp "' + (d && d.name || '') + '" ✓', 'ok');
     }).catch(function (e) { toast(e.message, 'err'); });
@@ -782,12 +808,36 @@
       // fetchGoi = đọc được cả bản lưu CHIA MẢNH lẫn bản lưu nguyên khối kiểu cũ
       var getOne = (S.cloud && window.CLCloud) ? (window.CLCloud.fetchGoi || window.CLCloud.fetchOne)(latest.id) : api('GET', '/api/datasets/' + latest.id);
       return Promise.resolve(getOne).then(function (d) {
-        if (window.__CLAPP && window.__CLAPP.loadData) {
-          window.__CLAPP.loadData((d && d.payload) || {});
-          toast('Đã tự nạp bản mới nhất: ' + latest.name + ' ✓', 'ok');
+        if (!(window.__CLAPP && window.__CLAPP.loadData)) return;
+        /* ⚠ KHÔNG BAO GIỜ nạp một bản RỖNG đè lên dữ liệu đang mở (sự cố 28/8: nạp hụt 1 lần
+           là màn hình trắng trơn, rồi lần tự lưu kế tiếp ghi đè luôn bản tốt trên máy chủ). */
+        var pl = (d && d.payload) || null;
+        if (!pl || (!(pl.orders || []).length && !(pl.files || []).length)) {
+          if (window.__CLAPP.hasData && window.__CLAPP.hasData())
+            toast('Bản lưu trên máy chủ đọc ra rỗng — GIỮ NGUYÊN dữ liệu đang mở, không nạp đè.', 'err');
+          return;
         }
+        window.__CLAPP.loadData(pl);
+        toast('Đã tự nạp bản mới nhất: ' + latest.name + ' ✓', 'ok');
       });
-    }).catch(function () {});
+    }).catch(function (e) {
+      // Trước đây nuốt lỗi im lặng → app hiện màn trống mà không ai biết vì sao
+      if (e && e.message) toast(e.message, 'err');
+      thuCuuTuMay();
+    });
+  }
+  /* Máy chủ không cho ra bản dùng được mà app cũng chưa có gì → gom mảnh còn sót trong bộ nhớ
+     máy để cứu (thêm 28/8 sau sự cố). Không tự lưu đè lên máy chủ — để người dùng tự quyết. */
+  function thuCuuTuMay() {
+    try {
+      if (!(window.CLCloud && window.CLCloud.cuuManh)) return;
+      if (window.__CLAPP && window.__CLAPP.hasData && window.__CLAPP.hasData()) return;
+      window.CLCloud.cuuManh().then(function (pl) {
+        if (!pl || !window.__CLAPP || !window.__CLAPP.loadData) return;
+        window.__CLAPP.loadData(pl);
+        toast('Đã CỨU ' + (pl.orders || []).length + ' dòng đơn từ bộ nhớ máy này. Kiểm tra lại rồi bấm ☁ Lưu để ghi lên máy chủ.', 'ok');
+      }).catch(function () {});
+    } catch (_) {}
   }
 
   // Áp NGAY quyền/cài đặt mới cho user hiện tại khi admin đổi (nhận qua realtime profiles).
