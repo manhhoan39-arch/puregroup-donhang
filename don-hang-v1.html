@@ -648,7 +648,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2708272230</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2808270900</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1912,6 +1912,32 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       .filter(function(x){ return x!==''; })
       .join('\n').trim();
   }
+  /* ===== ĐANG GÕ Ô KHÁC THÌ ĐỪNG VẼ LẠI BẢNG (chốt 27/8) =====
+     User: "Step 2 sửa code sợi điền xong thoát sang ô khác lại trở về như ban đầu."
+     Sửa ô A xong là app tính lại rồi `render()` — mà `render()` DỰNG LẠI cả bảng. Người dùng
+     làm liền tay: vừa rời ô A đã bấm đúp ô B gõ tiếp, đúng lúc đó bảng bị vẽ lại ⇒ ô B thay
+     bằng ô mới toanh mang giá trị CŨ, chữ vừa gõ mất sạch (nhìn như "tự trở về như ban đầu").
+     Nay: đang có ô mở ra sửa thì HOÃN vẽ lại, gõ xong rời ô mới vẽ. Dữ liệu đã ghi vào state
+     ngay từ đầu nên không mất gì, chỉ hoãn phần vẽ. */
+  var __veCho=false;
+  function dangGoTrongO(){
+    try{
+      if(document.querySelector('td.dang-sua')) return true;
+      var a=document.activeElement;
+      return !!(a && a.isContentEditable);
+    }catch(e){ logErr('dangGoTrongO', e); return false; }
+  }
+  function veLaiHoacCho(){
+    if(dangGoTrongO()){ __veCho=true; return; }
+    __veCho=false;
+    try{ render(); }catch(e){ logErr('veLaiHoacCho', e); }
+  }
+  window.__veLaiHoacCho=veLaiHoacCho;
+  // rời ô là vẽ nốt phần đang hoãn (đợi 1 nhịp cho focus chuyển xong)
+  document.addEventListener('focusout', function(){
+    if(!__veCho) return;
+    setTimeout(function(){ if(__veCho && !dangGoTrongO()) veLaiHoacCho(); }, 0);
+  });
   function markPending(cell, applyFn){
     if(typeof applyFn!=='function') return;
     if(!__editN){                                   // lần sửa ĐẦU của đợt này
@@ -1921,7 +1947,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     __editN++;
     runBusy('Đang tính lại…', function(){
       try{ applyFn(); }catch(e){ logErr('markPending', e); }
-      try{ render(); }catch(e){ logErr('markPending', e); }
+      veLaiHoacCho();          // đang gõ ô khác → hoãn vẽ, khỏi cướp mất chữ đang gõ
     });
   }
   /* Chuyển bước mà đang có ô vừa sửa → hỏi 1 câu. OK = giữ · Cancel = trả lại như trước. */
@@ -4680,14 +4706,31 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     cmA=cc; cmH=cc; cmDrag=true; cmPaint(); });
   document.addEventListener('mousemove', function(ev){ if(!cmDrag||ev.buttons!==1) return; var el=document.elementFromPoint(ev.clientX,ev.clientY); var cc=el?cmCoord(el):null; if(!cc||cc.k!==cmA.k) return; if(!cmH||cc.r!==cmH.r||cc.c!==cmH.c){ cmH=cc; if(cc.r!==cmA.r||cc.c!==cmA.c){ try{window.getSelection().removeAllRanges();}catch(e){ logErr('cmWrite', e); } } cmPaint(); } });
   document.addEventListener('mouseup', function(){ cmDrag=false; });
-  document.addEventListener('copy', function(ev){ if(trongONhap(ev)) return; if(!cmMulti()) return; var rg=cmRange(),out=[]; for(var r=rg.r1;r<=rg.r2;r++){ var line=[]; for(var c=rg.c1;c<=rg.c2;c++){ var el=cmCellAt(rg.k,r,c); line.push(el?el.textContent.trim():''); } out.push(line.join('\t')); } var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text',out.join('\n')); ev.preventDefault(); } });
+  /* 27/8 — copy được cả khi chỉ chọn 1 Ô (trước chỉ copy khi bôi từ 2 ô trở lên nên Ctrl+C
+     một ô rồi dán ra chỗ khác lại ra nội dung CŨ còn trong clipboard). */
+  document.addEventListener('copy', function(ev){ if(trongONhap(ev)) return; if(!cmRange()) return; var rg=cmRange(),out=[]; for(var r=rg.r1;r<=rg.r2;r++){ var line=[]; for(var c=rg.c1;c<=rg.c2;c++){ var el=cmCellAt(rg.k,r,c); line.push(el?el.textContent.trim():''); } out.push(line.join('\t')); } var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text',out.join('\n')); ev.preventDefault(); } });
   document.addEventListener('cut', function(ev){ if(trongONhap(ev)) return; if(!cmMulti()) return; var rg=cmRange(),out=[]; pushUndo(); for(var r=rg.r1;r<=rg.r2;r++){ var line=[]; for(var c=rg.c1;c<=rg.c2;c++){ var el=cmCellAt(rg.k,r,c); line.push(el?el.textContent.trim():''); cmWrite(el,0); if(el) el.textContent=''; } out.push(line.join('\t')); } var cd=ev.clipboardData||window.clipboardData; if(cd){ cd.setData('text',out.join('\n')); ev.preventDefault(); } cmDirty=true; cmSync(rg.k); });
-  document.addEventListener('paste', function(ev){ var cc=cmCoord(ev.target); if(!cc) return; var cd=ev.clipboardData||window.clipboardData; var text=cd&&cd.getData?cd.getData('text'):''; if(!text) return; ev.preventDefault();
+  /* 27/8 — COPY 1 Ô RỒI DÁN VÀO NHIỀU Ô (user: "các step chưa có chức năng copy xong dán vào
+     nhiều ô"). Hai việc phải thêm:
+       1. kéo chọn xong con trỏ nằm ở textarea ẩn #cl-clip nên ev.target KHÔNG phải ô → lấy
+          mốc dán từ chính VÙNG ĐANG CHỌN;
+       2. clipboard chỉ có 1 giá trị mà vùng chọn nhiều ô → ĐIỀN ĐỀU cả vùng (như Excel). */
+  document.addEventListener('paste', function(ev){
+    var cc=cmCoord(ev.target);
+    if(!cc){ var _r0=cmRange(); if(_r0) cc={k:_r0.k, r:_r0.r1, c:_r0.c1}; }
+    if(!cc) return;
+    var cd=ev.clipboardData||window.clipboardData; var text=cd&&cd.getData?cd.getData('text'):''; if(!text) return;
+    ev.preventDefault();
     var g=parseClipboard(text); pushUndo();
-    g.forEach(function(cells,ri){ cells.forEach(function(val,cj){
-      var el=cmCellAt(cc.k, cc.r+ri, cc.c+cj); var v=parseInt(String(val).replace(/[^0-9]/g,''),10)||0;
-      cmWrite(el, v); if(el) el.textContent = v>0?String(v):'';
-    }); });
+    var motO=(g.length===1 && g[0].length===1), rg=cmRange();
+    var ghi=function(el,val){ var v=parseInt(String(val).replace(/[^0-9]/g,''),10)||0; cmWrite(el, v); if(el) el.textContent = v>0?String(v):''; };
+    if(motO && rg && (rg.r1!==rg.r2 || rg.c1!==rg.c2)){
+      for(var r=rg.r1;r<=rg.r2;r++) for(var c=rg.c1;c<=rg.c2;c++) ghi(cmCellAt(rg.k,r,c), g[0][0]);
+      cmDirty=true; cmSync(rg.k);
+      logLine('Dán 1 giá trị vào '+((rg.r2-rg.r1+1)*(rg.c2-rg.c1+1))+' ô Bảng Mix Màu '+rg.k);
+      return;
+    }
+    g.forEach(function(cells,ri){ cells.forEach(function(val,cj){ ghi(cmCellAt(cc.k, cc.r+ri, cc.c+cj), val); }); });
     cmDirty=true; cmSync(cc.k);
     logLine('Dán vùng '+g.length+'×'+(g[0]?g[0].length:0)+' vào Bảng Mix Màu '+cc.k); });
   document.addEventListener('keydown', function(ev){
@@ -4822,11 +4865,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      nhường cho ô nhập/ô tìm — con trỏ đang ở <input>/<textarea>/<select> thì để trình duyệt tự lo. */
   function trongONhap(ev){
     var t=(ev&&ev.target)||null;
+    /* 27/8 — TRỪ textarea ẩn #cl-clip của bộ copy cũ: kéo chọn xong nó tự focus để Ctrl+C
+       dùng được cơ chế copy gốc. Coi nó là "ô nhập" thì Ctrl+V khối bị bỏ qua ⇒ user báo
+       "các step chưa có chức năng copy xong dán vào nhiều ô". */
+    if(t && t.id==='cl-clip') return false;
     if(t && t.closest && t.closest('input,textarea,select')) return true;
     /* Chỉ khi sự kiện bắn thẳng vào document/body (vài trình duyệt làm vậy) mới xét ô đang focus.
        Xét lúc nào cũng thì bấm ô trong bảng mà con trỏ còn ở ô tìm là mất luôn dán khối. */
     if(t && t.nodeType===1 && t.tagName!=='BODY' && t.tagName!=='HTML') return false;
     var a=document.activeElement;
+    if(a && a.id==='cl-clip') return false;
     return !!(a && /^(input|textarea|select)$/i.test(a.tagName||''));
   }
   // Copy vùng chọn → TSV (dán ra Excel được). Hỗ trợ cả 1 ô (copy cả ô) lẫn nhiều ô.
@@ -4834,7 +4882,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(trongONhap(ev)) return;
     if(!(gsA&&gsH&&gsA.tb===gsH.tb)) return;
     var single=(gsA.r===gsH.r&&gsA.c===gsH.c);
-    if(single){ try{ if(String(window.getSelection()||'').length) return; }catch(e){ logErr('gsPaint', e); } }   // đang bôi text trong ô → để copy mặc định
+    /* Đang bôi CHỮ trong ô thì để copy mặc định — TRỪ khi cái đang được bôi là textarea ẩn
+       #cl-clip của bộ copy cũ (kéo chọn xong nó tự focus + select). Không trừ ra thì Ctrl+C
+       copy nhầm NỘI DUNG CŨ còn trong textarea đó (bước trước), dán ra sai bét (27/8). */
+    if(single){ try{
+      var _ae=document.activeElement, _trongClip=!!(_ae && _ae.id==='cl-clip');
+      if(!_trongClip && String(window.getSelection()||'').length) return;
+    }catch(e){ logErr('gsPaint', e); } }
     var r1=Math.min(gsA.r,gsH.r),r2=Math.max(gsA.r,gsH.r),c1=Math.min(gsA.c,gsH.c),c2=Math.max(gsA.c,gsH.c),out=[];
     // copy đúng những gì ĐANG BÔI ĐEN (đã bỏ dòng ẩn + dòng tổng phụ ở gsPaint)
     for(var r=r1;r<=r2;r++){ var row=gsA.tb.rows[r];
@@ -4935,6 +4989,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     keoTb.addEventListener('paste', function(ev){
       if(typeof canEditStep==='function' && !canEditStep('s5')) return;
       var cd=ev.clipboardData||window.clipboardData; var text=cd&&cd.getData?cd.getData('text'):''; if(text==null||text==='') return;
+      /* 27/8 — copy 1 Ô rồi bôi đen NHIỀU ô để dán đè cả vùng: nhường cho bộ dán khối chung
+         (nó điền đều cả vùng rồi phát focusout để đi đúng luồng lưu của bảng keo). Handler
+         riêng này chỉ lo dán KHỐI nhiều ô từ Excel. */
+      if(!/[\t\n]/.test(String(text).replace(/\s+$/,''))){
+        var _rg=(typeof gsA==='object'&&gsA&&gsH&&gsA.tb===gsH.tb)?{r1:Math.min(gsA.r,gsH.r),r2:Math.max(gsA.r,gsH.r),c1:Math.min(gsA.c,gsH.c),c2:Math.max(gsA.c,gsH.c)}:null;
+        if(_rg && (_rg.r1!==_rg.r2 || _rg.c1!==_rg.c2)) return;
+      }
       // ô góc trên-trái: ưu tiên vùng đang bôi đen; nếu không thì ô đang focus
       var ar=-1, ac=-1;
       if(gsA&&gsH&&gsA.tb===keoTb){ ar=Math.min(gsA.r,gsH.r); ac=Math.min(gsA.c,gsH.c); }
@@ -5870,10 +5931,26 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     });
     document.addEventListener('mousemove', function(ev){ if(!psDrag||ev.buttons!==1)return; var el=document.elementFromPoint(ev.clientX,ev.clientY); var cc=el?psCoord(el):null; if(!cc)return; if(cc.r!==psH.r||cc.c!==psH.c){ psH=cc; if(cc.r!==psA.r||cc.c!==psA.c){ try{window.getSelection().removeAllRanges();}catch(e){ logErr('psInitSheet', e); } } psPaint(); } });
     document.addEventListener('mouseup', function(){ psDrag=false; });
-    document.addEventListener('copy', function(ev){ if(!document.getElementById('ps-ov')||!psMulti())return; var rg=psRange(),out=[]; for(var r=rg.r1;r<=rg.r2;r++){var line=[];for(var c=rg.c1;c<=rg.c2;c++){var el=psCellAt(r,c);line.push(el?el.textContent.trim():'');}out.push(line.join('\t'));} var cd=ev.clipboardData||window.clipboardData; if(cd){cd.setData('text',out.join('\n'));ev.preventDefault();} });
+    document.addEventListener('copy', function(ev){ if(!document.getElementById('ps-ov')||!psRange())return; var rg=psRange(),out=[]; for(var r=rg.r1;r<=rg.r2;r++){var line=[];for(var c=rg.c1;c<=rg.c2;c++){var el=psCellAt(r,c);line.push(el?el.textContent.trim():'');}out.push(line.join('\t'));} var cd=ev.clipboardData||window.clipboardData; if(cd){cd.setData('text',out.join('\n'));ev.preventDefault();} });
     document.addEventListener('cut', function(ev){ if(!document.getElementById('ps-ov')||!psMulti())return; var rg=psRange(),out=[]; pushUndo(); for(var r=rg.r1;r<=rg.r2;r++){var line=[];for(var c=rg.c1;c<=rg.c2;c++){var el=psCellAt(r,c);line.push(el?el.textContent.trim():''); psWrite(el,0);}out.push(line.join('\t'));} var cd=ev.clipboardData||window.clipboardData; if(cd){cd.setData('text',out.join('\n'));ev.preventDefault();} state._packR=null; renderSlip(); });
-    document.addEventListener('paste', function(ev){ var open=document.getElementById('ps-ov'); var cc=psCoord(ev.target); if(!open||!cc)return; if(cc.c<0) return;   // ô chữ (Nguyên liệu…) → để trình duyệt dán như thường
-      var cd=ev.clipboardData||window.clipboardData; var text=cd&&cd.getData?cd.getData('text'):''; if(!text)return; ev.preventDefault(); var g=parseClipboard(text); pushUndo(); g.forEach(function(cells,ri){ cells.forEach(function(val,ci){ psWrite(psCellAt(cc.r+ri,cc.c+ci), parseInt(String(val).replace(/[^0-9]/g,''),10)||0); }); }); state._packR=null; renderSlip(); });
+    /* 27/8 — copy 1 ô rồi dán vào NHIỀU ô: lấy mốc từ vùng đang chọn (kéo xong con trỏ ở
+       textarea ẩn nên ev.target không phải ô) và điền đều cả vùng khi clipboard chỉ có 1 giá trị. */
+    document.addEventListener('paste', function(ev){
+      var open=document.getElementById('ps-ov'); if(!open) return;
+      var cc=psCoord(ev.target);
+      if(!cc){ var _r0=psRange(); if(_r0) cc={r:_r0.r1, c:_r0.c1}; }
+      if(!cc) return;
+      if(cc.c<0 && psCoord(ev.target)) return;   // đang ở ô chữ (Nguyên liệu…) → để trình duyệt dán như thường
+      var cd=ev.clipboardData||window.clipboardData; var text=cd&&cd.getData?cd.getData('text'):''; if(!text)return;
+      ev.preventDefault(); var g=parseClipboard(text); pushUndo();
+      var so=function(v){ return parseInt(String(v).replace(/[^0-9]/g,''),10)||0; };
+      var motO=(g.length===1 && g[0].length===1), rg=psRange();
+      if(motO && rg && (rg.r1!==rg.r2 || rg.c1!==rg.c2)){
+        for(var r=rg.r1;r<=rg.r2;r++) for(var c=rg.c1;c<=rg.c2;c++) psWrite(psCellAt(r,c), so(g[0][0]));
+      } else {
+        g.forEach(function(cells,ri){ cells.forEach(function(val,ci){ psWrite(psCellAt(cc.r+ri, cc.c+ci), so(val)); }); });
+      }
+      state._packR=null; renderSlip(); });
     document.addEventListener('keydown', function(ev){ if(!document.getElementById('ps-ov'))return;
       if(ev.key==='Escape' && (psA||psLock.length) && !document.querySelector('#ps-body td.dang-sua')){ psSelClear(); return; }
       if(ev.key==='Delete'&&psMulti()){ ev.preventDefault(); var rg=psRange(); pushUndo(); for(var r=rg.r1;r<=rg.r2;r++)for(var c=rg.c1;c<=rg.c2;c++)psWrite(psCellAt(r,c),0); state._packR=null; renderSlip(); } });
@@ -8493,6 +8570,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var sel=null, picking=false, anchorTb=null;
     // textarea ẩn giữ nội dung vùng chọn → Ctrl+C dùng cơ chế copy GỐC của trình duyệt (chạy cả trên file://)
     var clip=document.createElement('textarea');
+    clip.id='cl-clip';   // 27/8: có id để trongONhap() biết đây KHÔNG phải ô nhập của người dùng
     clip.setAttribute('aria-hidden','true'); clip.tabIndex=-1;
     clip.style.cssText='position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;z-index:-1;border:0;padding:0;resize:none';
     (document.body||document.documentElement).appendChild(clip);
@@ -8586,8 +8664,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // còn navigator.clipboard.writeText bị từ chối BẤT ĐỒNG BỘ trên file:// nên trước đây copy câm lặng)
     document.addEventListener('copy', function(ev){
       if(!sel) return;
+      /* 27/8 — VÙNG CHỌN CŨ ĐÃ CHẾT thì đừng cướp cú Ctrl+C: đổi bước là bảng cũ bị vẽ lại
+         (sel.tb không còn trong trang) mà biến sel vẫn giữ, nên Ctrl+C ở bảng MỚI lại copy
+         đúng nội dung của bảng CŨ ⇒ dán ra toàn chữ của bước trước (user báo 27/8).
+         Cũng nhường luôn khi bộ chọn mới (gsA/gsH — class .cell-sel) đang có vùng: bộ đó
+         biết bỏ dòng ẩn / dòng tổng phụ, copy chuẩn hơn. */
+      if(!sel.tb || !sel.tb.isConnected) { sel=null; return; }
+      try{ if(gsA && gsH && gsA.tb===gsH.tb) return; }catch(e){ logErr('copyCu', e); }
       var ae=document.activeElement;
-      if(ae && /input|textarea|select/i.test(ae.tagName)) return;               // đang gõ trong ô nhập → copy mặc định
+      if(ae && ae.id==='cl-clip'){ /* textarea ẩn của chính bộ này → cứ copy tiếp */ }
+      else if(ae && /input|textarea|select/i.test(ae.tagName)) return;          // đang gõ trong ô nhập → copy mặc định
       if(ae && ae.getAttribute && ae.getAttribute('contenteditable')==='true') return; // đang sửa ô đỏ → copy mặc định
       var txt=selText(); if(!txt) return;
       try{
