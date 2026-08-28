@@ -648,7 +648,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2808270900</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2808281130</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1605,6 +1605,72 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     });
     return n;
   }
+  /* ===== ĐỔI MÃ KH / MÃ ĐƠN NGAY Ở BƯỚC 2 (chốt 28/8) =====
+     User: "Step 2 cho sửa luôn cả cột mã khách hàng và mã đơn." — phạm vi đã chốt: đổi CHO CẢ ĐƠN.
+     Mã đơn không phải một ô dữ liệu bình thường, nó là DANH TÍNH: hơn chục kho khác khoá theo nó
+     (Bảng Keo · Bảng Mix · Mix Màu · Bảng Hộp · Packing · ảnh trong đơn · ghi chú độ cong…).
+     Đổi mà bỏ sót kho nào là phần đó "mồ côi" — mở bước sau thấy trống trơn. Nên gom TẤT CẢ vào
+     một hàm duy nhất; sau này thêm kho mới thì thêm đúng 1 dòng ở đây. */
+  function doiKhoaMap(obj, doiKhoa){
+    if(!obj || typeof obj!=='object') return 0;
+    var n=0;
+    Object.keys(obj).forEach(function(k){
+      var k2=doiKhoa(k); if(k2==null || k2===k) return;
+      obj[k2]=obj[k]; delete obj[k]; n++;
+    });
+    return n;
+  }
+  var __doiMdCho={};   // đơn đang chờ đổi tên (dán 1 giá trị vào CẢ CỘT thì mọi ô cùng phát focusout một lượt)
+  function doiMaDonCaDon(cu, moi){
+    cu=String(cu==null?'':cu); moi=String(moi==null?'':moi).trim();
+    if(!cu || !moi || cu===moi) return 0;
+    var n=0;
+    var doiMd=function(x){ if(x && String(x.maDon||'')===cu){ x.maDon=moi; n++; } };
+    (state.orders||[]).forEach(doiMd);
+    (state.keoRows||[]).forEach(doiMd);
+    (state.mixSheets||[]).forEach(doiMd);
+    if(Array.isArray(state.pack)) state.pack.forEach(doiMd);           // lớp Packing đang sửa dở
+    if(state.khachCuon && state.khachCuon.rows) state.khachCuon.rows.forEach(doiMd);
+    (state.files||[]).forEach(function(F){
+      if(!F) return;
+      if(F.data){                                                      // ghi ngược về FILE: lần Xử lý sau không dựng lại tên cũ
+        (F.data.rawOrders||[]).forEach(doiMd);
+        (F.data.mixSheets||[]).forEach(doiMd);
+        (F.data.keoRows||[]).forEach(doiMd);
+      }
+      if(F.meta){
+        if(String(F.meta.maDon||'')===cu) F.meta.maDon=moi;
+        var kc=F.meta.khachCuon; if(kc&&kc.rows) kc.rows.forEach(doiMd);
+      }
+      F.maDons=(F.maDons||[]).map(function(m){ return m===cu?moi:m; });
+      /* File từng bị app tự tách ".2"/".3" thì có bảng "trả về mã gốc" (_mdRen) — người dùng đã
+         tự đặt tên thì bỏ dòng đó đi, kẻo lần Xử lý sau app trả ngược về tên cũ. */
+      if(F._mdRen){ delete F._mdRen[cu]; if(!Object.keys(F._mdRen).length) F._mdRen=null; }
+    });
+    // các kho khoá THEO CHUỖI mã đơn: sep = ký tự ngăn ngay sau mã đơn (null = khoá đúng bằng mã đơn)
+    var khoa=function(sep){ return function(k){
+      if(k===cu) return moi;
+      return (sep && k.indexOf(cu+sep)===0) ? moi+k.slice(cu.length) : k; }; };
+    if(typeof boxSel!=='undefined') doiKhoaMap(boxSel, khoa('|'));      // boxRowKey   = maDon|seri
+    doiKhoaMap(state.boxTypes,     khoa('|'));                          // boxTypesKey = maDon
+    doiKhoaMap(state.colorMix,     khoa('#'));                          // cmKey       = maDon#độ dài#code
+    doiKhoaMap(state.errAck,       khoa('|'));                          // errAckKey   = maDon|seri gốc|cột
+    doiKhoaMap(state.lenApproved,  khoa('|'));                          // rowKey      = maDon|seri gốc
+    doiKhoaMap(state.remapApproved,khoa('|'));                          //               maDon|độ cong|tiêu đề
+    ['packTimeByMd','imgByMadon','curlNotesByMadon','boxTableByMadon','doCongByMadon','curlHeadersByMadon']
+      .forEach(function(t){ doiKhoaMap(state[t], khoa(null)); });
+    state._packR=null;                                                  // bỏ bản tính sẵn của Packing, KHÔNG xoá lớp packing
+    // đang lọc đúng đơn đó thì đi theo tên mới, khỏi rơi về "tất cả đơn"
+    try{
+      if(typeof gridMadon!=='undefined' && gridMadon===cu) gridMadon=moi;
+      if(typeof gridMakh!=='undefined' && gridMakh && gridMakh===khOf(cu)) gridMakh=khOf(moi);
+      var f1=state.filters && state.filters['maDon'];
+      if(f1 && f1[cu]!==undefined){ delete f1[cu]; f1[moi]=1; }
+      var f2=state.filters && state.filters['_makh'];
+      if(f2 && f2[khOf(cu)]!==undefined) f2[khOf(moi)]=1;   // KH cũ có thể còn đơn khác → chỉ THÊM, không bỏ
+    }catch(e){ logErr('doiMaDonCaDon', e); }
+    return n;
+  }
   var __editN=0, __editSnap=null;
   /* ===== XEM ẢNH TO (bước 6): LĂN CHUỘT CHỈ PHÓNG TO / THU NHỎ ẢNH (chốt 26/8) =====
      User: "sửa chức năng lăn roll chuột chỉ phóng to thu nhỏ hình, không phóng to thu nhỏ
@@ -2239,8 +2305,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
          sửa 1 ô bình thường (code sợi · nguyên liệu · độ dày · số line…) phải sửa lại file Excel
          rồi nạp lại. Sửa ô nào là app tính lại NGAY và mọi bảng sau (Mix · Keo · Line Cuốn ·
          Box · So sánh) đổi theo — vẫn đi đúng luồng markPending nên còn Hoàn tác và câu hỏi
-         Lưu/Bỏ khi chuyển bước. Cột SERI · MÃ KH · MÃ ĐƠN vẫn khoá: đó là danh tính của dòng,
-         sửa là lạc mất đơn. */
+         Lưu/Bỏ khi chuyển bước. Cột SERI vẫn khoá (số thứ tự dòng của file khách).
+         MÃ KH · MÃ ĐƠN sửa được từ 28/8, nhưng đi lối RIÊNG: sửa 1 ô là đổi tên CẢ ĐƠN. */
       var _saSua = suaDuocNhapDon();
       var _ndCap={ rows:R.orders, hidden:0, key:'nd' };   // chia trang lo phan nang, khong cat bot du lieu nua
       setRows('eng-nhapdon', _ndCap.rows.map(function(o, _oi){
@@ -2267,6 +2333,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             apBtn='<span class="len-undo" data-lenkey="'+esc(_k)+'" title="Bỏ cho phép sai chuẩn → đưa về báo đỏ">☑</span>';
         }
         return '<td class="'+cls.trim()+'"'+ce+ti+'>'+((er&&!hasNl)?esc(val):nl2br(val))+apBtn+'</td>'; };
+      /* Ô MÃ KH · MÃ ĐƠN: sửa được, nhưng KHÔNG đi qua editCell như ô thường — hai ô này là
+         DANH TÍNH của đơn, sửa 1 ô là ĐỔI TÊN CẢ ĐƠN (xem doiMaDonCaDon). */
+      var mdCell=function(col,val,extra){
+        var _sua=_saSua && canEditStep('s3');
+        var ce=_sua?' contenteditable="true" data-seri="'+o.seri+'" data-madon="'+esc(o.maDon)+'" data-col="'+col+'"':'';
+        var ti=_sua?' title="Sửa được (Super Admin) — đổi ô này là ĐỔI TÊN CẢ ĐƠN: mọi dòng của đơn cùng Bảng Keo · Bảng Mix · Mix Màu · Bảng Hộp · Packing đổi theo"':'';
+        return '<td class="'+((extra||'')+(_sua?' sa-edit':'')).trim()+'"'+ce+ti+'>'+esc(val)+'</td>'; };
       var curls=CURLS.map(function(k){ var cv=(o.curls&&o.curls[k])?o.curls[k]:''; var ce=canEditStep('s3')?' contenteditable="true" data-seri="'+o.seri+'" data-madon="'+esc(o.maDon)+'" data-col="curl:'+esc(k)+'" title="Sửa số lượng độ cong '+esc(k)+'"':''; return '<td class="qty cw"'+ce+' style="background:rgba(0,207,200,.05)">'+cv+'</td>'; }).join('');
       // thứ tự cột đúng sheet "Nhập Đơn" (đến cột W) — Loại Hàng (= Nhóm của đơn khách) sau Code Sợi
       var serr = errKey[o.maDon+'|'+o.seri+'|seri'];   // lỗi cột Seri (E-DUP) cũng phải tô đỏ
@@ -2278,8 +2351,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       return '<tr class="'+(multi?'cl-multiline':'')+'" data-oi="'+_oi+'" data-seri="'+o.seri+'" data-madon="'+esc(o.maDon)+'" data-makh="'+esc(khOf(o.maDon))+'">'+
         '<td class="chkcol"><input type="checkbox" class="nd-chk"></td>'+
         '<td class="freeze'+(serr?' err':'')+'"'+(serr?' title="'+esc(serr.msg)+'"':'')+'>'+o.seri+'</td>'+
-        '<td class="txt">'+esc(khOf(o.maDon))+'</td>'+
-        '<td>'+esc(donOf(o.maDon))+'</td>'+
+        mdCell('_makh', khOf(o.maDon), 'txt')+
+        mdCell('_madon', donOf(o.maDon), '')+
         cell('codeSoi',o.codeSoi,'txt'+mlc)+
         cell('loaiHang',o.loaiHang||'','txt')+
         cell('lineRaw',o.lineRaw||'')+
@@ -2525,6 +2598,31 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var td = ev.target && ev.target.closest ? ev.target.closest('td[data-col]') : null;
       if(!td) return;
       var seri = td.getAttribute('data-seri'), col = td.getAttribute('data-col'), mdon = td.getAttribute('data-madon');
+      /* MÃ KH · MÃ ĐƠN → ĐỔI TÊN CẢ ĐƠN. Phải chặn TRƯỚC lối chung bên dưới: hai cột này không
+         có trong dữ liệu dòng (Mã KH là phần cắt ra từ Mã Đơn), đưa qua editCell là hỏng. */
+      if(col==='_makh' || col==='_madon'){
+        var _cu=String(mdon||''), _val=String(layTextNhieuDong(td)||'').replace(/\s+/g,' ').trim();
+        var _cuKh=khOf(_cu), _cuDon=donOf(_cu);
+        if(_val === (col==='_makh'?_cuKh:_cuDon)) return;                 // không đổi
+        var _moi = (col==='_makh') ? (_val ? _val+'-'+_cuDon : _cuDon)
+                                   : (_cuKh ? _cuKh+'-'+_val : _val);
+        var _hong=function(msg){ try{ alert(msg); }catch(e){ logErr('doiMaDonCaDon', e); }
+          try{ render(); }catch(e){ logErr('doiMaDonCaDon', e); } };            // vẽ lại để ô về giá trị cũ
+        if(col==='_madon' && !_val) return _hong('Mã Đơn không được để trống — đó là danh tính của đơn.');
+        if(/[|#]/.test(_val)) return _hong('Mã Đơn / Mã KH không được chứa ký tự "|" hoặc "#".');
+        if(_moi===_cu) return;
+        if(__doiMdCho[_cu]) return;                                       // ô đầu của đợt dán đã nhận việc rồi
+        if(!(state.orders||[]).some(function(o){ return o.maDon===_cu; })) return;   // đơn này vừa đổi tên xong
+        var _trung=(state.orders||[]).some(function(o){ return o.maDon===_moi; });
+        if(_trung) return _hong('Đã có đơn mang mã "'+_moi+'" rồi.\n\nĐổi sang tên khác, hoặc xoá đơn kia trước — app không gộp 2 đơn làm một.');
+        __doiMdCho[_cu]=1;
+        markPending(td, function(){
+          delete __doiMdCho[_cu];
+          var _n=doiMaDonCaDon(_cu, _moi);
+          logLine('Đổi tên đơn: "'+_cu+'" → "'+_moi+'" ('+_n+' dòng dữ liệu đổi theo, kèm Bảng Keo · Mix · Mix Màu · Hộp · Packing)');
+        });
+        return;
+      }
       var idx = -1;
       state.orders.forEach(function(o,i){ if(String(o.seri)===seri && (!mdon || o.maDon===mdon)) idx=i; });
       if(idx<0) return;
