@@ -338,8 +338,11 @@
     var payload = window.__CLAPP.getState();
     // ĐÁM MÂY: lưu qua Supabase (RLS gắn factory theo profile) + cache.
     if (S.cloud && window.CLCloud) {
-      window.CLCloud.save({ name: name || def, payload: payload })
-        .then(function () { try { localStorage.setItem('cl_ds_updated', JSON.stringify({ fid: (S.factory && S.factory.id), t: Date.now() })); } catch (_) {} toast('Đã lưu đám mây ✓', 'ok'); })
+      // Bản lưu tay cũng chia mảnh + nén như bản tự lưu (68 đơn: 7MB → khoảng 1MB)
+      var ghi = (window.CLCloud.saveGoi && window.__CLAPP.chiaLuu)
+        ? window.CLCloud.saveGoi({ name: name || def, goi: window.__CLAPP.chiaLuu() })
+        : window.CLCloud.save({ name: name || def, payload: payload });
+      ghi.then(function () { try { localStorage.setItem('cl_ds_updated', JSON.stringify({ fid: (S.factory && S.factory.id), t: Date.now() })); } catch (_) {} toast('Đã lưu đám mây ✓', 'ok'); })
         .catch(function (e) { toast(e.message, 'err'); });
       return;
     }
@@ -369,12 +372,19 @@
       if (!S.token || !can('dataset:create')) return;
       if (!window.__CLAPP || !window.__CLAPP.hasData || !window.__CLAPP.hasData()) return;
       var id = autoSaveId(); if (!id) return;
+      var ten = '⚙ Bản làm việc (tự động)';
+      var xong = function () { try { var ind = document.getElementById('cl-autosave-ind'); if (ind) { ind.textContent = '✓ Đã tự lưu ' + new Date().toLocaleTimeString('vi-VN'); } } catch (_) {} };
+      /* CHIA MẢNH THEO MÃ ĐƠN (chốt 28/8): trước đây mỗi lần tự lưu đẩy CẢ KHO lên Supabase
+         (68 đơn ≈ 7MB, mạng 5 Mbps mất ~11 giây), dù chỉ vừa sửa đúng một ô. Nay chỉ mảnh của
+         đơn vừa đổi được nén rồi gửi lại (~52KB). Máy nào không có saveGoi thì vẫn chạy lối cũ. */
+      if (S.cloud && window.CLCloud && window.CLCloud.saveGoi && window.__CLAPP.chiaLuu) {
+        window.CLCloud.saveGoi({ id: id, name: ten, goi: window.__CLAPP.chiaLuu() }).then(xong).catch(function () {});
+        return;
+      }
       var payload = window.__CLAPP.getState();
-      var rec = { id: id, name: '⚙ Bản làm việc (tự động)', payload: payload };
+      var rec = { id: id, name: ten, payload: payload };
       if (S.cloud && window.CLCloud) {
-        window.CLCloud.save(rec).then(function () {
-          try { var ind = document.getElementById('cl-autosave-ind'); if (ind) { ind.textContent = '✓ Đã tự lưu ' + new Date().toLocaleTimeString('vi-VN'); } } catch (_) {}
-        }).catch(function () {});
+        window.CLCloud.save(rec).then(xong).catch(function () {});
       } else {
         var fid = targetFactoryForWrite(); if (fid) api('POST', '/api/datasets', { id: id, name: rec.name, factory_id: fid, payload: payload }).catch(function () {});
       }
@@ -428,7 +438,7 @@
     }).catch(function (e) { toast(e.message, 'err'); });
   }
   function loadDataset(id) {
-    var get = (S.cloud && window.CLCloud) ? window.CLCloud.fetchOne(id) : api('GET', '/api/datasets/' + id);
+    var get = (S.cloud && window.CLCloud) ? (window.CLCloud.fetchGoi || window.CLCloud.fetchOne)(id) : api('GET', '/api/datasets/' + id);
     Promise.resolve(get).then(function (d) {
       if (window.__CLAPP) window.__CLAPP.loadData((d && d.payload) || {});
       closeModal();
@@ -769,7 +779,8 @@
       if (isSuper() && S.cloud) { var fid = targetFactoryForWrite(); if (fid) list = list.filter(function (d) { return d.factory_id === fid; }); }
       if (!list.length) return;                        // xưởng chưa có bản lưu nào
       var latest = list[0];                            // bản mới nhất ở đầu
-      var getOne = (S.cloud && window.CLCloud) ? window.CLCloud.fetchOne(latest.id) : api('GET', '/api/datasets/' + latest.id);
+      // fetchGoi = đọc được cả bản lưu CHIA MẢNH lẫn bản lưu nguyên khối kiểu cũ
+      var getOne = (S.cloud && window.CLCloud) ? (window.CLCloud.fetchGoi || window.CLCloud.fetchOne)(latest.id) : api('GET', '/api/datasets/' + latest.id);
       return Promise.resolve(getOne).then(function (d) {
         if (window.__CLAPP && window.__CLAPP.loadData) {
           window.__CLAPP.loadData((d && d.payload) || {});

@@ -38,6 +38,58 @@
   function configured() { return !!(CFG.SYNC_ENABLED && CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY); }
   function online() { return (typeof navigator === 'undefined') || navigator.onLine !== false; }
 
+  /* =====================================================================
+   * NÉN + CHIA MẢNH BẢN LƯU (chốt 28/8) — "tự lưu chỉ gửi phần thay đổi"
+   * ---------------------------------------------------------------------
+   * Trước: mỗi lần tự lưu đẩy TOÀN BỘ kho lên Supabase (68 đơn ≈ 7MB) và nhét nguyên chừng đó
+   * vào localStorage — mạng xưởng 5 Mbps mất ~11 giây/lần, còn localStorage tràn 5MB ở khoảng
+   * 48 đơn rồi hỏng cache IM LẶNG (mất mạng là không mở lại được).
+   * Nay một bản lưu gồm:
+   *   · 1 dòng CHỈ MỤC (kind 'orders')     — nhật ký + danh sách mảnh kèm dấu vân tay
+   *   · mỗi MÃ ĐƠN 1 dòng (kind 'orders-manh')
+   *   · 1 dòng ẢNH (kind 'orders-anh')     — ảnh chiếm hơn nửa dung lượng mà hầu như không đổi
+   * Mảnh nào dấu vân tay không đổi thì KHÔNG gửi lại. Tất cả nén gzip trước khi gửi.
+   * Đo trên 8 đơn thật: cả kho 833KB → sửa 1 ô chỉ đẩy ~52KB (chỉ mục 7KB + 1 mảnh 45KB).
+   * Bản lưu KIỂU CŨ (payload nguyên khối) vẫn đọc được bình thường.
+   * ===================================================================== */
+  var KIND_MANH = 'orders-manh', KIND_ANH = 'orders-anh';
+  function laManh(d) { return !!d && (d.kind === KIND_MANH || d.kind === KIND_ANH); }
+  function coNen() { return typeof root.CompressionStream === 'function' && typeof root.DecompressionStream === 'function'; }
+  function b64Tu(bytes) {
+    var s = '', N = 0x8000;
+    for (var i = 0; i < bytes.length; i += N) s += String.fromCharCode.apply(null, bytes.subarray(i, i + N));
+    return root.btoa(s);
+  }
+  function b64Ve(b64) {
+    var s = root.atob(b64), a = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) a[i] = s.charCodeAt(i);
+    return a;
+  }
+  function nen(obj) {
+    var chuoi = JSON.stringify(obj);
+    if (!coNen()) return Promise.resolve({ n: 0, d: chuoi });
+    try {
+      var cs = new root.CompressionStream('gzip');
+      var w = cs.writable.getWriter();
+      w.write(new TextEncoder().encode(chuoi)); w.close();
+      return new Response(cs.readable).arrayBuffer()
+        .then(function (buf) { return { n: 1, d: b64Tu(new Uint8Array(buf)) }; })
+        .catch(function () { return { n: 0, d: chuoi }; });
+    } catch (_) { return Promise.resolve({ n: 0, d: chuoi }); }
+  }
+  function giaiNen(o) {
+    if (!o) return Promise.resolve(null);
+    if (!o.n) { try { return Promise.resolve(typeof o.d === 'string' ? JSON.parse(o.d) : o.d); } catch (_) { return Promise.resolve(null); } }
+    try {
+      var ds = new root.DecompressionStream('gzip');
+      var w = ds.writable.getWriter();
+      w.write(b64Ve(o.d)); w.close();
+      return new Response(ds.readable).text().then(function (t) { return JSON.parse(t); });
+    } catch (e) { return Promise.reject(e); }
+  }
+  function bam32(s) { var h = 5381, i = s.length; while (i) h = (h * 33 ^ s.charCodeAt(--i)) >>> 0; return h; }
+  function idMoi() { return (root.crypto && root.crypto.randomUUID) ? root.crypto.randomUUID() : ('ds-' + Date.now() + '-' + Math.random().toString(16).slice(2)); }
+
   // ---------- Nạp thư viện Supabase (UMD) ----------
   function loadScript(src) {
     return new Promise(function (res, rej) {
@@ -116,6 +168,18 @@
         });
       });
     },
+    /* Xác thực lại mật khẩu của CHÍNH người đang đăng nhập (dùng cho việc nguy hiểm như
+       "Xóa tất cả"). Đăng nhập lại đúng email đang dùng → phiên không đổi, KHÔNG phát
+       sự kiện 'auth' nên app không bị nạp lại dữ liệu. Sai mật khẩu → trả false. */
+    verifyPassword: function (password) {
+      return ensureClient().then(function (c) {
+        if (!c) return Promise.reject(new Error('Chưa cấu hình Supabase — không xác thực được mật khẩu.'));
+        var em = profile && profile.email;
+        if (!em) return Promise.reject(new Error('Không xác định được email đang đăng nhập.'));
+        return c.auth.signInWithPassword({ email: em, password: String(password == null ? '' : password) })
+          .then(function (r) { return !(r && r.error); });
+      });
+    },
     signOut: function () {
       profile = null; jdel(K.profile);
       emit('auth', null);
@@ -137,7 +201,8 @@
           .order('updated_at', { ascending: false })
           .then(function (r) {
             if (r.error) { log('pull lỗi:', r.error.message); return CLCloud.listCached(); }
-            var list = r.data || [];
+            // Bỏ mấy dòng MẢNH ra khỏi danh sách: chúng là ruột của bản lưu, không phải bản lưu
+            var list = (r.data || []).filter(function (d) { return !laManh(d); });
             jset(K.dsIndex(profile.factory_id), list);
             jset(K.lastSync, Date.now());
             emit('sync', { type: 'pull', count: list.length });
@@ -186,7 +251,117 @@
         });
       });
     },
+    /* LƯU THEO MẢNH — rec = {id?, name, goi:{chung, manh:[{md,…}], anh}} (goi do
+       __CLAPP.chiaLuu() dựng). Chỉ mảnh nào ĐỔI mới nén + gửi lại; mảnh cũ giữ nguyên dòng
+       trên Supabase. Trả về dòng CHỈ MỤC. */
+    saveGoi: function (rec) {
+      if (!profile || !profile.factory_id) return Promise.reject(new Error('Tài khoản chưa được gán Xưởng — liên hệ quản trị viên.'));
+      var goi = rec.goi || {}, id = rec.id || idMoi(), now = new Date().toISOString();
+      var cuRow = jget(K.dsItem(id), null);
+      var cu = (cuRow && cuRow.payload && cuRow.payload.__goi) ? cuRow.payload : null;
+      var cuTheoMd = {}; if (cu) (cu.manh || []).forEach(function (m) { cuTheoMd[m.md] = m; });
+      var dongMoi = [], dsManh = [], daDung = {};
+      function phan(khoa, obj, kind, ten, cuMuc) {
+        var s = JSON.stringify(obj), h = bam32(s);
+        if (cuMuc && cuMuc.h === h && cuMuc.id) { daDung[cuMuc.id] = 1; return Promise.resolve({ md: khoa, id: cuMuc.id, h: h }); }
+        var pid = (cuMuc && cuMuc.id) || idMoi(); daDung[pid] = 1;
+        return nen(obj).then(function (n) {
+          dongMoi.push({ id: pid, factory_id: profile.factory_id, name: ten, kind: kind,
+                         payload: { __manh: 1, n: n.n, d: n.d }, created_by: profile.id, updated_at: now });
+          return { md: khoa, id: pid, h: h };
+        });
+      }
+      var viec = (goi.manh || []).map(function (g) {
+        return phan(g.md, g, KIND_MANH, '⚙ mảnh · ' + g.md, cuTheoMd[g.md]);
+      });
+      viec.push(phan('__anh', goi.anh || {}, KIND_ANH, '⚙ ảnh trong đơn', cu && cu.anh));
+      return Promise.all(viec).then(function (ds) {
+        var anh = ds.pop(); dsManh = ds;
+        return nen(goi.chung || {}).then(function (nc) {
+          var row = { id: id, factory_id: profile.factory_id, name: rec.name || ('Đơn ' + now), kind: 'orders',
+            payload: { __goi: 1, v: 1, nc: nc.n, chung: nc.d, manh: dsManh, anh: { id: anh.id, h: anh.h } },
+            created_by: profile.id, updated_at: now };
+          // cache: chỉ mục + mọi dòng mảnh (đã nén nên nhẹ hơn hẳn bản cũ)
+          jset(K.dsItem(id), row);
+          dongMoi.forEach(function (d) { jset(K.dsItem(d.id), d); });
+          var idx = CLCloud.listCached().filter(function (d) { return d.id !== id; });
+          idx.unshift({ id: id, factory_id: row.factory_id, name: row.name, kind: 'orders', created_by: row.created_by, updated_at: now, created_at: now });
+          jset(K.dsIndex(profile.factory_id), idx);
+          // dọn mảnh cũ không còn ai dùng (đơn đã bị xoá khỏi kho)
+          var thua = [];
+          if (cu) { (cu.manh || []).forEach(function (m) { if (m.id && !daDung[m.id]) thua.push(m.id); });
+                    if (cu.anh && cu.anh.id && !daDung[cu.anh.id]) thua.push(cu.anh.id); }
+          thua.forEach(function (x) { jdel(K.dsItem(x)); });
+          if (!configured()) return row;
+          if (!online()) { dongMoi.concat([row]).forEach(function (d) { enqueue({ op: 'upsert', row: d }); });
+                           thua.forEach(function (x) { enqueue({ op: 'delete', id: x }); }); return row; }
+          return ensureClient().then(function (c) {
+            if (!c) { dongMoi.concat([row]).forEach(function (d) { enqueue({ op: 'upsert', row: d }); }); return row; }
+            // mảnh trước, CHỈ MỤC sau — chỉ mục lên rồi mà mảnh chưa có là bản lưu hỏng
+            var b1 = dongMoi.length ? c.from('datasets').upsert(dongMoi) : Promise.resolve({});
+            return Promise.resolve(b1).then(function (r) {
+              if (r && r.error) throw new Error('Lưu đám mây thất bại (mảnh): ' + r.error.message);
+              return c.from('datasets').upsert(row).select();
+            }).then(function (r) {
+              if (r && r.error) throw new Error('Lưu đám mây thất bại: ' + r.error.message);
+              if (thua.length) return c.from('datasets').delete().in('id', thua).then(function () { return row; });
+              return row;
+            });
+          });
+        });
+      });
+    },
+    /* ĐỌC 1 bản lưu → payload đầy đủ. Nhận cả kiểu CŨ (payload nguyên khối) lẫn kiểu MẢNH.
+       Kiểu mảnh: lấy các dòng mảnh (cache trước, thiếu thì hỏi DB 1 lần cho cả mớ) rồi gộp. */
+    fetchGoi: function (id) {
+      return Promise.resolve(CLCloud.fetchOne(id)).then(function (d) {
+        var p = d && d.payload;
+        if (!p || !p.__goi) return d;                       // bản lưu kiểu cũ — trả nguyên
+        var ids = (p.manh || []).map(function (m) { return m.id; });
+        if (p.anh && p.anh.id) ids.push(p.anh.id);
+        var thieu = ids.filter(function (x) { return !jget(K.dsItem(x), null); });
+        var doThieu = (!thieu.length || !configured() || !online()) ? Promise.resolve(null)
+          : ensureClient().then(function (c) {
+              if (!c) return null;
+              return c.from('datasets').select('*').in('id', thieu).then(function (r) {
+                if (r.error) return null;
+                (r.data || []).forEach(function (row) { jset(K.dsItem(row.id), row); });
+                return null;
+              });
+            });
+        return doThieu.then(function () {
+          var caiGi = [];
+          (p.manh || []).forEach(function (m) { caiGi.push({ loai: 'manh', md: m.md, id: m.id }); });
+          if (p.anh && p.anh.id) caiGi.push({ loai: 'anh', id: p.anh.id });
+          return Promise.all(caiGi.map(function (x) {
+            var row = jget(K.dsItem(x.id), null);
+            if (!row || !row.payload) return Promise.reject(new Error('Thiếu mảnh bản lưu (' + (x.md || 'ảnh') + ') — không mở được, hãy kiểm tra mạng rồi thử lại.'));
+            return giaiNen({ n: row.payload.n, d: row.payload.d }).then(function (v) { return { loai: x.loai, v: v }; });
+          })).then(function (ds) {
+            return giaiNen({ n: p.nc, d: p.chung }).then(function (chung) {
+              var goi = { chung: chung || {}, manh: [], anh: {} };
+              ds.forEach(function (x) { if (x.loai === 'anh') goi.anh = x.v || {}; else goi.manh.push(x.v); });
+              var payload = (root.__CLAPP && root.__CLAPP.gopLuu) ? root.__CLAPP.gopLuu(goi) : null;
+              return Object.assign({}, d, { payload: payload || {} });
+            });
+          });
+        });
+      });
+    },
     remove: function (id) {
+      // Xoá bản lưu là xoá luôn RUỘT của nó, không thì mấy dòng mảnh nằm lại chiếm chỗ mãi
+      try {
+        var _r = jget(K.dsItem(id), null), _p = _r && _r.payload;
+        if (_p && _p.__goi) {
+          var _con = (_p.manh || []).map(function (m) { return m.id; });
+          if (_p.anh && _p.anh.id) _con.push(_p.anh.id);
+          _con.forEach(function (x) { jdel(K.dsItem(x)); });
+          if (_con.length && configured()) {
+            if (!online()) _con.forEach(function (x) { enqueue({ op: 'delete', id: x }); });
+            else ensureClient().then(function (c) { if (c) c.from('datasets').delete().in('id', _con); });
+          }
+        }
+      } catch (_) {}
       jdel(K.dsItem(id));
       var idx = CLCloud.listCached().filter(function (d) { return d.id !== id; });
       jset(K.dsIndex(profile && profile.factory_id), idx);

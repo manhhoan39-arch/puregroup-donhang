@@ -648,7 +648,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2808282010</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2808282250</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1703,6 +1703,78 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(f2 && f2[khOf(cu)]!==undefined) f2[khOf(moi)]=1;   // KH cũ có thể còn đơn khác → chỉ THÊM, không bỏ
     }catch(e){ logErr('doiMaDonCaDon', e); }
     return n;
+  }
+  /* =====================================================================
+   * CHIA BẢN LƯU THÀNH TỪNG MÃ ĐƠN (chốt 28/8) — "tự lưu chỉ gửi phần thay đổi"
+   * ---------------------------------------------------------------------
+   * Trước đây mỗi lần tự lưu đẩy TOÀN BỘ kho lên Supabase: 68 đơn ≈ 7MB, sửa 1 ô là 7MB.
+   * Nay bản lưu tách thành: 1 phần CHUNG (nhật ký, số ít linh tinh) + mỗi MÃ ĐƠN 1 mảnh
+   * + 1 phần ẢNH riêng. Chỉ mảnh nào đổi mới phải gửi lại (~10KB thay vì 7MB).
+   *
+   * Cam kết: chia ra rồi gộp lại phải RA ĐÚNG bản cũ, không sót một ô — kiểm bằng t_chialuu.cjs
+   * (chia/gộp trên dữ liệu thật rồi so từng ký tự).
+   * Cách giữ đúng THỨ TỰ: mỗi mảng lưu kèm "danh sách mã đơn theo từng dòng" (dsMd) để gộp
+   * lại xếp y nguyên — quan trọng nhất là state.keoRows, vì lỗi keo trỏ theo CHỈ SỐ DÒNG.
+   * ===================================================================== */
+  var _MANG_LUU = [
+    ['orders',    function(x){ return String((x&&x.maDon)||''); }],
+    ['keoRows',   function(x){ return String((x&&x.maDon)||''); }],
+    ['mixSheets', function(x){ return String((x&&x.maDon)||''); }],
+    ['pack',      function(x){ return String((x&&x.maDon)||''); }],
+    ['files',     function(F){ return String((F&&F.maDons&&F.maDons[0])||''); }]
+  ];
+  var _MAP_LUU = [ ['boxSel','|'], ['boxTypes',null], ['colorMix','#'],
+                   ['remapApproved','|'], ['lenApproved','|'], ['errAck','|'], ['imgByMadon',null] ];
+  function _mdKhoa(k, sep){ k=String(k); if(!sep) return k; var i=k.indexOf(sep); return i<0?k:k.slice(0,i); }
+  function chiaLuu(){
+    var st = window.__CLAPP.getState();
+    var mds=[], co={};
+    (st.orders||[]).forEach(function(o){ var m=String((o&&o.maDon)||''); if(!co[m]){ co[m]=1; mds.push(m); } });
+    var viTri={}; mds.forEach(function(m,i){ viTri[m]=i; });
+    var rong=function(){ var g={}; _MANG_LUU.forEach(function(p){ g[p[0]]=[]; }); g.khachCuon=[];
+      _MAP_LUU.forEach(function(p){ g[p[0]]={}; }); return g; };
+    var manh = mds.map(function(m){ var g=rong(); g.md=m; return g; });
+    var chung = rong();
+    chung.log=st.log; chung.source=st.source; chung.processed=st.processed; chung.savedAt=st.savedAt;
+    chung.mds=mds; chung.dsMd={}; chung.coPack=Array.isArray(st.pack); chung.coKhachCuon=!!(st.khachCuon&&st.khachCuon.rows);
+    var vao=function(m){ return (viTri[m]!=null) ? manh[viTri[m]] : chung; };
+    _MANG_LUU.forEach(function(p){
+      var ten=p[0], layMd=p[1], ds=st[ten];
+      if(!Array.isArray(ds)) { chung.dsMd[ten]=null; return; }
+      var tt=[]; ds.forEach(function(x){ var m=layMd(x); tt.push(m); vao(m)[ten].push(x); });
+      chung.dsMd[ten]=tt;
+    });
+    var kc=(st.khachCuon&&st.khachCuon.rows)||null;
+    chung.dsMd.khachCuon = kc ? kc.map(function(r){ var m=String((r&&r.maDon)||''); vao(m).khachCuon.push(r); return m; }) : null;
+    _MAP_LUU.forEach(function(p){
+      var ten=p[0], sep=p[1], m0=st[ten]||{};
+      Object.keys(m0).forEach(function(k){ vao(_mdKhoa(k,sep))[ten][k]=m0[k]; });
+    });
+    return { chung: chung, manh: manh, anh: { imgStore: st.imgStore||{} } };
+  }
+  function gopLuu(goi){
+    goi=goi||{}; var chung=goi.chung||{}, manh=goi.manh||[], anh=goi.anh||{};
+    var theoMd={}; manh.forEach(function(g){ if(g && g.md!=null) theoMd[String(g.md)]=g; });
+    var st={ log:chung.log, source:chung.source, processed:chung.processed, savedAt:chung.savedAt,
+             imgStore:(anh&&anh.imgStore)||{} };
+    var lay=function(m){ return theoMd[m] || chung; };
+    var dem={};
+    var keo=function(ten, m){ var g=lay(m); var k=ten+'|'+m; var i=dem[k]||0; dem[k]=i+1; return (g[ten]||[])[i]; };
+    _MANG_LUU.forEach(function(p){
+      var ten=p[0], tt=chung.dsMd?chung.dsMd[ten]:null;
+      if(!tt){ st[ten]= (ten==='pack') ? null : []; return; }
+      st[ten]=tt.map(function(m){ return keo(ten, m); });
+    });
+    if(!chung.coPack) st.pack=null;
+    var ttk=chung.dsMd?chung.dsMd.khachCuon:null;
+    st.khachCuon = (chung.coKhachCuon && ttk) ? { rows: ttk.map(function(m){ return keo('khachCuon', m); }) } : null;
+    _MAP_LUU.forEach(function(p){
+      var ten=p[0], ra={};
+      (chung.mds||[]).forEach(function(m){ var g=theoMd[m]; if(!g) return; var o=g[ten]||{}; for(var k in o) ra[k]=o[k]; });
+      var oc=chung[ten]||{}; for(var k2 in oc) ra[k2]=oc[k2];
+      st[ten]=ra;
+    });
+    return st;
   }
   var __editN=0, __editSnap=null;
   /* ===== XEM ẢNH TO (bước 6): LĂN CHUỘT CHỈ PHÓNG TO / THU NHỎ ẢNH (chốt 26/8) =====
@@ -9535,6 +9607,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
                files:state.files, log:state.log, source:state.source, processed:state.processed };
     },
     hasData: function(){ return !!(state.files && state.files.length) || !!(state.orders && state.orders.length); },
+    // Bản lưu chia theo mã đơn (để tự lưu chỉ gửi mảnh nào đổi) — xem chiaLuu/gopLuu
+    chiaLuu: function(){ return chiaLuu(); },
+    gopLuu: function(goi){ return gopLuu(goi); },
     /* Bảng đã CHIA TRANG: DOM chỉ có dòng của trang đang xem. Hàm này trả về TẤT CẢ dòng
        đang khớp bộ lọc (kể cả trang khác) — cho bài kiểm và cho chỗ nào cần soi toàn bộ. */
     pgPool: function(id){
