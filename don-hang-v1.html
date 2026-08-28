@@ -648,7 +648,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2808281400</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2808281630</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -5977,9 +5977,30 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      Nguồn đổi (upload/nhập tay/sửa step 3) → reset packing (state.pack=null). */
   function ensurePack(){ if(!state.pack) state.pack = JSON.parse(JSON.stringify(state.orders||[])); state._packR=null; return state.pack; }
   function resetPack(){ state.pack=null; state._packR=null; }
+  /* ===== SỬA Ở BƯỚC NÀO THÌ BƯỚC 6 CŨNG PHẢI ĐỔI THEO (chốt 28/8) =====
+     User: "nếu đã xác nhận sửa ở step nào thì các step khác cũng phải cập nhật theo."
+     Lớp Packing (state.pack) là BẢN SAO chụp một lần của Nhập Đơn, và nó giữ thêm 1 bản tính
+     sẵn (state._packR). Hai chỗ hụt:
+       1. `_colorBlocks` (phân bổ Mix nhiều màu) chép theo lúc tạo bản sao, sau đó điền tiếp
+          Bảng Mix Màu ở bước 3 thì bước 6 vẫn chia theo màu CŨ — vì attachColorMix chỉ chạy
+          cho state.orders. Nay chạy cho cả lớp packing trước khi tính.
+       2. Bản tính sẵn chỉ bị bỏ ở mấy chỗ có NHỚ gọi `state._packR=null`; quên một chỗ là số
+          cũ nằm lại. Nay so DẤU VÂN TAY của nguồn (Bảng Keo · Mix Màu · độ dài được duyệt) —
+          nguồn đổi là tự tính lại, không phải nhớ. */
+  function bam32(s){ var h=5381, i=s.length; while(i) h=(h*33 ^ s.charCodeAt(--i))>>>0; return h; }
+  function packNguonSig(){
+    try{ return bam32(JSON.stringify([state.keoRows||[], state.colorMix||{}, state.lenApproved||{}])); }
+    catch(e){ logErr('packNguonSig', e); return Date.now(); }   // đọc không được thì cứ tính lại
+  }
   function boxR(){
     if(!state.pack) return state.R;
-    if(!state._packR){ try{ state._packR = E.runPipeline({ rawOrders: state.pack, mixSheets: state.mixSheets, keoRows: state.keoRows, khachCuon: state.khachCuon||null, opt:{ lenApproved: state.lenApproved||{} } }); }catch(e){ state._packR = state.R; } }
+    var _sig=packNguonSig();
+    if(!state._packR || state._packSig!==_sig){
+      // bảng Mix Màu vừa điền thêm → lớp packing phải tách màu lại y như bước 3
+      try{ attachColorMix(state.pack); }catch(e){ logErr('boxR.mixMau', e); }
+      try{ state._packR = E.runPipeline({ rawOrders: state.pack, mixSheets: state.mixSheets, keoRows: state.keoRows, khachCuon: state.khachCuon||null, opt:{ lenApproved: state.lenApproved||{} } }); }catch(e){ state._packR = state.R; }
+      state._packSig=_sig;
+    }
     return state._packR;
   }
   function renderBoxAll(){ var br=boxR(); try{ renderBox(br); }catch(e){ logErr('renderBoxAll', e); } try{ updateBoxTotals(br); }catch(e){ logErr('renderBoxAll', e); } try{ applyAllFilters(); }catch(e){ logErr('renderBoxAll', e); } }

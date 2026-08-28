@@ -87,7 +87,17 @@
       var byC = splitByComma(s); if (byC) return byC;
       var o = s.replace(/(0[.,]\d+)(?=[A-ZĐ])/g,'$1\n'); return o.split('\n').length > 1 ? o : s; }
     var _csNorm = splitCodes(raw.codeSoi);
-    var _xuongMa = String(raw.xuongMa == null ? '' : raw.xuongMa).trim().toUpperCase() || xuongTuCode(_csNorm);
+    var _xmCode = xuongTuCode(_csNorm);                       // đuôi "-TH" / "-HY" đang có trong Code Sợi
+    var _xmCot = String(raw.xuongMa == null ? '' : raw.xuongMa).trim().toUpperCase();
+    /* GÕ TAY Ở BƯỚC 2 THÌ CODE SỢI LÀ CHỦ (chốt 28/8).
+       User: "Step 2 khi sửa xóa 'TH' ở đuôi code sợi 30.MK.BC.7 nhưng sang Step 5 vẫn chưa
+       thay đổi theo." Cờ xưởng trước đây chỉ có chiều THÊM: gõ "-TH" là xuongMa='TH', mà
+       xuongMa lại được ghi ngược về file rồi đọc lại theo thứ tự "cột trước, đuôi sau" ⇒ xoá
+       đuôi đi cờ vẫn bám → bước 5 vẫn tô vàng, vẫn in "-TH", bản in Line vẫn bỏ dòng đó.
+       Nay dòng nào người dùng đã tự sửa Code Sợi (cờ xuongTay do editCell đặt) thì đọc THẲNG
+       từ đuôi: có thì có, xoá thì hết. Dòng chưa ai đụng giữ nguyên luật cũ (cột của file
+       trước, cột trống mới lấy theo đuôi). */
+    var _xuongMa = raw.xuongTay ? _xmCode : (_xmCot || _xmCode);
     return {
       seri: raw.seri,
       /* seriGoc = SỐ THỨ TỰ GỐC trong file khách, KHÔNG BAO GIỜ đổi.
@@ -113,7 +123,9 @@
       /* Ưu tiên CỘT đánh dấu của file khách; cột trống thì đọc ĐUÔI "-TH"/"-HY" của Code Sợi
          (kể cả do người dùng gõ tay ở bước 2) — xem xuongTuCode. */
       xuongMa: _xuongMa,   // TH · HY · '' (ND)
-      xuongTH: !!raw.xuongTH || _xuongMa === 'TH',
+      // dòng đã gõ tay: cờ TH đi đúng theo đuôi code sợi, KHÔNG cộng dồn cờ cũ nữa
+      xuongTH: raw.xuongTay ? (_xuongMa === 'TH') : (!!raw.xuongTH || _xuongMa === 'TH'),
+      xuongTay: !!raw.xuongTay,   // người dùng đã tự sửa ô Code Sợi ở bước 2
       _colorBlocks: (raw._colorBlocks && raw._colorBlocks.length) ? raw._colorBlocks : null,   // phân bổ mix màu do admin nhập (per-dòng)
       /* HÀNG PREMADE (mẫu 2026): cột "Số Line" ghi chữ "Premade" thay vì con số → hàng đặt
          sẵn, KHÔNG cuốn dải line, chỉ tính SỐ HỘP. Giữ cờ để các bước sau đừng đòi bảng Mix
@@ -288,6 +300,15 @@
     if (col === 'mixSingle') {
       if (/^mix$/i.test(next.mixSingle)) next.mixSingle = 'Mix';
       else if (/^single$/i.test(next.mixSingle)) next.mixSingle = 'Single';
+    }
+    /* Sửa CODE SỢI = sửa luôn cờ xưởng, vì đuôi "-TH" / "-HY" nằm NGAY TRONG ô này.
+       Gõ thêm đuôi → hàng xưởng ngoài; XOÁ đuôi đi → hết, mọi bước sau phải theo (bước 5 thôi
+       tô vàng, bản in Tổng hợp Line in lại dòng đó). Đánh dấu xuongTay để lần chuẩn hoá sau
+       không lấy lại cờ cũ đã ghi trong dữ liệu — xem normalizeOrder. */
+    if (col === 'codeSoi') {
+      next.xuongTay = true;
+      next.xuongMa = xuongTuCode(next.codeSoi);   // (nhiều mã 1 ô: normalizeOrder tách dòng rồi soi lại)
+      next.xuongTH = next.xuongMa === 'TH';
     }
     var keys = Object.keys(next.curls), total = 0;
     keys.forEach(function (kk) { total += next.curls[kk]; });
