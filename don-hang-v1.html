@@ -648,7 +648,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2808281130</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2808281400</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -2270,10 +2270,19 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         });
       });
       // (b) lỗi/cảnh báo theo dòng (bấm để nhảy tới ô sửa)
+      /* Bấm 1 dòng lỗi phải sang ĐÚNG BẢNG chứa ô đó (sửa 28/8).
+         Trước đây dòng nào cũng ghi "Bấm để sang Bảng Nhập Đơn" và cũng gọi jumpToError →
+         lỗi mã keo (E-KEO · E-KEO2) thuộc BẢNG KEO, seri = 0, nên app sang bước 2 tìm dòng
+         seri 0 → không thấy gì, bấm như không có phản ứng. Thẻ KPI "ô sai chuẩn" đã đi đúng
+         từ 21/8 (errIsKeo → jumpToKeo), chỉ danh sách này còn sót. */
       var errRows = R.errors.map(function(e){
         var lv = e.level==='warn'?'warn':'fail';
-        return '<tr data-seri="'+esc(e.seri)+'" data-madon="'+esc(e.maDon||'')+'" data-col="'+esc(e.col)+'" style="cursor:pointer" title="Bấm để sang Bảng Nhập Đơn và sửa ô này">'+
-          '<td>'+(e.maDon||'—')+'</td><td>'+e.seri+'</td><td>'+e.col+'</td>'+
+        var keo = errIsKeo(e);
+        return '<tr data-seri="'+esc(e.seri)+'" data-madon="'+esc(e.maDon||'')+'" data-col="'+esc(e.col)+'"'+
+          ' data-code="'+esc(e.code||'')+'"'+(e.keoIdx!=null?(' data-keoidx="'+esc(e.keoIdx)+'"'):'')+
+          ' style="cursor:pointer" title="Bấm để sang '+(keo?'Bảng Keo':'Bảng Nhập Đơn')+' và sửa ô này">'+
+          // lỗi mã keo không thuộc dòng đơn nào (seri = 0) → cột DÒNG để dấu "—" cho khỏi hiểu nhầm
+          '<td>'+(e.maDon||'—')+'</td><td>'+(keo?'—':e.seri)+'</td><td>'+e.col+'</td>'+
           '<td><span class="badge '+lv+'">'+e.code+'</span></td><td class="txt">'+esc(e.msg)+'</td></tr>';
       }).join('');
       el.innerHTML = (unmapRows + remapRows + errRows) || '<tr><td colspan="5" class="txt" style="color:var(--green-600);font-weight:600">✓ Không còn lỗi — dữ liệu sạch</td></tr>';
@@ -5389,6 +5398,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(tr.scrollIntoView) tr.scrollIntoView({block:'center', behavior:'smooth'});
     if(tr.classList){ tr.classList.add('flash'); setTimeout(function(){ tr.classList.remove('flash'); }, 1500); }
     var td = col ? tr.querySelector('td[data-col="'+col+'"]') : null;
+    /* Vài mã lỗi ghi tên NHÓM cột chứ không phải đúng khoá cột của bảng — không dịch ra thì
+       app tới đúng dòng mà chẳng tô ô nào, nhìn như nhảy hụt (sửa 28/8):
+         · E-CURL ghi col "curl"  → 16 cột độ cong mang data-col "curl:C" · "curl:D"…
+         · E-DUP  ghi col "seri"  → ô Seri là cột khoá, không có data-col */
+    if(!td && col==='curl') td = tr.querySelector('td[data-col^="curl:"]');
+    if(!td && col==='seri') td = tr.querySelector('td.freeze');
     // BỎ highlight ô cũ, tô đậm đúng ô đang xem (kể cả khi nhiều lỗi cùng 1 dòng)
     Array.prototype.forEach.call(grid.querySelectorAll('td.jump-hit'), function(e){ e.classList.remove('jump-hit'); });
     if(td){
@@ -5543,7 +5558,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     state.remapApproved=state.remapApproved||{};
     (state.files||[]).forEach(function(F){ var rm=F&&F.meta&&F.meta.curlRemap; if(!rm) return; var md=(F.maDons&&F.maDons[0])||F.name||'—'; rm.forEach(function(x){ state.remapApproved[md+'|'+x.curl+'|'+x.header]=true; }); });
     try{render();}catch(e){ logErr('jumpCycle', e); } });
-  // Step 1: bấm 1 dòng trong "Danh sách lỗi/cảnh báo" → sang Bảng Nhập Đơn, nhảy tới đúng ô đỏ để sửa
+  // Step 1: bấm 1 dòng trong "Danh sách lỗi/cảnh báo" → sang ĐÚNG BẢNG chứa ô đó, nhảy tới ô đỏ để sửa
   var elErr=document.getElementById('eng-errlist');
   if(elErr && elErr.addEventListener) elErr.addEventListener('click', function(ev){
     // Duyệt 1 dòng quy đổi
@@ -5554,8 +5569,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(ba){ ev.stopPropagation(); state.remapApproved=state.remapApproved||{};
       (state.files||[]).forEach(function(F){ var rm=F&&F.meta&&F.meta.curlRemap; if(!rm) return; var md=(F.maDons&&F.maDons[0])||F.name||'—'; rm.forEach(function(x){ state.remapApproved[md+'|'+x.curl+'|'+x.header]=true; }); });
       try{render();}catch(e){ logErr('jumpCycle', e); } return; }
-    // Bấm dòng lỗi thường → nhảy tới ô sửa
-    var tr=ev.target&&ev.target.closest?ev.target.closest('tr[data-seri]'):null; if(tr) jumpToError(tr.getAttribute('data-seri'), tr.getAttribute('data-madon'), tr.getAttribute('data-col'));
+    // Bấm dòng lỗi thường → nhảy tới ô sửa, Ở ĐÚNG BẢNG chứa nó (Bảng Keo / Bảng Nhập Đơn)
+    var tr=ev.target&&ev.target.closest?ev.target.closest('tr[data-seri]'):null; if(!tr) return;
+    var _e={ seri:tr.getAttribute('data-seri'), maDon:tr.getAttribute('data-madon'),
+             col:tr.getAttribute('data-col'), code:tr.getAttribute('data-code') };
+    var _ki=tr.getAttribute('data-keoidx'); if(_ki!=null && _ki!=='') _e.keoIdx=_ki;
+    if(errIsKeo(_e)) jumpToKeo(_e); else jumpToError(_e.seri, _e.maDon, _e.col);
   });
   /* Thẻ "Ô sai chuẩn": bấm 1 lần = tới 1 ô, bấm tiếp = ô kế, xoay vòng hết lượt.
      Ô nằm ở bảng nào thì tự nhảy sang đúng bảng đó (Bảng Nhập Đơn / Bảng Keo). */
