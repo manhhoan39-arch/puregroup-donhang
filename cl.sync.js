@@ -390,6 +390,35 @@
         return (payload && (payload.orders || []).length) ? payload : null;
       });
     },
+    /* ===== TÌM ĐƠN CÒN SÓT TRÊN MÁY CHỦ (thêm 28/8) =====
+       Quét MỌI dòng mảnh của xưởng — kể cả mảnh MỒ CÔI, tức không còn dòng chỉ mục nào trỏ
+       tới (do bản cũ từng ghi đè chỉ mục bằng trạng thái rỗng). Mỗi mã đơn lấy bản MỚI NHẤT.
+       Trả về payload chỉ gồm mấy đơn mà kho đang mở CHƯA CÓ — hoặc null nếu không thiếu gì. */
+    timDonConSot: function (daCo) {
+      if (!configured() || !online() || !profile || !profile.factory_id) return Promise.resolve(null);
+      return ensureClient().then(function (c) {
+        if (!c) return null;
+        return c.from('datasets').select('id,updated_at,payload')
+          .eq('factory_id', profile.factory_id).eq('kind', KIND_MANH)
+          .then(function (r) {
+            if (r.error || !r.data || !r.data.length) return null;
+            return Promise.all(r.data.map(function (row) {
+              if (!row.payload || !row.payload.__manh) return null;
+              return giaiNen({ n: row.payload.n, d: row.payload.d })
+                .then(function (v) { return (v && v.md != null) ? { md: String(v.md), v: v, t: row.updated_at || '' } : null; })
+                .catch(function () { return null; });
+            })).then(function (ds) {
+              var moi = {};
+              ds.forEach(function (x) { if (x && (!moi[x.md] || x.t > moi[x.md].t)) moi[x.md] = x; });
+              var co = daCo || {};
+              var thieu = Object.keys(moi).filter(function (m) { return !co[m]; }).map(function (m) { return moi[m].v; });
+              if (!thieu.length || !(root.__CLAPP && root.__CLAPP.gopLuu)) return null;
+              var pl = root.__CLAPP.gopLuu({ chung: { mds: thieu.map(function (g) { return g.md; }) }, manh: thieu, anh: {} });
+              return (pl && (pl.orders || []).length) ? pl : null;
+            });
+          });
+      }).catch(function () { return null; });
+    },
     remove: function (id) {
       // Xoá bản lưu là xoá luôn RUỘT của nó, không thì mấy dòng mảnh nằm lại chiếm chỗ mãi
       try {

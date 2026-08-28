@@ -819,12 +819,34 @@
         }
         window.__CLAPP.loadData(pl);
         toast('Đã tự nạp bản mới nhất: ' + latest.name + ' ✓', 'ok');
+        setTimeout(doDonConSot, 1500);
       });
     }).catch(function (e) {
       // Trước đây nuốt lỗi im lặng → app hiện màn trống mà không ai biết vì sao
       if (e && e.message) toast(e.message, 'err');
       thuCuuTuMay();
     });
+  }
+  /* DÒ ĐƠN CÒN SÓT trên máy chủ (thêm 28/8 sau sự cố mất dữ liệu).
+     Bản lưu có thể đã mất mấy đơn khỏi CHỈ MỤC mà mảnh thì vẫn còn nằm đó (mồ côi). Dò xong
+     chỉ HỎI, người dùng đồng ý mới thêm — và chỉ THÊM đơn còn thiếu, không đụng đơn đang có. */
+  var _daDoSot = false;
+  function doDonConSot() {
+    try {
+      if (_daDoSot) return;
+      if (!(window.CLCloud && window.CLCloud.timDonConSot && window.__CLAPP && window.__CLAPP.maDonDangCo)) return;
+      _daDoSot = true;
+      window.CLCloud.timDonConSot(window.__CLAPP.maDonDangCo()).then(function (pl) {
+        if (!pl || !(pl.orders || []).length) return;
+        var mds = []; (pl.orders || []).forEach(function (o) { var m = String((o && o.maDon) || ''); if (mds.indexOf(m) < 0) mds.push(m); });
+        var hoi = 'Trong kho lưu trữ còn ' + mds.length + ' đơn mà bản đang mở KHÔNG có:\n\n' +
+          mds.slice(0, 20).join(' · ') + (mds.length > 20 ? '\n…' : '') +
+          '\n\n(' + (pl.orders || []).length + ' dòng)\n\nNạp thêm mấy đơn này vào? Đơn đang có KHÔNG bị đụng tới.';
+        if (!window.confirm(hoi)) { toast('Bỏ qua — không thêm đơn nào.', 'ok'); return; }
+        var n = window.__CLAPP.themDonConSot(pl);
+        toast(n ? ('Đã thêm ' + mds.length + ' đơn (' + n + ' dòng). Kiểm lại rồi bấm ☁ Lưu để ghi lên máy chủ.') : 'Không có đơn nào để thêm.', 'ok');
+      }).catch(function () {});
+    } catch (_) {}
   }
   /* Máy chủ không cho ra bản dùng được mà app cũng chưa có gì → gom mảnh còn sót trong bộ nhớ
      máy để cứu (thêm 28/8 sau sự cố). Không tự lưu đè lên máy chủ — để người dùng tự quyết. */
