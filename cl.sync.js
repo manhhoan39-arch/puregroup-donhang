@@ -88,6 +88,47 @@
     } catch (e) { return Promise.reject(e); }
   }
   function bam32(s) { var h = 5381, i = s.length; while (i) h = (h * 33 ^ s.charCodeAt(--i)) >>> 0; return h; }
+
+  /* ⚠⚠ LẤY NHIỀU DÒNG THÌ PHẢI CHIA LÔ (sửa 28/8 — đây chính là lỗi làm "thiếu 67 mảnh").
+     PostgREST nhét danh sách id vào URL: `?id=in.(uuid,uuid,…)`. Mỗi UUID 38 ký tự, 67 mảnh là
+     URL hơn 2.600 ký tự — vượt giới hạn của proxy/Supabase ⇒ truy vấn hỏng ⇒ app tưởng mảnh
+     không tồn tại và báo "bản lưu thiếu 67 mảnh", trong khi dữ liệu VẪN CÒN NGUYÊN trên máy chủ.
+     Nay: chia lô 15 dòng, chạy tuần tự; lô nào hỏng thì hạ xuống lấy TỪNG DÒNG một. */
+  var LO = 15;
+  function layNhieuDong(c, ids) {
+    var lo = [], i;
+    for (i = 0; i < ids.length; i += LO) lo.push(ids.slice(i, i + LO));
+    var duoc = 0, hong = 0;
+    return lo.reduce(function (chuoi, mot) {
+      return chuoi.then(function () {
+        return c.from('datasets').select('*').in('id', mot).then(function (r) {
+          if (!r.error) { (r.data || []).forEach(function (row) { jset(K.dsItem(row.id), row); duoc++; }); return; }
+          // cả lô hỏng → thử từng dòng, đừng bỏ cả lô chỉ vì một dòng có vấn đề
+          return mot.reduce(function (ch2, mid) {
+            return ch2.then(function () {
+              return c.from('datasets').select('*').eq('id', mid).maybeSingle().then(function (r2) {
+                if (!r2.error && r2.data) { jset(K.dsItem(r2.data.id), r2.data); duoc++; } else hong++;
+              }).catch(function () { hong++; });
+            });
+          }, Promise.resolve());
+        }).catch(function () { hong += mot.length; });
+      });
+    }, Promise.resolve()).then(function () {
+      log('lấy mảnh: được ' + duoc + ' / hỏng ' + hong + ' / tổng ' + ids.length);
+      return { duoc: duoc, hong: hong };
+    });
+  }
+  function ghiNhieuDong(c, rows) {   // ghi theo lô, lô nào hỏng thì dừng và báo (đừng ghi nửa vời rồi im)
+    if (!rows || !rows.length) return Promise.resolve({});
+    var lo = [], i;
+    for (i = 0; i < rows.length; i += LO) lo.push(rows.slice(i, i + LO));
+    return lo.reduce(function (chuoi, mot) {
+      return chuoi.then(function (kq) {
+        if (kq && kq.error) return kq;
+        return c.from('datasets').upsert(mot);
+      });
+    }, Promise.resolve({}));
+  }
   function idMoi() { return (root.crypto && root.crypto.randomUUID) ? root.crypto.randomUUID() : ('ds-' + Date.now() + '-' + Math.random().toString(16).slice(2)); }
 
   // ---------- Nạp thư viện Supabase (UMD) ----------
@@ -305,9 +346,10 @@
           if (!online()) { dongMoi.concat([row]).forEach(function (d) { enqueue({ op: 'upsert', row: d }); }); return row; }
           return ensureClient().then(function (c) {
             if (!c) { dongMoi.concat([row]).forEach(function (d) { enqueue({ op: 'upsert', row: d }); }); return row; }
-            // mảnh trước, CHỈ MỤC sau — chỉ mục lên rồi mà mảnh chưa có là bản lưu hỏng
-            var b1 = dongMoi.length ? c.from('datasets').upsert(dongMoi) : Promise.resolve({});
-            return Promise.resolve(b1).then(function (r) {
+            /* mảnh trước, CHỈ MỤC sau — chỉ mục lên rồi mà mảnh chưa có là bản lưu hỏng.
+               Ghi cũng CHIA LÔ: gửi cả trăm dòng một lượt là một cú ngã làm hỏng tất cả. */
+            var b1 = ghiNhieuDong(c, dongMoi);
+            return b1.then(function (r) {
               if (r && r.error) throw new Error('Lưu đám mây thất bại (mảnh): ' + r.error.message);
               return c.from('datasets').upsert(row).select();
             }).then(function (r) {
@@ -331,14 +373,7 @@
         if (p.anh && p.anh.id) ids.push(p.anh.id);
         var thieu = ids.filter(function (x) { return !jget(K.dsItem(x), null); });
         var doThieu = (!thieu.length || !configured() || !online()) ? Promise.resolve(null)
-          : ensureClient().then(function (c) {
-              if (!c) return null;
-              return c.from('datasets').select('*').in('id', thieu).then(function (r) {
-                if (r.error) return null;
-                (r.data || []).forEach(function (row) { jset(K.dsItem(row.id), row); });
-                return null;
-              });
-            });
+          : ensureClient().then(function (c) { return c ? layNhieuDong(c, thieu) : null; });
         return doThieu.then(function () {
           var caiGi = [];
           (p.manh || []).forEach(function (m) { caiGi.push({ loai: 'manh', md: m.md, id: m.id }); });
@@ -398,10 +433,22 @@
       if (!configured() || !online() || !profile || !profile.factory_id) return Promise.resolve(null);
       return ensureClient().then(function (c) {
         if (!c) return null;
-        return c.from('datasets').select('id,updated_at,payload')
-          .eq('factory_id', profile.factory_id).eq('kind', KIND_MANH)
-          .then(function (r) {
-            if (r.error || !r.data || !r.data.length) return null;
+        // kéo theo TỪNG TRANG — mỗi mảnh vài chục KB, 67 mảnh một lượt là response quá nặng
+        var gom = [];
+        function trang(tu) {
+          return c.from('datasets').select('id,updated_at,payload')
+            .eq('factory_id', profile.factory_id).eq('kind', KIND_MANH)
+            .order('updated_at', { ascending: false }).range(tu, tu + 14)
+            .then(function (r) {
+              if (r.error || !r.data || !r.data.length) return gom;
+              gom = gom.concat(r.data);
+              return r.data.length < 15 ? gom : trang(tu + 15);
+            }).catch(function () { return gom; });
+        }
+        return trang(0)
+          .then(function (rows) {
+            var r = { data: rows };
+            if (!r.data || !r.data.length) return null;
             return Promise.all(r.data.map(function (row) {
               if (!row.payload || !row.payload.__manh) return null;
               return giaiNen({ n: row.payload.n, d: row.payload.d })

@@ -648,7 +648,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2808290120</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2808290230</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -9737,12 +9737,27 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
-  var initSig=null, checking=false, notified=false;
-  function sig(){
-    if(typeof fetch!=='function') return Promise.resolve(null);   // môi trường không có fetch → bỏ qua
+  var checking=false, notified=false;
+  /* ⚠⚠ SO BẰNG SỐ BUILD, KHÔNG SO HEADER (sửa 28/8 — lỗi báo "có bản mới" lặp vô tận).
+     Bản cũ so `etag|last-modified|content-length` của chính trang. Trên Vercel, cùng MỘT file
+     mà hai lần hỏi rơi vào hai máy chủ biên khác nhau là ETag đã khác ⇒ app tưởng có bản mới
+     ⇒ tự tải lại ⇒ lại thấy khác ⇒ LẶP VÔ TẬN, người dùng không làm gì được (ảnh user gửi).
+     Số build in ở chân trang mới là sự thật: nó nằm TRONG nội dung file, không phụ thuộc máy
+     chủ nào trả về. Chỉ tải 128KB đầu (số build nằm ở khoảng byte 49.000) cho nhẹ. */
+  function buildDangChay(){
+    var el=document.getElementById('build-tag');
+    return el ? String(el.textContent||'').trim() : '';
+  }
+  function buildTrenServer(){
+    if(typeof fetch!=='function') return Promise.resolve(null);
     var u = location.pathname + (location.search ? location.search + '&' : '?') + '_v=' + Date.now();
-    return fetch(u, { method:'HEAD', cache:'no-store' })
-      .then(function(r){ if(!r || !r.ok) return null; var h=r.headers; return (h.get('etag')||'') + '|' + (h.get('last-modified')||'') + '|' + (h.get('content-length')||''); })
+    return fetch(u, { cache:'no-store', headers:{ 'Range':'bytes=0-131071' } })
+      .then(function(r){ if(!r || !(r.ok || r.status===206)) return null; return r.text(); })
+      .then(function(t){
+        if(!t) return null;
+        var m = t.match(/id="build-tag"[^>]*>([^<]*)</);
+        return m ? String(m[1]).trim() : null;   // không thấy số build → coi như không biết, KHÔNG báo
+      })
       .catch(function(){ return null; });
   }
   function editing(){
@@ -9771,13 +9786,22 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       m.textContent='🔄 Đã có phiên bản mới. Tự cập nhật sau '+left+'s…'; left--; setTimeout(tick,1000);
     })();
   }
-  function poll(){ if(checking||notified) return; checking=true; sig().then(function(s){ checking=false; if(!s) return; if(initSig==null){ initSig=s; return; } if(s!==initSig) onNew(); }); }
-  window.__clNewVersion = onNew;   // cho Service Worker gọi khi phát hiện bản mới
-  if (window.__clSWBanMoi) onNew();   // SW đã nhắn lúc trang chưa dựng xong → hiện ngay
-  sig().then(function(s){ initSig=s; });
-  setInterval(poll, 90000);                                   // kiểm tra 90s/lần
-  document.addEventListener('visibilitychange', function(){ if(!document.hidden) poll(); });
-  window.addEventListener('focus', poll);
+  /* XÁC MINH rồi mới báo. Service Worker chỉ "nghi ngờ" (nó so header, mà header không đáng
+     tin) — chốt chặn cuối cùng nằm ở đây: số build trên máy chủ phải KHÁC số build đang chạy. */
+  function kiemRoiBao(){
+    if(checking||notified) return; checking=true;
+    buildTrenServer().then(function(sv){
+      checking=false;
+      var nay=buildDangChay();
+      if(!sv || !nay) return;          // không đọc được → im, thà bỏ sót còn hơn nhá liên tục
+      if(sv!==nay) onNew();
+    });
+  }
+  window.__clNewVersion = kiemRoiBao;   // SW nghi có bản mới → kiểm lại bằng số build rồi mới báo
+  if (window.__clSWBanMoi) kiemRoiBao();
+  setInterval(kiemRoiBao, 90000);                             // kiểm tra 90s/lần
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) kiemRoiBao(); });
+  window.addEventListener('focus', kiemRoiBao);
 })();
 </script>
 </body>
