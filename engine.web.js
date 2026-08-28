@@ -1361,11 +1361,17 @@
        Khách gửi kèm bảng mm theo từng độ cong, tính bằng SỢI; app tính bằng DÂY
        (1 dây = 2 sợi) nên nhân 2 rồi so từng ô (code sợi × mm × độ cong).
        Lệch chỗ nào chỉ ra chỗ đó — bắt được cả lỗi app lẫn lỗi khách gõ. */
+    var doiChieu = soSanhKhachCuon(input.khachCuon, cuonSheet.rows);
+    return { orders: s1.orders, errors: s1.errors, stats: s1.stats, mixLabel: mixLabel, data1: data1, lineByOrder: lineByOrder, cuon: cuon, cuonSheet: cuonSheet, keoByOrder: keoByOrder, keoRules: keoRules, keoMalformed: keoMalformed, keoAmbig: keoAmbig, doiChieu: doiChieu };
+  }
+  /* Tách riêng khỏi runPipeline để bản tính-theo-từng-đơn (runPipelineTheoDon) gọi lại được
+     trên bảng đã GHÉP — thứ tự ô trong `diffs` phải y hệt bản tính cả kho. */
+  function soSanhKhachCuon(khachCuon, cuonRows) {
     var doiChieu = null;
-    if (input.khachCuon && input.khachCuon.rows && input.khachCuon.rows.length) {
+    if (khachCuon && khachCuon.rows && khachCuon.rows.length) {
       var APP = {}, KH = {}, keys = {}, only = {};
-      input.khachCuon.rows.forEach(function (rw) { only[rw.maDon] = 1; });   // chỉ soi đơn CÓ số khách gửi
-      (cuonSheet.rows || []).forEach(function (rw) {
+      khachCuon.rows.forEach(function (rw) { only[rw.maDon] = 1; });   // chỉ soi đơn CÓ số khách gửi
+      (cuonRows || []).forEach(function (rw) {
         if (rw.type !== 'row' || !only[rw.maDon]) return;
         CURLS.forEach(function (k) {
           var q = (rw.curls && rw.curls[k]) || 0; if (!q) return;
@@ -1373,7 +1379,7 @@
           APP[key] = (APP[key] || 0) + q * SOI_PER_LINE; keys[key] = 1;
         });
       });
-      input.khachCuon.rows.forEach(function (rw) {
+      khachCuon.rows.forEach(function (rw) {
         CURLS.forEach(function (k) {
           var q = (rw.curls && rw.curls[k]) || 0; if (!q) return;
           var key = rw.maDon + '|' + rw.codeSoi + '|' + rw.mm + '|' + k;
@@ -1398,7 +1404,154 @@
       doiChieu = { cells: list.length, matched: list.length - diffs.length, diffs: diffs,
                    appSoi: appTot, khachSoi: khTot, byOrder: byOrder };
     }
-    return { orders: s1.orders, errors: s1.errors, stats: s1.stats, mixLabel: mixLabel, data1: data1, lineByOrder: lineByOrder, cuon: cuon, cuonSheet: cuonSheet, keoByOrder: keoByOrder, keoRules: keoRules, keoMalformed: keoMalformed, keoAmbig: keoAmbig, doiChieu: doiChieu };
+    return doiChieu;
+  }
+
+  /* =====================================================================
+   * TÍNH LẠI THEO TỪNG MÃ ĐƠN (chốt 28/8) — "sửa 1 ô thì chỉ tính lại đơn đó"
+   * ---------------------------------------------------------------------
+   * runPipeline tính LẠI TẤT CẢ mỗi lần: 64 đơn mất 0,5s, 256 đơn mất 3,8s — mà sửa 1 ô
+   * cũng phải chờ chừng đó. Hàm này chia dữ liệu theo MÃ ĐƠN, chỉ chạy lại đơn nào ĐỔI
+   * (so dấu vân tay), rồi GHÉP kết quả với các đơn cũ lấy từ kho.
+   *
+   * Cam kết: kết quả ghép phải GIỐNG HỆT runPipeline chạy cả kho — kiểm bằng
+   * t_theodon.cjs (so JSON từng ký tự trên 18 file đơn thật) + bộ chuẩn test-offline.
+   *
+   * Mấy chỗ KHÔNG cộng dồn được, phải dựng lại sau khi ghép:
+   *   · cột STT của Bảng Line Cuốn (đánh số toàn cục)
+   *   · dòng "TỔNG TẤT CẢ" và Summary Dây/Single/Mix
+   *   · thống kê ô sai chuẩn (stats)
+   *   · keoIdx trong lỗi keo — chạy lẻ ra chỉ số TRONG NHÓM, phải đổi về chỉ số toàn cục
+   *   · đối chiếu số khách (doiChieu) — thứ tự ô phụ thuộc bảng đã ghép
+   * ===================================================================== */
+  function _bam32(s) { var h = 5381, i = s.length; while (i) h = (h * 33 ^ s.charCodeAt(--i)) >>> 0; return h; }
+  function _congSo(dich, nguon) { for (var k in nguon) if (typeof nguon[k] === 'number') dich[k] = (dich[k] || 0) + nguon[k]; return dich; }
+  function _giongRef(a, b) {   // hai mảng CÙNG các đối tượng (so con trỏ, không so nội dung)
+    if (!a || !b || a.length !== b.length) return false;
+    for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+
+  /**
+   * @param input như runPipeline
+   * @param kho  kho kết quả lần trước: { '<mã đơn>': {sig, P} } — truyền {} hoặc bỏ trống cho lần đầu
+   * @return {R, kho, tinhLai:[mã đơn đã phải tính lại]}
+   */
+  function runPipelineTheoDon(input, kho) {
+    kho = kho || {};
+    var opt = input.opt || {};
+    var dsO = input.rawOrders || [], dsM = input.mixSheets || [], dsK = input.keoRows || [];
+    var dsKC = (input.khachCuon && input.khachCuon.rows) ? input.khachCuon.rows : null;
+
+    // gom theo mã đơn, GIỮ vị trí gốc để ghép lại đúng thứ tự ban đầu
+    var thuTu = [], nhom = {};
+    function lay(md) {
+      if (!nhom[md]) { nhom[md] = { md: md, oi: [], o: [], m: [], ki: [], k: [], kc: [] }; thuTu.push(md); }
+      return nhom[md];
+    }
+    // chưa có gì thì chạy thẳng bản gốc — khỏi phải tự dựng lại mấy khối thống kê rỗng
+    if (!dsO.length && !dsM.length && !dsK.length) return { R: runPipeline(input), kho: {}, tinhLai: [] };
+    dsO.forEach(function (o, i) { var g = lay(String((o && o.maDon) || '')); g.oi.push(i); g.o.push(o); });
+    dsM.forEach(function (s) { lay(String((s && s.maDon) || '')).m.push(s); });
+    dsK.forEach(function (k, i) { var g = lay(String((k && k.maDon) || '')); g.ki.push(i); g.k.push(k); });
+    if (dsKC) dsKC.forEach(function (r) { lay(String((r && r.maDon) || '')).kc.push(r); });
+
+    var optKhac = _bam32(JSON.stringify([opt.strategy ? String(opt.strategy) : '', opt.soiPerLine || '', opt.minMM || '', opt.maxMM || '']));
+    var khoMoi = {}, tinhLai = [];
+    thuTu.forEach(function (md) {
+      var g = nhom[md];
+      // "cho phép sai chuẩn độ dài" khoá theo dòng (mã đơn|seri) → chỉ lấy phần của đơn này
+      var la = {}, laAll = opt.lenApproved || {};
+      Object.keys(laAll).forEach(function (kk) { if (kk.indexOf(md + '|') === 0) la[kk] = laAll[kk]; });
+      var laSig = _bam32(JSON.stringify(la)) + ':' + optKhac;
+      var cu = kho[md];
+      /* ĐƯỜNG TẮT: sửa 1 ô chỉ thay ĐÚNG một đối tượng dòng đơn, mấy dòng còn lại vẫn là
+         chính đối tượng cũ. So con trỏ (O(số dòng)) rẻ hơn nhiều so với băm cả chuỗi JSON —
+         256 đơn: 210ms → vài ms. So chuỗi vẫn giữ làm đường lui, không tin mỗi con trỏ. */
+      /* So với CẢ dòng đưa vào lẫn dòng ĐÃ CHUẨN HOÁ trả ra: app gán state.orders = R.orders
+         sau mỗi lần vẽ, nên lần vẽ kế tiếp đưa vào chính mấy đối tượng ta vừa trả ra. */
+      if (cu && cu.laSig === laSig && (_giongRef(cu.o, g.o) || _giongRef(cu.oRa, g.o)) &&
+          _giongRef(cu.m, g.m) && _giongRef(cu.k, g.k) && _giongRef(cu.kc, g.kc)) { khoMoi[md] = cu; return; }
+      var sig = _bam32(JSON.stringify([g.o, g.m, g.k, g.kc])) + ':' + laSig;
+      if (cu && cu.sig === sig) { cu.o = g.o; cu.m = g.m; cu.k = g.k; cu.kc = g.kc; khoMoi[md] = cu; return; }
+      var P = runPipeline({
+        rawOrders: g.o, mixSheets: g.m, keoRows: g.k,
+        khachCuon: g.kc.length ? { rows: g.kc } : null,
+        opt: Object.assign({}, opt, { lenApproved: la })
+      });
+      // lỗi keo mang chỉ số dòng TRONG NHÓM → đổi về chỉ số trong bảng keo đầy đủ
+      P.errors.forEach(function (e) { if (e.keoIdx != null && g.ki[e.keoIdx] != null) e.keoIdx = g.ki[e.keoIdx]; });
+      /* Kho phải NHẸ: bản ghép dựng lại 3 thứ này từ dữ liệu đã gộp nên giữ bản của từng đơn
+         chỉ tốn bộ nhớ (128 đơn ăn thêm cả trăm MB → máy ì hẳn khi vẽ bảng). */
+      P.cuon = null; P.keoRules = null; P.doiChieu = null;
+      khoMoi[md] = { sig: sig, laSig: laSig, P: P, o: g.o, oRa: P.orders, m: g.m, k: g.k, kc: g.kc };
+      tinhLai.push(md);
+    });
+
+    // ---- GHÉP ----
+    var orders = new Array(dsO.length), data1 = [], cuonRows = [];
+    /* keoRules dựng lại TỪ CẢ BẢNG KEO (rẻ — mỗi đơn chỉ vài dòng keo): chạy lẻ rồi nối lại
+       sẽ ra thứ tự "theo đơn", còn bản gốc là "theo thứ tự dòng trong Bảng Keo". */
+    var keoRules = buildKeoRules(dsK);
+    var mixLabel = new MixLabel(), lineByOrder = {}, keoByOrder = {}, keoMalformed = {}, keoAmbig = {};
+    var loiDong = {}, loiKeo1 = [], loiKeo2 = [], stats = {}, khoiCuon = {};
+    thuTu.forEach(function (md) {
+      var g = nhom[md], P = khoMoi[md].P;
+      P.orders.forEach(function (o, j) { orders[g.oi[j]] = o; });
+      data1 = data1.concat(P.data1);
+      khoiCuon[md] = P.cuonSheet.rows.filter(function (r) { return r.type !== 'grand'; });
+      for (var k1 in P.mixLabel.byOrder) mixLabel.byOrder[k1] = P.mixLabel.byOrder[k1];
+      for (var k2 in P.lineByOrder) lineByOrder[k2] = P.lineByOrder[k2];
+      for (var k3 in P.keoByOrder) keoByOrder[k3] = P.keoByOrder[k3];
+      for (var k4 in P.keoMalformed) keoMalformed[k4] = P.keoMalformed[k4];
+      for (var k5 in P.keoAmbig) keoAmbig[k5] = P.keoAmbig[k5];
+      /* Thứ tự lỗi phải y hệt runStep1: từng dòng đơn (theo thứ tự gốc) → hết E-KEO → hết
+         E-KEO2. Chạy lẻ cho ra "hết lỗi của đơn 1 rồi mới tới đơn 2", nên phải xếp lại. */
+      P.errors.forEach(function (e) {
+        if (e.code === 'E-KEO') { loiKeo1.push(e); return; }
+        if (e.code === 'E-KEO2') { loiKeo2.push(e); return; }
+        var kd = e.maDon + '#' + e.seri;
+        (loiDong[kd] || (loiDong[kd] = [])).push(e);
+      });
+      _congSo(stats, P.stats);
+    });
+    var errors = [];
+    orders.forEach(function (o) {
+      if (!o) return;
+      var kd = o.maDon + '#' + o.seri, ds = loiDong[kd];
+      if (ds && ds.length) { errors = errors.concat(ds); loiDong[kd] = []; }
+    });
+    errors = errors.concat(loiKeo1).concat(loiKeo2);
+
+    /* Bảng Line Cuốn xếp theo khoá "mã đơn|code sợi" ĐÃ SẮP CHỮ CÁI (Object.keys(tree).sort()
+       trong buildCuonBoxSheet), không phải theo thứ tự file nạp. Khoá nào cũng bắt đầu bằng
+       "<mã đơn>|" nên các đơn không bao giờ xen vào nhau — chỉ cần xếp lại THỨ TỰ CÁC ĐƠN
+       đúng như phép sort đó. (Bỏ bước này thì bảng bước 5 vẫn đủ số nhưng đảo thứ tự đơn.) */
+    thuTu.slice().sort(function (a, b) { a += '|'; b += '|'; return a < b ? -1 : (a > b ? 1 : 0); })
+      .forEach(function (md) { cuonRows = cuonRows.concat(khoiCuon[md] || []); });
+    // STT của Bảng Line Cuốn đánh số toàn cục, không phải theo từng đơn
+    var stt = 0;
+    cuonRows.forEach(function (r) { if (r.type === 'row') r.stt = ++stt; });
+    // dòng "TỔNG TẤT CẢ" + Summary Dây/Single/Mix dựng lại từ bảng đã ghép
+    var gCurls = {}, gTong = 0;
+    CURLS.forEach(function (k) { gCurls[k] = 0; });
+    cuonRows.forEach(function (r) {
+      if (r.type !== 'subtotal') return;
+      CURLS.forEach(function (k) { gCurls[k] += (r.curls && r.curls[k]) || 0; });
+      gTong += r.tong || 0;
+    });
+    cuonRows.push({ type: 'grand', curls: gCurls, tong: gTong });
+    var summary = {};
+    thuTu.forEach(function (md) { _congSo(summary, khoMoi[md].P.cuonSheet.summary || {}); });
+    var cuonSheet = { rows: cuonRows, grand: gTong, summary: summary };
+    var cuon = buildCuonBox(data1, orders);       // rẻ, mà lại gộp CHÉO các đơn nên phải dựng lại
+    var R = {
+      orders: orders, errors: errors, stats: stats, mixLabel: mixLabel, data1: data1,
+      lineByOrder: lineByOrder, cuon: cuon, cuonSheet: cuonSheet, keoByOrder: keoByOrder,
+      keoRules: keoRules, keoMalformed: keoMalformed, keoAmbig: keoAmbig,
+      doiChieu: soSanhKhachCuon(input.khachCuon, cuonRows)
+    };
+    return { R: R, kho: khoMoi, tinhLai: tinhLai };
   }
 
   /* ---------------- PARSER WORKBOOK (AOA từ SheetJS) ---------------- */
@@ -2481,7 +2634,7 @@
     keoCoDieuKien: keoCoDieuKien,
     buildData1: buildData1, buildLineMatrix: buildLineMatrix, STRATEGIES: STRATEGIES,
     buildCuonBox: buildCuonBox, buildCuonBoxSheet: buildCuonBoxSheet, buildSummary: buildSummary,
-    runPipeline: runPipeline,
+    runPipeline: runPipeline, runPipelineTheoDon: runPipelineTheoDon,
     parseNhapDonRows: parseNhapDonRows, parseLabelRows: parseLabelRows,
     parseKeoRows: parseKeoRows, parseWorkbookData: parseWorkbookData,
     parseGuiXuongSheet: parseGuiXuongSheet, parseMixColorAOA: parseMixColorAOA,

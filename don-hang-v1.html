@@ -648,7 +648,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2808281630</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">2808282010</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1359,16 +1359,38 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   // Bóc tách Ghi Chú keo (chữ tự do, mỗi DÒNG = 1 điều kiện) → Loại Sợi · Độ Dày · Độ Dài (giữ nhiều dòng, không đổi ghi chú gốc)
   // vd "0.06/0.07/0.085/0.10 Faux Mink tất cả độ dài\n0.06 Super Silk tất cả độ dài"
   // Danh sách TÊN GỌI NGUYÊN LIỆU thật của đơn (bỏ số độ dày) — để đối chiếu khi bóc tách "Loại Sợi"
+  /* ĐỪNG DỰNG LẠI DANH SÁCH NÀY CHO TỪNG DÒNG KEO (sửa 28/8).
+     parseKeoNote gọi keoMatVocab() mỗi lần, mà keoMatVocab duyệt HẾT dòng đơn ⇒ 640 dòng keo
+     × 3.200 dòng đơn = hơn 2 triệu vòng cho MỘT lần vẽ. Đo bằng hồ sơ CPU: 551ms/1.650ms của
+     mỗi lần vẽ lại nằm ở đây — nhiều hơn cả phần tính toán. Nay nhớ theo mảng state.orders
+     (mỗi lần vẽ dựng mảng mới nên tự hết hạn, không sợ dùng nhầm danh sách cũ). */
+  var _kmvRa=null, _kmvArr=null, _kmvVer=0;
   function keoMatVocab(){
+    var ds=((typeof state!=='undefined'&&state.orders)||[]);
+    if(_kmvRa && _kmvArr===ds) return _kmvRa;
     var set={}, out=[];
-    ((typeof state!=='undefined'&&state.orders)||[]).forEach(function(o){
+    ds.forEach(function(o){
       var m=String(o.material||'').replace(/\d+(?:[.,]\d+)?/g,' ').replace(/\bmm\b/gi,' ').replace(/\s+/g,' ').trim();
       if(m && !set[m.toLowerCase()]){ set[m.toLowerCase()]=1; out.push(m); }
     });
     out.sort(function(a,b){ return b.length-a.length; });   // dài trước: "Premium Faux Mink" khớp trước "Faux Mink"
+    _kmvArr=ds; _kmvRa=out; _kmvVer++; _pknKho={};
     return out;
   }
+  /* Ghi Chú keo của các dòng thường trùng nhau (cả đơn dùng 1 câu) → bóc 1 lần rồi dùng lại.
+     Mọi chỗ gọi chỉ ĐỌC kết quả, không sửa, nên dùng chung 1 đối tượng là an toàn. */
+  var _pknKho={}, _pknVer=-1;
   function parseKeoNote(note, vocab){
+    if(vocab==null){
+      if(_pknVer!==_kmvVer){ _pknKho={}; }
+      vocab=keoMatVocab(); _pknVer=_kmvVer;
+      var _k=''+String(note==null?'':note);
+      if(Object.prototype.hasOwnProperty.call(_pknKho,_k)) return _pknKho[_k];
+      var _v=_parseKeoNoteThat(note, vocab); _pknKho[_k]=_v; return _v;
+    }
+    return _parseKeoNoteThat(note, vocab);
+  }
+  function _parseKeoNoteThat(note, vocab){
     vocab = vocab || keoMatVocab();
     var t=String(note==null?'':note).replace(/\r/g,'');
     // TÁCH ĐIỀU KIỆN kể cả khi khách viết liền 1 dòng (mất xuống dòng):
@@ -1459,7 +1481,18 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      không sinh bảng cho nó → nhập đơn mới là cảnh báo hiện lại mãi không dứt.
      LƯU Ý: "Multi Color" KHÔNG phải mix màu — chuỗi "multicolor" không chứa "mixcolor"
      nên tự động nằm ngoài, đừng nới điều kiện này ra "mọi dòng Mix nhiều mã sợi". */
+  /* Nhớ theo TỪNG DÒNG ĐƠN (sửa 28/8): hàm này chạy cho mọi dòng ở nhiều chỗ trong 1 lần vẽ —
+     hồ sơ CPU đo được 333ms/1.650ms. Sửa 1 ô là engine sinh ĐỐI TƯỢNG DÒNG MỚI, nên bộ nhớ
+     đệm theo đối tượng tự hết hạn đúng dòng vừa sửa, mấy dòng kia dùng lại. */
+  var _mixKho=(typeof WeakMap==='function')?new WeakMap():null;
   function isMixColorRow(o){
+    if(_mixKho && o && typeof o==='object'){
+      var _c=_mixKho.get(o); if(_c!==undefined) return _c;
+      var _r=_isMixColorRowThat(o); _mixKho.set(o,_r); return _r;
+    }
+    return _isMixColorRowThat(o);
+  }
+  function _isMixColorRowThat(o){
     var t=(String(o.material||'')+' '+String(o.detail||'')+' '+String(o.loaiHang||'')+' '+String(o.label||'')+' '+String(o.codeSoi||'')).toLowerCase().replace(/\s+/g,'');
     var mc = t.indexOf('mixcolor')>=0 || t.indexOf('mixcolour')>=0;   // khách ghi cả "Mix Colour"
     if(mc && /\r?\n/.test(String(o.codeSoi||''))) return true;        // mẫu cũ: nhiều code sợi 1 ô
@@ -2185,8 +2218,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       try{ state.orders = E.runStep1(state.orders).orders; }catch(e){ logErr('render.chuanHoa', e); }
     }
     attachColorMix(state.orders);
-    var R = _reuse ? state.R
-          : E.runPipeline({ rawOrders: state.orders, mixSheets: state.mixSheets, keoRows: state.keoRows, khachCuon: state.khachCuon||null, opt:{ lenApproved: state.lenApproved||{} } });
+    /* TÍNH LẠI CHỈ ĐƠN NÀO ĐỔI (chốt 28/8) — trước đây sửa 1 ô là tính lại CẢ KHO:
+       64 đơn mất 0,85s, 256 đơn mất 7,5s, mà mỗi lần rời ô đều phải chờ chừng đó.
+       Nay engine chia theo mã đơn, đơn không đổi thì lấy lại kết quả cũ trong state._khoDon →
+       27ms (64 đơn) · 128ms (256 đơn). Kết quả GIỐNG HỆT bản tính cả kho (xem t_theodon.cjs). */
+    var R;
+    if(_reuse) R = state.R;
+    else {
+      var _kq = E.runPipelineTheoDon({ rawOrders: state.orders, mixSheets: state.mixSheets, keoRows: state.keoRows, khachCuon: state.khachCuon||null, opt:{ lenApproved: state.lenApproved||{} } }, state._khoDon);
+      R = _kq.R; state._khoDon = _kq.kho;
+    }
     /* CHỈ ghi đè khi vừa TÍNH LẠI. Dùng lại kết quả cũ mà vẫn gán thì đơn vừa nạp bị thay bằng
        danh sách của lần tính TRƯỚC — nạp file xong mất sạch đơn, mọi bảng trống, ô tìm mã đơn
        không ra gì (lỗi 8/8/2026). */
@@ -5998,7 +6039,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(!state._packR || state._packSig!==_sig){
       // bảng Mix Màu vừa điền thêm → lớp packing phải tách màu lại y như bước 3
       try{ attachColorMix(state.pack); }catch(e){ logErr('boxR.mixMau', e); }
-      try{ state._packR = E.runPipeline({ rawOrders: state.pack, mixSheets: state.mixSheets, keoRows: state.keoRows, khachCuon: state.khachCuon||null, opt:{ lenApproved: state.lenApproved||{} } }); }catch(e){ state._packR = state.R; }
+      try{ var _pk = E.runPipelineTheoDon({ rawOrders: state.pack, mixSheets: state.mixSheets, keoRows: state.keoRows, khachCuon: state.khachCuon||null, opt:{ lenApproved: state.lenApproved||{} } }, state._khoPack);
+           state._packR = _pk.R; state._khoPack = _pk.kho; }catch(e){ state._packR = state.R; }
       state._packSig=_sig;
     }
     return state._packR;
