@@ -233,6 +233,16 @@
       });
     }, Promise.resolve({}));
   }
+  /* Đếm số mã đơn của bản lưu ĐANG NẰM TRÊN MÁY CHỦ (không phải bản trong máy — bản trong máy
+     có thể đã cũ hoặc thiếu). Dùng cho phanh chống ghi đè làm co nhỏ. */
+  function demManhTrenMayChu(c, id) {
+    return c.from('datasets').select('payload').eq('id', id).maybeSingle()
+      .then(function (r) {
+        var p = r && r.data && r.data.payload;
+        if (!p || !p.__goi) return -1;
+        return (p.manh || []).length;
+      }).catch(function () { return -1; });
+  }
   function idMoi() { return (root.crypto && root.crypto.randomUUID) ? root.crypto.randomUUID() : ('ds-' + Date.now() + '-' + Math.random().toString(16).slice(2)); }
 
   /* Tìm lại mảnh mà CHỈ MỤC trỏ tới nhưng không còn tồn tại. Khoá tra cứu là MÃ ĐƠN (nằm ở
@@ -495,6 +505,23 @@
           if (!online()) { dongMoi.concat([row]).forEach(function (d) { enqueue({ op: 'upsert', row: d }); }); return row; }
           return ensureClient().then(function (c) {
             if (!c) { dongMoi.concat([row]).forEach(function (d) { enqueue({ op: 'upsert', row: d }); }); return row; }
+            /* ⚠⚠ PHANH CHỐNG GHI ĐÈ LÀM CO NHỎ BẢN LƯU CHUNG (thêm 3/9).
+               Bằng chứng thật: 10:03:32 máy anh Hoàn ghi lên ô lưu của xưởng bản ĐỦ 66 đơn.
+               10:05:54 một máy khác (đang mở bản thiếu 10 đơn) tự lưu đè lên đúng ô đó ⇒ cả
+               xưởng mất 56 đơn. Một ô lưu dùng chung thì máy nào cũng ghi được — nên phải có
+               phanh: bản mới ÍT ĐƠN HƠN bản đang nằm trên máy chủ thì TỪ CHỐI.
+               Muốn thay thật (vd cố ý bỏ bớt đơn) thì bấm ☁ Lưu rồi xác nhận — lúc đó epGhi=true. */
+            return demManhTrenMayChu(c, id).then(function (svN) {
+              var moiN = (goi.manh || []).length;
+              if (svN > 0 && moiN < svN && !rec.epGhi) {
+                throw new Error('KHÔNG ghi đè: trên máy chủ đang có ' + svN + ' đơn, bản này chỉ có ' +
+                  moiN + ' đơn. Tải lại trang (Ctrl+F5) để lấy bản đầy đủ. Nếu thật sự muốn thay bằng ' +
+                  'bản ít đơn hơn thì bấm ☁ Lưu rồi xác nhận.');
+              }
+              return ghiThat(c);
+            });
+          });
+          function ghiThat(c) {
             /* mảnh trước, CHỈ MỤC sau — chỉ mục lên rồi mà mảnh chưa có là bản lưu hỏng.
                Ghi cũng CHIA LÔ: gửi cả trăm dòng một lượt là một cú ngã làm hỏng tất cả. */
             var b1 = ghiNhieuDong(c, dongMoi);
@@ -506,7 +533,7 @@
               danhDauLen([row.id]);
               return row;
             });
-          });
+          }
         });
       });
     },

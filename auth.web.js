@@ -392,9 +392,18 @@
       var id = autoSaveId();
       if (!id) return toast('Tài khoản chưa được gán Xưởng — không lưu được.', 'err');
       // Bản lưu tay cũng chia mảnh + nén như bản tự lưu (68 đơn: 7MB → khoảng 1MB)
-      var ghi = (window.CLCloud.saveGoi && window.__CLAPP.chiaLuu)
-        ? window.CLCloud.saveGoi({ id: id, name: tenBanLuu(), goi: window.__CLAPP.chiaLuu() })
-        : window.CLCloud.save({ id: id, name: tenBanLuu(), payload: payload });
+      var chiaMot = window.__CLAPP.chiaLuu();
+      function luu(ep) {
+        return (window.CLCloud.saveGoi && chiaMot)
+          ? window.CLCloud.saveGoi({ id: id, name: tenBanLuu(), goi: chiaMot, epGhi: !!ep })
+          : window.CLCloud.save({ id: id, name: tenBanLuu(), payload: payload });
+      }
+      var ghi = luu(false).catch(function (e) {
+        /* Phanh chống co nhỏ đã chặn: hỏi người dùng cho rõ rồi mới ép ghi. */
+        if (!/KHÔNG ghi đè/.test(String(e && e.message || ''))) throw e;
+        if (!window.confirm(e.message + '\n\nVẫn muốn ghi đè bằng bản đang mở?')) throw new Error('Đã huỷ — máy chủ giữ nguyên bản cũ.');
+        return luu(true);
+      });
       toast('Đang lưu lên máy chủ…', 'ok');
       ghi.then(function (row) {
         try { localStorage.setItem('cl_ds_updated', JSON.stringify({ fid: (S.factory && S.factory.id), t: Date.now() })); } catch (_) {}
@@ -1155,8 +1164,14 @@
      thì phải còn chúng. Xoá tự động = cắt mất đường lùi.
      Nay: mở app KHÔNG xoá gì hết. Chỉ khi người dùng chủ động bấm ☁ Lưu — tức đã nhìn thấy dữ
      liệu trên màn hình và thấy đúng — app mới soi rồi dọn. */
+  /* ⚠ MỘT LẦN MỖI PHIÊN. User 3/9: "Các thông báo này sao vẫn chạy liên tục" — mỗi lần máy khác
+     ghi là realtime bắn về, app nạp lại, thấy chỉ mục hỏng, lại ghi bản lành, lại bắn realtime…
+     thành vòng lặp. Ghi lành một lần là đủ. */
+  var _daSuaVa = false;
   function suaVaDon(va) {
     try {
+      if (_daSuaVa) return;
+      _daSuaVa = true;
       if (!(S.cloud && window.CLCloud && window.CLCloud.saveGoi && window.__CLAPP && window.__CLAPP.chiaLuu)) return;
       if (!duocGhiXuong()) return;
       var id = autoSaveId(); if (!id) return;
