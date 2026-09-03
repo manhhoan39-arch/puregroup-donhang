@@ -921,6 +921,7 @@
         datMoTam(false, 0);
         if (bm.id) _dangMo = { id: bm.id, t: String(bm.sv || '') };
         toast('Đã mở bản lưu trong máy: ' + bm.soFile + ' file · ' + bm.soDong + ' dòng ✓', 'ok');
+        bangDangXem('bản lưu trong máy, đang đối chiếu máy chủ…');
         soTuNhan(bm.payload);            // nhớ mục tiêu ngay, kẻo nhãn rơi mất ở lần sau
         return doiChieuMayChu(true);
       }
@@ -974,6 +975,7 @@
            file so với nhãn không (bản trước bỏ sót đúng nhánh này: mở từ bản mở nhanh xong là
            thoát, tự vá không bao giờ chạy). */
         try { tuVaTheoNhan(window.__CLAPP.getState()); } catch (e) {}
+        if (!thieuSoVoiMucTieu()) bangDangXem('đã đối chiếu máy chủ, đây là bản mới nhất', 'xanh');
         return;
       }
       // fetchGoi = đọc được cả bản lưu CHIA MẢNH lẫn bản lưu nguyên khối kiểu cũ
@@ -994,6 +996,7 @@
         ghiMoNhanh(pl, { id: latest.id, sv: String(latest.updated_at || ''), nguon: 'máy chủ' });
         var soDon = window.__CLAPP.maDonDangCo ? Object.keys(window.__CLAPP.maDonDangCo()).length : 0;
         toast('Đã nạp bản lưu cuối từ máy chủ (' + soDon + ' đơn) ✓', 'ok');
+        bangDangXem('vừa lấy từ MÁY CHỦ', 'xanh');
         if (d.__va) suaVaDon(d.__va);      // phải vá mới mở được ⇒ ghi lại bản LÀNH (nhưng KHÔNG xoá gì)
         tuVaTheoNhan(pl);                  // nhãn nói 66 file mà chỉ có 55 ⇒ tự đi lấy lại, không hỏi
       });
@@ -1002,6 +1005,8 @@
       if (!daMo) { if (e && e.message) toast(e.message, 'err'); thuCuuTuMay(); return; }
       // đã có dữ liệu trên màn hình rồi thì đừng doạ, chỉ nói cho biết
       toast('Không hỏi được máy chủ — đang xem bản lưu trong máy.', 'ok');
+      bangKetQua('⚠ Chưa hỏi được máy chủ (' + String((e && e.message) || e || 'không rõ').slice(0, 90) +
+                 ') — đang xem bản trong máy, app tự thử lại mỗi 25 giây. (bấm để đóng)');
     });
   }
 
@@ -1021,6 +1026,8 @@
   var _choLuu = false;        // có thay đổi chưa lưu xong
   var _banMoiT = null;        // mốc bản mới đang chờ người dùng lấy
   var _luuLucNao = 0;         // lúc MÁY NÀY ghi lên máy chủ lần gần nhất
+  var _vaLuc = 0;             // lúc thử tự lấy lại bản đủ gần nhất
+  var _soCanh = 0;            // đếm số lượt canh (để chẩn đoán)
   var CANH_GIAY = 25;
 
   function dangGoTrongO() {
@@ -1079,23 +1086,61 @@
                  ' đơn. (bấm để đóng)', 'xanh');
     }).catch(function () {});
   }
+  /* Màn hình đang THIẾU so với nhãn của lần Xử lý gần nhất ("💾 66 file · 1778 dòng")?
+     Đây là cách duy nhất app tự biết mình đang cầm bản hụt mà không cần ai bấm gì. */
+  function thieuSoVoiMucTieu() {
+    try {
+      if (!(window.__CLAPP && window.__CLAPP.getState)) return null;
+      var st = window.__CLAPP.getState(); if (!st) return null;
+      var can = soTuNhan(st); if (!can) return null;
+      var coF = (st.files || []).length, coD = (st.orders || []).length;
+      if (coF >= can.file && coD >= can.dong) return null;
+      return { coF: coF, coD: coD, canF: can.file, canD: can.dong };
+    } catch (e) { return null; }
+  }
   function canhBanMoi() {
+    _soCanh++;
     try {
       if (!S.token || !S.cloud || !window.CLCloud || !window.CLCloud.mocMayChu) return;
-      if (typeof document.hidden === 'boolean' && document.hidden) return;   // tab đang ẩn → khỏi hỏi
       if (!can('dataset:read')) return;
-      var id = autoSaveId(); if (!id) return;
+      var id = autoSaveId();
+      if (!id) {                       // hồ sơ đọc hỏng ⇒ mất factory_id ⇒ không biết ô lưu nào
+        bangKetQua('⚠ Tài khoản chưa xác định được Xưởng — chưa lấy được dữ liệu từ máy chủ. ' +
+                   'Tải lại trang (Ctrl+F5); nếu vẫn vậy thì nhờ quản trị gán Xưởng cho tài khoản. (bấm để đóng)');
+        return;
+      }
+      /* CHƯA MỞ ĐƯỢC GÌ (mất mạng đúng lúc mở, máy chủ chập một nhịp…) → thử mở lại cho tử tế.
+         ⚠ Việc này làm KỂ CẢ KHI TAB ĐANG ẨN: màn hình trắng thì phải lấp cho đầy, không đợi
+         người dùng bấm sang tab mới chịu đi lấy. */
       if (!_dangMo || _dangMo.id !== id) {
-        // chưa mở được gì (mất mạng lúc mở chẳng hạn) → thử mở lại cho tử tế
         if (!(window.__CLAPP && window.__CLAPP.hasData && window.__CLAPP.hasData())) {
           try { autoLoadLatest(true); } catch (_) {}
         }
         return;
       }
+      // Đã có dữ liệu trên màn hình rồi thì tab đang ẩn khỏi cần hỏi — đỡ tốn đường truyền.
+      if (typeof document.hidden === 'boolean' && document.hidden) return;
       return window.CLCloud.mocMayChu(id).then(function (r) {
-        if (!r || !r.updated_at) return;
+        if (!r || !r.updated_at) {
+          bangKetQua('⚠ Không đọc được ô lưu của xưởng trên máy chủ (mạng chập hoặc chưa có quyền) — ' +
+                     'đang xem bản trong máy. App sẽ tự thử lại. (bấm để đóng)');
+          return;
+        }
         var t = String(r.updated_at);
-        if (t <= String(_dangMo.t || '')) { anBangBanMoi(); return; }
+        if (t <= String(_dangMo.t || '')) {
+          /* Máy chủ không có gì mới. NHƯNG nếu màn hình đang hụt so với nhãn thì phải tự đi lấy
+             lại — không ngồi im. Đây chính là cảnh "tài khoản khác không cập nhật được": bản
+             trong máy 10 file, nhãn nói 66 file, mà mốc thời gian thì không mới hơn. */
+          var th = thieuSoVoiMucTieu();
+          if (!th) { anBangBanMoi(); return; }
+          if (_choLuu || _moTam || dangGoTrongO()) return;
+          if (Date.now() - _vaLuc < 180000) return;         // 3 phút thử lại một lần, khỏi nặng máy
+          _vaLuc = Date.now(); _daTuVa = false;             // cho phép tự vá thử lại
+          bangKetQua('⏳ Đang thiếu ' + th.coF + '/' + th.canF + ' file (' + th.coD + '/' + th.canD +
+                     ' dòng) — app đang tự lấy lại từ máy chủ… (bấm để đóng)');
+          try { tuVaTheoNhan(window.__CLAPP.getState()); } catch (e) {}
+          return;
+        }
         /* CHÍNH MÁY NÀY vừa ghi (tự lưu / ☁ Lưu) → chỉ dời mốc, tuyệt đối không nạp lại,
            kẻo cứ mỗi lần sửa một ô là màn hình bị nạp đè một lần.
            ⚠ Phải xét CẢ "mình vừa lưu cách đây mấy giây", không chỉ xét created_by: cùng một
@@ -1123,6 +1168,40 @@
     } catch (_) {}
   }
   function dungCanh() { if (_canhT) { clearInterval(_canhT); _canhT = null; } anBangBanMoi(); }
+  /* Bảng chẩn đoán một phát ra hết — lần sau khỏi phải mò từng thứ trên máy người dùng.
+     Gõ __CHANDOAN() trong Console là thấy: ai đang đăng nhập, ô lưu nào, màn hình có gì,
+     nhãn mục tiêu bao nhiêu, đang thiếu bao nhiêu, người canh có chạy không. */
+  window.__CHANDOAN = function () {
+    var st = null; try { st = window.__CLAPP.getState(); } catch (e) {}
+    var hoSo = null; try { hoSo = window.CLCloud.getProfile(); } catch (e) {}
+    return {
+      build: (document.getElementById('build-tag') || {}).textContent,
+      taiKhoan: hoSo && { email: hoSo.email, id: hoSo.id, role: hoSo.role, xuong: hoSo.factory_id },
+      quyen: S.perms, oLuu: autoSaveId(), dangMo: _dangMo,
+      manHinh: st && { file: (st.files || []).length, dong: (st.orders || []).length, nhan: st.source },
+      mucTieu: (function () { try { return JSON.parse(localStorage.getItem(khoaMucTieu()) || 'null'); } catch (e) { return null; } })(),
+      thieu: thieuSoVoiMucTieu(),
+      choLuu: _choLuu, moTam: _moTam, luuLucNao: _luuLucNao, vaLuc: _vaLuc,
+      dangCanh: !!_canhT, soLuotCanh: _soCanh, tabAn: !!document.hidden,
+      dai: (document.getElementById('cl-ketqua') || {}).textContent || '',
+      cam: (document.getElementById('cl-banmoi') || {}).textContent || ''
+    };
+  };
+  /* MỘT DÒNG NÓI RÕ ĐANG XEM GÌ, LẤY TỪ ĐÂU (thêm 3/9).
+     Lý do: mấy lời nhắc chỉ hiện 3 giây, người dùng chụp ảnh lại thì chỉ thấy đúng cái toast
+     "đang tự tìm lại…" rồi tưởng app không lấy được dữ liệu, trong khi 1 phút sau nó đã lấy
+     đủ 66 file. Nay để lại một dòng trên đầu trang, lúc nào cũng đọc được. */
+  function bangDangXem(nguon, mau) {
+    try {
+      var st = (window.__CLAPP && window.__CLAPP.getState) ? window.__CLAPP.getState() : null;
+      if (!st) return;
+      var soDon = (window.__CLAPP.maDonDangCo ? Object.keys(window.__CLAPP.maDonDangCo()).length : 0);
+      var ai = (S.user && S.user.username) || '';
+      bangKetQua('Đang xem ' + (st.files || []).length + ' file · ' + (st.orders || []).length +
+                 ' dòng · ' + soDon + ' đơn — ' + nguon + ' lúc ' + new Date().toLocaleTimeString('vi-VN') +
+                 (ai ? ' · ' + ai : '') + ' (bấm để đóng)', mau);
+    } catch (e) {}
+  }
   /* Dải thông báo NẰM LẠI trên đầu trang (khác lời nhắc 3 giây). Dùng cho kết quả tự vá —
      người dùng cần nhìn thấy con số, và tôi cần con số đó để biết kho còn gì. Bấm là đóng. */
   function bangKetQua(chu, mau) {
@@ -1563,9 +1642,19 @@
         if (hoSo && hoSo.id) {
           startCloudSession(hoSo);
           window.CLCloud.init().then(function (res) {
-            if (res && res.offline) return;                 // không có mạng → cứ xem tiếp
-            if (res && res.profile) return;                 // phiên còn tốt
-            doLogout(true);                                 // máy chủ nói hết phiên → mới bắt đăng nhập
+            if (!res) return;
+            if (res.profile) return;                        // phiên còn tốt
+            if (res.offline) return;                        // không có mạng → cứ xem tiếp
+            /* ⚠ Đọc hồ sơ hỏng KHÔNG phải là hết phiên. Đo được 3/9 trên máy user: khoá phiên
+               trong máy còn hạn tới 08:12Z mà app vẫn hiện "Phiên đã hết hạn" rồi xoá sạch dữ
+               liệu đang mở ⇒ máy đó không bao giờ lấy được bản mới. Nay chỉ đăng xuất khi máy
+               chủ nói RÕ là không còn phiên. */
+            if (res.hoSoHong) {
+              bangKetQua('⚠ Chưa đọc được hồ sơ tài khoản (mạng chập) — vẫn đang xem bản trong máy, ' +
+                         'app sẽ tự thử lại. (bấm để đóng)');
+              return;
+            }
+            if (res.khongCoPhien) doLogout(true);           // máy chủ nói hết phiên → mới bắt đăng nhập
           }).catch(function () {});
           return;
         }

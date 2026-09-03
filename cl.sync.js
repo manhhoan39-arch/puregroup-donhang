@@ -324,9 +324,14 @@
     return client.auth.getUser().then(function (r) {
       var u = r && r.data && r.data.user; if (!u) return null;
       return client.from('profiles').select('*').eq('id', u.id).single().then(function (pr) {
-        var p = pr.data || { id: u.id, email: u.email, role: 'user' };
+        /* ⚠ ĐỌC HỎNG thì trả null, TUYỆT ĐỐI không bịa ra hồ sơ: hồ sơ bịa thiếu factory_id
+           ⇒ S.factory = null ⇒ autoSaveId() = null ⇒ không tự lưu, không canh bản mới, và
+           tài khoản super_admin bị tụt xuống quyền 'user'. Chỉ khi máy chủ trả lời rõ là
+           "không có dòng nào" mới dùng hồ sơ tối thiểu. */
+        if (pr && pr.error) return null;
+        var p = (pr && pr.data) || { id: u.id, email: u.email, role: 'user' };
         profile = p; jset(K.profile, p); return p;
-      });
+      }).catch(function () { return null; });
     });
   }
   var CLCloud = {
@@ -338,13 +343,22 @@
     onSync: function (cb) { listeners.sync.push(cb); },
 
     // Khởi tạo: nạp client + khôi phục phiên (nếu có)
+    /* ⚠ PHẢI PHÂN BIỆT BA CẢNH khác nhau, trước đây gộp cả vào "profile: null" nên app đá
+       người dùng ra màn ĐĂNG NHẬP oan (đo được 3/9: khoá phiên trong máy còn hạn tới 08:12Z
+       mà app vẫn báo "Phiên đã hết hạn"):
+         · khongCoPhien : máy chủ nói rõ KHÔNG còn phiên → mới được bắt đăng nhập lại
+         · hoSoHong     : phiên còn tốt, chỉ là đọc bảng profiles hỏng (mạng chập / RLS) → CỨ XEM TIẾP
+         · offline      : không hỏi được gì → cứ xem tiếp */
     init: function () {
       return ensureClient().then(function (c) {
         if (!c) return { offline: true, profile: null };
         return c.auth.getSession().then(function (s) {
-          if (s && s.data && s.data.session) return fetchProfile().then(function (p) { emit('auth', p); return { profile: p }; });
-          return { profile: null };
-        });
+          if (!(s && s.data && s.data.session)) return { khongCoPhien: true, profile: null };
+          return fetchProfile().then(function (p) {
+            if (p) { emit('auth', p); return { profile: p }; }
+            return { hoSoHong: true, profile: null };
+          }).catch(function () { return { hoSoHong: true, profile: null }; });
+        }).catch(function () { return { offline: true, profile: null }; });
       });
     },
 
@@ -355,7 +369,8 @@
         return c.auth.signInWithPassword({ email: email, password: password }).then(function (r) {
           if (r.error) throw new Error(r.error.message);
           return fetchProfile().then(function (p) {
-            if (p && p.active === false) { c.auth.signOut(); throw new Error('Tài khoản đã bị khóa.'); }
+            if (!p) throw new Error('Đăng nhập được nhưng KHÔNG đọc được hồ sơ tài khoản (mạng chập hoặc quyền RLS). Thử lại sau ít giây.');
+            if (p.active === false) { c.auth.signOut(); throw new Error('Tài khoản đã bị khóa.'); }
             emit('auth', p); return p;
           });
         });
