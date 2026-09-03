@@ -16,7 +16,12 @@ window.logErr = window.logErr || function (where, e) {
 
 /* PWA: đăng ký service worker (CACHE-FIRST — mở app không phải chờ mạng), sw.js vẫn hỏi
  * server ở nền; có bản mới thì nhắc/tự cập nhật (không cần Ctrl+Shift+R). */
-if ('serviceWorker' in navigator && location.protocol === 'https:') {
+/* localhost cũng là gốc an toàn — mở cho nó để bộ kiểm thử chạy được ĐÚNG đường có
+   Service Worker (_capnhat.cjs). Trên Vercel vẫn là https nên không đổi gì.
+   ⚠ Phải soi có THẬT navigator.serviceWorker.register hay không: môi trường kiểm thử
+   (jsdom) có thuộc tính serviceWorker nhưng rỗng ⇒ chạy vào là lỗi ngay dòng đầu. */
+if (navigator.serviceWorker && typeof navigator.serviceWorker.register === 'function' &&
+    (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
   /* Nghe SỚM, ngay lúc này, chứ KHÔNG đợi sự kiện 'load': sw.js có thể phát hiện bản mới và
      nhắn về trước khi trang dựng xong. Lúc đó __clNewVersion (cuối trang) chưa có → ghi cờ,
      đoạn tự-cập-nhật ở cuối trang đọc cờ này rồi hiện băng-rôn. */
@@ -648,7 +653,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0309291810</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0309292000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -9775,6 +9780,30 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     try{ if(window.__CLAPP && window.__CLAPP.isDirty && window.__CLAPP.isDirty()) return true; }catch(e){ logErr('editing', e); }
     return false;
   }
+  /* ⚠ PHẢI DỌN CACHE RỒI MỚI TẢI LẠI (sửa 3/9).
+     Service Worker chạy CACHE-FIRST: bấm tải lại thì nó trả đúng bản HTML/JS CŨ đang nằm
+     trong cache, nên máy đó vẫn chạy bản cũ, rồi 90 giây sau lại báo "có bản mới" — user
+     tưởng "bị lưu cache trên trình duyệt". Tệ hơn: HTML mới mà auth.web.js/cl.sync.js còn cũ
+     (mỗi file một ô cache riêng) là app chạy hai bản lẫn nhau.
+     Nay xoá sạch cache + gọi SW cập nhật, xong mới tải lại ⇒ HTML và JS chắc chắn cùng một bản. */
+  function taiLaiSach(){
+    var xong=function(){ try{ location.reload(); }catch(e){ location.href=location.pathname; } };
+    var hetGio=setTimeout(xong, 4000);            // dọn lâu quá thì cứ tải lại, không treo
+    try{
+      var viec=[];
+      if(window.caches && caches.keys)
+        viec.push(caches.keys().then(function(ks){ return Promise.all(ks.map(function(k){ return caches.delete(k); })); }));
+      if(navigator.serviceWorker && navigator.serviceWorker.getRegistration)
+        viec.push(navigator.serviceWorker.getRegistration().then(function(r){
+          if(!r) return;
+          try{ r.active && r.active.postMessage('xoa-cache'); }catch(e){ logErr('taiLaiSach.postMessage', e); }
+          try{ return r.update(); }catch(e){ logErr('taiLaiSach.update', e); }
+        }).catch(function(e){ logErr('taiLaiSach.getRegistration', e); }));
+      if(!viec.length){ clearTimeout(hetGio); return xong(); }
+      Promise.all(viec).then(function(){ clearTimeout(hetGio); xong(); },
+                             function(){ clearTimeout(hetGio); xong(); });
+    }catch(e){ logErr('taiLaiSach', e); clearTimeout(hetGio); xong(); }
+  }
   function banner(){
     var old=document.getElementById('cl-upd'); if(old) return old;
     var b=document.createElement('div'); b.id='cl-upd';
@@ -9782,7 +9811,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var msg=document.createElement('span'); msg.id='cl-upd-msg'; msg.textContent='🔄 Đã có phiên bản mới của ứng dụng.';
     var go=document.createElement('button'); go.textContent='Cập nhật ngay';
     go.style.cssText='background:#fff;color:#E8185C;border:0;border-radius:8px;padding:6px 12px;font-weight:800;cursor:pointer';
-    go.onclick=function(){ try{ location.reload(); }catch(e){ location.href=location.pathname; } };
+    go.onclick=taiLaiSach;
     b.appendChild(msg); b.appendChild(go); document.body.appendChild(b);
     return b;
   }
@@ -9791,7 +9820,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var b=banner(), m=b.querySelector('#cl-upd-msg'), left=8;
     (function tick(){
       if(editing()){ m.textContent='🔄 Đã có phiên bản mới — bấm "Cập nhật ngay" khi xong.'; setTimeout(tick,4000); return; }
-      if(left<=0){ try{ location.reload(); }catch(e){ location.href=location.pathname; } return; }
+      if(left<=0){ taiLaiSach(); return; }
       m.textContent='🔄 Đã có phiên bản mới. Tự cập nhật sau '+left+'s…'; left--; setTimeout(tick,1000);
     })();
   }
@@ -9806,6 +9835,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(sv!==nay) onNew();
     });
   }
+  window.__clLamSachTaiLai = taiLaiSach;   // auth.web.js gọi khi phát hiện cache lệch bản
   window.__clNewVersion = kiemRoiBao;   // SW nghi có bản mới → kiểm lại bằng số build rồi mới báo
   if (window.__clSWBanMoi) kiemRoiBao();
   setInterval(kiemRoiBao, 90000);                             // kiểm tra 90s/lần

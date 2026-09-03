@@ -29,6 +29,17 @@
   function apiBase() { return (localStorage.getItem(LS.apiBase) || '').replace(/\/$/, ''); }
   function isFileProto() { return location.protocol === 'file:'; }
   function can(perm) { return S.perms.indexOf(perm) !== -1; }
+  /* ⚠⚠ ĐÃ CẤU HÌNH SUPABASE THÌ MỌI VIỆC VỚI BẢN LƯU PHẢI ĐI ĐƯỜNG ĐÁM MÂY (sửa 3/9).
+     Trước đây chỉ xét cờ S.cloud. Cờ đó chỉ bật trong startCloudSession, nên có lúc (đổi tài
+     khoản, đăng xuất giữa lúc đang nạp, cl_mode bị xoá…) app rơi xuống lối CŨ dùng
+     auth.store.js — kho trong máy, không có người dùng đám mây nào — và trả về đúng câu user
+     chụp được: "Chưa đăng nhập hoặc phiên không hợp lệ". Máy đó nằm mãi với bản cũ trong máy
+     dù mạng vẫn tốt. Bản chạy máy lẻ (chưa cấu hình Supabase) không ảnh hưởng gì. */
+  function dungDamMay() {
+    if (!window.CLCloud) return false;
+    if (S.cloud) return true;
+    try { return !!(window.CLCloud.configured && window.CLCloud.configured()); } catch (e) { return false; }
+  }
   function isSuper() { return can('scope:all'); }
   function role() { return S.user && S.user.role; }
 
@@ -356,7 +367,7 @@
       if (sel.value) localStorage.setItem(LS.activeFactory, sel.value);
     };
     // ĐÁM MÂY: lấy xưởng qua Supabase; cục bộ: qua API backend.
-    if (S.cloud && window.CLCloud && window.CLCloud.listFactories) { window.CLCloud.listFactories().then(done).catch(function () {}); return; }
+    if (dungDamMay() && window.CLCloud.listFactories) { window.CLCloud.listFactories().then(done).catch(function () {}); return; }
     if (!can('factory:read')) return;
     api('GET', '/api/factories').then(done).catch(function () {});
   }
@@ -386,7 +397,7 @@
     if (!window.__CLAPP || !window.__CLAPP.hasData()) return toast('Chưa có dữ liệu để lưu — hãy nạp & xử lý file trước.', 'err');
     var payload = window.__CLAPP.getState();
     // ĐÁM MÂY: lưu qua Supabase (RLS gắn factory theo profile) + cache.
-    if (S.cloud && window.CLCloud) {
+    if (dungDamMay()) {
       if (!duocGhiXuong()) return toast('Đang xem xưởng khác — không lưu đè. Chọn lại xưởng của bạn rồi lưu.', 'err');
       if (_moTam && !window.confirm('ĐANG XEM BẢN TẠM — còn thiếu ' + _moTamThieu + ' mảnh chưa lấy về được.\n\n' +
           'Lưu bây giờ là GHI ĐÈ bản thiếu này lên máy chủ, mấy đơn kia sẽ mất.\n\nVẫn lưu?')) return;
@@ -469,13 +480,13 @@
       /* CHIA MẢNH THEO MÃ ĐƠN (chốt 28/8): trước đây mỗi lần tự lưu đẩy CẢ KHO lên Supabase
          (68 đơn ≈ 7MB, mạng 5 Mbps mất ~11 giây), dù chỉ vừa sửa đúng một ô. Nay chỉ mảnh của
          đơn vừa đổi được nén rồi gửi lại (~52KB). Máy nào không có saveGoi thì vẫn chạy lối cũ. */
-      if (S.cloud && window.CLCloud && window.CLCloud.saveGoi && window.__CLAPP.chiaLuu) {
+      if (dungDamMay() && window.CLCloud.saveGoi && window.__CLAPP.chiaLuu) {
         window.CLCloud.saveGoi({ id: id, name: ten, goi: window.__CLAPP.chiaLuu() }).then(xong).catch(function () {});
         return;
       }
       var payload = window.__CLAPP.getState();
       var rec = { id: id, name: ten, payload: payload };
-      if (S.cloud && window.CLCloud) {
+      if (dungDamMay()) {
         window.CLCloud.save(rec).then(xong).catch(function () {});
       } else {
         var fid = targetFactoryForWrite(); if (fid) api('POST', '/api/datasets', { id: id, name: rec.name, factory_id: fid, payload: payload }).catch(function () {});
@@ -501,7 +512,7 @@
 
   function openDatasetModal() {
     var q = isSuper() ? ('?factoryId=' + (targetFactoryForWrite() || '')) : '';
-    var getList = (S.cloud && window.CLCloud) ? window.CLCloud.pull() : api('GET', '/api/datasets' + q);
+    var getList = (dungDamMay()) ? window.CLCloud.pull() : api('GET', '/api/datasets' + q);
     var superView = isSuper() && S.cloud;
     var curFid = targetFactoryForWrite();
     Promise.resolve(getList).then(function (list) {
@@ -534,7 +545,7 @@
     }).catch(function (e) { toast(e.message, 'err'); });
   }
   function loadDataset(id) {
-    var get = (S.cloud && window.CLCloud) ? (window.CLCloud.fetchGoi || window.CLCloud.fetchOne)(id) : api('GET', '/api/datasets/' + id);
+    var get = (dungDamMay()) ? (window.CLCloud.fetchGoi || window.CLCloud.fetchOne)(id) : api('GET', '/api/datasets/' + id);
     Promise.resolve(get).then(function (d) {
       var pl = (d && d.payload) || null;
       // Nạp tay cũng vậy: bản đọc ra rỗng thì báo, KHÔNG đè lên dữ liệu đang mở
@@ -547,7 +558,7 @@
   }
   function delDataset(id, name) {
     if (!window.confirm('Xóa bản lưu "' + name + '"?')) return;
-    var del = (S.cloud && window.CLCloud) ? window.CLCloud.remove(id) : api('DELETE', '/api/datasets/' + id);
+    var del = (dungDamMay()) ? window.CLCloud.remove(id) : api('DELETE', '/api/datasets/' + id);
     Promise.resolve(del).then(function () { toast('Đã xóa ✓', 'ok'); openDatasetModal(); }).catch(function (e) { toast(e.message, 'err'); });
   }
 
@@ -891,15 +902,16 @@
       var el = document.getElementById('cl-motam');
       if (!bat) { if (el) el.remove(); return; }
       if (!el) {
-        el = h('div', { id: 'cl-motam', style: 'position:fixed;left:0;right:0;top:0;z-index:99998;background:#B00020;' +
-          'color:#fff;font-size:13px;font-weight:600;text-align:center;padding:5px 12px' });
+        el = h('div', { id: 'cl-motam', style: 'position:fixed;left:14px;bottom:96px;z-index:99998;background:#B00020;' +
+          'color:#fff;font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:10px;max-width:480px;' +
+          'box-shadow:0 6px 20px rgba(0,0,0,.28);line-height:1.45' });
         document.body.appendChild(el);
       }
       el.textContent = '⚠ Đang xem bản TẠM — thiếu ' + _moTamThieu + ' mảnh trong máy. Tự lưu đã khoá để khỏi ghi đè mất đơn.';
     } catch (e) {}
   }
   function banMoiNhatTrongMay() {
-    if (!(S.cloud && window.CLCloud && window.CLCloud.listCached)) return null;
+    if (!(dungDamMay() && window.CLCloud.listCached)) return null;
     var list = window.CLCloud.listCached() || [];
     if (isSuper()) { var f = targetFactoryForWrite(); if (f) list = list.filter(function (d) { return d.factory_id === f; }); }
     list = list.filter(function (d) { return !d.kind || d.kind === 'orders'; })
@@ -913,7 +925,7 @@
     /* ⭑ B1: BẢN MỞ NHANH trong IndexedDB — MỘT bản ghi, mở là có ngay, không hỏi mạng, không
        phụ thuộc mấy chục mảnh rời, không sợ localStorage tràn (5MB không đủ cho kho kèm ảnh —
        đây chính là lý do mấy lần trước mở app vẫn trắng rồi mới cập nhật sau). */
-    var bmn = (!force && S.cloud && window.CLCloud && window.CLCloud.docMoNhanh)
+    var bmn = (!force && dungDamMay() && window.CLCloud.docMoNhanh)
       ? window.CLCloud.docMoNhanh().catch(function () { return null; }) : Promise.resolve(null);
     return bmn.then(function (bm) {
       if (bm && bm.payload && window.__CLAPP && window.__CLAPP.loadData) {
@@ -921,7 +933,6 @@
         datMoTam(false, 0);
         if (bm.id) _dangMo = { id: bm.id, t: String(bm.sv || '') };
         toast('Đã mở bản lưu trong máy: ' + bm.soFile + ' file · ' + bm.soDong + ' dòng ✓', 'ok');
-        bangDangXem('bản lưu trong máy, đang đối chiếu máy chủ…');
         soTuNhan(bm.payload);            // nhớ mục tiêu ngay, kẻo nhãn rơi mất ở lần sau
         return doiChieuMayChu(true);
       }
@@ -931,7 +942,7 @@
   // B2 (chỉ dùng khi chưa có bản mở nhanh): ghép lại từ mảnh rời trong localStorage
   function moTuManh(force) {
     var cuc = force ? null : banMoiNhatTrongMay();
-    var nhanh = (cuc && S.cloud && window.CLCloud && window.CLCloud.napNhanh)
+    var nhanh = (cuc && dungDamMay() && window.CLCloud.napNhanh)
       ? window.CLCloud.napNhanh(cuc.id).catch(function () { return null; })
       : Promise.resolve(null);
     return nhanh.then(function (d) {
@@ -961,7 +972,7 @@
   // Đối chiếu với máy chủ: chỉ tải lại khi máy chủ thật sự có bản MỚI HƠN cái đang mở.
   function doiChieuMayChu(daMo) {
     var q = isSuper() ? ('?factoryId=' + (targetFactoryForWrite() || '')) : '';
-    var getList = (S.cloud && window.CLCloud) ? window.CLCloud.pull() : api('GET', '/api/datasets' + q);
+    var getList = (dungDamMay()) ? window.CLCloud.pull() : api('GET', '/api/datasets' + q);
     return Promise.resolve(getList).then(function (list) {
       list = list || [];
       // Super admin (đám mây): pull() trả tất cả xưởng (theo RLS) → lọc theo XƯỞNG đang chọn để xem đúng.
@@ -975,11 +986,10 @@
            file so với nhãn không (bản trước bỏ sót đúng nhánh này: mở từ bản mở nhanh xong là
            thoát, tự vá không bao giờ chạy). */
         try { tuVaTheoNhan(window.__CLAPP.getState()); } catch (e) {}
-        if (!thieuSoVoiMucTieu()) bangDangXem('đã đối chiếu máy chủ, đây là bản mới nhất', 'xanh');
         return;
       }
       // fetchGoi = đọc được cả bản lưu CHIA MẢNH lẫn bản lưu nguyên khối kiểu cũ
-      var getOne = (S.cloud && window.CLCloud) ? (window.CLCloud.fetchGoi || window.CLCloud.fetchOne)(latest.id) : api('GET', '/api/datasets/' + latest.id);
+      var getOne = (dungDamMay()) ? (window.CLCloud.fetchGoi || window.CLCloud.fetchOne)(latest.id) : api('GET', '/api/datasets/' + latest.id);
       return Promise.resolve(getOne).then(function (d) {
         if (!(window.__CLAPP && window.__CLAPP.loadData)) return;
         /* ⚠ KHÔNG BAO GIỜ nạp một bản RỖNG đè lên dữ liệu đang mở (sự cố 28/8: nạp hụt 1 lần
@@ -996,7 +1006,6 @@
         ghiMoNhanh(pl, { id: latest.id, sv: String(latest.updated_at || ''), nguon: 'máy chủ' });
         var soDon = window.__CLAPP.maDonDangCo ? Object.keys(window.__CLAPP.maDonDangCo()).length : 0;
         toast('Đã nạp bản lưu cuối từ máy chủ (' + soDon + ' đơn) ✓', 'ok');
-        bangDangXem('vừa lấy từ MÁY CHỦ', 'xanh');
         if (d.__va) suaVaDon(d.__va);      // phải vá mới mở được ⇒ ghi lại bản LÀNH (nhưng KHÔNG xoá gì)
         tuVaTheoNhan(pl);                  // nhãn nói 66 file mà chỉ có 55 ⇒ tự đi lấy lại, không hỏi
       });
@@ -1005,8 +1014,6 @@
       if (!daMo) { if (e && e.message) toast(e.message, 'err'); thuCuuTuMay(); return; }
       // đã có dữ liệu trên màn hình rồi thì đừng doạ, chỉ nói cho biết
       toast('Không hỏi được máy chủ — đang xem bản lưu trong máy.', 'ok');
-      bangKetQua('⚠ Chưa hỏi được máy chủ (' + String((e && e.message) || e || 'không rõ').slice(0, 90) +
-                 ') — đang xem bản trong máy, app tự thử lại mỗi 25 giây. (bấm để đóng)');
     });
   }
 
@@ -1028,6 +1035,7 @@
   var _luuLucNao = 0;         // lúc MÁY NÀY ghi lên máy chủ lần gần nhất
   var _vaLuc = 0;             // lúc thử tự lấy lại bản đủ gần nhất
   var _soCanh = 0;            // đếm số lượt canh (để chẩn đoán)
+  var _daNhacXuong = false;   // đã nhắc "chưa xác định được Xưởng" một lần
   var CANH_GIAY = 25;
 
   function dangGoTrongO() {
@@ -1052,8 +1060,9 @@
           'background:#fff;color:#8A4B00;font-weight:700;font-size:12px;cursor:pointer',
         onclick: function () { anBangBanMoi(); layBanMoi(autoSaveId(), t, true); } }, ['⟳ Lấy bản mới']);
       el = h('div', { id: 'cl-banmoi',
-        style: 'position:fixed;left:0;right:0;top:0;z-index:99996;background:#8A4B00;color:#fff;' +
-               'font-size:12.5px;font-weight:600;text-align:center;padding:6px 12px;line-height:1.5' },
+        style: 'position:fixed;left:14px;bottom:52px;z-index:99996;background:#8A4B00;color:#fff;' +
+               'font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:10px;max-width:480px;' +
+               'box-shadow:0 6px 20px rgba(0,0,0,.28);line-height:1.5' },
         [String(lyDo || 'Có bản lưu MỚI HƠN trên máy chủ.'), nut]);
       document.body.appendChild(el);
     } catch (_) {}
@@ -1061,7 +1070,7 @@
   /* Nạp bản mới từ máy chủ đè lên màn hình. epTay=true nghĩa là người dùng đã tự bấm nút,
      lúc đó không cần cân nhắc gì nữa. Luật cũ vẫn giữ: KHÔNG BAO GIỜ nạp bản rỗng. */
   function layBanMoi(id, t, epTay) {
-    if (!id || !(S.cloud && window.CLCloud)) return;
+    if (!id || !(dungDamMay())) return;
     var getOne = (window.CLCloud.fetchGoi || window.CLCloud.fetchOne)(id);
     return Promise.resolve(getOne).then(function (d) {
       var pl = (d && d.payload) || null;
@@ -1105,8 +1114,8 @@
       if (!can('dataset:read')) return;
       var id = autoSaveId();
       if (!id) {                       // hồ sơ đọc hỏng ⇒ mất factory_id ⇒ không biết ô lưu nào
-        bangKetQua('⚠ Tài khoản chưa xác định được Xưởng — chưa lấy được dữ liệu từ máy chủ. ' +
-                   'Tải lại trang (Ctrl+F5); nếu vẫn vậy thì nhờ quản trị gán Xưởng cho tài khoản. (bấm để đóng)');
+        if (!_daNhacXuong) { _daNhacXuong = true;
+          toast('Tài khoản chưa xác định được Xưởng — chưa lấy được dữ liệu từ máy chủ. Tải lại trang (Ctrl+F5).', 'err'); }
         return;
       }
       /* CHƯA MỞ ĐƯỢC GÌ (mất mạng đúng lúc mở, máy chủ chập một nhịp…) → thử mở lại cho tử tế.
@@ -1121,11 +1130,7 @@
       // Đã có dữ liệu trên màn hình rồi thì tab đang ẩn khỏi cần hỏi — đỡ tốn đường truyền.
       if (typeof document.hidden === 'boolean' && document.hidden) return;
       return window.CLCloud.mocMayChu(id).then(function (r) {
-        if (!r || !r.updated_at) {
-          bangKetQua('⚠ Không đọc được ô lưu của xưởng trên máy chủ (mạng chập hoặc chưa có quyền) — ' +
-                     'đang xem bản trong máy. App sẽ tự thử lại. (bấm để đóng)');
-          return;
-        }
+        if (!r || !r.updated_at) return;   // mạng chập / chưa đăng nhập → im, 25 giây nữa thử lại
         var t = String(r.updated_at);
         if (t <= String(_dangMo.t || '')) {
           /* Máy chủ không có gì mới. NHƯNG nếu màn hình đang hụt so với nhãn thì phải tự đi lấy
@@ -1136,8 +1141,7 @@
           if (_choLuu || _moTam || dangGoTrongO()) return;
           if (Date.now() - _vaLuc < 180000) return;         // 3 phút thử lại một lần, khỏi nặng máy
           _vaLuc = Date.now(); _daTuVa = false;             // cho phép tự vá thử lại
-          bangKetQua('⏳ Đang thiếu ' + th.coF + '/' + th.canF + ' file (' + th.coD + '/' + th.canD +
-                     ' dòng) — app đang tự lấy lại từ máy chủ… (bấm để đóng)');
+          toast('Đang thiếu ' + th.coF + '/' + th.canF + ' file — app tự lấy lại từ máy chủ…', 'ok');
           try { tuVaTheoNhan(window.__CLAPP.getState()); } catch (e) {}
           return;
         }
@@ -1187,30 +1191,19 @@
       cam: (document.getElementById('cl-banmoi') || {}).textContent || ''
     };
   };
-  /* MỘT DÒNG NÓI RÕ ĐANG XEM GÌ, LẤY TỪ ĐÂU (thêm 3/9).
-     Lý do: mấy lời nhắc chỉ hiện 3 giây, người dùng chụp ảnh lại thì chỉ thấy đúng cái toast
-     "đang tự tìm lại…" rồi tưởng app không lấy được dữ liệu, trong khi 1 phút sau nó đã lấy
-     đủ 66 file. Nay để lại một dòng trên đầu trang, lúc nào cũng đọc được. */
-  function bangDangXem(nguon, mau) {
-    try {
-      var st = (window.__CLAPP && window.__CLAPP.getState) ? window.__CLAPP.getState() : null;
-      if (!st) return;
-      var soDon = (window.__CLAPP.maDonDangCo ? Object.keys(window.__CLAPP.maDonDangCo()).length : 0);
-      var ai = (S.user && S.user.username) || '';
-      bangKetQua('Đang xem ' + (st.files || []).length + ' file · ' + (st.orders || []).length +
-                 ' dòng · ' + soDon + ' đơn — ' + nguon + ' lúc ' + new Date().toLocaleTimeString('vi-VN') +
-                 (ai ? ' · ' + ai : '') + ' (bấm để đóng)', mau);
-    } catch (e) {}
-  }
   /* Dải thông báo NẰM LẠI trên đầu trang (khác lời nhắc 3 giây). Dùng cho kết quả tự vá —
      người dùng cần nhìn thấy con số, và tôi cần con số đó để biết kho còn gì. Bấm là đóng. */
   function bangKetQua(chu, mau) {
     try {
       var el = document.getElementById('cl-ketqua');
       if (el) el.remove();
+      /* ⬐ GÓC DƯỚI BÊN TRÁI, không phải đầu trang: dải ở đầu trang che mất thanh công cụ
+         (Lưu · Đăng xuất · Xuất Project) — user báo 3/9 "thông báo trên đầu trang nên bỏ đi".
+         Vẫn để nằm lại chứ không tự tắt, vì đây là chỗ báo "đã lưu xong" mà user cần đọc. */
       el = h('div', { id: 'cl-ketqua', title: 'Bấm để đóng',
-        style: 'position:fixed;left:0;right:0;top:0;z-index:99997;background:' + (mau === 'xanh' ? '#0B6B3A' : '#8A4B00') + ';color:#fff;' +
-               'font-size:12.5px;font-weight:600;text-align:center;padding:6px 34px;cursor:pointer;line-height:1.45',
+        style: 'position:fixed;left:14px;bottom:14px;z-index:99997;background:' + (mau === 'xanh' ? '#0B6B3A' : '#8A4B00') + ';color:#fff;' +
+               'font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:10px;max-width:520px;' +
+               'box-shadow:0 6px 20px rgba(0,0,0,.28);cursor:pointer;line-height:1.45',
         onclick: function () { el.remove(); } }, [chu]);
       document.body.appendChild(el);
     } catch (e) {}
@@ -1387,7 +1380,7 @@
     try {
       if (_daSuaVa) return;
       _daSuaVa = true;
-      if (!(S.cloud && window.CLCloud && window.CLCloud.saveGoi && window.__CLAPP && window.__CLAPP.chiaLuu)) return;
+      if (!(dungDamMay() && window.CLCloud.saveGoi && window.__CLAPP && window.__CLAPP.chiaLuu)) return;
       if (!duocGhiXuong()) return;
       var id = autoSaveId(); if (!id) return;
       if (va && va.hong && va.hong.length)
@@ -1403,7 +1396,7 @@
      lại. Chưa đủ thì báo và KHÔNG xoá gì — xoá là không lấy lại được.
      CHỈ được gọi từ nút ☁ Lưu, không bao giờ tự chạy lúc mở app. */
   function soiRoiDon(id) {
-    if (!(S.cloud && window.CLCloud && window.CLCloud.kiemTraBanLuu && window.CLCloud.donDep)) return;
+    if (!(dungDamMay() && window.CLCloud.kiemTraBanLuu && window.CLCloud.donDep)) return;
     return window.CLCloud.kiemTraBanLuu(id).then(function (kq) {
       if (!kq || !kq.ok) {
         if (kq && kq.thieu > 0) toast('⚠ Bản vừa lưu còn thiếu ' + kq.thieu + ' mảnh trên máy chủ — CHƯA dọn gì cả. Bấm ☁ Lưu lần nữa.', 'err');
@@ -1626,6 +1619,27 @@
   // ---------- Điểm vào ----------
   function boot() {
     injectStyle();
+    /* ⚠ CACHE LỆCH BẢN (sửa 3/9). Máy này từng đăng nhập đám mây (còn clc_profile trong máy)
+       mà lần mở này CLCloud lại chưa cấu hình ⇒ cl.config.js / cl.sync.js nạp không đủ, thường
+       là do Service Worker còn giữ bản cũ. Nếu cứ chạy tiếp, app rơi xuống chế độ MÁY LẺ:
+       mọi lệnh đọc đi vào auth.store.js và trả về "Chưa đăng nhập hoặc phiên không hợp lệ",
+       máy đó ngồi mãi với bản cũ trong máy (đúng ảnh user gửi 14:51).
+       Xử lý: dọn cache rồi tải lại ĐÚNG MỘT LẦN (cờ trong sessionStorage nên không thể lặp). */
+    try {
+      var tungDamMay = !!localStorage.getItem('clc_profile');
+      var chuaCauHinh = !(window.CLCloud && window.CLCloud.configured && window.CLCloud.configured());
+      var daLamSach = sessionStorage.getItem('cl_dalamsach') === '1';
+      /* Chỉ làm việc này trên WEB và khi thật sự CÓ cache để dọn. Mở bằng file:// (bản chạy
+         tay, bộ kiểm thử) thì dọn cũng chẳng có gì mà tải lại chỉ làm mất thì giờ. */
+      var laWeb = location.protocol === 'http:' || location.protocol === 'https:';
+      var coCache = !!(window.caches && caches.keys) ||
+                    !!(navigator.serviceWorker && navigator.serviceWorker.getRegistration);
+      if (tungDamMay && chuaCauHinh && laWeb && coCache && !daLamSach &&
+          typeof window.__clLamSachTaiLai === 'function') {
+        sessionStorage.setItem('cl_dalamsach', '1');
+        return window.__clLamSachTaiLai();
+      }
+    } catch (e) { console.warn('boot.camSachCache', e); }
     detectIncognito().then(function (incognito) {
       if (incognito) return showInPrivateBlock();   // chặn hẳn trong InPrivate
       // Khôi phục phiên ĐÁM MÂY nếu đang ở chế độ cloud.
@@ -1650,8 +1664,7 @@
                liệu đang mở ⇒ máy đó không bao giờ lấy được bản mới. Nay chỉ đăng xuất khi máy
                chủ nói RÕ là không còn phiên. */
             if (res.hoSoHong) {
-              bangKetQua('⚠ Chưa đọc được hồ sơ tài khoản (mạng chập) — vẫn đang xem bản trong máy, ' +
-                         'app sẽ tự thử lại. (bấm để đóng)');
+              toast('Chưa đọc được hồ sơ tài khoản (mạng chập) — vẫn xem được bản trong máy, app tự thử lại.', 'ok');
               return;
             }
             if (res.khongCoPhien) doLogout(true);           // máy chủ nói hết phiên → mới bắt đăng nhập
@@ -1662,6 +1675,11 @@
           .then(function (res) { if (res && res.profile) return startCloudSession(res.profile); return showLogin(); })
           .catch(function () { return showLogin(); });
       }
+      /* Đã cấu hình đám mây mà tới được đây nghĩa là chưa có phiên đám mây → BẮT ĐĂNG NHẬP,
+         tuyệt đối không quay về lối đăng nhập cũ (kho trong máy): lối cũ làm S.cloud = false,
+         app đọc bản lưu từ auth.store.js và không bao giờ thấy dữ liệu trên máy chủ. */
+      try { if (window.CLCloud && window.CLCloud.configured && window.CLCloud.configured()) return showLogin(); }
+      catch (e) { console.warn('boot.configured', e); }
       if (!S.token) return showLogin();
       // Xác minh token còn hiệu lực + đồng bộ quyền mới nhất (đăng nhập cục bộ).
       api('GET', '/api/auth/me')

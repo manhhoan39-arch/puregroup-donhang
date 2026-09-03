@@ -10,7 +10,7 @@
  *   3. Chưa có trong cache (lần đầu) → lấy mạng như thường rồi lưu lại.
  * Mất mạng vẫn mở được vì đã có cache. Supabase/CDN luôn đi thẳng ra mạng.
  */
-var CACHE = 'puregroup-nhapdon-v4';
+var CACHE = 'puregroup-nhapdon-v5';
 var ASSETS = [
   './',
   './index.html',
@@ -41,6 +41,13 @@ self.addEventListener('activate', function (e) {
 var daThayBanMoi = false;   // đã phát hiện file trên server đổi (trong vòng đời SW này)
 self.addEventListener('message', function (e) {
   if (e.data === 'skip-waiting') self.skipWaiting();
+  /* Trang sắp tải lại để lấy bản mới → xoá sạch cache, để lần tải lại lấy HTML và JS cùng
+     một bản từ mạng (trước đây tải lại vẫn ra bản cũ trong cache). */
+  if (e.data === 'xoa-cache') {
+    e.waitUntil(caches.keys().then(function (ks) {
+      return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+    }).then(function () { if (e.source) { try { e.source.postMessage('cl-cache-cleared'); } catch (_) {} } }));
+  }
   /* Trang hỏi lại lúc dựng xong — phòng khi tin nhắn "có bản mới" bắn ra trước khi trang
      kịp nghe (SW chạy song song với việc dựng trang). */
   if (e.data === 'hoi-ban-moi' && daThayBanMoi && e.source) {
