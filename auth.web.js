@@ -310,14 +310,32 @@
     ]);
     bar.appendChild(who);
 
-    // Lưu / Nạp dữ liệu theo xưởng
+    /* Chỉ còn MỘT nút ☁ Lưu (chốt 29/8 theo yêu cầu).
+       · "⭳ Nạp" bỏ đi: xưởng chỉ giữ ĐÚNG MỘT bản lưu (bản cuối), mở app là tự có, không còn
+         gì để chọn nữa.
+       · "🛟 Cứu dữ liệu" bỏ đi: việc vá mảnh thiếu nay app tự làm lặng lẽ ngay lúc mở
+         (xem vaManh() ở cl.sync.js + suaVaDon() bên dưới), không bắt người dùng bấm. */
     if (can('dataset:create')) bar.appendChild(h('button', { class: 'cl-btn sm ghost', title: 'Lưu dữ liệu hiện tại lên server (theo xưởng)', onclick: saveDataset }, ['☁ Lưu']));
-    if (can('dataset:read')) bar.appendChild(h('button', { class: 'cl-btn sm ghost', title: 'Nạp dữ liệu đã lưu của xưởng', onclick: openDatasetModal }, ['⭳ Nạp']));
 
     // Quản lý (User / Factory) — đám mây dùng Supabase, cục bộ dùng CLStore.
     if (can('user:read') || can('factory:create')) bar.appendChild(h('button', { class: 'cl-btn sm', onclick: (S.cloud ? openCloudAdminModal : openAdminModal) }, ['⚙ Quản lý']));
 
     bar.appendChild(h('button', { class: 'cl-btn sm danger', onclick: function () { doLogout(false); } }, ['Đăng xuất']));
+
+    /* Lối vào bảng "Quay về một mốc thời gian": CHỮ NHỎ Ở CHÂN THANH BÊN, không phải nút trên
+       thanh trên cùng (user đã chốt bỏ nút ở đó). Trước tính gọi bằng địa chỉ ?cuu=1 nhưng dán
+       vào Edge thì dấu ? bị đổi thành %3F ⇒ "File not found". Bấm chữ là chắc ăn nhất.
+       Ctrl+Shift+H hoặc gõ __CUU() trong Console cũng mở được. */
+    try {
+      var chan = document.querySelector('.sidebar-foot');
+      if (chan && !document.getElementById('cl-lui') && can('dataset:read')) {
+        chan.appendChild(h('br'));
+        chan.appendChild(h('span', { id: 'cl-lui',
+          style: 'opacity:.65;font-size:11px;text-decoration:underline;cursor:pointer',
+          title: 'Xem lại các lần lưu trước và quay về một mốc (Ctrl+Shift+H)',
+          onclick: function () { moKhoCuu(); } }, ['↩ Quay về mốc lưu trước']));
+      }
+    } catch (e) {}
 
     // Chèn vào hàng có ô tìm kiếm (header .topbar); fallback về body nếu không thấy.
     var host = document.querySelector('.topbar') || document.body;
@@ -351,26 +369,50 @@
     return S.factory && S.factory.id;
   }
 
-  // ---------- Lưu / Nạp dataset (multi-tenant) ----------
+  // ---------- Lưu dataset (multi-tenant) ----------
+  /* MỖI XƯỞNG CHỈ MỘT BẢN LƯU (chốt 29/8 theo yêu cầu "chỉ dữ liệu lần sao lưu cuối").
+     Trước đây ☁ Lưu hỏi tên rồi tạo một dòng MỚI mỗi lần, còn tự lưu ghi vào một ô cố định →
+     máy chủ đầy bản cũ, mảnh mồ côi lẫn lộn, và chính đống đó làm app gom nhầm đơn của đợt
+     trước. Nay cả lưu tay lẫn tự lưu đều ghi ĐÈ vào đúng một ô của xưởng; lưu tay xong thì
+     soi lại rồi DỌN SẠCH mọi thứ còn lại. */
+  function tenBanLuu() { return '⚙ Bản làm việc'; }
+  function duocGhiXuong() {   // super admin đang XEM xưởng khác thì không được ghi đè lung tung
+    if (!isSuper()) return true;
+    var t = targetFactoryForWrite(), m = S.factory && S.factory.id;
+    return !!(t && m && t === m);
+  }
   function saveDataset() {
     if (!window.__CLAPP || !window.__CLAPP.hasData()) return toast('Chưa có dữ liệu để lưu — hãy nạp & xử lý file trước.', 'err');
-    var def = 'Đơn ' + new Date().toLocaleString('vi-VN');
-    var name = window.prompt('Tên bản lưu:', def);
-    if (name == null) return;
     var payload = window.__CLAPP.getState();
     // ĐÁM MÂY: lưu qua Supabase (RLS gắn factory theo profile) + cache.
     if (S.cloud && window.CLCloud) {
+      if (!duocGhiXuong()) return toast('Đang xem xưởng khác — không lưu đè. Chọn lại xưởng của bạn rồi lưu.', 'err');
+      if (_moTam && !window.confirm('ĐANG XEM BẢN TẠM — còn thiếu ' + _moTamThieu + ' mảnh chưa lấy về được.\n\n' +
+          'Lưu bây giờ là GHI ĐÈ bản thiếu này lên máy chủ, mấy đơn kia sẽ mất.\n\nVẫn lưu?')) return;
+      var id = autoSaveId();
+      if (!id) return toast('Tài khoản chưa được gán Xưởng — không lưu được.', 'err');
       // Bản lưu tay cũng chia mảnh + nén như bản tự lưu (68 đơn: 7MB → khoảng 1MB)
       var ghi = (window.CLCloud.saveGoi && window.__CLAPP.chiaLuu)
-        ? window.CLCloud.saveGoi({ name: name || def, goi: window.__CLAPP.chiaLuu() })
-        : window.CLCloud.save({ name: name || def, payload: payload });
-      ghi.then(function () { try { localStorage.setItem('cl_ds_updated', JSON.stringify({ fid: (S.factory && S.factory.id), t: Date.now() })); } catch (_) {} toast('Đã lưu đám mây ✓', 'ok'); })
-        .catch(function (e) { toast(e.message, 'err'); });
+        ? window.CLCloud.saveGoi({ id: id, name: tenBanLuu(), goi: window.__CLAPP.chiaLuu() })
+        : window.CLCloud.save({ id: id, name: tenBanLuu(), payload: payload });
+      toast('Đang lưu lên máy chủ…', 'ok');
+      ghi.then(function (row) {
+        try { localStorage.setItem('cl_ds_updated', JSON.stringify({ fid: (S.factory && S.factory.id), t: Date.now() })); } catch (_) {}
+        toast('Đã lưu đám mây ✓', 'ok');
+        var st = window.__CLAPP.getState();
+        ghiMoNhanh(st, { id: id, nguon: 'lưu tay' });
+        /* User: "Ấn lưu nhưng không thấy có thông báo thành công". Lời nhắc chỉ hiện 3,2 giây,
+           quay đi là mất. Nay để lại một dải nằm luôn trên đầu trang, có giờ và con số. */
+        bangKetQua('✓ Đã lưu lên máy chủ lúc ' + new Date().toLocaleTimeString('vi-VN') + ' — ' +
+                   (st.files || []).length + ' file · ' + (st.orders || []).length + ' dòng. ' +
+                   'Mọi tài khoản trong xưởng sẽ thấy bản này. (bấm để đóng)', 'xanh');
+        return soiRoiDon((row && row.id) || id);
+      }).catch(function (e) { toast(e.message, 'err'); bangKetQua('✗ LƯU HỎNG: ' + (e && e.message || e) + ' (bấm để đóng)'); });
       return;
     }
     var fid = targetFactoryForWrite();
     if (!fid) return toast('Chưa chọn xưởng để lưu.', 'err');
-    api('POST', '/api/datasets', { name: name || def, factory_id: fid, payload: payload })
+    api('POST', '/api/datasets', { name: tenBanLuu(), factory_id: fid, payload: payload })
       .then(function () {
         // Báo cho các tab/tài khoản khác (cùng máy) biết có bản mới → họ tự cập nhật.
         try { localStorage.setItem('cl_ds_updated', JSON.stringify({ fid: fid, t: Date.now() })); } catch (_) {}
@@ -382,20 +424,31 @@
   // ---------- TỰ ĐỘNG LƯU bản làm việc (không cần bấm ☁ Lưu) ----------
   // Lưu vào 1 slot CỐ ĐỊNH theo xưởng (upsert đè) → đăng xuất/đăng nhập lại KHÔNG mất đơn đã xử lý.
   var _autoSaveT = null;
+  /* ⚠⚠ MỘT XƯỞNG = MỘT Ô LƯU, VÀ Ô ĐÓ PHẢI GIỐNG NHAU TRÊN MỌI MÁY, MỌI TÀI KHOẢN (sửa 3/9).
+     Bản cũ sinh một uuid NGẪU NHIÊN rồi cất trong localStorage của TỪNG trình duyệt. Hậu quả
+     đúng như user báo: hoan.nm (Edge) tự lưu vào dòng A, ketoan.nd (Chrome) tự lưu vào dòng B —
+     cùng một xưởng mà hai người ghi hai chỗ, nên "ấn Lưu rồi mà tài khoản khác không thấy dữ
+     liệu mới", và mỗi người mở lên thấy một con số khác nhau (54 đơn / 10 đơn).
+     Nay lấy thẳng id của XƯỞNG làm id bản lưu — ai tính cũng ra đúng một giá trị, không cần
+     nhớ gì trong máy. (datasets.id và factories.id là hai bảng khác nhau nên trùng giá trị
+     không sao; đây chính là "ô làm việc của xưởng đó".) */
   function autoSaveId() {
-    var fid = S.factory && S.factory.id; if (!fid) return null;
-    var key = 'cl_autosave_' + fid, id = null;
-    try { id = localStorage.getItem(key); } catch (_) {}
-    if (!id) { id = (root.crypto && crypto.randomUUID ? crypto.randomUUID() : ('ds-auto-' + Date.now())); try { localStorage.setItem(key, id); } catch (_) {} }
-    return id;
+    var fid = S.factory && S.factory.id;
+    return fid || null;
   }
   function doAutoSave() {
     try {
       if (!S.token || !can('dataset:create')) return;
       if (!window.__CLAPP || !window.__CLAPP.hasData || !window.__CLAPP.hasData()) return;
+      if (_moTam) return;                   // ⚠ bản mở TẠM còn thiếu mảnh → tuyệt đối không tự lưu đè
       var id = autoSaveId(); if (!id) return;
-      var ten = '⚙ Bản làm việc (tự động)';
-      var xong = function () { try { var ind = document.getElementById('cl-autosave-ind'); if (ind) { ind.textContent = '✓ Đã tự lưu ' + new Date().toLocaleTimeString('vi-VN'); } } catch (_) {} };
+      if (!duocGhiXuong()) return;          // đang xem xưởng khác → không tự lưu đè
+      var ten = tenBanLuu();
+      var xong = function () {
+        try { var ind = document.getElementById('cl-autosave-ind'); if (ind) { ind.textContent = '✓ Đã tự lưu ' + new Date().toLocaleTimeString('vi-VN'); } } catch (_) {}
+        // cập nhật luôn BẢN MỞ NHANH → mở lần sau là thấy đúng cái vừa lưu, kể cả mất mạng
+        try { ghiMoNhanh(window.__CLAPP.getState(), { id: id, nguon: 'tự lưu' }); } catch (_) {}
+      };
       /* CHIA MẢNH THEO MÃ ĐƠN (chốt 28/8): trước đây mỗi lần tự lưu đẩy CẢ KHO lên Supabase
          (68 đơn ≈ 7MB, mạng 5 Mbps mất ~11 giây), dù chỉ vừa sửa đúng một ô. Nay chỉ mảnh của
          đơn vừa đổi được nén rồi gửi lại (~52KB). Máy nào không có saveGoi thì vẫn chạy lối cũ. */
@@ -789,22 +842,117 @@
       }
     } catch (e) {}
     buildBar();
-    // Tự động nạp bản lưu MỚI NHẤT của xưởng khi đăng nhập (nút ⭳ Nạp vẫn dùng để chọn bản khác).
+    // Tự động mở bản lưu cuối của xưởng ngay khi đăng nhập (bộ nhớ máy trước, máy chủ sau).
     try { autoLoadLatest(); } catch (e) { console.warn('autoLoadLatest', e); }
+    // ?cuu=1 → mở bảng "Quay về một mốc thời gian" (việc dùng một lần, không có nút trên thanh)
+    try { if (/[?&]cuu=1/.test(location.search)) setTimeout(moKhoCuu, 1200); } catch (e) {}
   }
 
-  // Tự nạp dataset mới nhất theo xưởng. force=true → nạp lại kể cả khi đang có dữ liệu (đồng bộ bản mới).
+  /* ===== MỞ APP LÀ CÓ DỮ LIỆU NGAY (chốt 29/8 theo yêu cầu) =====
+     User: "Khi mở app vẫn hiển thị 0, vài phút sau mới hiển thị cứu dữ liệu. Tôi muốn mở app
+     ra là phải có dữ liệu."
+     Đường cũ bắt buộc đi 3 vòng hỏi máy chủ mới thấy đơn (danh sách → chỉ mục → từng lô mảnh),
+     hỏng một vòng là rơi xuống quét-gom-tất-cả cả trăm dòng ⇒ ngồi nhìn số 0 mấy phút.
+     Đường mới:
+       B1. Dựng lại bản lưu cuối TỪ BỘ NHỚ MÁY và mở NGAY — không hỏi mạng câu nào.
+       B2. Xong mới lặng lẽ đối chiếu máy chủ ở nền; máy chủ có bản mới hơn thì mới tải về.
+     Luật cũ giữ nguyên: không bao giờ nạp bản RỖNG đè lên dữ liệu đang mở. */
+  var _dangMo = null;   // { id, t } — bản lưu đang mở trên màn hình
+  /* ⚠ MỞ TẠM = đang xem một bản CHƯA ĐỦ mảnh. Lúc này cấm tự lưu, và bấm ☁ Lưu thì phải hỏi
+     lại cho rõ — ghi đè bản thiếu lên máy chủ là mất đơn thật. Cờ chỉ được gỡ khi nạp được
+     bản đủ (từ máy chủ, hoặc chính người dùng dựng lại từ mốc cũ). */
+  var _moTam = false, _moTamThieu = 0;
+  function datMoTam(bat, thieu) {
+    _moTam = !!bat; _moTamThieu = thieu || 0;
+    try {
+      var el = document.getElementById('cl-motam');
+      if (!bat) { if (el) el.remove(); return; }
+      if (!el) {
+        el = h('div', { id: 'cl-motam', style: 'position:fixed;left:0;right:0;top:0;z-index:99998;background:#B00020;' +
+          'color:#fff;font-size:13px;font-weight:600;text-align:center;padding:5px 12px' });
+        document.body.appendChild(el);
+      }
+      el.textContent = '⚠ Đang xem bản TẠM — thiếu ' + _moTamThieu + ' mảnh trong máy. Tự lưu đã khoá để khỏi ghi đè mất đơn.';
+    } catch (e) {}
+  }
+  function banMoiNhatTrongMay() {
+    if (!(S.cloud && window.CLCloud && window.CLCloud.listCached)) return null;
+    var list = window.CLCloud.listCached() || [];
+    if (isSuper()) { var f = targetFactoryForWrite(); if (f) list = list.filter(function (d) { return d.factory_id === f; }); }
+    list = list.filter(function (d) { return !d.kind || d.kind === 'orders'; })
+               .sort(function (a, b) { return String(b.updated_at || '').localeCompare(String(a.updated_at || '')); });
+    return list[0] || null;
+  }
+  // force=true → bỏ qua bước mở nhanh, đi thẳng máy chủ (đổi xưởng / tab khác vừa ghi bản mới)
   function autoLoadLatest(force) {
     if (!can('dataset:read')) return;
     if (!force && window.__CLAPP && window.__CLAPP.hasData && window.__CLAPP.hasData()) return;
+    /* ⭑ B1: BẢN MỞ NHANH trong IndexedDB — MỘT bản ghi, mở là có ngay, không hỏi mạng, không
+       phụ thuộc mấy chục mảnh rời, không sợ localStorage tràn (5MB không đủ cho kho kèm ảnh —
+       đây chính là lý do mấy lần trước mở app vẫn trắng rồi mới cập nhật sau). */
+    var bmn = (!force && S.cloud && window.CLCloud && window.CLCloud.docMoNhanh)
+      ? window.CLCloud.docMoNhanh().catch(function () { return null; }) : Promise.resolve(null);
+    return bmn.then(function (bm) {
+      if (bm && bm.payload && window.__CLAPP && window.__CLAPP.loadData) {
+        window.__CLAPP.loadData(bm.payload);
+        datMoTam(false, 0);
+        if (bm.id) _dangMo = { id: bm.id, t: String(bm.sv || '') };
+        toast('Đã mở bản lưu trong máy: ' + bm.soFile + ' file · ' + bm.soDong + ' dòng ✓', 'ok');
+        soTuNhan(bm.payload);            // nhớ mục tiêu ngay, kẻo nhãn rơi mất ở lần sau
+        return doiChieuMayChu(true);
+      }
+      return moTuManh(force);
+    });
+  }
+  // B2 (chỉ dùng khi chưa có bản mở nhanh): ghép lại từ mảnh rời trong localStorage
+  function moTuManh(force) {
+    var cuc = force ? null : banMoiNhatTrongMay();
+    var nhanh = (cuc && S.cloud && window.CLCloud && window.CLCloud.napNhanh)
+      ? window.CLCloud.napNhanh(cuc.id).catch(function () { return null; })
+      : Promise.resolve(null);
+    return nhanh.then(function (d) {
+      var daMo = false;
+      var pl = d && d.payload;
+      if (pl && (pl.orders || []).length && window.__CLAPP && window.__CLAPP.loadData) {
+        window.__CLAPP.loadData(pl);
+        _dangMo = { id: cuc.id, t: String(cuc.updated_at || '') };
+        daMo = true;
+        var soDon = window.__CLAPP.maDonDangCo ? Object.keys(window.__CLAPP.maDonDangCo()).length : 0;
+        if (d.__du === false) {
+          /* Mở TẠM: trong máy còn thiếu mảnh. Nói thẳng, và KHOÁ tự lưu lại — bản thiếu mà ghi
+             đè lên máy chủ là mất đơn thật (đúng vết xe đổ 28/8). */
+          datMoTam(true, d.__thieu);
+          toast('Đang mở TẠM ' + soDon + ' đơn từ bộ nhớ máy — còn thiếu ' + d.__thieu +
+                ' mảnh, đang lấy nốt. Tự lưu đã TẠM KHOÁ.', 'err');
+        } else {
+          datMoTam(false, 0);
+          ghiMoNhanh(pl, { id: cuc.id, sv: String(cuc.updated_at || ''), nguon: 'mảnh trong máy' });
+          soTuNhan(pl);
+          toast('Đã mở bản lưu cuối (' + soDon + ' đơn) ✓', 'ok');
+        }
+      }
+      return doiChieuMayChu(daMo);
+    });
+  }
+  // Đối chiếu với máy chủ: chỉ tải lại khi máy chủ thật sự có bản MỚI HƠN cái đang mở.
+  function doiChieuMayChu(daMo) {
     var q = isSuper() ? ('?factoryId=' + (targetFactoryForWrite() || '')) : '';
     var getList = (S.cloud && window.CLCloud) ? window.CLCloud.pull() : api('GET', '/api/datasets' + q);
-    Promise.resolve(getList).then(function (list) {
+    return Promise.resolve(getList).then(function (list) {
       list = list || [];
       // Super admin (đám mây): pull() trả tất cả xưởng (theo RLS) → lọc theo XƯỞNG đang chọn để xem đúng.
       if (isSuper() && S.cloud) { var fid = targetFactoryForWrite(); if (fid) list = list.filter(function (d) { return d.factory_id === fid; }); }
-      if (!list.length) return;                        // xưởng chưa có bản lưu nào
+      /* Không thấy bản lưu nào MÀ app cũng đang trắng → vẫn phải đi gom cứu. Trước đây thoát
+         luôn ở đây, nên có cảnh: dữ liệu còn đủ trên máy chủ mà app ngồi im, không ai cứu. */
+      if (!list.length) { if (!daMo) thuCuuTuMay(); return; }
       var latest = list[0];                            // bản mới nhất ở đầu
+      if (daMo && _dangMo && latest.id === _dangMo.id && String(latest.updated_at || '') <= _dangMo.t) {
+        /* Máy chủ không có gì mới → khỏi tải lại. NHƯNG vẫn phải soi xem bản đang mở có thiếu
+           file so với nhãn không (bản trước bỏ sót đúng nhánh này: mở từ bản mở nhanh xong là
+           thoát, tự vá không bao giờ chạy). */
+        try { tuVaTheoNhan(window.__CLAPP.getState()); } catch (e) {}
+        return;
+      }
       // fetchGoi = đọc được cả bản lưu CHIA MẢNH lẫn bản lưu nguyên khối kiểu cũ
       var getOne = (S.cloud && window.CLCloud) ? (window.CLCloud.fetchGoi || window.CLCloud.fetchOne)(latest.id) : api('GET', '/api/datasets/' + latest.id);
       return Promise.resolve(getOne).then(function (d) {
@@ -818,46 +966,361 @@
           return;
         }
         window.__CLAPP.loadData(pl);
-        toast('Đã tự nạp bản mới nhất: ' + latest.name + ' ✓', 'ok');
-        setTimeout(doDonConSot, 1500);
+        _dangMo = { id: latest.id, t: String(latest.updated_at || '') };
+        datMoTam(false, 0);                // lấy được bản đủ từ máy chủ → mở khoá tự lưu
+        ghiMoNhanh(pl, { id: latest.id, sv: String(latest.updated_at || ''), nguon: 'máy chủ' });
+        var soDon = window.__CLAPP.maDonDangCo ? Object.keys(window.__CLAPP.maDonDangCo()).length : 0;
+        toast('Đã nạp bản lưu cuối từ máy chủ (' + soDon + ' đơn) ✓', 'ok');
+        if (d.__va) suaVaDon(d.__va);      // phải vá mới mở được ⇒ ghi lại bản LÀNH (nhưng KHÔNG xoá gì)
+        tuVaTheoNhan(pl);                  // nhãn nói 66 file mà chỉ có 55 ⇒ tự đi lấy lại, không hỏi
       });
     }).catch(function (e) {
       // Trước đây nuốt lỗi im lặng → app hiện màn trống mà không ai biết vì sao
-      if (e && e.message) toast(e.message, 'err');
-      thuCuuTuMay();
+      if (!daMo) { if (e && e.message) toast(e.message, 'err'); thuCuuTuMay(); return; }
+      // đã có dữ liệu trên màn hình rồi thì đừng doạ, chỉ nói cho biết
+      toast('Không hỏi được máy chủ — đang xem bản lưu trong máy.', 'ok');
     });
   }
-  /* DÒ ĐƠN CÒN SÓT trên máy chủ (thêm 28/8 sau sự cố mất dữ liệu).
-     Bản lưu có thể đã mất mấy đơn khỏi CHỈ MỤC mà mảnh thì vẫn còn nằm đó (mồ côi). Dò xong
-     chỉ HỎI, người dùng đồng ý mới thêm — và chỉ THÊM đơn còn thiếu, không đụng đơn đang có. */
-  var _daDoSot = false;
-  function doDonConSot() {
+  /* Dải thông báo NẰM LẠI trên đầu trang (khác lời nhắc 3 giây). Dùng cho kết quả tự vá —
+     người dùng cần nhìn thấy con số, và tôi cần con số đó để biết kho còn gì. Bấm là đóng. */
+  function bangKetQua(chu, mau) {
     try {
-      if (_daDoSot) return;
-      if (!(window.CLCloud && window.CLCloud.timDonConSot && window.__CLAPP && window.__CLAPP.maDonDangCo)) return;
-      _daDoSot = true;
-      window.CLCloud.timDonConSot(window.__CLAPP.maDonDangCo()).then(function (pl) {
-        if (!pl || !(pl.orders || []).length) return;
-        var mds = []; (pl.orders || []).forEach(function (o) { var m = String((o && o.maDon) || ''); if (mds.indexOf(m) < 0) mds.push(m); });
-        var hoi = 'Trong kho lưu trữ còn ' + mds.length + ' đơn mà bản đang mở KHÔNG có:\n\n' +
-          mds.slice(0, 20).join(' · ') + (mds.length > 20 ? '\n…' : '') +
-          '\n\n(' + (pl.orders || []).length + ' dòng)\n\nNạp thêm mấy đơn này vào? Đơn đang có KHÔNG bị đụng tới.';
-        if (!window.confirm(hoi)) { toast('Bỏ qua — không thêm đơn nào.', 'ok'); return; }
-        var n = window.__CLAPP.themDonConSot(pl);
-        toast(n ? ('Đã thêm ' + mds.length + ' đơn (' + n + ' dòng). Kiểm lại rồi bấm ☁ Lưu để ghi lên máy chủ.') : 'Không có đơn nào để thêm.', 'ok');
+      var el = document.getElementById('cl-ketqua');
+      if (el) el.remove();
+      el = h('div', { id: 'cl-ketqua', title: 'Bấm để đóng',
+        style: 'position:fixed;left:0;right:0;top:0;z-index:99997;background:' + (mau === 'xanh' ? '#0B6B3A' : '#8A4B00') + ';color:#fff;' +
+               'font-size:12.5px;font-weight:600;text-align:center;padding:6px 34px;cursor:pointer;line-height:1.45',
+        onclick: function () { el.remove(); } }, [chu]);
+      document.body.appendChild(el);
+    } catch (e) {}
+  }
+  // Ghi BẢN MỞ NHANH vào IndexedDB — lần mở sau chỉ đọc đúng một bản ghi này là có dữ liệu
+  function ghiMoNhanh(pl, meta) {
+    try { if (window.CLCloud && window.CLCloud.luuMoNhanh) window.CLCloud.luuMoNhanh(pl, meta || {}); } catch (e) {}
+  }
+  /* ===== TỰ LẤY LẠI BẢN ĐỦ, KHÔNG BẮT NGƯỜI DÙNG CHỌN MỐC (thêm 29/8) =====
+     User: "Không cần tôi chọn mốc. Luôn lấy dữ liệu lần cập nhật dùng được."
+     Chính bản lưu mang sẵn nhãn của lần Xử lý gần nhất — vd "💾 66 file · 1778 dòng" (state.source,
+     dựng ở chỗ đặt state.source lúc bấm Xử lý). Số file THỰC TẾ ít hơn nhãn nghĩa là bản lưu đã
+     rụng mất đơn. Lúc đó app tự dò ngược từng mốc lưu, dựng lại, và CHỈ NHẬN khi ra ĐÚNG con số
+     của nhãn — sai một con là bỏ, không đoán mò. Mỗi phiên làm một lần. */
+  var _daTuVa = false;
+  /* MỤC TIÊU = con số của lần Xử lý gần nhất, vd "💾 66 file · 1778 dòng" (state.source).
+     ⚠ Phải NHỚ RA NGOÀI: dựng lại từ mảnh rời thì mất phần chung ⇒ mất luôn nhãn ⇒ lần sau
+     hết đường tự kiểm. Nên thấy nhãn một lần là ghi vào máy, sau đó cứ theo đó mà soi. */
+  function khoaMucTieu() { return 'cl_muctieu_' + ((S.factory && S.factory.id) || 'none'); }
+  function soTuNhan(pl) {
+    var m = String(pl && pl.source || '').match(/(\d+)\s*file\s*·\s*(\d+)\s*dòng/);
+    if (m) {
+      var c = { file: +m[1], dong: +m[2] };
+      try {
+        var cu = JSON.parse(localStorage.getItem(khoaMucTieu()) || 'null');
+        if (!cu || c.file > cu.file || (c.file === cu.file && c.dong > cu.dong))
+          localStorage.setItem(khoaMucTieu(), JSON.stringify(c));
+      } catch (e) {}
+      return c;
+    }
+    try { return JSON.parse(localStorage.getItem(khoaMucTieu()) || 'null'); } catch (e) { return null; }
+  }
+  /* ===== TỰ LẤY LẠI BẢN ĐỦ NHẤT CÓ THỂ (sửa 29/8 lần 2) =====
+     Bản trước đòi khớp CHÍNH XÁC cả hai con số, không khớp thì bỏ hết — hụt đúng một mảnh là
+     người dùng vẫn ngồi với bản thiếu. Nay: dựng thử từng mốc, GIỮ CÁI NHIỀU FILE NHẤT (không
+     vượt quá mục tiêu), miễn là hơn cái đang mở thì lấy. Trúng đúng mục tiêu thì dừng luôn.
+     Và LUÔN nói ra con số tìm được — không im lặng bỏ cuộc. */
+  var _daTuVa = false;
+  /* Ghi bản vừa lấy lại lên máy chủ + vào bản mở nhanh, rồi báo bằng DẢI nằm lại trên đầu trang */
+  function chotBanDaVa(can, ghiChu) {
+    var st = window.__CLAPP.getState();
+    var coF = (st.files || []).length, coD = (st.orders || []).length;
+    var du = coF >= can.file && coD >= can.dong;
+    datMoTam(false, 0);
+    ghiMoNhanh(st, { nguon: ghiChu });
+    bangKetQua((du ? '✓ Đã tự lấy lại ĐỦ: ' : '⚠ Đã lấy lại được nhiều nhất: ') +
+               coF + '/' + can.file + ' file · ' + coD + '/' + can.dong + ' dòng — ' + ghiChu +
+               (du ? '. Đang ghi lên máy chủ…' : '. Kho lưu trữ chỉ còn bấy nhiêu.') + ' (bấm để đóng)',
+               du ? 'xanh' : '');
+    try { window.__CLAPP.ghiNhatKy('Tự lấy lại: ' + coF + '/' + can.file + ' file · ' + coD + '/' + can.dong + ' dòng — ' + ghiChu); } catch (e) {}
+    if (duocGhiXuong() && window.CLCloud.saveGoi && window.__CLAPP.chiaLuu) {
+      var sid = autoSaveId();
+      if (sid) window.CLCloud.saveGoi({ id: sid, name: tenBanLuu(), goi: window.__CLAPP.chiaLuu() })
+        .then(function () {
+          bangKetQua('✓ Đã lấy lại ' + coF + '/' + can.file + ' file · ' + coD + '/' + can.dong +
+                     ' dòng và GHI LÊN MÁY CHỦ lúc ' + new Date().toLocaleTimeString('vi-VN') +
+                     '. Mọi tài khoản trong xưởng sẽ thấy bản này. (bấm để đóng)', du ? 'xanh' : '');
+        })
+        .catch(function (e) { bangKetQua('✗ Lấy lại được nhưng GHI LÊN MÁY CHỦ HỎNG: ' + (e && e.message || e)); });
+    }
+  }
+  /* ⭑ B1 — THÊM ĐƠN MỒ CÔI CÒN SÓT TRÊN MÁY CHỦ (đường chính, sửa 3/9).
+     Đây là đường đã CHỨNG MINH chạy được trên dữ liệu thật: ảnh user gửi 3/9 cho thấy nó tìm ra
+     đúng 12 mã đơn còn thiếu — C5-773P.1 · K47-772P · K21-796P.1 · CS596-765P · C127-766P.1 ·
+     C41-775P · CS525-741P · LS25-262S · C213-797P · CS209-760P · K133-776P · CS490-778P (384 dòng)
+     → 54+12 = 66 đơn, 1394+384 = 1778 dòng, khớp đúng nhãn.
+     Bản trước tôi bỏ đường này đi vì sợ lôi đơn đợt cũ về. Nay giữ lại nhưng CÓ CHỐT: chỉ thêm
+     khi cộng vào KHÔNG VƯỢT con số của nhãn. Và KHÔNG hỏi — user đã chốt "không cần tôi chọn". */
+  function themDonMoCoi(plSot, can, coD) {
+    if (!plSot || !(plSot.orders || []).length) return false;
+    var daCo = window.__CLAPP.maDonDangCo();
+    var mdThem = {}, dongThem = 0;
+    (plSot.orders || []).forEach(function (o) {
+      var m = String((o && o.maDon) || '');
+      if (daCo[m]) return;
+      mdThem[m] = 1; dongThem++;
+    });
+    var ds = Object.keys(mdThem);
+    if (!ds.length) return false;
+    if (coD + dongThem > can.dong) {
+      bangKetQua('Kho còn ' + ds.length + ' đơn nữa (' + dongThem + ' dòng) nhưng thêm vào sẽ VƯỢT ' +
+                 'mục tiêu ' + can.file + ' file · ' + can.dong + ' dòng nên CHƯA thêm — mấy đơn đó: ' +
+                 ds.slice(0, 20).join(' · ') + (ds.length > 20 ? ' …' : '') +
+                 '. Muốn xem thì bấm "↩ Quay về mốc lưu trước" ở góc dưới trái. (bấm để đóng)');
+      return true;
+    }
+    var n = window.__CLAPP.themDonConSot(plSot);
+    if (!n) return false;
+    chotBanDaVa(can, 'thêm ' + ds.length + ' đơn còn sót trên máy chủ');
+    return true;
+  }
+  function tuVaTheoNhan(pl) {
+    try {
+      if (_daTuVa) return;
+      var can = soTuNhan(pl); if (!can) return;
+      var coF = (pl.files || []).length, coD = (pl.orders || []).length;
+      if (coF >= can.file && coD >= can.dong) return;              // không thiếu gì
+      if (!(window.CLCloud && window.__CLAPP)) return;
+      _daTuVa = true;
+      toast('Bản lưu đang thiếu (' + coF + '/' + can.file + ' file) — đang tự tìm lại…', 'err');
+      var b1 = (window.CLCloud.timDonConSot && window.__CLAPP.maDonDangCo && window.__CLAPP.themDonConSot)
+        ? window.CLCloud.timDonConSot(window.__CLAPP.maDonDangCo()).catch(function () { return null; })
+        : Promise.resolve(null);
+      b1.then(function (plSot) {
+        if (themDonMoCoi(plSot, can, coD)) return;                 // xong ở B1
+        return doMocCu(pl, can, coF, coD);                         // B2: dò từng mốc lưu
       }).catch(function () {});
+    } catch (e) {}
+  }
+  /* B2 — DỰ PHÒNG: dò ngược từng mốc lưu, giữ cái nhiều file nhất (không vượt mục tiêu). */
+  function doMocCu(pl, can, coF, coD) {
+    if (!(window.CLCloud.dsKho && window.CLCloud.dungLaiToiMoc)) return;
+    return window.CLCloud.dsKho().then(function (kho) {
+      var thay = {};
+      kho.server.concat(kho.may).forEach(function (d) { if (d && d.id && !thay[d.id]) thay[d.id] = d; });
+      var ph = {};
+      Object.keys(thay).forEach(function (k) {
+        var d = thay[k]; if (d.kind !== 'orders-manh') return;
+        var t = String(d.updated_at || ''); if (!t) return;
+        var p2 = t.slice(0, 16); if (!ph[p2] || t > ph[p2]) ph[p2] = t;
+      });
+      var mocs = Object.keys(ph).sort().reverse().map(function (k) { return ph[k]; }).slice(0, 12);
+      var i = 0, tot = null, daThu = [];
+      function thu() {
+        if (i >= mocs.length) return xong();
+        var T = new Date(new Date(mocs[i]).getTime() + 30000).toISOString(); i++;
+        return window.CLCloud.dungLaiToiMoc(T).then(function (r) {
+          var bc = (r && r.bc) || {};
+          if (r && r.payload) {
+            daThu.push(gioVN(T) + ' → ' + bc.file + 'f/' + bc.dong + 'd');
+            var hopLe = bc.file <= can.file && bc.dong <= can.dong;
+            var honCaiCu = bc.file > coF || (bc.file === coF && bc.dong > coD);
+            var honCaiTot = !tot || bc.file > tot.bc.file || (bc.file === tot.bc.file && bc.dong > tot.bc.dong);
+            if (hopLe && honCaiCu && honCaiTot) tot = { r: r, bc: bc, T: T };
+            if (tot && tot.bc.file === can.file && tot.bc.dong === can.dong) return xong();
+          }
+          return thu();
+        }).catch(function () { return thu(); });
+      }
+      function xong() {
+        try { console.log('[CL] tự vá — mục tiêu ' + can.file + 'f/' + can.dong + 'd · đã thử: ' + daThu.join(' | ')); } catch (e) {}
+        if (!tot) {
+          bangKetQua('Kho lưu trữ không còn bản nào đủ hơn: đang mở ' + coF + '/' + can.file + ' file · ' +
+                     coD + '/' + can.dong + ' dòng. Đã dò ' + daThu.length + ' lần lưu' +
+                     (daThu.length ? (': ' + daThu.join(' · ')) : ' (không thấy lần lưu nào — kiểm tra mạng)') +
+                     ' (bấm để đóng)');
+          return;
+        }
+        tot.r.payload.source = pl.source || ('💾 ' + can.file + ' file · ' + can.dong + ' dòng');
+        window.__CLAPP.loadData(tot.r.payload);
+        chotBanDaVa(can, 'quay về mốc ' + gioVN(tot.T));
+      }
+      return thu();
+    }).catch(function () {});
+  }
+  /* ===== VÁ XONG THÌ GHI LẠI BẢN LÀNH RỒI DỌN RÁC (thêm 29/8) =====
+     Mở được nhờ vá nghĩa là bản lưu trên máy chủ đang hỏng chỉ mục. Ghi lại NGUYÊN bản (mọi
+     mảnh gửi lại từ đầu), soi tận mắt thấy đủ mảnh, rồi mới xoá mọi thứ còn lại — cả trên máy
+     chủ lẫn trong bộ nhớ máy. Lần mở sau chỉ còn đúng bản cuối, mở phát là có. */
+  /* ⚠⚠ DỌN RÁC CHỈ KHI NGƯỜI DÙNG TỰ BẤM ☁ Lưu (sửa 29/8, sau khi user cần lấy lại bản 66 file).
+     Bản trước dọn TỰ ĐỘNG ngay lúc mở app. Nhưng chính mấy dòng "rác" đó lại là bản chụp của
+     những mốc TRƯỚC ĐÓ — muốn quay về mốc cũ (vd "Xử lý 66 file → 1778 dòng" lúc 14:41 28/8)
+     thì phải còn chúng. Xoá tự động = cắt mất đường lùi.
+     Nay: mở app KHÔNG xoá gì hết. Chỉ khi người dùng chủ động bấm ☁ Lưu — tức đã nhìn thấy dữ
+     liệu trên màn hình và thấy đúng — app mới soi rồi dọn. */
+  function suaVaDon(va) {
+    try {
+      if (!(S.cloud && window.CLCloud && window.CLCloud.saveGoi && window.__CLAPP && window.__CLAPP.chiaLuu)) return;
+      if (!duocGhiXuong()) return;
+      var id = autoSaveId(); if (!id) return;
+      if (va && va.hong && va.hong.length)
+        toast('⚠ Không tìm lại được ' + va.hong.length + ' đơn: ' + va.hong.slice(0, 5).join(', ') + (va.hong.length > 5 ? '…' : ''), 'err');
+      if (va) toast('Bản lưu bị hỏng chỉ mục — đang ghi lại bản lành…', 'ok');
+      window.CLCloud.saveGoi({ id: id, name: tenBanLuu(), goi: window.__CLAPP.chiaLuu() })
+        .then(function () { toast('Đã ghi lại bản lành ✓ (chưa xoá gì — bấm ☁ Lưu khi thấy dữ liệu đã đúng)', 'ok'); })
+        .catch(function (e) { toast('Ghi lại bản lành thất bại: ' + (e && e.message || e), 'err'); });
     } catch (_) {}
   }
+  /* SOI RỒI MỚI DỌN: hỏi thẳng máy chủ xem bản vừa ghi đã ĐỦ mảnh chưa. Đủ mới xoá phần còn
+     lại. Chưa đủ thì báo và KHÔNG xoá gì — xoá là không lấy lại được.
+     CHỈ được gọi từ nút ☁ Lưu, không bao giờ tự chạy lúc mở app. */
+  function soiRoiDon(id) {
+    if (!(S.cloud && window.CLCloud && window.CLCloud.kiemTraBanLuu && window.CLCloud.donDep)) return;
+    return window.CLCloud.kiemTraBanLuu(id).then(function (kq) {
+      if (!kq || !kq.ok) {
+        if (kq && kq.thieu > 0) toast('⚠ Bản vừa lưu còn thiếu ' + kq.thieu + ' mảnh trên máy chủ — CHƯA dọn gì cả. Bấm ☁ Lưu lần nữa.', 'err');
+        return;
+      }
+      return window.CLCloud.donDep(kq.ids).then(function (r) {
+        if (r && (r.server || r.may))
+          toast('Đã dọn bản cũ: ' + (r.server || 0) + ' dòng trên máy chủ · ' + (r.may || 0) + ' trong máy ✓', 'ok');
+      });
+    }).catch(function () {});
+  }
+  /* Hai hàm cũ đã BỎ (29/8): "🛟 Cứu dữ liệu" và "dò đơn còn sót" — cả hai đều gom đơn từ
+     MỌI bản lưu cũ nên hay lôi về cả đơn của đợt trước (user: "các đơn cũ dữ liệu thừa hãy xóa
+     hết đi"). Nay app chỉ mở ĐÚNG bản lưu cuối; mảnh nào thiếu thì vá theo đúng mã đơn mà chính
+     bản lưu đó liệt kê (vaManh() ở cl.sync.js), không nhặt thêm đơn lạ. */
+  /* ===== QUAY VỀ MỘT MỐC THỜI GIAN (thêm 29/8) =====
+     User: "Tôi muốn lấy dữ liệu đã cập nhật xử lý 66 file như dòng tô đỏ trong hình
+     (14:41:14 28/8 — 66 file → 1778 dòng). Bản đó là bản dữ liệu đúng đầy đủ."
+     Mở bảng này bằng cách thêm  ?cuu=1  vào cuối địa chỉ trang — KHÔNG thêm nút nào vào thanh
+     trên cùng, vì đây là việc dùng một lần chứ không phải chức năng hằng ngày.
+     Bảng chỉ ĐỌC và MỞ LÊN MÀN HÌNH, không ghi một chữ nào lên máy chủ. Nhìn thấy đúng số file
+     và số dòng rồi thì tự bấm ☁ Lưu. */
+  function gioVN(t) {
+    if (!t) return '—';
+    try { return new Date(t).toLocaleString('vi-VN'); } catch (_) { return String(t); }
+  }
+  function mocTuO(v) {              // '2026-08-28T14:45' (giờ máy) → chuỗi ISO để so với updated_at
+    if (!v) return '';
+    try { var d = new Date(v); return isNaN(d.getTime()) ? '' : d.toISOString(); } catch (_) { return ''; }
+  }
+  function moKhoCuu() {
+    if (!(window.CLCloud && window.CLCloud.dsKho && window.CLCloud.dungLaiToiMoc))
+      return toast('Bản app quá cũ — tải lại trang (Ctrl+F5).', 'err');
+    var tin = h('div', { class: 'cl-sub' }, ['Đang quét kho lưu trữ…']);
+    var bangMoc = h('div', { style: 'max-height:230px;overflow:auto;border:1px solid #eee;border-radius:6px;margin:8px 0' });
+    var oMoc = h('input', { class: 'cl-input', type: 'datetime-local', step: '1', style: 'width:auto' });
+    var kq = h('div', { style: 'margin:10px 0;font-size:14px;line-height:1.7' }, ['']);
+    var nutMo = h('button', { class: 'cl-btn sm', style: 'margin-left:8px', onclick: function () { mo(); } }, ['② Mở bản này lên màn hình']);
+    nutMo.disabled = true;
+    var giu = null;
+
+    function dung() {
+      var moc = mocTuO(oMoc.value);
+      kq.textContent = 'Đang dựng lại…'; nutMo.disabled = true; giu = null;
+      window.CLCloud.dungLaiToiMoc(moc).then(function (r) {
+        var bc = (r && r.bc) || {};
+        if (!r || !r.payload) { kq.textContent = '✗ Không dựng được gì tới mốc này.'; return; }
+        giu = r.payload;
+        kq.innerHTML = '';
+        kq.appendChild(h('div', {}, ['Tới ' + (moc ? gioVN(moc) : 'mới nhất') + ':']));
+        kq.appendChild(h('div', { style: 'font-size:17px;font-weight:700;color:#E8185C' },
+          [bc.file + ' file · ' + bc.dong + ' dòng · ' + bc.maDon + ' mã đơn']));
+        if (bc.thieu) kq.appendChild(h('div', { class: 'cl-sub' }, ['(' + bc.thieu + ' mảnh đọc không ra)']));
+        nutMo.disabled = false;
+      }).catch(function (e) { kq.textContent = '✗ ' + (e && e.message || e); });
+    }
+    function mo() {
+      if (!giu || !window.__CLAPP) return;
+      if (!window.confirm('Mở bản này lên màn hình?\n\nDữ liệu đang hiện sẽ bị thay. Máy chủ CHƯA bị đụng tới — ' +
+                          'xem thấy đúng rồi thì tự bấm ☁ Lưu, thấy sai thì tải lại trang là xong.')) return;
+      window.__CLAPP.loadData(giu);
+      datMoTam(false, 0);
+      ghiMoNhanh(giu, { nguon: 'quay về mốc' });
+      closeModal();
+      toast('Đã mở bản dựng lại ✓ — kiểm số file/số dòng rồi bấm ☁ Lưu nếu đúng.', 'ok');
+    }
+
+    var than = h('div', {}, [
+      h('p', { class: 'cl-sub' }, ['Mỗi lần lưu, mã đơn nào có thay đổi được ghi thành một mảnh mang mốc thời gian ' +
+        'của lần lưu đó. Chọn một mốc, app sẽ lấy bản mới nhất của TỪNG mã đơn tính tới mốc ấy.']),
+      tin, bangMoc,
+      h('div', { style: 'display:flex;align-items:center;gap:8px;flex-wrap:wrap' }, [
+        h('span', {}, ['Quay về lúc:']), oMoc,
+        h('button', { class: 'cl-btn sm', onclick: function () { dung(); } }, ['① Dựng lại tới mốc này']),
+        nutMo,
+      ]),
+      kq,
+    ]);
+    openModal('Quay về một mốc thời gian', than);
+
+    window.CLCloud.dsKho().then(function (kho) {
+      /* Một mảnh có thể vừa nằm trên máy chủ vừa nằm trong bộ nhớ máy → gộp theo id, không thì
+         đếm đôi, người dùng nhìn con số lại hoang mang. */
+      var thay = {};
+      kho.server.concat(kho.may).forEach(function (d) { if (d && d.id && !thay[d.id]) thay[d.id] = d; });
+      var tatCa = Object.keys(thay).map(function (k) { return thay[k]; });
+      var manh = tatCa.filter(function (d) { return d.kind === 'orders-manh'; });
+      // gộp theo PHÚT — một lần lưu ghi nhiều mảnh cùng lúc
+      var theoPhut = {};
+      manh.forEach(function (d) {
+        var t = String(d.updated_at || ''); if (!t) return;
+        var ph = t.slice(0, 16);
+        if (!theoPhut[ph]) theoPhut[ph] = { t: t, n: 0 };
+        theoPhut[ph].n++; if (t > theoPhut[ph].t) theoPhut[ph].t = t;
+      });
+      var ds = Object.keys(theoPhut).sort().reverse().map(function (k) { return theoPhut[k]; });
+      tin.textContent = 'Kho còn ' + manh.length + ' mảnh khác nhau (máy chủ ' +
+        kho.server.filter(function (d) { return d.kind === 'orders-manh'; }).length + ' · máy này ' +
+        kho.may.filter(function (d) { return d.kind === 'orders-manh'; }).length + ') qua ' + ds.length + ' lần lưu.';
+      bangMoc.innerHTML = '';
+      if (!ds.length) { bangMoc.appendChild(h('p', { class: 'cl-sub', style: 'padding:8px' }, ['Kho trống — không còn mảnh nào để quay về.'])); return; }
+      var rows = ds.slice(0, 60).map(function (x) {
+        return h('tr', {}, [
+          h('td', {}, [gioVN(x.t)]),
+          h('td', {}, [x.n + ' mảnh']),
+          h('td', { style: 'text-align:right' }, [
+            h('button', { class: 'cl-btn sm ghost', onclick: function () {
+              // đặt ô thời gian về mốc này (cộng thêm 30 giây cho chắc trọn đợt lưu)
+              var d = new Date(new Date(x.t).getTime() + 30000);
+              var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+              oMoc.value = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + 'T' +
+                           p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds());
+              dung();
+            } }, ['Chọn mốc này']),
+          ]),
+        ]);
+      });
+      bangMoc.appendChild(h('table', { class: 'cl-table' }, [
+        h('thead', {}, [h('tr', {}, [h('th', {}, ['Lần lưu']), h('th', {}, ['Số mảnh ghi']), h('th', {}, [''])])]),
+        h('tbody', {}, rows),
+      ]));
+    }).catch(function (e) { tin.textContent = 'Quét kho lỗi: ' + (e && e.message || e); });
+  }
+  window.__CUU = moKhoCuu;      // gõ __CUU() trong Console cũng mở được
+  try {
+    document.addEventListener('keydown', function (e) {
+      if (!e.ctrlKey || !e.shiftKey) return;
+      if (String(e.key || '').toLowerCase() !== 'h') return;
+      if (!S.token) return;
+      e.preventDefault(); moKhoCuu();
+    });
+  } catch (e) {}
+
   /* Máy chủ không cho ra bản dùng được mà app cũng chưa có gì → gom mảnh còn sót trong bộ nhớ
      máy để cứu (thêm 28/8 sau sự cố). Không tự lưu đè lên máy chủ — để người dùng tự quyết. */
   function thuCuuTuMay() {
     try {
-      if (!(window.CLCloud && window.CLCloud.cuuManh)) return;
+      if (!(window.CLCloud && window.CLCloud.gomTatCa)) return;
       if (window.__CLAPP && window.__CLAPP.hasData && window.__CLAPP.hasData()) return;
-      window.CLCloud.cuuManh().then(function (pl) {
+      /* Gom từ MỌI nguồn (bộ nhớ máy · mảnh trên máy chủ kể cả mồ côi · bản lưu nguyên khối
+         kiểu cũ) — KHÔNG đi qua chỉ mục, vì chính chỉ mục là thứ đã hỏng. */
+      window.CLCloud.gomTatCa().then(function (kq) {
+        var pl = kq && kq.payload, bc = (kq && kq.bc) || {};
         if (!pl || !window.__CLAPP || !window.__CLAPP.loadData) return;
         window.__CLAPP.loadData(pl);
-        toast('Đã CỨU ' + (pl.orders || []).length + ' dòng đơn từ bộ nhớ máy này. Kiểm tra lại rồi bấm ☁ Lưu để ghi lên máy chủ.', 'ok');
+        toast('Đã CỨU ' + (bc.maDon || 0) + ' đơn · ' + (bc.dong || 0) + ' dòng (máy: ' + (bc.manhTrongMay || 0) +
+              ' mảnh · máy chủ: ' + (bc.manhTrenServer || 0) + ' mảnh · bản cũ: ' + (bc.banNguyenKhoi || 0) +
+              '). Kiểm lại rồi bấm ☁ Lưu.', 'ok');
       }).catch(function () {});
     } catch (_) {}
   }
@@ -937,6 +1400,23 @@
       // Khôi phục phiên ĐÁM MÂY nếu đang ở chế độ cloud.
       var cloudMode = false; try { cloudMode = localStorage.getItem('cl_mode') === 'cloud'; } catch (e) {}
       if (window.CLCloud && window.CLCloud.configured() && cloudMode) {
+        /* ⭑ VÀO THẲNG BẰNG HỒ SƠ ĐÃ LƯU TRONG MÁY (sửa 29/8 theo yêu cầu "mở link là phải có
+           dữ liệu … dù không có mạng vẫn xem được chứ không phải đợi load").
+           Bản trước phải đợi CLCloud.init() — mà init() đi tải thư viện Supabase từ CDN rồi mới
+           hỏi phiên. Mất mạng là bước đó hỏng ⇒ rơi xuống showLogin() ⇒ đứng ở màn đăng nhập,
+           không xem được gì, dù dữ liệu nằm sẵn trong máy.
+           Nay: có hồ sơ trong máy thì vào ngay; việc xác minh phiên chạy ở NỀN. Chỉ khi máy chủ
+           trả lời rõ ràng là "hết phiên" mới bắt đăng nhập lại — mất mạng thì giữ nguyên. */
+        var hoSo = null; try { hoSo = window.CLCloud.getProfile(); } catch (e) {}
+        if (hoSo && hoSo.id) {
+          startCloudSession(hoSo);
+          window.CLCloud.init().then(function (res) {
+            if (res && res.offline) return;                 // không có mạng → cứ xem tiếp
+            if (res && res.profile) return;                 // phiên còn tốt
+            doLogout(true);                                 // máy chủ nói hết phiên → mới bắt đăng nhập
+          }).catch(function () {});
+          return;
+        }
         return window.CLCloud.init()
           .then(function (res) { if (res && res.profile) return startCloudSession(res.profile); return showLogin(); })
           .catch(function () { return showLogin(); });

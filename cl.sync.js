@@ -20,7 +20,12 @@
     dsIndex: function (fid) { return 'clc_ds_index_' + (fid || 'none'); },
     dsItem:  function (id)  { return 'clc_ds_' + id; },
     queue:   'clc_queue',
-    lastSync:'clc_last_sync'
+    lastSync:'clc_last_sync',
+    /* Sổ "mảnh nào đã THẬT SỰ nằm trên máy chủ" (thêm 29/8 — xem ghi chú ở saveGoi).
+       Trước đây app cứ thấy dấu vân tay không đổi là bỏ qua không gửi lại, mà dấu vân tay
+       thì ghi vào bộ nhớ máy TRƯỚC khi gửi ⇒ lần gửi hỏng là mảnh vĩnh viễn không bao giờ
+       được gửi nữa, còn chỉ mục vẫn trỏ tới nó ⇒ "bản lưu thiếu 67 mảnh". */
+    daLen:   function (fid) { return 'clc_len_' + (fid || 'none'); }
   };
   function jget(k, d) { try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (_) { return d; } }
   function jset(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} }
@@ -89,6 +94,101 @@
   }
   function bam32(s) { var h = 5381, i = s.length; while (i) h = (h * 33 ^ s.charCodeAt(--i)) >>> 0; return h; }
 
+  /* =====================================================================
+   * KHO TRONG MÁY = IndexedDB + BẢN MỞ NHANH (thêm 29/8)
+   * ---------------------------------------------------------------------
+   * User: "mở link là phải có dữ liệu đã lưu trên máy … dù không có mạng vẫn xem được chứ
+   * không phải đợi load" — mở mấy lần vẫn trắng rồi một lúc sau mới có.
+   * NGUYÊN NHÂN: localStorage chỉ khoảng 5MB. Một bản lưu 54 đơn KÈM ẢNH đã vài MB, ghi vào là
+   * tràn — mà `jset` bọc try/catch nên tràn thì NUỐT LỖI IM LẶNG. Thế là mảnh không nằm trong
+   * máy, mở app lên chẳng có gì, phải đợi tải từ máy chủ.
+   * SỬA: dùng IndexedDB (rộng hàng trăm MB) và lưu hẳn MỘT BẢN MỞ NHANH — cả kho đã ghép sẵn,
+   * nén gzip, một bản ghi duy nhất. Mở app = đọc đúng 1 bản ghi rồi bày ra, không phụ thuộc
+   * mấy chục mảnh rời, không đụng tới mạng.
+   * ===================================================================== */
+  var DB_TEN = 'cl_kho', DB_BANG = 'bl', _db = null, _dbLoi = false;
+  function moDB() {
+    if (_db) return Promise.resolve(_db);
+    if (_dbLoi || typeof indexedDB === 'undefined') return Promise.resolve(null);
+    return new Promise(function (res) {
+      var rq;
+      try { rq = indexedDB.open(DB_TEN, 1); } catch (e) { _dbLoi = true; return res(null); }
+      rq.onupgradeneeded = function () { try { rq.result.createObjectStore(DB_BANG); } catch (e) {} };
+      rq.onsuccess = function () { _db = rq.result; res(_db); };
+      rq.onerror = function () { _dbLoi = true; res(null); };
+      rq.onblocked = function () { _dbLoi = true; res(null); };
+      setTimeout(function () { if (!_db) res(null); }, 4000);      // đừng treo app vì IndexedDB
+    });
+  }
+  function idbDoc(khoa) {
+    return moDB().then(function (db) {
+      if (!db) return null;
+      return new Promise(function (res) {
+        try {
+          var rq = db.transaction(DB_BANG, 'readonly').objectStore(DB_BANG).get(khoa);
+          rq.onsuccess = function () { res(rq.result == null ? null : rq.result); };
+          rq.onerror = function () { res(null); };
+        } catch (e) { res(null); }
+      });
+    }).catch(function () { return null; });
+  }
+  function idbGhi(khoa, gt) {
+    return moDB().then(function (db) {
+      if (!db) return false;
+      return new Promise(function (res) {
+        try {
+          var tx = db.transaction(DB_BANG, 'readwrite');
+          tx.objectStore(DB_BANG).put(gt, khoa);
+          tx.oncomplete = function () { res(true); };
+          tx.onerror = function () { res(false); };
+          tx.onabort = function () { res(false); };
+        } catch (e) { res(false); }
+      });
+    }).catch(function () { return false; });
+  }
+  function khoaMoNhanh() { return 'mo-nhanh-' + (fid() || 'none'); }
+
+  function fid() { return profile && profile.factory_id; }
+  function lenRoi() { return jget(K.daLen(fid()), {}); }
+  function danhDauLen(ids) {
+    if (!ids || !ids.length) return;
+    var m = lenRoi(); ids.forEach(function (i) { if (i) m[i] = 1; }); jset(K.daLen(fid()), m);
+  }
+  /* Tên dòng mảnh CHÍNH LÀ mã đơn — nhờ vậy khi chỉ mục hỏng vẫn tìm lại được mảnh theo mã đơn
+     mà KHÔNG phải tải payload của cả trăm dòng về giải nén (chỉ xin 3 cột, nhẹ như lông hồng). */
+  var TIEN_TO_MANH = '⚙ mảnh · ';
+  function tenManh(md) { return TIEN_TO_MANH + md; }
+  function mdTuTen(ten) { ten = String(ten == null ? '' : ten); return ten.slice(0, TIEN_TO_MANH.length) === TIEN_TO_MANH ? ten.slice(TIEN_TO_MANH.length) : ''; }
+  // Bản đồ mã đơn → id dòng mảnh MỚI NHẤT trên máy chủ (kể cả mảnh mồ côi). Chỉ lấy cột nhẹ.
+  function banDoManh(c) {
+    return c.from('datasets').select('id,name,updated_at')
+      .eq('factory_id', fid()).eq('kind', KIND_MANH)
+      .order('updated_at', { ascending: false }).range(0, 999)
+      .then(function (r) {
+        var bd = {}; if (r.error || !r.data) return bd;
+        r.data.forEach(function (row) { var m = mdTuTen(row.name); if (m && !bd[m]) bd[m] = row.id; });
+        return bd;
+      }).catch(function () { return {}; });
+  }
+  // Mọi dòng mảnh còn nằm trong bộ nhớ máy → mã đơn: dòng (bản mới nhất)
+  function manhTrongMay() {
+    var ds = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (!k || k.indexOf('clc_ds_') !== 0 || k.indexOf('clc_ds_index_') === 0) continue;
+        var row = jget(k, null);
+        if (row && row.payload && row.payload.__manh) ds.push(row);
+      }
+    } catch (_) {}
+    var theo = {};
+    ds.forEach(function (r) {
+      var m = mdTuTen(r.name); if (!m) return;
+      if (!theo[m] || String(r.updated_at || '') > String(theo[m].updated_at || '')) theo[m] = r;
+    });
+    return theo;
+  }
+
   /* ⚠⚠ LẤY NHIỀU DÒNG THÌ PHẢI CHIA LÔ (sửa 28/8 — đây chính là lỗi làm "thiếu 67 mảnh").
      PostgREST nhét danh sách id vào URL: `?id=in.(uuid,uuid,…)`. Mỗi UUID 38 ký tự, 67 mảnh là
      URL hơn 2.600 ký tự — vượt giới hạn của proxy/Supabase ⇒ truy vấn hỏng ⇒ app tưởng mảnh
@@ -125,11 +225,53 @@
     return lo.reduce(function (chuoi, mot) {
       return chuoi.then(function (kq) {
         if (kq && kq.error) return kq;
-        return c.from('datasets').upsert(mot);
+        return c.from('datasets').upsert(mot).then(function (r) {
+          // ghi được lô nào thì ghi SỔ lô đó ngay — lô sau hỏng cũng không xoá công của lô trước
+          if (!(r && r.error)) danhDauLen(mot.map(function (d) { return d.id; }));
+          return r;
+        });
       });
     }, Promise.resolve({}));
   }
   function idMoi() { return (root.crypto && root.crypto.randomUUID) ? root.crypto.randomUUID() : ('ds-' + Date.now() + '-' + Math.random().toString(16).slice(2)); }
+
+  /* Tìm lại mảnh mà CHỈ MỤC trỏ tới nhưng không còn tồn tại. Khoá tra cứu là MÃ ĐƠN (nằm ở
+     cột name của dòng mảnh), nên chỉ mục hỏng cũng không sao.
+     Trả về { thay: {id-cũ: id-mới}, hong: [mấy cái chịu thua] }. */
+  function vaManh(mat) {
+    var thay = {}, con = mat.slice();
+    var may = manhTrongMay();
+    con = con.filter(function (x) {
+      if (x.loai !== 'manh') return true;
+      var r = may[String(x.md)];
+      if (r && r.payload) { thay[x.id] = r.id; return false; }
+      return true;
+    });
+    if (!con.length || !configured() || !online() || !fid()) return Promise.resolve({ thay: thay, hong: con });
+    return ensureClient().then(function (c) {
+      if (!c) return { thay: thay, hong: con };
+      return banDoManh(c).then(function (bd) {
+        var can = [], ghep = [];
+        con.forEach(function (x) {
+          var nid = (x.loai === 'manh') ? bd[String(x.md)] : null;
+          if (nid) { can.push(nid); ghep.push({ x: x, nid: nid }); }
+        });
+        var anhThieu = con.filter(function (x) { return x.loai === 'anh'; })[0];
+        var doAnh = !anhThieu ? null
+          : c.from('datasets').select('id').eq('factory_id', fid()).eq('kind', KIND_ANH)
+              .order('updated_at', { ascending: false }).limit(1)
+              .then(function (r) { var d0 = r && r.data && r.data[0]; if (d0) { can.push(d0.id); ghep.push({ x: anhThieu, nid: d0.id }); } })
+              .catch(function () {});
+        return Promise.resolve(doAnh).then(function () {
+          if (!can.length) return { thay: thay, hong: con };
+          return layNhieuDong(c, can).then(function () {
+            ghep.forEach(function (g) { var r = jget(K.dsItem(g.nid), null); if (r && r.payload) thay[g.x.id] = g.nid; });
+            return { thay: thay, hong: con.filter(function (x) { return !thay[x.id]; }) };
+          });
+        });
+      });
+    }).catch(function () { return { thay: thay, hong: con }; });
+  }
 
   // ---------- Nạp thư viện Supabase (UMD) ----------
   function loadScript(src) {
@@ -309,9 +451,16 @@
       }
       var cuTheoMd = {}; if (cu) (cu.manh || []).forEach(function (m) { cuTheoMd[m.md] = m; });
       var dongMoi = [], dsManh = [], daDung = {};
+      /* ⚠⚠ CHỈ ĐƯỢC BỎ QUA MẢNH KHI BIẾT CHẮC NÓ ĐANG NẰM TRÊN MÁY CHỦ (sửa 29/8).
+         Đây là gốc rễ của "bản lưu thiếu 67 mảnh": bản cũ chỉ so DẤU VÂN TAY, mà dấu vân tay
+         được ghi vào bộ nhớ máy TRƯỚC khi gửi lên máy chủ. Một lần gửi hỏng (mạng chập, URL
+         quá dài, tự lưu nuốt lỗi bằng .catch rỗng) là từ đó về sau app luôn thấy "vân tay khớp
+         rồi, khỏi gửi" ⇒ mảnh KHÔNG BAO GIỜ lên máy chủ, còn chỉ mục thì vẫn trỏ vào nó.
+         Nay phải có TÊN trong sổ daLen (chỉ ghi sổ SAU KHI máy chủ nhận) mới được bỏ qua. */
+      var soLen = lenRoi();
       function phan(khoa, obj, kind, ten, cuMuc) {
         var s = JSON.stringify(obj), h = bam32(s);
-        if (cuMuc && cuMuc.h === h && cuMuc.id) { daDung[cuMuc.id] = 1; return Promise.resolve({ md: khoa, id: cuMuc.id, h: h }); }
+        if (cuMuc && cuMuc.h === h && cuMuc.id && soLen[cuMuc.id]) { daDung[cuMuc.id] = 1; return Promise.resolve({ md: khoa, id: cuMuc.id, h: h }); }
         var pid = (cuMuc && cuMuc.id) || idMoi(); daDung[pid] = 1;
         return nen(obj).then(function (n) {
           dongMoi.push({ id: pid, factory_id: profile.factory_id, name: ten, kind: kind,
@@ -320,7 +469,7 @@
         });
       }
       var viec = (goi.manh || []).map(function (g) {
-        return phan(g.md, g, KIND_MANH, '⚙ mảnh · ' + g.md, cuTheoMd[g.md]);
+        return phan(g.md, g, KIND_MANH, tenManh(g.md), cuTheoMd[g.md]);
       });
       viec.push(phan('__anh', goi.anh || {}, KIND_ANH, '⚙ ảnh trong đơn', cu && cu.anh));
       return Promise.all(viec).then(function (ds) {
@@ -354,6 +503,7 @@
               return c.from('datasets').upsert(row).select();
             }).then(function (r) {
               if (r && r.error) throw new Error('Lưu đám mây thất bại: ' + r.error.message);
+              danhDauLen([row.id]);
               return row;
             });
           });
@@ -379,23 +529,253 @@
           (p.manh || []).forEach(function (m) { caiGi.push({ loai: 'manh', md: m.md, id: m.id }); });
           if (p.anh && p.anh.id) caiGi.push({ loai: 'anh', id: p.anh.id });
           var mat = caiGi.filter(function (x) { var r = jget(K.dsItem(x.id), null); return !r || !r.payload; });
-          if (mat.length) return Promise.reject(new Error('Bản lưu thiếu ' + mat.length + ' mảnh (' +
-            mat.slice(0, 3).map(function (x) { return x.md || 'ảnh'; }).join(', ') +
-            (mat.length > 3 ? '…' : '') + ') — chưa mở được. Dữ liệu đang mở KHÔNG bị đụng tới; kiểm tra mạng rồi bấm ⭳ Nạp lại.'));
-          return Promise.all(caiGi.map(function (x) {
-            var row = jget(K.dsItem(x.id), null);
-            return giaiNen({ n: row.payload.n, d: row.payload.d }).then(function (v) { return { loai: x.loai, v: v }; });
-          })).then(function (ds) {
-            return giaiNen({ n: p.nc, d: p.chung }).then(function (chung) {
-              var goi = { chung: chung || {}, manh: [], anh: {} };
-              ds.forEach(function (x) { if (x.loai === 'anh') goi.anh = x.v || {}; else goi.manh.push(x.v); });
-              if (!(root.__CLAPP && root.__CLAPP.gopLuu))
-                return Promise.reject(new Error('Bản app đang chạy quá cũ, chưa biết ghép bản lưu chia mảnh — tải lại trang (Ctrl+F5) rồi thử lại.'));
-              var payload = root.__CLAPP.gopLuu(goi);
-              if (!payload || (!(payload.orders || []).length && !(payload.files || []).length))
-                return Promise.reject(new Error('Ghép bản lưu ra RỖNG — không nạp để khỏi xoá mất dữ liệu đang mở.'));
-              return Object.assign({}, d, { payload: payload });
+          function ghepRa(ds2, va) {
+            return Promise.all(ds2.map(function (x) {
+              var row = jget(K.dsItem(x.id), null);
+              return giaiNen({ n: row.payload.n, d: row.payload.d }).then(function (v) { return { loai: x.loai, v: v }; });
+            })).then(function (ds) {
+              return giaiNen({ n: p.nc, d: p.chung }).then(function (chung) {
+                var goi = { chung: chung || {}, manh: [], anh: {} };
+                ds.forEach(function (x) { if (x.loai === 'anh') goi.anh = x.v || {}; else goi.manh.push(x.v); });
+                if (!(root.__CLAPP && root.__CLAPP.gopLuu))
+                  return Promise.reject(new Error('Bản app đang chạy quá cũ, chưa biết ghép bản lưu chia mảnh — tải lại trang (Ctrl+F5) rồi thử lại.'));
+                var payload = root.__CLAPP.gopLuu(goi);
+                if (!payload || (!(payload.orders || []).length && !(payload.files || []).length))
+                  return Promise.reject(new Error('Ghép bản lưu ra RỖNG — không nạp để khỏi xoá mất dữ liệu đang mở.'));
+                return Object.assign({}, d, { payload: payload, __va: va || null });
+              });
             });
+          }
+          if (!mat.length) return ghepRa(caiGi, null);
+          /* ⭑ VÁ CHỖ THIẾU RỒI MỞ, ĐỪNG BÁO HỎNG RỒI THÔI (sửa 29/8).
+             Chỉ mục trỏ vào mảnh không còn tồn tại thì vẫn còn cửa: tên dòng mảnh chính là MÃ
+             ĐƠN, nên tìm lại đúng mảnh đó ở chỗ khác (bộ nhớ máy, hoặc mảnh mồ côi trên máy
+             chủ) là mở được. Vá xong app tự lưu lại một bản LÀNH rồi dọn rác — xem suaVaDon().
+             Vẫn giữ nguyên luật cũ: KHÔNG tìm lại được gì thì báo hỏng, tuyệt đối không trả rỗng. */
+          return vaManh(mat).then(function (kq) {
+            var duoc = caiGi.map(function (x) { return kq.thay[x.id] ? { loai: x.loai, md: x.md, id: kq.thay[x.id] } : x; })
+                            .filter(function (x) { var r = jget(K.dsItem(x.id), null); return r && r.payload; });
+            var conManh = duoc.filter(function (x) { return x.loai === 'manh'; }).length;
+            if (!conManh) return Promise.reject(new Error('Bản lưu hỏng: thiếu ' + mat.length +
+              ' mảnh và không tìm lại được mảnh nào — chưa mở được. Dữ liệu đang mở KHÔNG bị đụng tới; kiểm tra mạng rồi tải lại trang (Ctrl+F5).'));
+            return ghepRa(duoc, { vaDuoc: mat.length - kq.hong.length, hong: kq.hong.map(function (x) { return x.md || 'ảnh'; }) });
+          });
+        });
+      });
+    },
+    /* ===== MỞ NGAY TỪ BỘ NHỚ MÁY — KHÔNG HỎI MẠNG (thêm 29/8) =====
+       User: "mở app ra là phải có dữ liệu". Trước đây mở app là phải đợi 3 vòng hỏi máy chủ
+       (danh sách → chỉ mục → từng lô mảnh) mới thấy đơn, mạng xưởng chậm thì ngồi nhìn số 0.
+       Nay: bản lưu nằm sẵn trong bộ nhớ máy thì dựng lại và mở NGAY, xong mới lặng lẽ đối
+       chiếu máy chủ ở nền. Thiếu dù chỉ 1 mảnh thì trả null để đường mạng lo — thà chậm còn
+       hơn mở ra thiếu đơn rồi người dùng tưởng là đủ. */
+    /* ===== BẢN MỞ NHANH — MỘT bản ghi, mở là có ngay (thêm 29/8) =====
+       Ghi lại CẢ KHO đã ghép sẵn (nén gzip) vào IndexedDB sau mỗi lần nạp/lưu thành công.
+       Mở app = đọc đúng một bản ghi rồi bày ra: không phụ thuộc mấy chục mảnh rời, không hỏi
+       mạng, không sợ localStorage tràn. Kèm mấy con số để biết ngay đủ hay thiếu. */
+    luuMoNhanh: function (payload, meta) {
+      if (!payload || !(payload.orders || []).length) return Promise.resolve(false);
+      meta = meta || {};
+      return nen(payload).then(function (n) {
+        return idbGhi(khoaMoNhanh(), {
+          v: 1, t: new Date().toISOString(), nguon: meta.nguon || '',
+          id: meta.id || '', sv: meta.sv || '',
+          soFile: (payload.files || []).length, soDong: (payload.orders || []).length,
+          soDon: (function () { var m = {}, i, c = 0;
+            for (i = 0; i < payload.orders.length; i++) { var k = String(payload.orders[i] && payload.orders[i].maDon || ''); if (!m[k]) { m[k] = 1; c++; } }
+            return c; })(),
+          n: n.n, d: n.d
+        });
+      }).catch(function () { return false; });
+    },
+    docMoNhanh: function () {
+      return idbDoc(khoaMoNhanh()).then(function (r) {
+        if (!r || !r.d) return null;
+        return giaiNen({ n: r.n, d: r.d }).then(function (pl) {
+          if (!pl || !(pl.orders || []).length) return null;
+          return { payload: pl, t: r.t, nguon: r.nguon, id: r.id || '', sv: r.sv || '',
+                   soFile: r.soFile, soDong: r.soDong, soDon: r.soDon };
+        }).catch(function () { return null; });
+      }).catch(function () { return null; });
+    },
+    napNhanh: function (id) {
+      var d = jget(K.dsItem(id), null);
+      var p = d && d.payload;
+      if (!p) return Promise.resolve(null);
+      if (!p.__goi) return Promise.resolve((p.orders || []).length ? d : null);
+      var caiGi = [];
+      (p.manh || []).forEach(function (m) { caiGi.push({ loai: 'manh', id: m.id }); });
+      if (p.anh && p.anh.id) caiGi.push({ loai: 'anh', id: p.anh.id });
+      if (!caiGi.length) return Promise.resolve(null);
+      /* ⭑ THIẾU MẢNH THÌ VẪN MỞ PHẦN ĐANG CÓ (sửa 29/8 theo yêu cầu "mở link là phải có dữ liệu
+         đã lưu trên máy, dù không có mạng").
+         Bản trước thiếu dù 1 mảnh là trả null ⇒ ngồi nhìn số 0 đợi mạng. Nay mở ngay những đơn
+         có sẵn và nói thẳng còn thiếu mấy đơn. Đổi lại phải có PHANH: bản mở tạm KHÔNG được tự
+         lưu đè lên máy chủ (xem _moTam bên auth.web.js) — không thì mở thiếu một lần là ghi đè
+         mất mấy đơn kia, đúng cái sự cố 28/8. */
+      var co = caiGi.filter(function (x) { var r = jget(K.dsItem(x.id), null); return r && r.payload; });
+      var thieu = caiGi.length - co.length;
+      if (!co.filter(function (x) { return x.loai === 'manh'; }).length) return Promise.resolve(null);
+      return Promise.all(co.map(function (x) {
+        var row = jget(K.dsItem(x.id), null);
+        return giaiNen({ n: row.payload.n, d: row.payload.d }).then(function (v) { return { loai: x.loai, v: v }; }).catch(function () { return null; });
+      })).then(function (ds) {
+        var hong = ds.filter(function (x) { return !x; }).length;
+        return giaiNen({ n: p.nc, d: p.chung }).then(function (chung) {
+          var goi = { chung: chung || {}, manh: [], anh: {} };
+          ds.forEach(function (x) { if (!x) return; if (x.loai === 'anh') goi.anh = x.v || {}; else goi.manh.push(x.v); });
+          if (!goi.manh.length || !(root.__CLAPP && root.__CLAPP.gopLuu)) return null;
+          var payload = root.__CLAPP.gopLuu(goi);
+          if (!payload || !(payload.orders || []).length) return null;
+          return Object.assign({}, d, { payload: payload, __du: !(thieu + hong), __thieu: thieu + hong, __can: caiGi.length });
+        }).catch(function () { return null; });
+      }).catch(function () { return null; });
+    },
+    /* ===== SOI LẠI BẢN LƯU TRÊN MÁY CHỦ (thêm 29/8) =====
+       Hỏi thẳng máy chủ: từng mảnh của bản lưu này CÓ THẬT không (chỉ xin cột id nên rất nhẹ).
+       Đây là cái chốt an toàn bắt buộc phải qua trước khi dọn rác — không bao giờ xoá cái gì
+       khi chưa nhìn tận mắt thấy bản lưu mới đã đủ mảnh. */
+    kiemTraBanLuu: function (id) {
+      if (!configured() || !online()) return Promise.resolve({ ok: false, thieu: -1, ids: [] });
+      return ensureClient().then(function (c) {
+        if (!c) return { ok: false, thieu: -1, ids: [] };
+        return c.from('datasets').select('*').eq('id', id).maybeSingle().then(function (r) {
+          if (r.error || !r.data) return { ok: false, thieu: -1, ids: [] };
+          var p = r.data.payload;
+          if (!p || !p.__goi) return { ok: !!(p && (p.orders || []).length), thieu: 0, ids: [id] };
+          var ids = (p.manh || []).map(function (m) { return m.id; });
+          if (p.anh && p.anh.id) ids.push(p.anh.id);
+          var co = {}, lo = [], i;
+          for (i = 0; i < ids.length; i += LO) lo.push(ids.slice(i, i + LO));
+          return lo.reduce(function (ch, mot) {
+            return ch.then(function () {
+              return c.from('datasets').select('id').in('id', mot)
+                .then(function (rr) { (rr.data || []).forEach(function (x) { co[x.id] = 1; }); })
+                .catch(function () {});
+            });
+          }, Promise.resolve()).then(function () {
+            var thieu = ids.filter(function (x) { return !co[x]; });
+            return { ok: !thieu.length, thieu: thieu.length, ids: ids.concat([id]) };
+          });
+        }).catch(function () { return { ok: false, thieu: -1, ids: [] }; });
+      });
+    },
+    /* ===== DỌN RÁC — CHỈ GIỮ LẠI BẢN LƯU CUỐI (thêm 29/8 theo yêu cầu) =====
+       User: "Chỉ dữ liệu lần sao lưu cuối. Các đơn cũ dữ liệu thừa hãy xóa hết đi cả trên máy
+       và supabase". Xoá mọi dòng orders / orders-manh / orders-anh của xưởng KHÔNG thuộc bản
+       lưu đang giữ, cả trên máy chủ lẫn trong bộ nhớ máy.
+       ⚠ CHỈ ĐƯỢC GỌI SAU khi kiemTraBanLuu() nói OK — xoá là không lấy lại được. */
+    donDep: function (giuIds) {
+      var giu = {}; (giuIds || []).forEach(function (i) { if (i) giu[i] = 1; });
+      if (!Object.keys(giu).length) return Promise.resolve({ may: 0, server: 0 });
+      var may = 0;
+      try {
+        var bo = [];
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (!k || k.indexOf('clc_ds_') !== 0) continue;
+          if (k.indexOf('clc_ds_index_') === 0) continue;   // ⚠ đây là DANH SÁCH, không phải bản lưu
+          if (!giu[k.slice(7)]) bo.push(k);
+        }
+        bo.forEach(function (k) { jdel(k); }); may = bo.length;
+      } catch (_) {}
+      // sổ "đã lên máy chủ" cũng thu gọn theo, khỏi phình vô hạn
+      try { var so = lenRoi(), so2 = {}; Object.keys(giu).forEach(function (x) { if (so[x]) so2[x] = 1; }); jset(K.daLen(fid()), so2); } catch (_) {}
+      if (!configured() || !online() || !fid()) return Promise.resolve({ may: may, server: 0 });
+      return ensureClient().then(function (c) {
+        if (!c) return { may: may, server: 0 };
+        return c.from('datasets').select('id,kind').eq('factory_id', fid()).then(function (r) {
+          if (r.error) return { may: may, server: 0, loi: r.error.message };
+          var xoa = (r.data || []).filter(function (d) {
+            return !giu[d.id] && (d.kind === 'orders' || d.kind === KIND_MANH || d.kind === KIND_ANH);
+          }).map(function (d) { return d.id; });
+          if (!xoa.length) return { may: may, server: 0 };
+          var lo = [], i2;
+          for (i2 = 0; i2 < xoa.length; i2 += LO) lo.push(xoa.slice(i2, i2 + LO));
+          return lo.reduce(function (ch, mot) {
+            return ch.then(function () { return c.from('datasets').delete().in('id', mot); });
+          }, Promise.resolve()).then(function () {
+            // danh sách bản lưu trong bộ nhớ máy cũng chỉ còn lại đúng bản đang giữ
+            try {
+              var idx = CLCloud.listCached().filter(function (d) { return giu[d.id]; });
+              jset(K.dsIndex(fid()), idx);
+            } catch (_) {}
+            return { may: may, server: xoa.length };
+          });
+        }).catch(function () { return { may: may, server: 0 }; });
+      });
+    },
+    /* ===== QUAY VỀ MỘT MỐC THỜI GIAN (thêm 29/8) =====
+       User: "Tôi muốn lấy dữ liệu đã cập nhật xử lý 66 file như dòng tô đỏ trong hình
+       (14:41:14 28/8 — 66 file → 1778 dòng). Bản đó là bản dữ liệu đúng đầy đủ."
+       Mỗi lần lưu, mã đơn nào ĐỔI thì được ghi thành một dòng mảnh mới mang mốc thời gian của
+       lần lưu đó. Cả kho mảnh vì thế chính là một cuốn phim: muốn quay về lúc T thì với TỪNG
+       mã đơn lấy bản mới nhất mà còn ≤ T. Đây là lý do KHÔNG được tự động xoá mảnh cũ.
+       dsKho() chỉ xin cột nhẹ (id·kind·name·updated_at) nên quét cả nghìn dòng vẫn nhanh. */
+    dsKho: function () {
+      var may = [];
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (!k || k.indexOf('clc_ds_') !== 0 || k.indexOf('clc_ds_index_') === 0) continue;
+          var r = jget(k, null); if (!r) continue;
+          may.push({ id: r.id || k.slice(7), kind: r.kind || '?', name: r.name || '', updated_at: r.updated_at || '', nguon: 'máy' });
+        }
+      } catch (_) {}
+      if (!configured() || !online() || !fid()) return Promise.resolve({ may: may, server: [] });
+      return ensureClient().then(function (c) {
+        if (!c) return { may: may, server: [] };
+        /* ⚠ PHẢI KÉO THEO TỪNG TRANG (sửa 3/9). Bản trước xin một phát `.range(0,1999)`; trên dữ
+           liệu thật của user nó trả về RỖNG (dải nâu ghi "Đã dò 0 lần lưu") nên phần tự vá không
+           có mốc nào mà dò. timDonConSot() kéo từng trang thì chạy được — nay làm y như vậy. */
+        var gom = [];
+        function trang(tu) {
+          return c.from('datasets').select('id,kind,name,updated_at').eq('factory_id', fid())
+            .order('updated_at', { ascending: false }).range(tu, tu + 199)
+            .then(function (r) {
+              if (r.error || !r.data || !r.data.length) return gom;
+              gom = gom.concat(r.data);
+              return r.data.length < 200 ? gom : trang(tu + 200);
+            }).catch(function () { return gom; });
+        }
+        return trang(0).then(function (rows) {
+          return { may: may, server: (rows || []).map(function (d) { d.nguon = 'máy chủ'; return d; }) };
+        });
+      }).catch(function () { return { may: may, server: [] }; });
+    },
+    // moc = chuỗi ISO ('' = lấy bản mới nhất của mỗi mã đơn, không giới hạn thời gian)
+    dungLaiToiMoc: function (moc) {
+      var gioi = String(moc == null ? '' : moc);
+      return CLCloud.dsKho().then(function (kho) {
+        var tatCa = kho.server.concat(kho.may);
+        var chon = {}, anhId = null, anhT = '';
+        tatCa.forEach(function (d) {
+          var t = String(d.updated_at || '');
+          if (gioi && t > gioi) return;
+          if (d.kind === KIND_ANH) { if (t > anhT) { anhT = t; anhId = d.id; } return; }
+          if (d.kind !== KIND_MANH) return;
+          var m = mdTuTen(d.name); if (!m) return;
+          if (!chon[m] || t > chon[m].t) chon[m] = { id: d.id, t: t };
+        });
+        var mds = Object.keys(chon);
+        if (!mds.length) return { payload: null, bc: { maDon: 0, dong: 0, file: 0, thieu: 0 } };
+        var ids = mds.map(function (m) { return chon[m].id; });
+        if (anhId) ids.push(anhId);
+        var thieu = ids.filter(function (x) { return !jget(K.dsItem(x), null); });
+        var doThieu = (!thieu.length || !configured() || !online()) ? Promise.resolve(null)
+          : ensureClient().then(function (c) { return c ? layNhieuDong(c, thieu) : null; });
+        return doThieu.then(function () {
+          return Promise.all(ids.map(function (x) {
+            var row = jget(K.dsItem(x), null);
+            if (!row || !row.payload) return null;
+            return giaiNen({ n: row.payload.n, d: row.payload.d }).catch(function () { return null; });
+          })).then(function (vs) {
+            var manh = [], anh = {}, hong = 0;
+            vs.forEach(function (v) { if (!v) { hong++; return; } if (v.md != null) manh.push(v); else if (v.imgStore) anh = v; });
+            if (!manh.length || !(root.__CLAPP && root.__CLAPP.gopLuu)) return { payload: null, bc: { maDon: 0, dong: 0, file: 0, thieu: hong } };
+            var pl = root.__CLAPP.gopLuu({ chung: { mds: manh.map(function (g) { return g.md; }) }, manh: manh, anh: anh });
+            return { payload: pl, bc: { maDon: manh.length, dong: (pl && pl.orders || []).length,
+                                        file: (pl && pl.files || []).length, thieu: hong } };
           });
         });
       });
@@ -423,6 +803,107 @@
         if (!manh.length || !(root.__CLAPP && root.__CLAPP.gopLuu)) return null;
         var payload = root.__CLAPP.gopLuu({ chung: { mds: manh.map(function (g) { return g.md; }) }, manh: manh, anh: anh });
         return (payload && (payload.orders || []).length) ? payload : null;
+      });
+    },
+    /* ===== GOM TẤT CẢ — CỨU DỮ LIỆU KHÔNG CẦN CHỈ MỤC (thêm 28/8, lần sửa thứ 5) =====
+       Bằng chứng từ máy user: app cứu được 1394 dòng TỪ BỘ NHỚ MÁY, trong khi chỉ mục trên máy
+       chủ lại trỏ tới 67 mã mảnh KHÔNG tồn tại. Nghĩa là CHỈ MỤC ĐÃ HỎNG — mà mọi đường nạp cũ
+       đều đi qua nó, nên cứ thiếu mãi.
+       Hàm này BỎ QUA chỉ mục, quét thẳng ba nguồn rồi gộp theo MÃ ĐƠN (mỗi mã lấy bản mới nhất):
+         1. mọi mảnh trong bộ nhớ máy (localStorage)
+         2. mọi dòng 'orders-manh' của xưởng trên máy chủ — kể cả mảnh mồ côi
+         3. mọi bản lưu NGUYÊN KHỐI kiểu cũ ('orders' không chia mảnh) — mỏ vàng, vì đó là các
+            bản ☁ Lưu tay TRƯỚC khi có chia mảnh, thường còn đủ đơn
+       Trả về { payload, bc } — bc là BÁO CÁO để nhìn thấy sự thật, không phải đoán. */
+    gomTatCa: function () {
+      var theoMd = {}, anh = {};
+      var bc = { manhTrongMay: 0, manhTrenServer: 0, banNguyenKhoi: 0, donTuNguyenKhoi: 0, maDon: 0, dong: 0 };
+      function nhan(v, t) {
+        if (!v || v.md == null) return;
+        var m = String(v.md);
+        if (!theoMd[m] || String(t || '') > String(theoMd[m].t || '')) theoMd[m] = { v: v, t: t || '' };
+      }
+      // (1) bộ nhớ máy
+      var dsMay = [];
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i); if (!k || k.indexOf('clc_ds_') !== 0) continue;
+          var r = jget(k, null);
+          if (r && r.payload && r.payload.__manh) dsMay.push(r);
+          else if (r && r.payload && !r.payload.__goi && (r.payload.orders || []).length) dsMay.push(r);
+        }
+      } catch (_) {}
+      var b1 = Promise.all(dsMay.map(function (r) {
+        if (r.payload.__manh) {
+          return giaiNen({ n: r.payload.n, d: r.payload.d })
+            .then(function (v) { if (v && v.md != null) { bc.manhTrongMay++; nhan(v, r.updated_at); } })
+            .catch(function () {});
+        }
+        // bản nguyên khối nằm trong cache máy
+        try {
+          bc.banNguyenKhoi++;
+          var g = root.__CLAPP.chiaLuu(r.payload);
+          (g.manh || []).forEach(function (v) { bc.donTuNguyenKhoi++; nhan(v, r.updated_at); });
+          var im = (g.anh && g.anh.imgStore) || {}; for (var q in im) if (anh[q] === undefined) anh[q] = im[q];
+        } catch (_) {}
+        return null;
+      }));
+      // (2) + (3) máy chủ
+      var b2 = (!configured() || !online() || !profile || !profile.factory_id) ? Promise.resolve()
+        : ensureClient().then(function (c) {
+            if (!c) return;
+            function trang(kind, tu, nhanDong) {
+              return c.from('datasets').select('id,kind,updated_at,payload')
+                .eq('factory_id', profile.factory_id).eq('kind', kind)
+                .order('updated_at', { ascending: false }).range(tu, tu + 9)
+                .then(function (r) {
+                  if (r.error || !r.data || !r.data.length) return null;
+                  return Promise.all(r.data.map(nhanDong)).then(function () {
+                    return r.data.length < 10 ? null : trang(kind, tu + 10, nhanDong);
+                  });
+                }).catch(function () { return null; });
+            }
+            return trang(KIND_MANH, 0, function (row) {
+              if (!row.payload || !row.payload.__manh) return null;
+              return giaiNen({ n: row.payload.n, d: row.payload.d })
+                .then(function (v) { if (v && v.md != null) { bc.manhTrenServer++; nhan(v, row.updated_at); } })
+                .catch(function () {});
+            }).then(function () {
+              return trang('orders', 0, function (row) {
+                var p = row.payload;
+                if (!p || p.__goi || !(p.orders || []).length) return null;   // bỏ dòng chỉ mục, chỉ lấy bản NGUYÊN KHỐI
+                try {
+                  bc.banNguyenKhoi++;
+                  var g = root.__CLAPP.chiaLuu(p);
+                  (g.manh || []).forEach(function (v) { bc.donTuNguyenKhoi++; nhan(v, row.updated_at); });
+                  var im = (g.anh && g.anh.imgStore) || {}; for (var q in im) if (anh[q] === undefined) anh[q] = im[q];
+                } catch (_) {}
+                return null;
+              });
+            });
+          }).catch(function () {});
+      // (2b) ảnh: lấy dòng ảnh mới nhất
+      var b3 = (!configured() || !online() || !profile || !profile.factory_id) ? Promise.resolve()
+        : ensureClient().then(function (c) {
+            if (!c) return;
+            return c.from('datasets').select('payload,updated_at').eq('factory_id', profile.factory_id)
+              .eq('kind', KIND_ANH).order('updated_at', { ascending: false }).limit(1)
+              .then(function (r) {
+                if (r.error || !r.data || !r.data.length) return;
+                var row = r.data[0]; if (!row.payload || !row.payload.__manh) return;
+                return giaiNen({ n: row.payload.n, d: row.payload.d }).then(function (v) {
+                  var im = (v && v.imgStore) || {}; for (var q in im) if (anh[q] === undefined) anh[q] = im[q];
+                }).catch(function () {});
+              }).catch(function () {});
+          }).catch(function () {});
+
+      return Promise.all([b1, b2, b3]).then(function () {
+        var mds = Object.keys(theoMd);
+        if (!mds.length || !(root.__CLAPP && root.__CLAPP.gopLuu)) return { payload: null, bc: bc };
+        var manh = mds.map(function (m) { return theoMd[m].v; });
+        var pl = root.__CLAPP.gopLuu({ chung: { mds: mds }, manh: manh, anh: { imgStore: anh } });
+        bc.maDon = mds.length; bc.dong = (pl && pl.orders || []).length;
+        return { payload: (pl && (pl.orders || []).length) ? pl : null, bc: bc };
       });
     },
     /* ===== TÌM ĐƠN CÒN SÓT TRÊN MÁY CHỦ (thêm 28/8) =====
