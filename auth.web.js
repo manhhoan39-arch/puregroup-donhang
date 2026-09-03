@@ -272,6 +272,7 @@
 
   function doLogout(expired) {
     var t = S.token, wasCloud = S.cloud;
+    try { dungCanh(); } catch (e) {}
     S.token = ''; S.user = null; S.factory = null; S.perms = []; S.cloud = false;
     [LS.token, LS.user, LS.factory, LS.perms, LS.activeFactory].forEach(function (k) { localStorage.removeItem(k); });
     try { localStorage.removeItem('cl_mode'); } catch (e) {}
@@ -410,6 +411,7 @@
         toast('Đã lưu đám mây ✓', 'ok');
         var st = window.__CLAPP.getState();
         ghiMoNhanh(st, { id: id, nguon: 'lưu tay' });
+        _choLuu = false; _luuLucNao = Date.now(); anBangBanMoi();
         /* User: "Ấn lưu nhưng không thấy có thông báo thành công". Lời nhắc chỉ hiện 3,2 giây,
            quay đi là mất. Nay để lại một dải nằm luôn trên đầu trang, có giờ và con số. */
         bangKetQua('✓ Đã lưu lên máy chủ lúc ' + new Date().toLocaleTimeString('vi-VN') + ' — ' +
@@ -447,16 +449,22 @@
   }
   function doAutoSave() {
     try {
-      if (!S.token || !can('dataset:create')) return;
-      if (!window.__CLAPP || !window.__CLAPP.hasData || !window.__CLAPP.hasData()) return;
+      /* Mấy lối "không lưu" dưới đây phải GỠ cờ chờ-lưu: giữ cờ mãi thì người canh bản mới
+         không bao giờ dám nạp, máy đó nằm im với bản cũ (đúng lỗi 3/9). Riêng _moTam thì
+         người canh đã tự xét lấy nên cứ để nguyên. */
+      var thoi = function () { _choLuu = false; };
+      if (!S.token || !can('dataset:create')) return thoi();
+      if (!window.__CLAPP || !window.__CLAPP.hasData || !window.__CLAPP.hasData()) return thoi();
       if (_moTam) return;                   // ⚠ bản mở TẠM còn thiếu mảnh → tuyệt đối không tự lưu đè
-      var id = autoSaveId(); if (!id) return;
-      if (!duocGhiXuong()) return;          // đang xem xưởng khác → không tự lưu đè
+      var id = autoSaveId(); if (!id) return thoi();
+      if (!duocGhiXuong()) return thoi();   // đang xem xưởng khác → không tự lưu đè
       var ten = tenBanLuu();
       var xong = function () {
         try { var ind = document.getElementById('cl-autosave-ind'); if (ind) { ind.textContent = '✓ Đã tự lưu ' + new Date().toLocaleTimeString('vi-VN'); } } catch (_) {}
         // cập nhật luôn BẢN MỞ NHANH → mở lần sau là thấy đúng cái vừa lưu, kể cả mất mạng
         try { ghiMoNhanh(window.__CLAPP.getState(), { id: id, nguon: 'tự lưu' }); } catch (_) {}
+        _choLuu = false;                  // đã lên máy chủ xong → người canh được phép làm việc lại
+        _luuLucNao = Date.now();
       };
       /* CHIA MẢNH THEO MÃ ĐƠN (chốt 28/8): trước đây mỗi lần tự lưu đẩy CẢ KHO lên Supabase
          (68 đơn ≈ 7MB, mạng 5 Mbps mất ~11 giây), dù chỉ vừa sửa đúng một ô. Nay chỉ mảnh của
@@ -474,7 +482,11 @@
       }
     } catch (_) {}
   }
-  function scheduleAutoSave() { if (_autoSaveT) clearTimeout(_autoSaveT); _autoSaveT = setTimeout(doAutoSave, 2500); }
+  function scheduleAutoSave() {
+    _choLuu = true;                       // có sửa chưa lưu → người canh không được nạp đè
+    if (_autoSaveT) clearTimeout(_autoSaveT);
+    _autoSaveT = setTimeout(doAutoSave, 2500);
+  }
   window.__CLAUTOSAVE = scheduleAutoSave;   // Module HTML gọi khi dữ liệu thay đổi
 
   // Nghe tín hiệu "có dữ liệu mới" từ tab/tài khoản khác (cùng máy) → tự nạp lại bản mới nhất.
@@ -853,6 +865,8 @@
     buildBar();
     // Tự động mở bản lưu cuối của xưởng ngay khi đăng nhập (bộ nhớ máy trước, máy chủ sau).
     try { autoLoadLatest(); } catch (e) { console.warn('autoLoadLatest', e); }
+    // …rồi cắt cử người canh: tài khoản khác lưu bản mới thì máy này tự biết mà lấy về.
+    try { batDauCanh(); } catch (e) { console.warn('batDauCanh', e); }
     // ?cuu=1 → mở bảng "Quay về một mốc thời gian" (việc dùng một lần, không có nút trên thanh)
     try { if (/[?&]cuu=1/.test(location.search)) setTimeout(moKhoCuu, 1200); } catch (e) {}
   }
@@ -990,6 +1004,125 @@
       toast('Không hỏi được máy chủ — đang xem bản lưu trong máy.', 'ok');
     });
   }
+
+  /* ===== NGƯỜI CANH BẢN MỚI (thêm 3/9) =====
+     User: "Các tài khoản khác chưa cập nhật được phiên bản lưu mới nhất."
+     Lý do của bản cũ: app CHỈ đi hỏi máy chủ đúng một lần — lúc mở trang. Sau đó ai lưu gì
+     cũng mặc kệ, trừ khi hai tab nằm CÙNG một trình duyệt (sự kiện 'storage' chỉ chạy trong
+     cùng một máy). Nên hoan.nm lưu 66 đơn ở máy này, còn tab của ketoan.nd bên máy kia đã mở
+     từ sáng thì cứ nằm im với 10 đơn cũ — không sai chỗ nào, chỉ là chẳng ai đi hỏi lại.
+     Nay cứ 25 giây (và mỗi lần quay lại tab / có mạng trở lại) hỏi máy chủ đúng MỘT dòng nhẹ:
+     ô lưu của xưởng đổi lúc nào, ai ghi.
+       · người khác vừa ghi, mình KHÔNG có sửa dở  → tự nạp bản mới, báo một dải xanh.
+       · mình đang sửa dở / đang gõ trong ô        → KHÔNG giật màn hình, chỉ hiện dải cam có
+                                                     nút "Lấy bản mới" để người dùng tự chọn.
+       · bản trên máy chủ ÍT đơn hơn bản đang mở   → cũng chỉ hiện dải cam, không tự nuốt. */
+  var _canhT = null;          // đồng hồ canh
+  var _choLuu = false;        // có thay đổi chưa lưu xong
+  var _banMoiT = null;        // mốc bản mới đang chờ người dùng lấy
+  var _luuLucNao = 0;         // lúc MÁY NÀY ghi lên máy chủ lần gần nhất
+  var CANH_GIAY = 25;
+
+  function dangGoTrongO() {
+    try {
+      var e = document.activeElement;
+      if (!e) return false;
+      if (e.isContentEditable) return true;
+      var t = String(e.tagName || '').toUpperCase();
+      return t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT';
+    } catch (_) { return false; }
+  }
+  function anBangBanMoi() {
+    _banMoiT = null;
+    try { var el = document.getElementById('cl-banmoi'); if (el) el.remove(); } catch (_) {}
+  }
+  function hienBangBanMoi(t, lyDo) {
+    _banMoiT = t;
+    try {
+      var el = document.getElementById('cl-banmoi');
+      if (el) el.remove();
+      var nut = h('button', { style: 'margin-left:10px;padding:2px 12px;border:0;border-radius:5px;' +
+          'background:#fff;color:#8A4B00;font-weight:700;font-size:12px;cursor:pointer',
+        onclick: function () { anBangBanMoi(); layBanMoi(autoSaveId(), t, true); } }, ['⟳ Lấy bản mới']);
+      el = h('div', { id: 'cl-banmoi',
+        style: 'position:fixed;left:0;right:0;top:0;z-index:99996;background:#8A4B00;color:#fff;' +
+               'font-size:12.5px;font-weight:600;text-align:center;padding:6px 12px;line-height:1.5' },
+        [String(lyDo || 'Có bản lưu MỚI HƠN trên máy chủ.'), nut]);
+      document.body.appendChild(el);
+    } catch (_) {}
+  }
+  /* Nạp bản mới từ máy chủ đè lên màn hình. epTay=true nghĩa là người dùng đã tự bấm nút,
+     lúc đó không cần cân nhắc gì nữa. Luật cũ vẫn giữ: KHÔNG BAO GIỜ nạp bản rỗng. */
+  function layBanMoi(id, t, epTay) {
+    if (!id || !(S.cloud && window.CLCloud)) return;
+    var getOne = (window.CLCloud.fetchGoi || window.CLCloud.fetchOne)(id);
+    return Promise.resolve(getOne).then(function (d) {
+      var pl = (d && d.payload) || null;
+      if (!pl || (!(pl.orders || []).length && !(pl.files || []).length)) return;
+      var cu = ((window.__CLAPP.getState() || {}).orders || []).length;
+      var moi = (pl.orders || []).length;
+      if (!epTay && cu > 0 && moi < cu) {
+        hienBangBanMoi(t, 'Máy chủ có bản mới hơn nhưng ÍT đơn hơn bản đang mở (' + moi +
+          ' dòng so với ' + cu + ' dòng) — không tự nạp đè.');
+        return;
+      }
+      window.__CLAPP.loadData(pl);
+      _dangMo = { id: id, t: String(t || '') };
+      _choLuu = false;
+      datMoTam(false, 0);
+      ghiMoNhanh(pl, { id: id, sv: String(t || ''), nguon: 'máy chủ · bản mới' });
+      soTuNhan(pl);
+      anBangBanMoi();
+      var soDon = window.__CLAPP.maDonDangCo ? Object.keys(window.__CLAPP.maDonDangCo()).length : 0;
+      bangKetQua('⟳ Vừa nhận bản lưu MỚI từ máy chủ lúc ' + new Date().toLocaleTimeString('vi-VN') +
+                 ' — ' + (pl.files || []).length + ' file · ' + moi + ' dòng · ' + soDon +
+                 ' đơn. (bấm để đóng)', 'xanh');
+    }).catch(function () {});
+  }
+  function canhBanMoi() {
+    try {
+      if (!S.token || !S.cloud || !window.CLCloud || !window.CLCloud.mocMayChu) return;
+      if (typeof document.hidden === 'boolean' && document.hidden) return;   // tab đang ẩn → khỏi hỏi
+      if (!can('dataset:read')) return;
+      var id = autoSaveId(); if (!id) return;
+      if (!_dangMo || _dangMo.id !== id) {
+        // chưa mở được gì (mất mạng lúc mở chẳng hạn) → thử mở lại cho tử tế
+        if (!(window.__CLAPP && window.__CLAPP.hasData && window.__CLAPP.hasData())) {
+          try { autoLoadLatest(true); } catch (_) {}
+        }
+        return;
+      }
+      return window.CLCloud.mocMayChu(id).then(function (r) {
+        if (!r || !r.updated_at) return;
+        var t = String(r.updated_at);
+        if (t <= String(_dangMo.t || '')) { anBangBanMoi(); return; }
+        /* CHÍNH MÁY NÀY vừa ghi (tự lưu / ☁ Lưu) → chỉ dời mốc, tuyệt đối không nạp lại,
+           kẻo cứ mỗi lần sửa một ô là màn hình bị nạp đè một lần.
+           ⚠ Phải xét CẢ "mình vừa lưu cách đây mấy giây", không chỉ xét created_by: cùng một
+           người mở app trên hai máy vẫn phải thấy bản của nhau, nếu chỉ so tên người ghi thì
+           máy thứ hai sẽ nằm im mãi — đúng cái lỗi đang phải sửa. */
+        var toi = (window.CLCloud.getProfile() || {}).id;
+        var vuaTuLuu = _luuLucNao && (Date.now() - _luuLucNao) < 120000;
+        if (vuaTuLuu && toi && r.created_by && r.created_by === toi) { _dangMo.t = t; anBangBanMoi(); return; }
+        if (_choLuu || _moTam || dangGoTrongO()) {
+          hienBangBanMoi(t, 'Tài khoản khác vừa lưu bản mới hơn — bạn đang sửa dở nên chưa nạp đè.');
+          return;
+        }
+        return layBanMoi(id, t, false);
+      });
+    } catch (_) {}
+  }
+  function batDauCanh() {
+    if (_canhT) return;
+    _canhT = setInterval(canhBanMoi, CANH_GIAY * 1000);
+    setTimeout(canhBanMoi, 8000);
+    try {
+      document.addEventListener('visibilitychange', function () { if (!document.hidden) canhBanMoi(); });
+      window.addEventListener('online', function () { setTimeout(canhBanMoi, 1500); });
+      window.addEventListener('focus', function () { canhBanMoi(); });
+    } catch (_) {}
+  }
+  function dungCanh() { if (_canhT) { clearInterval(_canhT); _canhT = null; } anBangBanMoi(); }
   /* Dải thông báo NẰM LẠI trên đầu trang (khác lời nhắc 3 giây). Dùng cho kết quả tự vá —
      người dùng cần nhìn thấy con số, và tôi cần con số đó để biết kho còn gì. Bấm là đóng. */
   function bangKetQua(chu, mau) {
@@ -1053,6 +1186,9 @@
       var sid = autoSaveId();
       if (sid) window.CLCloud.saveGoi({ id: sid, name: tenBanLuu(), goi: window.__CLAPP.chiaLuu() })
         .then(function () {
+          /* Bản này do CHÍNH máy này vừa ghi → đóng dấu giờ để người canh bản mới khỏi tưởng
+             người khác lưu rồi nạp lại, xoá mất đúng dải báo kết quả người dùng cần đọc. */
+          _choLuu = false; _luuLucNao = Date.now(); anBangBanMoi();
           bangKetQua('✓ Đã lấy lại ' + coF + '/' + can.file + ' file · ' + coD + '/' + can.dong +
                      ' dòng và GHI LÊN MÁY CHỦ lúc ' + new Date().toLocaleTimeString('vi-VN') +
                      '. Mọi tài khoản trong xưởng sẽ thấy bản này. (bấm để đóng)', du ? 'xanh' : '');
@@ -1179,7 +1315,8 @@
         toast('⚠ Không tìm lại được ' + va.hong.length + ' đơn: ' + va.hong.slice(0, 5).join(', ') + (va.hong.length > 5 ? '…' : ''), 'err');
       if (va) toast('Bản lưu bị hỏng chỉ mục — đang ghi lại bản lành…', 'ok');
       window.CLCloud.saveGoi({ id: id, name: tenBanLuu(), goi: window.__CLAPP.chiaLuu() })
-        .then(function () { toast('Đã ghi lại bản lành ✓ (chưa xoá gì — bấm ☁ Lưu khi thấy dữ liệu đã đúng)', 'ok'); })
+        .then(function () { _luuLucNao = Date.now();   // máy này vừa ghi → người canh khỏi nạp lại
+                            toast('Đã ghi lại bản lành ✓ (chưa xoá gì — bấm ☁ Lưu khi thấy dữ liệu đã đúng)', 'ok'); })
         .catch(function (e) { toast('Ghi lại bản lành thất bại: ' + (e && e.message || e), 'err'); });
     } catch (_) {}
   }

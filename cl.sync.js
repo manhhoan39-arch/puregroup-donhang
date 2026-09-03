@@ -384,6 +384,19 @@
     listCached: function () { return jget(K.dsIndex(profile && profile.factory_id), []); },
     getCached: function (id) { return jget(K.dsItem(id), null); },
 
+    /* ---------- HỎI NHẸ: ô lưu của xưởng đổi lúc nào, ai ghi (thêm 3/9) ----------
+       Người canh bản mới gọi hàm này vài chục giây một lần, nên nó phải THẬT NHẸ: chỉ lấy
+       3 cột của ĐÚNG một dòng, không đụng tới payload (payload là cả kho, nặng vài MB).
+       Không mạng / chưa cấu hình → trả null, người canh im lặng bỏ qua lượt đó. */
+    mocMayChu: function (id) {
+      if (!id || !configured() || !online()) return Promise.resolve(null);
+      return ensureClient().then(function (c) {
+        if (!c) return null;
+        return c.from('datasets').select('id,updated_at,created_by').eq('id', id).maybeSingle()
+          .then(function (r) { return (r && !r.error && r.data) ? r.data : null; });
+      }).catch(function () { return null; });
+    },
+
     // Kéo dữ liệu xưởng từ DB → cache (gọi khi đăng nhập / bấm làm tươi)
     pull: function () {
       if (!profile) return Promise.resolve([]);
