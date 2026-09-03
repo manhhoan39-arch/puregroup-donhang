@@ -28,8 +28,82 @@
     daLen:   function (fid) { return 'clc_len_' + (fid || 'none'); }
   };
   function jget(k, d) { try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (_) { return d; } }
-  function jset(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} }
   function jdel(k) { try { localStorage.removeItem(k); } catch (_) {} }
+
+  /* ===== BỘ NHỚ MÁY (localStorage) CHỈ CÓ ~5MB — PHẢI CHỪA CHỖ CHO KHOÁ PHIÊN =====
+     Lỗi user chụp được 3/9 (Chrome đăng nhập bằng manhhoan39@gmail.com):
+       "Failed to execute 'setItem' on 'Storage': Setting the value of
+        'sb-…-auth-token' exceeded the quota."
+     Tức là app đã nhét kín localStorage bằng mấy chục MẢNH bản lưu (mỗi mảnh ~50KB, 66 đơn là
+     hơn 3MB), nên Supabase KHÔNG ghi nổi khoá phiên ⇒ đăng nhập xong không có phiên ⇒ không
+     đọc được máy chủ ⇒ máy đó chỉ còn bản cũ. Trình duyệt nào còn chỗ thì chạy tốt, hết chỗ
+     thì hỏng — đúng cảnh "mail này thì được, mail kia thì không".
+     Luật từ nay:
+       · mảnh bản lưu là thứ LẤY LẠI ĐƯỢC (máy chủ + bản mở nhanh trong IndexedDB) ⇒ khi thiếu
+         chỗ thì DỌN NÓ TRƯỚC, tuyệt đối không để hỏng khoá phiên;
+       · ghi hỏng vì hết chỗ thì dọn rồi GHI LẠI, không nuốt lỗi im lặng. */
+  var TIEN_TO_CACHE = 'clc_ds_';
+  function dungLuong() {
+    var n = 0;
+    try { for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i); var v = localStorage.getItem(k);
+      n += (k ? k.length : 0) + (v ? v.length : 0);
+    } } catch (_) {}
+    return n * 2;                                  // UTF-16: mỗi ký tự 2 byte
+  }
+  function donCacheBanLuu(hetSuc) {
+    var xoa = [];
+    try { for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k && k.indexOf(TIEN_TO_CACHE) === 0) xoa.push(k);
+    } } catch (_) {}
+    xoa.forEach(function (k) { try { localStorage.removeItem(k); } catch (_) {} });
+    if (hetSuc) {                                   // hết cách: bỏ luôn kho của bản chạy máy lẻ
+      try { localStorage.removeItem('cl_offline_db_v1'); } catch (_) {}
+    }
+    if (xoa.length) log('đã dọn ' + xoa.length + ' ô cache bản lưu để chừa chỗ');
+    return xoa.length;
+  }
+  // Giữ sẵn khoảng trống: cache bản lưu không được ăn quá ~2,5MB
+  function giuChoTrong() {
+    try { if (dungLuong() > 2500000) donCacheBanLuu(false); } catch (_) {}
+  }
+  function jset(k, v) {
+    var s;
+    try { s = JSON.stringify(v); } catch (e) { return; }
+    try { localStorage.setItem(k, s); return true; } catch (e1) {
+      donCacheBanLuu(false);
+      try { localStorage.setItem(k, s); return true; } catch (e2) {
+        donCacheBanLuu(true);
+        try { localStorage.setItem(k, s); return true; } catch (e3) {
+          log('bộ nhớ máy đầy, KHÔNG ghi được ' + k + ' (bỏ qua, dữ liệu vẫn lấy từ máy chủ)');
+          return false;
+        }
+      }
+    }
+  }
+  /* Kho riêng cho KHOÁ PHIÊN của Supabase: ghi không được thì dọn cache bản lưu rồi ghi lại.
+     Khoá phiên là thứ KHÔNG ĐƯỢC PHÉP mất — mất là cả máy đó mù với máy chủ. */
+  var khoPhien = {
+    getItem: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    setItem: function (k, v) {
+      try { localStorage.setItem(k, v); return; } catch (e1) {
+        log('hết chỗ khi ghi khoá phiên → dọn cache bản lưu rồi ghi lại');
+        donCacheBanLuu(false);
+        try { localStorage.setItem(k, v); return; } catch (e2) {
+          donCacheBanLuu(true);
+          try { localStorage.setItem(k, v); return; } catch (e3) {
+            try { sessionStorage.setItem(k, v); } catch (e4) {}
+            log('vẫn không ghi nổi khoá phiên: ' + (e3 && e3.message));
+          }
+        }
+      }
+    },
+    removeItem: function (k) {
+      try { localStorage.removeItem(k); } catch (e) {}
+      try { sessionStorage.removeItem(k); } catch (e) {}
+    }
+  };
 
   // ---------- Trạng thái ----------
   var client = null;          // Supabase client
@@ -300,8 +374,9 @@
     loadingClient = (root.supabase ? Promise.resolve() : loadScript(SUPA_UMD))
       .then(function () {
         if (!root.supabase || !root.supabase.createClient) throw new Error('supabase-js chưa sẵn sàng');
+        giuChoTrong();                       // chừa chỗ TRƯỚC khi Supabase ghi khoá phiên
         client = root.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, {
-          auth: { persistSession: true, autoRefreshToken: true }
+          auth: { persistSession: true, autoRefreshToken: true, storage: khoPhien }
         });
         // Xử lý link "đặt lại mật khẩu" từ email → cho người dùng nhập mật khẩu mới.
         try {
@@ -1100,6 +1175,11 @@
         return ch;
       });
     },
+    // ---------- Bộ nhớ máy: đo và dọn (chừa chỗ cho khoá phiên) ----------
+    dungLuongMay: dungLuong,
+    donChoTrong: function (hetSuc) { return donCacheBanLuu(!!hetSuc); },
+    giuChoTrong: giuChoTrong,
+
     // Nạp lại profile hiện tại (vai trò + phân quyền step) từ cloud.
     refreshProfile: function () { return ensureClient().then(function (c) { if (!c) return null; return fetchProfile(); }); }
   };
@@ -1143,5 +1223,8 @@
   }
 
   root.CLCloud = CLCloud;
+  /* Dọn ngay lúc nạp: nếu lần trước app đã nhét kín localStorage thì Supabase sẽ không ghi nổi
+     khoá phiên ở ngay lần đăng nhập kế tiếp. Dọn trước cho chắc. */
+  try { giuChoTrong(); } catch (e) {}
   log('nạp xong. configured =', configured());
 })(typeof window !== 'undefined' ? window : this);

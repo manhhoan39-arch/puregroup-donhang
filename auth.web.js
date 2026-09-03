@@ -1185,6 +1185,7 @@
       manHinh: st && { file: (st.files || []).length, dong: (st.orders || []).length, nhan: st.source },
       mucTieu: (function () { try { return JSON.parse(localStorage.getItem(khoaMucTieu()) || 'null'); } catch (e) { return null; } })(),
       thieu: thieuSoVoiMucTieu(),
+      boNhoMay: (function () { try { return Math.round(window.CLCloud.dungLuongMay() / 1024) + ' KB'; } catch (e) { return null; } })(),
       choLuu: _choLuu, moTam: _moTam, luuLucNao: _luuLucNao, vaLuc: _vaLuc,
       dangCanh: !!_canhT, soLuotCanh: _soCanh, tabAn: !!document.hidden,
       dai: (document.getElementById('cl-ketqua') || {}).textContent || '',
