@@ -271,10 +271,17 @@
           var _r = (ev.payload && (ev.payload.new || ev.payload.old)) || {};
           if (_r.kind === 'orders-manh' || _r.kind === 'orders-anh') return;
           if (_dsRTHen) clearTimeout(_dsRTHen);
+          /* ⚠⚠ SỬA 4/9 — user: "Tôi lưu dữ liệu sao lại có thông báo có dữ liệu mới từ máy
+             khác. Bỏ thông báo đó." Realtime bắn về CẢ dòng do CHÍNH MÁY NÀY vừa ghi, nên câu
+             "có dữ liệu mới từ máy khác" là SAI, mà `autoLoadLatest(true)` còn nạp đè lại
+             chính cái mình vừa lưu. (Trước 4/9 chưa ai thấy vì Realtime bảng datasets đang
+             tắt; user vừa bật `alter publication` nên nay nó chạy thật.)
+             Nay: KHÔNG nhắc gì, và đi qua ĐÚNG người canh — chỗ đó có đủ hàng rào: mình vừa
+             ghi thì bỏ qua, đang gõ dở thì hoãn, máy chủ mới hơn thật thì nạp. */
           _dsRTHen = setTimeout(function () {
             _dsRTHen = null;
-            toast('Có dữ liệu mới từ máy khác — đang cập nhật…', 'ok');
-            try { autoLoadLatest(true); } catch (_) {}
+            try { console.log('[CL] realtime: bảng datasets đổi — để người canh xử lý'); } catch (_) {}
+            try { canhBanMoi(); } catch (_) {}
           }, 1200);
         }).then(function (ch) { cloudRTChannel = ch; });
       }
@@ -1023,6 +1030,7 @@
         _dangMo = { id: latest.id, t: String(latest.updated_at || '') };
         datMoTam(false, 0);                // lấy được bản đủ từ máy chủ → mở khoá tự lưu
         ghiMoNhanh(pl, { id: latest.id, sv: String(latest.updated_at || ''), nguon: 'máy chủ' });
+        chotMucTieuTheo(pl);          // bản máy chủ tự khớp nhãn ⇒ hạ mục tiêu, khỏi tự vá thêm đơn đã xoá
         var soDon = window.__CLAPP.maDonDangCo ? Object.keys(window.__CLAPP.maDonDangCo()).length : 0;
         try { console.log('[CL] nạp bản lưu cuối từ máy chủ: ' + soDon + ' đơn'); } catch (e) {}
         if (d.__va) suaVaDon(d.__va);      // phải vá mới mở được ⇒ ghi lại bản LÀNH (nhưng KHÔNG xoá gì)
@@ -1161,9 +1169,15 @@
       if (!pl || (!(pl.orders || []).length && !(pl.files || []).length)) return;
       var cu = ((window.__CLAPP.getState() || {}).orders || []).length;
       var moi = (pl.orders || []).length;
-      if (!epTay && cu > 0 && moi < cu) {
-        hienBangBanMoi(t, 'Máy chủ có bản mới hơn nhưng ÍT đơn hơn bản đang mở (' + moi +
-          ' dòng so với ' + cu + ' dòng) — không tự nạp đè.');
+      /* ⚠⚠ SỬA 4/9 — user: "Đơn 785P đã xoá và lưu vào đám mây rồi sao các tài khoản khác vẫn
+         không cập nhật mà tự ý thông báo không ghi đè. Bắt buộc super admin sửa thì các tài
+         khoản khác cũng phải tự cập nhật bản mới nhất, tránh dùng dữ liệu cũ sai."
+         Bản cũ chặn MỌI bản ít đơn hơn ⇒ xoá đơn xong là các máy khác nằm mãi với bản cũ SAI.
+         Nay chỉ chặn đúng ca nguy hiểm: bản trên máy chủ KHÔNG tự khớp nhãn của chính nó
+         (= đọc hụt / mảnh hỏng). Xoá đơn có ý đồ thì bản lưu tự khớp nên nạp bình thường. */
+      if (!epTay && cu > 0 && moi < cu && !tuKhopNhan(pl)) {
+        hienBangBanMoi(t, 'Bản trên máy chủ đọc ra KHÔNG khớp nhãn của chính nó (' + moi +
+          ' dòng, nhãn ghi ' + ((nhanCua(pl) || {}).dong || '?') + ') — nghi đọc hụt, chưa nạp đè.');
         return;
       }
       window.__CLAPP.loadData(pl);
@@ -1171,7 +1185,7 @@
       _choLuu = false;
       datMoTam(false, 0);
       ghiMoNhanh(pl, { id: id, sv: String(t || ''), nguon: 'máy chủ · bản mới' });
-      soTuNhan(pl);
+      chotMucTieuTheo(pl);
       anBangBanMoi();
       var soDon = window.__CLAPP.maDonDangCo ? Object.keys(window.__CLAPP.maDonDangCo()).length : 0;
       bangKetQua('⟳ Vừa nhận bản lưu MỚI từ máy chủ lúc ' + new Date().toLocaleTimeString('vi-VN') +
@@ -1345,6 +1359,31 @@
   function conThieu(coF, coD, can) {
     if (!can) return false;
     return (coF < can.file) || ((can.dong - coD) > DUNG_SAI_DONG);
+  }
+  /* Đọc nhãn "💾 65 file · 1758 dòng" của MỘT bản lưu, KHÔNG ghi gì vào mục tiêu. */
+  function nhanCua(pl) {
+    var m = String(pl && pl.source || '').match(/(\d+)\s*file\s*·\s*(\d+)\s*dòng/);
+    return m ? { file: +m[1], dong: +m[2] } : null;
+  }
+  /* ⚠⚠ BẢN LƯU CÓ TỰ KHỚP NHÃN CỦA CHÍNH NÓ KHÔNG? (thêm 4/9)
+     Đây là cách phân biệt HAI chuyện trước giờ bị gộp làm một:
+       · XOÁ ĐƠN CÓ Ý ĐỒ  — người dùng xoá đơn 785P rồi bấm ☁ Lưu. Lúc đó `datNhan()` viết lại
+         nhãn theo số thật, nên bản trên máy chủ TỰ KHỚP: nhãn 65 file · 1758 dòng, ruột cũng
+         đúng 65/1758. Bản này là THẬT, phải nạp — kể cả khi ít đơn hơn bản đang mở.
+       · ĐỌC HỤT / MẢNH HỎNG — nhãn vẫn ghi 66 file · 1778 dòng mà ghép ra chỉ 54 file. Bản này
+         KHÔNG khớp nhãn ⇒ tuyệt đối không nạp đè (đúng luật sự cố 28/8).
+     Không có nhãn thì coi như khớp: bên GHI đã có phanh chống co nhỏ trong `saveGoi` (muốn ghi
+     bản ít đơn hơn phải tự xác nhận), nên bản nằm được trên máy chủ là đã qua một lần xác nhận. */
+  function tuKhopNhan(pl) {
+    var can = nhanCua(pl); if (!can) return true;
+    var coF = (pl.files || []).length, coD = (pl.orders || []).length;
+    return coF >= can.file && (can.dong - coD) <= DUNG_SAI_DONG;
+  }
+  /* Bản trên máy chủ là bản THẬT (tự khớp nhãn) ⇒ mục tiêu phải hạ theo nó, nếu không máy này
+     lại tưởng "đang thiếu 1758/1778" rồi đi vá — tức TỰ THÊM LẠI đơn vừa bị xoá. */
+  function chotMucTieuTheo(pl) {
+    if (tuKhopNhan(pl)) datMucTieu({ files: pl.files || [], orders: pl.orders || [] });
+    else soTuNhan(pl);
   }
   function soTuNhan(pl) {
     var m = String(pl && pl.source || '').match(/(\d+)\s*file\s*·\s*(\d+)\s*dòng/);
