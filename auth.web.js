@@ -403,8 +403,15 @@
           'Lưu bây giờ là GHI ĐÈ bản thiếu này lên máy chủ, mấy đơn kia sẽ mất.\n\nVẫn lưu?')) return;
       var id = autoSaveId();
       if (!id) return toast('Tài khoản chưa được gán Xưởng — không lưu được.', 'err');
+      /* ⭑ CHỐT LẠI MỤC TIÊU theo đúng số đang có (thêm 4/9).
+         Bấm ☁ Lưu nghĩa là người dùng đã NHÌN màn hình và thấy đúng, nên lấy luôn con số này
+         làm nhãn + mục tiêu mới. Không làm bước này thì nhãn cũ (vd 1778 dòng) treo mãi, dữ
+         liệu thật 1773 dòng, và app cứ 3 phút lại đi dò "bản lưu đang thiếu" một lần dù chẳng
+         thiếu gì. KHÔNG chốt khi đang mở TẠM bản thiếu — lúc đó con số trên màn hình là số hụt. */
+      if (!_moTam) { try { window.__CLAPP.datNhan(); } catch (_) {} }
       // Bản lưu tay cũng chia mảnh + nén như bản tự lưu (68 đơn: 7MB → khoảng 1MB)
       var chiaMot = window.__CLAPP.chiaLuu();
+      payload = window.__CLAPP.getState();          // lấy lại sau khi đã chốt nhãn
       function luu(ep) {
         return (window.CLCloud.saveGoi && chiaMot)
           ? window.CLCloud.saveGoi({ id: id, name: tenBanLuu(), goi: chiaMot, epGhi: !!ep })
@@ -416,20 +423,23 @@
         if (!window.confirm(e.message + '\n\nVẫn muốn ghi đè bằng bản đang mở?')) throw new Error('Đã huỷ — máy chủ giữ nguyên bản cũ.');
         return luu(true);
       });
-      toast('Đang lưu lên máy chủ…', 'ok');
+      /* ⚠ CHỈ MỘT LỜI BÁO CHO MỘT LẦN LƯU (sửa 4/9 theo yêu cầu user).
+         Trước đây bấm ☁ Lưu là hiện tới 3 câu chồng nhau: "Đang lưu lên máy chủ…" →
+         "Đã lưu đám mây ✓" → thêm một dải dài kèm giờ, số file/dòng và câu "Mọi tài khoản trong
+         xưởng sẽ thấy bản này". Nay chỉ còn ĐÚNG MỘT câu ngắn; chi tiết đầy đủ vẫn nằm trong
+         Nhật ký thay đổi (bước 8) và Console, xem lại lúc nào cũng được. */
       ghi.then(function (row) {
         try { localStorage.setItem('cl_ds_updated', JSON.stringify({ fid: (S.factory && S.factory.id), t: Date.now() })); } catch (_) {}
-        toast('Đã lưu đám mây ✓', 'ok');
         var st = window.__CLAPP.getState();
+        if (!_moTam) datMucTieu(st);                // mục tiêu mới = đúng số vừa lưu
         ghiMoNhanh(st, { id: id, nguon: 'lưu tay' });
         _choLuu = false; _luuLucNao = Date.now(); anBangBanMoi();
-        /* User: "Ấn lưu nhưng không thấy có thông báo thành công". Lời nhắc chỉ hiện 3,2 giây,
-           quay đi là mất. Nay để lại một dải nằm luôn trên đầu trang, có giờ và con số. */
-        bangKetQua('✓ Đã lưu lên máy chủ lúc ' + new Date().toLocaleTimeString('vi-VN') + ' — ' +
-                   (st.files || []).length + ' file · ' + (st.orders || []).length + ' dòng. ' +
-                   'Mọi tài khoản trong xưởng sẽ thấy bản này. (bấm để đóng)', 'xanh');
+        /* Con số + giờ vẫn được ghi vào Nhật ký (bangKetQua tự ghi), chỉ không đọc ra màn hình. */
+        try { window.__CLAPP.ghiNhatKy('Đã lưu lên đám mây lúc ' + new Date().toLocaleTimeString('vi-VN') +
+              ' — ' + (st.files || []).length + ' file · ' + (st.orders || []).length + ' dòng'); } catch (_) {}
+        bangKetQua('✓ Đã lưu lên đám mây', 'xanh');
         return soiRoiDon((row && row.id) || id);
-      }).catch(function (e) { toast(e.message, 'err'); bangKetQua('✗ LƯU HỎNG: ' + (e && e.message || e) + ' (bấm để đóng)'); });
+      }).catch(function (e) { bangKetQua('✗ Lưu hỏng: ' + (e && e.message || e)); });
       return;
     }
     var fid = targetFactoryForWrite();
@@ -932,7 +942,9 @@
         window.__CLAPP.loadData(bm.payload);
         datMoTam(false, 0);
         if (bm.id) _dangMo = { id: bm.id, t: String(bm.sv || '') };
-        toast('Đã mở bản lưu trong máy: ' + bm.soFile + ' file · ' + bm.soDong + ' dòng ✓', 'ok');
+        /* Mở được bản trong máy là chuyện BÌNH THƯỜNG, không cần nhắc — số liệu đã hiện ngay
+           trên màn hình rồi. Vẫn ghi Console để soi khi cần. */
+        try { console.log('[CL] mở bản lưu trong máy: ' + bm.soFile + ' file · ' + bm.soDong + ' dòng'); } catch (e) {}
         soTuNhan(bm.payload);            // nhớ mục tiêu ngay, kẻo nhãn rơi mất ở lần sau
         return doiChieuMayChu(true);
       }
@@ -963,7 +975,7 @@
           datMoTam(false, 0);
           ghiMoNhanh(pl, { id: cuc.id, sv: String(cuc.updated_at || ''), nguon: 'mảnh trong máy' });
           soTuNhan(pl);
-          toast('Đã mở bản lưu cuối (' + soDon + ' đơn) ✓', 'ok');
+          try { console.log('[CL] mở bản lưu cuối: ' + soDon + ' đơn'); } catch (e) {}
         }
       }
       return doiChieuMayChu(daMo);
@@ -1005,7 +1017,7 @@
         datMoTam(false, 0);                // lấy được bản đủ từ máy chủ → mở khoá tự lưu
         ghiMoNhanh(pl, { id: latest.id, sv: String(latest.updated_at || ''), nguon: 'máy chủ' });
         var soDon = window.__CLAPP.maDonDangCo ? Object.keys(window.__CLAPP.maDonDangCo()).length : 0;
-        toast('Đã nạp bản lưu cuối từ máy chủ (' + soDon + ' đơn) ✓', 'ok');
+        try { console.log('[CL] nạp bản lưu cuối từ máy chủ: ' + soDon + ' đơn'); } catch (e) {}
         if (d.__va) suaVaDon(d.__va);      // phải vá mới mở được ⇒ ghi lại bản LÀNH (nhưng KHÔNG xoá gì)
         tuVaTheoNhan(pl);                  // nhãn nói 66 file mà chỉ có 55 ⇒ tự đi lấy lại, không hỏi
       });
@@ -1145,7 +1157,7 @@
       var st = window.__CLAPP.getState(); if (!st) return null;
       var can = soTuNhan(st); if (!can) return null;
       var coF = (st.files || []).length, coD = (st.orders || []).length;
-      if (coF >= can.file && coD >= can.dong) return null;
+      if (!conThieu(coF, coD, can)) return null;
       return { coF: coF, coD: coD, canF: can.file, canD: can.dong };
     } catch (e) { return null; }
   }
@@ -1190,7 +1202,7 @@
           if (_choLuu || _moTam || dangGoTrongO()) return;
           if (Date.now() - _vaLuc < 180000) return;         // 3 phút thử lại một lần, khỏi nặng máy
           _vaLuc = Date.now(); _daTuVa = false;             // cho phép tự vá thử lại
-          toast('Đang thiếu ' + th.coF + '/' + th.canF + ' file — app tự lấy lại từ máy chủ…', 'ok');
+          try { console.log('[CL] người canh: thiếu ' + th.coF + '/' + th.canF + ' file — tự lấy lại'); } catch (e) {}
           try { tuVaTheoNhan(window.__CLAPP.getState()); } catch (e) {}
           return;
         }
@@ -1239,7 +1251,7 @@
       boNhoMay: (function () { try { return Math.round(window.CLCloud.dungLuongMay() / 1024) + ' KB'; } catch (e) { return null; } })(),
       choLuu: _choLuu, moTam: _moTam, luuLucNao: _luuLucNao, vaLuc: _vaLuc,
       dangCanh: !!_canhT, soLuotCanh: _soCanh, tabAn: !!document.hidden,
-      loiCanh: _loiCanh, soLoiCanhLienTiep: _soLoiCanh, chuaMuLuc: _daChuaMu,
+      loiCanh: _loiCanh, soLoiCanhLienTiep: _soLoiCanh, chuaMuLuc: _daChuaMu, dangGo: dangGoTrongO(),
       cauCuoi: _cauCuoi,
       banMoiChoNap: _banMoiT || ''
     };
@@ -1278,6 +1290,29 @@
      ⚠ Phải NHỚ RA NGOÀI: dựng lại từ mảnh rời thì mất phần chung ⇒ mất luôn nhãn ⇒ lần sau
      hết đường tự kiểm. Nên thấy nhãn một lần là ghi vào máy, sau đó cứ theo đó mà soi. */
   function khoaMucTieu() { return 'cl_muctieu_' + ((S.factory && S.factory.id) || 'none'); }
+  /* ⚠⚠ DUNG SAI 10 DÒNG (sửa 4/9 — user chụp được "Bản lưu đang thiếu (66/66 file)").
+     Bản cũ coi hụt DÙ CHỈ 1 DÒNG so với nhãn là "bản lưu rụng đơn". Nhưng người dùng xoá vài
+     dòng rác trong bảng là số dòng thật tụt xuống (1773) trong khi nhãn vẫn ghi 1778 ⇒ app đời
+     đời tưởng đang thiếu: cứ 3 phút một lần lại đi dò cả kho rồi nhắc một câu đỏ, mà 66/66 file
+     thì có thiếu gì đâu.
+     Nay: THIẾU FILE mới chắc chắn là rụng (một mảnh hỏng = mất nguyên một đơn = mất cả file);
+     còn số dòng chỉ tính là thiếu khi hụt HƠN 10 dòng — một đơn bé nhất cũng hơn 10 dòng, nên
+     vẫn bắt được đúng ca "rụng mất một đơn", mà không quấy vì mấy dòng người dùng tự xoá. */
+  var DUNG_SAI_DONG = 10;
+  /* Ghi ĐÚNG con số hiện tại làm mục tiêu. soTuNhan() chỉ biết NÂNG mục tiêu lên (đề phòng nhãn
+     rơi mất), nên phải có đường hạ xuống — và đường đó chỉ mở khi NGƯỜI DÙNG tự bấm ☁ Lưu. */
+  function datMucTieu(st) {
+    try {
+      var c = { file: (st.files || []).length, dong: (st.orders || []).length };
+      localStorage.setItem(khoaMucTieu(), JSON.stringify(c));
+      _daTuVa = false;
+      try { console.log('[CL] chốt mục tiêu mới: ' + c.file + ' file · ' + c.dong + ' dòng'); } catch (e) {}
+    } catch (e) {}
+  }
+  function conThieu(coF, coD, can) {
+    if (!can) return false;
+    return (coF < can.file) || ((can.dong - coD) > DUNG_SAI_DONG);
+  }
   function soTuNhan(pl) {
     var m = String(pl && pl.source || '').match(/(\d+)\s*file\s*·\s*(\d+)\s*dòng/);
     if (m) {
@@ -1358,10 +1393,13 @@
       if (_daTuVa) return;
       var can = soTuNhan(pl); if (!can) return;
       var coF = (pl.files || []).length, coD = (pl.orders || []).length;
-      if (coF >= can.file && coD >= can.dong) return;              // không thiếu gì
+      if (!conThieu(coF, coD, can)) return;                        // không thiếu gì (có dung sai)
       if (!(window.CLCloud && window.__CLAPP)) return;
       _daTuVa = true;
-      toast('Bản lưu đang thiếu (' + coF + '/' + can.file + ' file) — đang tự tìm lại…', 'err');
+      /* ⚠ KHÔNG nhắc ra màn hình nữa (user 4/9: "sao mở lên vẫn hiện mấy thông báo này").
+         Đây là việc sửa chữa CHẠY NGẦM, chưa có gì để người dùng phải làm. Chỉ khi lấy lại
+         được (hoặc lấy không nổi) mới nói — xem chotBanDaVa / xong(). */
+      try { console.log('[CL] bản lưu thiếu ' + coF + '/' + can.file + ' file · ' + coD + '/' + can.dong + ' dòng — đang tự tìm lại'); } catch (e) {}
       var b1 = (window.CLCloud.timDonConSot && window.__CLAPP.maDonDangCo && window.__CLAPP.themDonConSot)
         ? window.CLCloud.timDonConSot(window.__CLAPP.maDonDangCo()).catch(function () { return null; })
         : Promise.resolve(null);
@@ -1459,7 +1497,9 @@
       }
       return window.CLCloud.donDep(kq.ids).then(function (r) {
         if (r && (r.server || r.may))
-          toast('Đã dọn bản cũ: ' + (r.server || 0) + ' dòng trên máy chủ · ' + (r.may || 0) + ' trong máy ✓', 'ok');
+          /* Dọn rác là việc nội bộ, không phải cái người dùng cần đọc — và nó rơi vào cùng một
+             lần bấm ☁ Lưu nên sẽ thành lời báo THỨ HAI. Đưa xuống Nhật ký. */
+          try { window.__CLAPP.ghiNhatKy('Đã dọn bản cũ: ' + (r.server || 0) + ' dòng trên máy chủ · ' + (r.may || 0) + ' trong máy'); } catch (_) {}
       });
     }).catch(function () {});
   }

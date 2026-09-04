@@ -653,7 +653,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0309292300</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0309292500</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1144,7 +1144,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=0309292300"></script>
+<script src="engine.web.js?v=0309292500"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -9678,6 +9678,19 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // Ghi một dòng vào Lịch sử thay đổi (bước 8) — auth.web.js dùng để lưu lại KẾT QUẢ TỰ VÁ,
     // vì lời nhắc chỉ hiện 3 giây còn nhật ký thì nằm lại, xem lại lúc nào cũng được.
     ghiNhatKy: function(chu){ try{ logLine(String(chu||'')); }catch(e){ logErr('ghiNhatKy', e); } },
+    /* ⚠ CHỐT LẠI NHÃN BẢN LƯU theo đúng số đang có trên màn hình (sửa 4/9).
+       Nhãn "💾 66 file · 1778 dòng" là MỤC TIÊU để app tự biết bản lưu có rụng đơn hay không.
+       Nhưng người dùng xoá/sửa dòng thì số dòng thật tụt xuống (1773) trong khi nhãn vẫn 1778
+       ⇒ app đời đời tưởng "đang thiếu", cứ 3 phút lại đi dò lại và nhắc một lần — đúng cái
+       user chụp được 4/9: "Bản lưu đang thiếu (66/66 file)" (66/66 thì thiếu chỗ nào?).
+       Bấm ☁ Lưu = người dùng đã NHÌN THẤY màn hình và chấp nhận, nên lúc đó chốt nhãn lại. */
+    datNhan: function(){
+      try{
+        state.source = '💾 ' + (state.files||[]).length + ' file · ' + (state.orders||[]).length + ' dòng';
+        try{ render(); }catch(e){ logErr('datNhan.render', e); }
+        return state.source;
+      }catch(e){ logErr('datNhan', e); return ''; }
+    },
     /* Bảng đã CHIA TRANG: DOM chỉ có dòng của trang đang xem. Hàm này trả về TẤT CẢ dòng
        đang khớp bộ lọc (kể cả trang khác) — cho bài kiểm và cho chỗ nào cần soi toàn bộ. */
     pgPool: function(id){
@@ -9747,14 +9760,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=0309292300"></script>
-<script src="cl.sync.js?v=0309292300"></script>
-<script src="auth.store.js?v=0309292300"></script>
-<script src="auth.web.js?v=0309292300"></script>
+<script src="cl.config.js?v=0309292500"></script>
+<script src="cl.sync.js?v=0309292500"></script>
+<script src="auth.store.js?v=0309292500"></script>
+<script src="auth.web.js?v=0309292500"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=0309292300"></script>
+<script src="cl.project.js?v=0309292500"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=0309292300" defer></script>
+<script src="firebase-bridge.js?v=0309292500" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
