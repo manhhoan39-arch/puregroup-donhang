@@ -1411,10 +1411,14 @@
     var du = coF >= can.file && coD >= can.dong;
     datMoTam(false, 0);
     ghiMoNhanh(st, { nguon: ghiChu });
-    bangKetQua((du ? '✓ Đã tự lấy lại ĐỦ: ' : '⚠ Đã lấy lại được nhiều nhất: ') +
-               coF + '/' + can.file + ' file · ' + coD + '/' + can.dong + ' dòng — ' + ghiChu +
-               (du ? '. Đang ghi lên máy chủ…' : '. Kho lưu trữ chỉ còn bấy nhiêu.') + ' (bấm để đóng)',
-               du ? 'xanh' : '');
+    /* ⚠ CHỈ NÓI KHI LẤY LẠI ĐƯỢC ĐỦ (user 4/9: "tôi không cần các thông báo đỏ này").
+       Không đủ thì kho chỉ còn bấy nhiêu — người dùng chẳng làm gì được, nhắc đỏ chỉ gây lo.
+       Vẫn ghi Nhật ký đầy đủ để soi lại. */
+    try { window.__CLAPP.ghiNhatKy((du ? 'Đã tự lấy lại ĐỦ: ' : 'Đã lấy lại được nhiều nhất: ') +
+          coF + '/' + can.file + ' file · ' + coD + '/' + can.dong + ' dòng — ' + ghiChu); } catch (_) {}
+    if (du) bangKetQua('✓ Đã tự lấy lại đủ ' + coF + ' file · ' + coD + ' dòng', 'xanh');
+    else { try { window.__CLAPP.datNhan(); } catch (_) {}     // viết lại nhãn, không thì soTuNhan nâng lại
+           datMucTieu(window.__CLAPP.getState()); }            // kho chỉ còn bấy nhiêu → chốt lại, thôi dò mãi
     try { window.__CLAPP.ghiNhatKy('Tự lấy lại: ' + coF + '/' + can.file + ' file · ' + coD + '/' + can.dong + ' dòng — ' + ghiChu); } catch (e) {}
     if (duocGhiXuong() && window.CLCloud.saveGoi && window.__CLAPP.chiaLuu) {
       var sid = autoSaveId();
@@ -1423,11 +1427,11 @@
           /* Bản này do CHÍNH máy này vừa ghi → đóng dấu giờ để người canh bản mới khỏi tưởng
              người khác lưu rồi nạp lại, xoá mất đúng dải báo kết quả người dùng cần đọc. */
           _choLuu = false; _luuLucNao = Date.now(); anBangBanMoi(); ghiNhoMocVuaLuu(sid);
-          bangKetQua('✓ Đã lấy lại ' + coF + '/' + can.file + ' file · ' + coD + '/' + can.dong +
-                     ' dòng và GHI LÊN MÁY CHỦ lúc ' + new Date().toLocaleTimeString('vi-VN') +
-                     '. Mọi tài khoản trong xưởng sẽ thấy bản này. (bấm để đóng)', du ? 'xanh' : '');
+          if (du) bangKetQua('✓ Đã lấy lại đủ ' + coF + ' file · ' + coD + ' dòng và ghi lên đám mây', 'xanh');
+          else { try { window.__CLAPP.ghiNhatKy('Đã ghi lên máy chủ ' + coF + '/' + can.file +
+                       ' file · ' + coD + '/' + can.dong + ' dòng'); } catch (_) {} }
         })
-        .catch(function (e) { bangKetQua('✗ Lấy lại được nhưng GHI LÊN MÁY CHỦ HỎNG: ' + (e && e.message || e)); });
+        .catch(function (e) { try { window.__CLAPP.ghiNhatKy('Lấy lại được nhưng ghi lên máy chủ hỏng: ' + (e && e.message || e)); } catch (_) {} });
     }
   }
   /* ⭑ B1 — THÊM ĐƠN MỒ CÔI CÒN SÓT TRÊN MÁY CHỦ (đường chính, sửa 3/9).
@@ -1449,10 +1453,11 @@
     var ds = Object.keys(mdThem);
     if (!ds.length) return false;
     if (coD + dongThem > can.dong) {
-      bangKetQua('Kho còn ' + ds.length + ' đơn nữa (' + dongThem + ' dòng) nhưng thêm vào sẽ VƯỢT ' +
-                 'mục tiêu ' + can.file + ' file · ' + can.dong + ' dòng nên CHƯA thêm — mấy đơn đó: ' +
-                 ds.slice(0, 20).join(' · ') + (ds.length > 20 ? ' …' : '') +
-                 '. Muốn xem thì bấm "↩ Quay về mốc lưu trước" ở góc dưới trái. (bấm để đóng)');
+      /* Chỉ ghi Nhật ký, KHÔNG nhắc đỏ ra màn hình (user 4/9: "tôi không cần các thông báo đỏ
+         này"). Muốn xem mấy đơn đó thì bấm "↩ Quay về mốc lưu trước". */
+      try { window.__CLAPP.ghiNhatKy('Kho còn ' + ds.length + ' đơn nữa (' + dongThem + ' dòng) nhưng ' +
+            'thêm vào sẽ vượt mục tiêu ' + can.file + ' file · ' + can.dong + ' dòng nên chưa thêm: ' +
+            ds.slice(0, 20).join(' · ') + (ds.length > 20 ? ' …' : '')); } catch (_) {}
       return true;
     }
     var n = window.__CLAPP.themDonConSot(plSot);
@@ -1475,58 +1480,33 @@
       var b1 = (window.CLCloud.timDonConSot && window.__CLAPP.maDonDangCo && window.__CLAPP.themDonConSot)
         ? window.CLCloud.timDonConSot(window.__CLAPP.maDonDangCo()).catch(function () { return null; })
         : Promise.resolve(null);
+      /* ⚠⚠ ĐÃ BỎ B2 "dò từng mốc lưu rồi quay về mốc cũ" (sửa 4/9 lần 2).
+         User chụp được: "⚠ Đã lấy lại được nhiều nhất: 66/66 file · 1778/1800 dòng — QUAY VỀ MỐC
+         16:24:06 3/9/2026" — tức app TỰ NẠP MỘT BẢN CŨ ĐÈ LÊN bản đang mở, rồi còn ghi lên máy
+         chủ. Đúng cái user báo là "ấn Ctrl+Shift+R lại trở về phiên bản cũ".
+         Quay về mốc là việc NGƯỜI DÙNG chủ động — đã có sẵn chữ "↩ Quay về mốc lưu trước" ở chân
+         thanh bên. App tuyệt đối không tự làm.
+         B1 (thêm đơn mồ côi) thì GIỮ: nó CHỈ THÊM đơn còn thiếu, không đè lên gì. */
       b1.then(function (plSot) {
-        if (themDonMoCoi(plSot, can, coD)) return;                 // xong ở B1
-        return doMocCu(pl, can, coF, coD);                         // B2: dò từng mốc lưu
+        if (themDonMoCoi(plSot, can, coD)) return;                 // B1 lấy lại được → xong
+        /* Không lấy thêm được gì ⇒ kho chỉ còn bấy nhiêu. HẠ MỤC TIÊU về số thật để thôi dò lại
+           mỗi 3 phút và thôi nhắc. Nhãn cũ (vd 1800 dòng) là của một đợt đã bị xoá đơn. */
+        /* ⚠⚠ PHẢI VIẾT LẠI CẢ NHÃN, không chỉ mục tiêu. `state.source` vẫn ghi "1800 dòng" thì
+           lượt canh kế tiếp `soTuNhan()` lại NÂNG mục tiêu về 1800 (nó chỉ biết nâng) ⇒ dò lại,
+           nhắc lại, đúng cảnh "một lúc lại hiện thông báo đỏ". */
+        try { window.__CLAPP.datNhan(); } catch (_) {}
+        var st = window.__CLAPP.getState();
+        datMucTieu(st);
+        try { window.__CLAPP.ghiNhatKy('Kho lưu trữ chỉ còn ' + (st.files || []).length + ' file · ' +
+              (st.orders || []).length + ' dòng — chốt lại nhãn và mục tiêu theo số này.'); } catch (_) {}
       }).catch(function () {});
     } catch (e) {}
   }
-  /* B2 — DỰ PHÒNG: dò ngược từng mốc lưu, giữ cái nhiều file nhất (không vượt mục tiêu). */
-  function doMocCu(pl, can, coF, coD) {
-    if (!(window.CLCloud.dsKho && window.CLCloud.dungLaiToiMoc)) return;
-    return window.CLCloud.dsKho().then(function (kho) {
-      var thay = {};
-      kho.server.concat(kho.may).forEach(function (d) { if (d && d.id && !thay[d.id]) thay[d.id] = d; });
-      var ph = {};
-      Object.keys(thay).forEach(function (k) {
-        var d = thay[k]; if (d.kind !== 'orders-manh') return;
-        var t = String(d.updated_at || ''); if (!t) return;
-        var p2 = t.slice(0, 16); if (!ph[p2] || t > ph[p2]) ph[p2] = t;
-      });
-      var mocs = Object.keys(ph).sort().reverse().map(function (k) { return ph[k]; }).slice(0, 12);
-      var i = 0, tot = null, daThu = [];
-      function thu() {
-        if (i >= mocs.length) return xong();
-        var T = new Date(new Date(mocs[i]).getTime() + 30000).toISOString(); i++;
-        return window.CLCloud.dungLaiToiMoc(T).then(function (r) {
-          var bc = (r && r.bc) || {};
-          if (r && r.payload) {
-            daThu.push(gioVN(T) + ' → ' + bc.file + 'f/' + bc.dong + 'd');
-            var hopLe = bc.file <= can.file && bc.dong <= can.dong;
-            var honCaiCu = bc.file > coF || (bc.file === coF && bc.dong > coD);
-            var honCaiTot = !tot || bc.file > tot.bc.file || (bc.file === tot.bc.file && bc.dong > tot.bc.dong);
-            if (hopLe && honCaiCu && honCaiTot) tot = { r: r, bc: bc, T: T };
-            if (tot && tot.bc.file === can.file && tot.bc.dong === can.dong) return xong();
-          }
-          return thu();
-        }).catch(function () { return thu(); });
-      }
-      function xong() {
-        try { console.log('[CL] tự vá — mục tiêu ' + can.file + 'f/' + can.dong + 'd · đã thử: ' + daThu.join(' | ')); } catch (e) {}
-        if (!tot) {
-          bangKetQua('Kho lưu trữ không còn bản nào đủ hơn: đang mở ' + coF + '/' + can.file + ' file · ' +
-                     coD + '/' + can.dong + ' dòng. Đã dò ' + daThu.length + ' lần lưu' +
-                     (daThu.length ? (': ' + daThu.join(' · ')) : ' (không thấy lần lưu nào — kiểm tra mạng)') +
-                     ' (bấm để đóng)');
-          return;
-        }
-        tot.r.payload.source = pl.source || ('💾 ' + can.file + ' file · ' + can.dong + ' dòng');
-        window.__CLAPP.loadData(tot.r.payload);
-        chotBanDaVa(can, 'quay về mốc ' + gioVN(tot.T));
-      }
-      return thu();
-    }).catch(function () {});
-  }
+  /* ⚠⚠ ĐÃ XOÁ HẲN `doMocCu()` — hàm "dò ngược từng mốc lưu rồi QUAY VỀ MỐC CŨ" (4/9 lần 2).
+     Nó là thứ đã tự nạp bản 16:24:06 3/9 đè lên bản đang mở và bắn ra dải đỏ "Kho lưu trữ không
+     còn bản nào đủ hơn … Đã dò 7 lần lưu". Xoá hẳn chứ không để lại, kẻo có người nối dây lại.
+     Quay về mốc là việc NGƯỜI DÙNG chủ động: chữ "↩ Quay về mốc lưu trước" ở chân thanh bên.
+
   /* ===== VÁ XONG THÌ GHI LẠI BẢN LÀNH RỒI DỌN RÁC (thêm 29/8) =====
      Mở được nhờ vá nghĩa là bản lưu trên máy chủ đang hỏng chỉ mục. Ghi lại NGUYÊN bản (mọi
      mảnh gửi lại từ đầu), soi tận mắt thấy đủ mảnh, rồi mới xoá mọi thứ còn lại — cả trên máy
