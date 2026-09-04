@@ -653,7 +653,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0309292500</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0309292800</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1144,7 +1144,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=0309292500"></script>
+<script src="engine.web.js?v=0309292800"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -3361,7 +3361,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(
       [['#','Mã KH','Mã Đơn','Số lượng hộp','Số lượng dải','Thời gian nhập']].concat(body)), 'Tong hop don');
-    XLSX.writeFile(wb,'TongHopDonDaNhap.xlsx');
+    XLSX.writeFile(wb,tenXuat('TongHopDonDaNhap.xlsx'));
     logLine('Đã tải TongHopDonDaNhap.xlsx ('+rows.length+' đơn)');
   }
 
@@ -4609,12 +4609,24 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       return (!md || m===md) && (!kh || khOf(m)===kh);
     });
   }
-  /** Tên file có kèm mã đơn đang chọn: "Nhập đơn.xlsx" → "Nhập đơn - K21-792P.xlsx" */
+  /* ⚠ TÊN FILE XUẤT KÈM NGÀY (sửa 4/9 theo yêu cầu user).
+     Trước đây mọi lần xuất đều ra đúng một tên "Nhập đơn.xlsx", nên trình duyệt tự thêm số thứ
+     tự: "Nhập đơn (1).xlsx", "Nhập đơn (4).xlsx"… — nhìn không biết file nào của ngày nào.
+     Nay tên file mang luôn ngày xuất: "Nhập đơn 04-09-2026.xlsx".
+     Vẫn giữ phần mã đơn đang chọn: "Nhập đơn - K21-792P 04-09-2026.xlsx".
+     ⚠ Xuất HAI LẦN TRONG CÙNG MỘT NGÀY thì trình duyệt vẫn thêm (1) — muốn hết hẳn thì phải
+     kèm cả giờ phút, nhưng user đã chốt là chỉ ngày tháng năm. */
+  function ngayXuat(){
+    var d=new Date(), p=function(n){ return ('0'+n).slice(-2); };
+    return p(d.getDate())+'-'+p(d.getMonth()+1)+'-'+d.getFullYear();
+  }
+  /** "Nhập đơn.xlsx" → "Nhập đơn 04-09-2026.xlsx" (kèm mã đơn nếu đang lọc theo đơn) */
   function tenXuat(ten){
-    var n=nhanXuat(); if(!n) return ten;
+    var n=nhanXuat();
     var i=ten.lastIndexOf('.');
-    var sach=String(n).replace(/[\\/:*?"<>|]+/g,'-');
-    return (i<0? (ten+' - '+sach) : (ten.slice(0,i)+' - '+sach+ten.slice(i)));
+    var goc = (i<0? ten : ten.slice(0,i)), duoi = (i<0? '' : ten.slice(i));
+    if(n) goc += ' - ' + String(n).replace(/[\\/:*?"<>|]+/g,'-');
+    return goc + ' ' + ngayXuat() + duoi;
   }
   function dlNhapDon(){
     if(needXLSX(dlNhapDon)) return;   // nạp trễ thư viện Excel
@@ -4645,7 +4657,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   function dlLog(){
     var blob=new Blob([state.log.join('\r\n')],{type:'text/plain;charset=utf-8'});
-    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='Log.txt';
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=tenXuat('Log.txt');
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(a.href);
   }
@@ -7227,9 +7239,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var name=String(b).substring(0,31); var i=1; while(used[name]){ name=(String(b)+' ('+(++i)+')').substring(0,31); } used[name]=1;
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name);
     });
-    XLSX.writeFile(wb,'PackingList.xlsx');
+    XLSX.writeFile(wb,tenXuat('PackingList.xlsx'));
     logLine('Đã tạo Packing List: '+order.length+' box'+(md?(' · đơn '+md):''));
-    if(typeof alert==='function') alert('📦 Đã tạo PackingList.xlsx — '+order.length+' Box (mỗi Box 1 sheet): '+order.join(', '));
+    if(typeof alert==='function') alert('📦 Đã tạo '+tenXuat('PackingList.xlsx')+' — '+order.length+' Box (mỗi Box 1 sheet): '+order.join(', '));
   }
   [['btn-dl-mix',dlMix],['btn-dl-keo',dlKeo],['btn-dl-linecuon',dlLineCuon],['btn-dl-box',dlBox]].forEach(function(p){
     var b=document.getElementById(p[0]); if(b) b.addEventListener('click', p[1]);
@@ -8137,7 +8149,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var blob=save();
         var nm=String(document.title||'bang-in').replace(/[\\\/:*?"<>|]/g,'-').replace(/\s+/g,' ').trim();
         var a=document.createElement('a');
-        a.href=URL.createObjectURL(blob); a.download=nm+'.xlsx';
+        a.href=URL.createObjectURL(blob); a.download=tenXuat(nm+'.xlsx');
         document.body.appendChild(a); a.click();
         setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
       }catch(e){ console.warn('xlsx', e); alert('Không tạo được file Excel: '+(e&&e.message||e)); }
@@ -9447,7 +9459,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var aoa=[head];
     keys.forEach(function(k){ var la=gA.m[k]||[], lb=gB.m[k]||[], n=Math.max(la.length,lb.length); for(var i=0;i<n;i++){ var a=la[i]||null,b=lb[i]||null, st; if(a&&!b)st='Chỉ ở A'; else if(!a&&b)st='Chỉ ở B'; else { var d=false; FL.forEach(function(f){ if(String(f[1](a))!==String(f[1](b))) d=true; }); st=d?'Khác':'Giống'; } aoa.push(FL.map(function(f){return a?f[1](a):'';}).concat([st]).concat(FL.map(function(f){return b?f[1](b):'';}))); } });
     var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'SoSanh '+A+' vs '+B);
-    XLSX.writeFile(wb, 'SoSanh2Don_'+A+'_vs_'+B+'.xlsx');
+    XLSX.writeFile(wb, tenXuat('SoSanh2Don_'+A+'_vs_'+B+'.xlsx'));
   }
   // So sánh GỐC↔HIỆN TẠI cho BẢNG KEO và BẢNG MIX LABEL (ngoài Nhập Đơn)
   function s7KeoMixDiff(){
@@ -9580,7 +9592,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       stats: state.R ? state.R.stats : null,
     };
     var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'});
-    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='DonHang.json';
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=tenXuat('DonHang.json');
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(a.href);
     logLine('Đã tải DonHang.json');
@@ -9760,14 +9772,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=0309292500"></script>
-<script src="cl.sync.js?v=0309292500"></script>
-<script src="auth.store.js?v=0309292500"></script>
-<script src="auth.web.js?v=0309292500"></script>
+<script src="cl.config.js?v=0309292800"></script>
+<script src="cl.sync.js?v=0309292800"></script>
+<script src="auth.store.js?v=0309292800"></script>
+<script src="auth.web.js?v=0309292800"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=0309292500"></script>
+<script src="cl.project.js?v=0309292800"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=0309292500" defer></script>
+<script src="firebase-bridge.js?v=0309292800" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){

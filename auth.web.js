@@ -403,6 +403,11 @@
           'Lưu bây giờ là GHI ĐÈ bản thiếu này lên máy chủ, mấy đơn kia sẽ mất.\n\nVẫn lưu?')) return;
       var id = autoSaveId();
       if (!id) return toast('Tài khoản chưa được gán Xưởng — không lưu được.', 'err');
+      /* ⭑ TỰ LƯU MỘT BẢN PROJECT MỖI NGÀY (thêm 4/9 theo yêu cầu user).
+         Gọi NGAY TẠI ĐÂY chứ không trong .then() của lệnh lưu: chỗ này vẫn còn nằm trong cú bấm
+         ☁ Lưu của người dùng, nên xin được quyền ghi thư mục / tải file. Vào trong .then() là
+         mất cú bấm, trình duyệt sẽ chặn. Mỗi ngày đúng một bản, đã có rồi thì hàm tự thoát. */
+      try { if (window.CLProject && window.CLProject.tuXuatNeuCanNgay) window.CLProject.tuXuatNeuCanNgay(true); } catch (_) {}
       /* ⭑ CHỐT LẠI MỤC TIÊU theo đúng số đang có (thêm 4/9).
          Bấm ☁ Lưu nghĩa là người dùng đã NHÌN màn hình và thấy đúng, nên lấy luôn con số này
          làm nhãn + mục tiêu mới. Không làm bước này thì nhãn cũ (vd 1778 dòng) treo mãi, dữ
@@ -433,7 +438,7 @@
         var st = window.__CLAPP.getState();
         if (!_moTam) datMucTieu(st);                // mục tiêu mới = đúng số vừa lưu
         ghiMoNhanh(st, { id: id, nguon: 'lưu tay' });
-        _choLuu = false; _luuLucNao = Date.now(); anBangBanMoi();
+        _choLuu = false; _luuLucNao = Date.now(); anBangBanMoi(); ghiNhoMocVuaLuu(id);
         /* Con số + giờ vẫn được ghi vào Nhật ký (bangKetQua tự ghi), chỉ không đọc ra màn hình. */
         try { window.__CLAPP.ghiNhatKy('Đã lưu lên đám mây lúc ' + new Date().toLocaleTimeString('vi-VN') +
               ' — ' + (st.files || []).length + ' file · ' + (st.orders || []).length + ' dòng'); } catch (_) {}
@@ -486,6 +491,7 @@
         try { ghiMoNhanh(window.__CLAPP.getState(), { id: id, nguon: 'tự lưu' }); } catch (_) {}
         _choLuu = false;                  // đã lên máy chủ xong → người canh được phép làm việc lại
         _luuLucNao = Date.now();
+        ghiNhoMocVuaLuu(id);              // dời mốc theo ĐÚNG dòng vừa ghi (xem chú thích ở hàm)
       };
       /* CHIA MẢNH THEO MÃ ĐƠN (chốt 28/8): trước đây mỗi lần tự lưu đẩy CẢ KHO lên Supabase
          (68 đơn ≈ 7MB, mạng 5 Mbps mất ~11 giây), dù chỉ vừa sửa đúng một ô. Nay chỉ mảnh của
@@ -509,6 +515,7 @@
     _autoSaveT = setTimeout(doAutoSave, 2500);
   }
   window.__CLAUTOSAVE = scheduleAutoSave;   // Module HTML gọi khi dữ liệu thay đổi
+  window.__CLTOAST = toast;                 // cl.project.js dùng chung lời nhắc của app
 
   // Nghe tín hiệu "có dữ liệu mới" từ tab/tài khoản khác (cùng máy) → tự nạp lại bản mới nhất.
   // (Chỉ đồng bộ trong cùng một máy/trình duyệt — bản offline không có server để đồng bộ qua mạng.)
@@ -1048,6 +1055,29 @@
   var _vaLuc = 0;             // lúc thử tự lấy lại bản đủ gần nhất
   var _soCanh = 0;            // đếm số lượt canh (để chẩn đoán)
   var _daNhacXuong = false;   // đã nhắc "chưa xác định được Xưởng" một lần
+  var _mocDaGhi = false;      // đã đọc lại được mốc của chính lần ghi vừa rồi chưa
+
+  /* ⚠⚠ SỬA 4/9 — ca user báo: "login local đã lưu ô sai chuẩn nhưng bên link app vẫn báo 2 ô".
+     CÙNG MỘT TÀI KHOẢN mở hai máy. Bản cũ bỏ qua bản mới khi
+        (mình vừa ghi trong 120 giây) VÀ (người ghi dòng đó là mình)
+     — mà máy bên kia TỰ LƯU liên tục nên vế đầu gần như luôn đúng, còn vế sau thì cùng một
+     người nên cũng đúng ⇒ máy này bỏ qua bản của chính mình gửi từ máy kia. TỆ NHẤT là nó còn
+     dời `_dangMo.t = t`, tức bản đó bị đánh dấu "đã xem rồi" và **KHÔNG BAO GIỜ** được nạp nữa.
+     Cách chữa cho đúng gốc: ghi xong thì HỎI LẠI MÁY CHỦ mốc thật của chính dòng mình vừa ghi
+     rồi dời `_dangMo.t` tới đó. Sau đó luật thường `t <= _dangMo.t` tự lo phần "mình vừa ghi",
+     không cần đoán theo thời gian và tên người ghi nữa. */
+  function ghiNhoMocVuaLuu(id) {
+    _mocDaGhi = false;
+    try {
+      if (!(id && window.CLCloud && window.CLCloud.mocMayChu)) return;
+      window.CLCloud.mocMayChu(id).then(function (r) {
+        if (!r || !r.updated_at) return;                  // đọc không được → để lối dự phòng lo
+        if (!_dangMo || _dangMo.id !== id) _dangMo = { id: id, t: '' };
+        if (String(r.updated_at) > String(_dangMo.t || '')) _dangMo.t = String(r.updated_at);
+        _mocDaGhi = true;
+      }).catch(function () {});
+    } catch (_) {}
+  }
   var CANH_GIAY = 15;      // 3/9 lần 3: 25s → 15s cho "tự cập nhật" thấy nhanh hơn (chỉ 1 dòng nhẹ)
   var _loiCanh = '';          // câu lỗi gần nhất khi hỏi máy chủ (rỗng = đang đọc được)
   var _soLoiCanh = 0;         // số lượt hỏi hỏng LIỀN NHAU
@@ -1211,9 +1241,12 @@
            ⚠ Phải xét CẢ "mình vừa lưu cách đây mấy giây", không chỉ xét created_by: cùng một
            người mở app trên hai máy vẫn phải thấy bản của nhau, nếu chỉ so tên người ghi thì
            máy thứ hai sẽ nằm im mãi — đúng cái lỗi đang phải sửa. */
+        /* Lưới an toàn CHỈ dùng khi vừa ghi xong mà chưa đọc lại được mốc (mạng chập đúng nhịp
+           đó). 20 giây là đủ để `ghiNhoMocVuaLuu` về, và ⚠ TUYỆT ĐỐI KHÔNG dời `_dangMo.t` —
+           dời là bản đó bị đánh dấu "đã xem" rồi mất luôn, đúng lỗi vừa sửa. */
         var toi = (window.CLCloud.getProfile() || {}).id;
-        var vuaTuLuu = _luuLucNao && (Date.now() - _luuLucNao) < 120000;
-        if (vuaTuLuu && toi && r.created_by && r.created_by === toi) { _dangMo.t = t; anBangBanMoi(); return; }
+        var vuaTuLuu = _luuLucNao && (Date.now() - _luuLucNao) < 20000;
+        if (!_mocDaGhi && vuaTuLuu && toi && r.created_by && r.created_by === toi) return;
         if (_choLuu || _moTam || dangGoTrongO()) {
           /* Chỉ HOÃN, không bỏ: _dangMo.t vẫn là mốc cũ nên 15 giây nữa người canh lại thấy
              "máy chủ mới hơn" và thử lại — hết việc chắn là tự nạp, không cần ai bấm nút. */
@@ -1350,7 +1383,7 @@
         .then(function () {
           /* Bản này do CHÍNH máy này vừa ghi → đóng dấu giờ để người canh bản mới khỏi tưởng
              người khác lưu rồi nạp lại, xoá mất đúng dải báo kết quả người dùng cần đọc. */
-          _choLuu = false; _luuLucNao = Date.now(); anBangBanMoi();
+          _choLuu = false; _luuLucNao = Date.now(); anBangBanMoi(); ghiNhoMocVuaLuu(sid);
           bangKetQua('✓ Đã lấy lại ' + coF + '/' + can.file + ' file · ' + coD + '/' + can.dong +
                      ' dòng và GHI LÊN MÁY CHỦ lúc ' + new Date().toLocaleTimeString('vi-VN') +
                      '. Mọi tài khoản trong xưởng sẽ thấy bản này. (bấm để đóng)', du ? 'xanh' : '');
@@ -1480,7 +1513,7 @@
         toast('⚠ Không tìm lại được ' + va.hong.length + ' đơn: ' + va.hong.slice(0, 5).join(', ') + (va.hong.length > 5 ? '…' : ''), 'err');
       if (va) toast('Bản lưu bị hỏng chỉ mục — đang ghi lại bản lành…', 'ok');
       window.CLCloud.saveGoi({ id: id, name: tenBanLuu(), goi: window.__CLAPP.chiaLuu() })
-        .then(function () { _luuLucNao = Date.now();   // máy này vừa ghi → người canh khỏi nạp lại
+        .then(function () { _luuLucNao = Date.now(); ghiNhoMocVuaLuu(id);   // máy này vừa ghi → dời mốc
                             toast('Đã ghi lại bản lành ✓ (chưa xoá gì — bấm ☁ Lưu khi thấy dữ liệu đã đúng)', 'ok'); })
         .catch(function (e) { toast('Ghi lại bản lành thất bại: ' + (e && e.message || e), 'err'); });
     } catch (_) {}
