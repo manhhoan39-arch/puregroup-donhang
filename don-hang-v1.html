@@ -653,7 +653,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0409290300</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0409290400</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1144,7 +1144,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=0409290300"></script>
+<script src="engine.web.js?v=0409290400"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -7249,6 +7249,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
 
   // ===== Resize cột/dòng kiểu Excel + Undo/Redo cho các cửa sổ IN =====
   function __rzInit(){
+    /* ⚠⚠ CHẠY Ở CỬA SỔ IN (xem RZ_JS_TAG) — không thấy hàm nào của trang chính. Cần ghi lỗi thì
+       dùng ghiLoiIn() ngay dưới đây, ĐỪNG gọi logErr/logLine của trang chính. */
+    function ghiLoiIn(o, e){ try{ console.warn('[bảng in] '+o, e); }catch(_){ /* logErr-self: chính bộ ghi lỗi */ } }
     function px(v){ return Math.max(16, Math.round(v)); }
     // ---- Lịch sử Undo/Redo (kích thước cột/dòng + nội dung ô sửa) ----
     var hist=[], hi=-1;
@@ -7375,7 +7378,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     function commitHp(){ // đổ nội dung khối vào textarea ẩn để Ctrl+C copy ra ngoài
       if(!block||!hp) return; var g=grid(block.t), out=[];
       for(var r=block.r0;r<=block.r1;r++){ var line=[]; for(var c=block.c0;c<=block.c1;c++){ var cell=g[r]&&g[r][c]; line.push((cell&&isOrigin(g,r,c))?cellText(cell):''); } out.push(line.join('\t')); }
-      hp.value=out.join('\n'); try{ hp.focus({preventScroll:true}); hp.select(); }catch(e){ logErr('commitHp', e); }
+      hp.value=out.join('\n'); try{ hp.focus({preventScroll:true}); hp.select(); }catch(e){ ghiLoiIn('commitHp', e); }
     }
     function doPaste(text){ // dán khối ngoài vào từ ô góc trên-trái của vùng chọn
       if(!block) return; var g=grid(block.t);
@@ -7915,6 +7918,21 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      Đọc getComputedStyle của từng ô nên mọi thứ người dùng vừa chỉnh trong cửa sổ in
      (kéo cột, đổi cỡ chữ, tô nền, thêm dòng...) đều theo sang file Excel. */
   function __xlInit(){
+    /* ⚠⚠ HÀM NÀY BỊ CHUYỂN THÀNH CHỮ (__xlInit.toString()) rồi nhét vào CỬA SỔ IN — nó chạy ở
+       một cửa sổ KHÁC, KHÔNG thấy bất cứ hàm nào của trang chính. Gọi `tenXuat()` ở đây là
+       "tenXuat is not defined" và mất luôn nút ⬇ Excel của mọi bảng in (lỗi 4/9, user chụp được).
+       ⇒ Mọi thứ cần dùng phải TỰ VIẾT LẠI NGAY TRONG ĐÂY. Cùng luật cho __rzInit · __pgInit ·
+       __fmtInit · __ftInit · __stInit — xem RZ_JS_TAG. */
+    function ngayXuatIn(){
+      var d=new Date(), p2=function(n){ return ('0'+n).slice(-2); };
+      return p2(d.getDate())+'-'+p2(d.getMonth()+1)+'-'+d.getFullYear();
+    }
+    /* Tiêu đề cửa sổ in đã mang mã đơn ("Tổng hợp Line · LS36-245S") nên chỉ cần thêm ngày. */
+    function tenXuatIn(ten){
+      var i=ten.lastIndexOf('.');
+      var goc=(i<0? ten : ten.slice(0,i)), duoi=(i<0? '' : ten.slice(i));
+      return goc+' '+ngayXuatIn()+duoi;
+    }
     var CRCT=(function(){ var t=new Uint32Array(256),c,n,k;
       for(n=0;n<256;n++){ c=n; for(k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0; } return t; })();
     function crc32(b){ var c=0xFFFFFFFF; for(var i=0;i<b.length;i++) c=CRCT[(c^b[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
@@ -8149,7 +8167,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var blob=save();
         var nm=String(document.title||'bang-in').replace(/[\\\/:*?"<>|]/g,'-').replace(/\s+/g,' ').trim();
         var a=document.createElement('a');
-        a.href=URL.createObjectURL(blob); a.download=tenXuat(nm+'.xlsx');
+        a.href=URL.createObjectURL(blob); a.download=tenXuatIn(nm+'.xlsx');
         document.body.appendChild(a); a.click();
         setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
       }catch(e){ console.warn('xlsx', e); alert('Không tạo được file Excel: '+(e&&e.message||e)); }
@@ -9772,14 +9790,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=0409290300"></script>
-<script src="cl.sync.js?v=0409290300"></script>
-<script src="auth.store.js?v=0409290300"></script>
-<script src="auth.web.js?v=0409290300"></script>
+<script src="cl.config.js?v=0409290400"></script>
+<script src="cl.sync.js?v=0409290400"></script>
+<script src="auth.store.js?v=0409290400"></script>
+<script src="auth.web.js?v=0409290400"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=0409290300"></script>
+<script src="cl.project.js?v=0409290400"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=0409290300" defer></script>
+<script src="firebase-bridge.js?v=0409290400" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
