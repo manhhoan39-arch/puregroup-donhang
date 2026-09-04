@@ -653,7 +653,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0409290400</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0409290500</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1144,7 +1144,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=0409290400"></script>
+<script src="engine.web.js?v=0409290500"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -6355,7 +6355,6 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         '<input id="ps-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả mã đơn" autocomplete="off" style="width:140px;margin-left:12px">'+
         '<button class="btn sm ghost" id="ps-undo" title="Hoàn tác thao tác vừa rồi (Ctrl+Z)">↶ Hoàn tác</button>'+
         '<button class="btn sm ghost" id="ps-redo" title="Làm lại thao tác vừa hoàn tác (Ctrl+Y)">↷ Làm lại</button>'+
-        '<span class="mini" style="color:var(--text-3);margin-left:4px">· Chuột phải 1 dòng để Thêm/Nhân bản/Xóa · Bấm/kéo chọn ô, Ctrl+bấm cộng dồn (Tổng · Đếm · TB ở góc dưới) · bấm đúp ô mới sửa được</span>'+
         '<div class="spacer"></div>'+
         '<button class="btn sm ghost" id="ps-reset" style="color:var(--red-600)">↩ Làm mới</button>'+
         '<button class="btn sm" id="ps-print">🖨 In</button>'+
@@ -7637,7 +7636,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     window.__rzBoot=function(){ try{ init(); }catch(e){ console.warn(e); } };
     if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded', init);
   }
-  var RZ_CSS='th{position:relative;cursor:cell}.rz-col{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;z-index:5}.rz-row{position:absolute;left:0;bottom:-4px;height:8px;width:100%;cursor:row-resize;z-index:5}body.rz-active{cursor:col-resize}body.rz-active,body.rz-sel{user-select:none}.rz-selcol{background:rgba(0,207,200,.22);box-shadow:inset 0 0 0 2px #00CFC8}.rz-selcell{background:rgba(0,207,200,.20);box-shadow:inset 0 0 0 1px #00CFC8}.rz-selkhoa{background:rgba(0,207,200,.20);box-shadow:inset 0 0 0 1px #00CFC8}[contenteditable="true"]:not(.rz-sua){cursor:cell}.rz-sua{cursor:text!important;box-shadow:inset 0 0 0 2px #00CFC8}.rz-stats{position:fixed!important;left:auto!important;top:auto!important;right:16px!important;bottom:14px!important;width:auto!important;display:none;background:#fff;border:1.5px solid #E8185C;color:#E8185C;font-weight:800;font-size:13px;padding:7px 14px;border-radius:7px;box-shadow:0 2px 10px rgba(0,0,0,.18);z-index:100}.rz-hint{font-size:11px;color:#888;margin:0 10px}.rz-btn{margin-left:4px;padding:3px 9px;cursor:pointer}.rz-btn:disabled{opacity:.4;cursor:default}.rz-ctx{position:fixed;z-index:300;background:#fff;border:1px solid #e2e2e2;border-radius:9px;box-shadow:0 6px 22px rgba(0,0,0,.22);padding:5px;font-size:13px;min-width:172px}.rz-mi{padding:7px 12px;cursor:pointer;border-radius:6px;white-space:nowrap}.rz-mi:hover{background:rgba(0,207,200,.16)}.rz-danger{color:#b1102e}.rz-danger:hover{background:rgba(232,24,92,.12)}@media print{.rz-col,.rz-row,.rz-ctx,.rz-stats{display:none!important}.noprint{display:none!important}.rz-selcol,.rz-selcell,.rz-selkhoa,.rz-sua{background:none!important;box-shadow:none!important}}';
+  var RZ_CSS='th{position:relative;cursor:cell}.rz-col{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;z-index:5}.rz-row{position:absolute;left:0;bottom:-4px;height:8px;width:100%;cursor:row-resize;z-index:5}body.rz-active{cursor:col-resize}body.rz-active,body.rz-sel{user-select:none}.rz-selcol{background:rgba(0,207,200,.22);box-shadow:inset 0 0 0 2px #00CFC8}.rz-selcell{background:rgba(0,207,200,.20);box-shadow:inset 0 0 0 1px #00CFC8}.rz-selkhoa{background:rgba(0,207,200,.20);box-shadow:inset 0 0 0 1px #00CFC8}[contenteditable="true"]:not(.rz-sua){cursor:cell}.rz-sua{cursor:text!important;box-shadow:inset 0 0 0 2px #00CFC8}.rz-stats{position:fixed!important;left:auto!important;top:auto!important;right:16px!important;bottom:14px!important;width:auto!important;display:none;background:#fff;border:1.5px solid #E8185C;color:#E8185C;font-weight:800;font-size:13px;padding:7px 14px;border-radius:7px;box-shadow:0 2px 10px rgba(0,0,0,.18);z-index:100}.rz-btn{margin-left:4px;padding:3px 9px;cursor:pointer}.rz-btn:disabled{opacity:.4;cursor:default}.rz-ctx{position:fixed;z-index:300;background:#fff;border:1px solid #e2e2e2;border-radius:9px;box-shadow:0 6px 22px rgba(0,0,0,.22);padding:5px;font-size:13px;min-width:172px}.rz-mi{padding:7px 12px;cursor:pointer;border-radius:6px;white-space:nowrap}.rz-mi:hover{background:rgba(0,207,200,.16)}.rz-danger{color:#b1102e}.rz-danger:hover{background:rgba(232,24,92,.12)}@media print{.rz-col,.rz-row,.rz-ctx,.rz-stats{display:none!important}.noprint{display:none!important}.rz-selcol,.rz-selcell,.rz-selkhoa,.rz-sua{background:none!important;box-shadow:none!important}}';
   var RZ_BAR='<button id="rz-undo" class="rz-btn" onclick="__rzUndo()" title="Hoàn tác (Ctrl+Z)">↶ Undo</button><button id="rz-redo" class="rz-btn" onclick="__rzRedo()" title="Làm lại (Ctrl+Y)">↷ Redo</button>'+
     '<button id="rz-xl" class="rz-btn" onclick="__xlSave()" title="Tải về .xlsx giữ nguyên cột, màu nền, viền và phông đang thấy">⬇ Excel</button>';
   /* ĐÃ THỬ VÀ LOẠI (kiểm chứng bằng Print preview thật của Chrome — đừng làm lại):
@@ -8187,7 +8186,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function __ftInit(){
     /* Nút ▼ GIỐNG HỆT nút lọc của các bảng trong app (.fbtn): nằm ngay sau tên cột, nhỏ và
        nhạt, rê chuột mới nổi lên (user chốt 26/8). Cột độ cong đã nới lên 64px nên không bó. */
-    var CSS='.ft-b{cursor:pointer;opacity:.4;font-size:9px;padding:2px 3px;border-radius:4px;'+
+    /* ⚠ KHI IN: bỏ hết dấu lọc ▼ và menu lọc (user chốt 4/9 — "khi in thì bỏ dấu lọc đi không
+       cần"). Luật này viết NGAY ĐÂY, đi cùng chỗ sinh ra mấy nút đó, để không phụ thuộc vào
+       .noprint của RZ_CSS — bảng in nào dùng __ftInit là chắc chắn sạch khi in. */
+    var CSS='@media print{.ft-b,.ft-m{display:none!important}}'+
+      '.ft-b{cursor:pointer;opacity:.4;font-size:9px;padding:2px 3px;border-radius:4px;'+
       'margin-left:2px;user-select:none;font-weight:400}'+
       '.ft-b:hover{opacity:1;background:#eef0f2}.ft-b.on{opacity:1;color:#E8185C}'+
       '.ft-m{position:fixed;z-index:99999;background:#fff;border:1px solid #ddd;border-radius:9px;'+
@@ -8618,7 +8621,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function thUsedCurls(rows){ var UC=state.usedCurls||CURLS; return UC.filter(function(k){ return rows.some(function(r){ return (r.curls&&r.curls[k])>0; }); }); }
   function thPrint(title, body, pageHead, land){
     var w=window.open('','_blank'); if(!w) return alert('Trình duyệt chặn cửa sổ in — cho phép popup rồi thử lại.');
-    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Calibri,Arial,sans-serif;padding:6px 14px 14px;color:#111}h2{margin:4px 0 6px;font-size:16px}h2 .dc{font-weight:700;font-size:13.5px;color:#111;margin-left:14px}.hd2{margin:4px 0 8px}.hd-r{margin-top:4px}.hd-t2{font:700 11.5px Calibri,Arial,sans-serif;margin:0 0 2px}.hd-t{width:100%;table-layout:fixed;margin:0 0 4px;font-size:10.5px;border-collapse:collapse}.hd-t th,.hd-t td{border:1px solid #333;padding:2px 5px;text-align:center;white-space:normal;word-break:break-word;vertical-align:top}.hd-t th{background:#f0f0f0}table{border-collapse:collapse;width:100%;margin-bottom:14px;font-size:12px}th,td{border:1px solid #333;padding:3px 6px;text-align:center}th{background:#f0f0f0}td.l,th.l{text-align:left}.tot{font-weight:800;background:#ffe6ef}.edit{background:#fffef2;word-break:break-word;white-space:normal;outline:none;cursor:text}.edit:focus{background:#fff8c4;box-shadow:inset 0 0 0 2px #E8185C}@media print{.noprint{display:none}.edit{background:transparent!important;box-shadow:none!important}}'+RZ_CSS+PG_CSS+ST_CSS+'</style></head><body class="pg-doc" data-ttl="'+esc(pageHead||'')+'" data-land="'+(land?'1':'0')+'"><div class="noprint" style="text-align:right;margin-bottom:8px"><span class="rz-hint">Bấm ▼ ở tên cột để LỌC · chuột phải 1 dòng để Thêm/Nhân bản/Xóa · kéo tiêu đề chọn cột · <b>bấm đúp ô mới sửa được</b> · kéo trên ô chọn khối · <b>Ctrl+bấm/kéo cộng dồn nhiều vùng</b> (Tổng · Đếm · TB ở góc dưới) · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Calibri,Arial,sans-serif;padding:6px 14px 14px;color:#111}h2{margin:4px 0 6px;font-size:16px}h2 .dc{font-weight:700;font-size:13.5px;color:#111;margin-left:14px}.hd2{margin:4px 0 8px}.hd-r{margin-top:4px}.hd-t2{font:700 11.5px Calibri,Arial,sans-serif;margin:0 0 2px}.hd-t{width:100%;table-layout:fixed;margin:0 0 4px;font-size:10.5px;border-collapse:collapse}.hd-t th,.hd-t td{border:1px solid #333;padding:2px 5px;text-align:center;white-space:normal;word-break:break-word;vertical-align:top}.hd-t th{background:#f0f0f0}table{border-collapse:collapse;width:100%;margin-bottom:14px;font-size:12px}th,td{border:1px solid #333;padding:3px 6px;text-align:center}th{background:#f0f0f0}td.l,th.l{text-align:left}.tot{font-weight:800;background:#ffe6ef}.edit{background:#fffef2;word-break:break-word;white-space:normal;outline:none;cursor:text}.edit:focus{background:#fff8c4;box-shadow:inset 0 0 0 2px #E8185C}@media print{.noprint{display:none}.edit{background:transparent!important;box-shadow:none!important}}'+RZ_CSS+PG_CSS+ST_CSS+'</style></head><body class="pg-doc" data-ttl="'+esc(pageHead||'')+'" data-land="'+(land?'1':'0')+'"><div class="noprint" style="text-align:right;margin-bottom:8px">'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
       '<div class="pr-scope pg-sheet">'+body+'</div>'+RZ_JS_TAG+'</body></html>');
     w.document.close();
   }
@@ -9273,7 +9276,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       'table.pl th{color:#E8185C;border:1px solid #E8185C;padding:4px 3px;font-weight:700;overflow:hidden}'+
       'table.pl td{border:1px solid #f2a8c6;padding:3px 4px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}table.pl td.l{text-align:left}';
     var doc='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Packing List</title><style>'+css+RZ_CSS+PG_CSS+PL_CSS+ST_CSS+'</style></head><body class="pl-doc">'+
-      '<div class="noprint" style="text-align:right;padding:6px 10px"><span class="rz-hint">Bấm ▼ ở tên cột để LỌC · chuột phải 1 dòng để Thêm/Nhân bản/Xóa · kéo tiêu đề chọn cột · <b>bấm đúp ô mới sửa được</b> · kéo trên ô chọn khối · <b>Ctrl+bấm/kéo cộng dồn nhiều vùng</b> (Tổng · Đếm · TB ở góc dưới) · kéo mép chỉnh cùng lúc · Ctrl+C/Ctrl+V · Ctrl+Z hoàn tác</span>'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
+      '<div class="noprint" style="text-align:right;padding:6px 10px">'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
       '<div class="pr-scope">'+pages+'</div>'+RZ_JS_TAG+PL_JS_TAG+'</body></html>';
     // mở TAB HIỂN THỊ (thấy màu thật trước khi in) thay vì iframe ẩn.
     // Lưu ý: máy in đen trắng (VD Canon LBP2900) sẽ luôn preview xám —
@@ -9790,14 +9793,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=0409290400"></script>
-<script src="cl.sync.js?v=0409290400"></script>
-<script src="auth.store.js?v=0409290400"></script>
-<script src="auth.web.js?v=0409290400"></script>
+<script src="cl.config.js?v=0409290500"></script>
+<script src="cl.sync.js?v=0409290500"></script>
+<script src="auth.store.js?v=0409290500"></script>
+<script src="auth.web.js?v=0409290500"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=0409290400"></script>
+<script src="cl.project.js?v=0409290500"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=0409290400" defer></script>
+<script src="firebase-bridge.js?v=0409290500" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
