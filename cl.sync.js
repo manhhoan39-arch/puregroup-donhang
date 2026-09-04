@@ -273,15 +273,19 @@
     var lo = [], i;
     for (i = 0; i < ids.length; i += LO) lo.push(ids.slice(i, i + LO));
     var duoc = 0, hong = 0;
+    /* ⚠ PHẢI ghi sổ ID nào THỰC SỰ tải về được. fetchGoi dùng sổ này để đóng dấu vân tay lên
+       cache; nếu cứ đóng dấu theo danh sách ĐÒI TẢI thì một lần mạng hỏng là mảnh CŨ bị đóng
+       dấu "khớp bản mới" ⇒ vĩnh viễn không tải lại nữa ⇒ đúng lại lỗi 785P mà ta đang chữa. */
+    var soDuoc = [];
     return lo.reduce(function (chuoi, mot) {
       return chuoi.then(function () {
         return c.from('datasets').select('*').in('id', mot).then(function (r) {
-          if (!r.error) { (r.data || []).forEach(function (row) { jset(K.dsItem(row.id), row); duoc++; }); return; }
+          if (!r.error) { (r.data || []).forEach(function (row) { jset(K.dsItem(row.id), row); duoc++; soDuoc.push(row.id); }); return; }
           // cả lô hỏng → thử từng dòng, đừng bỏ cả lô chỉ vì một dòng có vấn đề
           return mot.reduce(function (ch2, mid) {
             return ch2.then(function () {
               return c.from('datasets').select('*').eq('id', mid).maybeSingle().then(function (r2) {
-                if (!r2.error && r2.data) { jset(K.dsItem(r2.data.id), r2.data); duoc++; } else hong++;
+                if (!r2.error && r2.data) { jset(K.dsItem(r2.data.id), r2.data); duoc++; soDuoc.push(r2.data.id); } else hong++;
               }).catch(function () { hong++; });
             });
           }, Promise.resolve());
@@ -289,7 +293,7 @@
       });
     }, Promise.resolve()).then(function () {
       log('lấy mảnh: được ' + duoc + ' / hỏng ' + hong + ' / tổng ' + ids.length);
-      return { duoc: duoc, hong: hong };
+      return { duoc: duoc, hong: hong, ids: soDuoc };
     });
   }
   function ghiNhieuDong(c, rows) {   // ghi theo lô, lô nào hỏng thì dừng và báo (đừng ghi nửa vời rồi im)
@@ -576,6 +580,10 @@
       }
       var cuTheoMd = {}; if (cu) (cu.manh || []).forEach(function (m) { cuTheoMd[m.md] = m; });
       var dongMoi = [], dsManh = [], daDung = {};
+      /* Vân tay từng mảnh của lần lưu này — CHỈ để đóng dấu vào cache trong máy (xem fetchGoi).
+         ⚠ TUYỆT ĐỐI không nhét vào dòng gửi lên máy chủ: bảng `datasets` không có cột này,
+         upsert sẽ hỏng cả lần lưu. */
+      var hTheoId = {};
       /* ⚠⚠ CHỈ ĐƯỢC BỎ QUA MẢNH KHI BIẾT CHẮC NÓ ĐANG NẰM TRÊN MÁY CHỦ (sửa 29/8).
          Đây là gốc rễ của "bản lưu thiếu 67 mảnh": bản cũ chỉ so DẤU VÂN TAY, mà dấu vân tay
          được ghi vào bộ nhớ máy TRƯỚC khi gửi lên máy chủ. Một lần gửi hỏng (mạng chập, URL
@@ -585,8 +593,8 @@
       var soLen = lenRoi();
       function phan(khoa, obj, kind, ten, cuMuc) {
         var s = JSON.stringify(obj), h = bam32(s);
-        if (cuMuc && cuMuc.h === h && cuMuc.id && soLen[cuMuc.id]) { daDung[cuMuc.id] = 1; return Promise.resolve({ md: khoa, id: cuMuc.id, h: h }); }
-        var pid = (cuMuc && cuMuc.id) || idMoi(); daDung[pid] = 1;
+        if (cuMuc && cuMuc.h === h && cuMuc.id && soLen[cuMuc.id]) { daDung[cuMuc.id] = 1; hTheoId[cuMuc.id] = h; return Promise.resolve({ md: khoa, id: cuMuc.id, h: h }); }
+        var pid = (cuMuc && cuMuc.id) || idMoi(); daDung[pid] = 1; hTheoId[pid] = h;
         return nen(obj).then(function (n) {
           dongMoi.push({ id: pid, factory_id: profile.factory_id, name: ten, kind: kind,
                          payload: { __manh: 1, n: n.n, d: n.d }, created_by: profile.id, updated_at: now });
@@ -606,6 +614,17 @@
           // cache: chỉ mục + mọi dòng mảnh (đã nén nên nhẹ hơn hẳn bản cũ)
           jset(K.dsItem(id), row);
           dongMoi.forEach(function (d) { jset(K.dsItem(d.id), d); });
+          /* Đóng dấu vân tay lên MỌI mảnh của lần lưu này trong cache — kể cả mảnh không đổi nên
+             không gửi lại. Thiếu dấu này thì lần đọc sau coi cache là "chưa biết" và tải lại cả
+             kho, chậm mà vô ích. */
+          Object.keys(hTheoId).forEach(function (pid) {
+            try {
+              var r = jget(K.dsItem(pid), null);
+              if (r && r.payload && String(r.__h == null ? '' : r.__h) !== String(hTheoId[pid])) {
+                r.__h = hTheoId[pid]; jset(K.dsItem(pid), r);
+              }
+            } catch (_) {}
+          });
           var idx = CLCloud.listCached().filter(function (d) { return d.id !== id; });
           idx.unshift({ id: id, factory_id: row.factory_id, name: row.name, kind: 'orders', created_by: row.created_by, updated_at: now, created_at: now });
           jset(K.dsIndex(profile.factory_id), idx);
@@ -663,10 +682,39 @@
         if (!p || !p.__goi) return d;                       // bản lưu kiểu cũ — trả nguyên
         var ids = (p.manh || []).map(function (m) { return m.id; });
         if (p.anh && p.anh.id) ids.push(p.anh.id);
-        var thieu = ids.filter(function (x) { return !jget(K.dsItem(x), null); });
+        /* ⚠⚠⚠ GỐC RỄ "sửa đơn 785P rồi lưu mà máy khác vẫn thấy bản CŨ" (sửa 4/9 lần 3).
+           `saveGoi` GIỮ NGUYÊN id của mảnh khi sửa nội dung (`pid = cuMuc.id || idMoi()`), chỉ
+           đổi dấu vân tay `h` trong chỉ mục. Còn bên đọc thì chỉ tải mảnh nào CHƯA CÓ trong máy:
+               thieu = ids.filter(x => !jget(K.dsItem(x)))
+           ⇒ máy nào đã từng nạp đơn đó là có sẵn `clc_ds_<id>` với NỘI DUNG CŨ, id trùng khớp
+           nên KHÔNG BAO GIỜ tải lại ⇒ dựng ra đúng bản cũ. Số dòng gần như y nguyên nên mọi
+           hàng rào "ít đơn hơn / lệch nhãn" đều không bắt được — im lặng dùng dữ liệu sai.
+           Nay so DẤU VÂN TAY: chỉ mục mang `h` của từng mảnh, cache mang `__h` của lần ghi.
+           Lệch, hoặc cache chưa có `__h` (bản cũ) ⇒ TẢI LẠI. */
+        var hCua = {};
+        (p.manh || []).forEach(function (m) { if (m && m.id) hCua[m.id] = m.h; });
+        if (p.anh && p.anh.id) hCua[p.anh.id] = p.anh.h;
+        var thieu = ids.filter(function (x) {
+          var r = jget(K.dsItem(x), null);
+          if (!r || !r.payload) return true;                       // chưa có → tải
+          var hMoi = hCua[x];
+          if (hMoi == null) return false;                          // chỉ mục không có vân tay → đành tin cache
+          return String(r.__h == null ? '' : r.__h) !== String(hMoi);   // lệch vân tay (hoặc cache cũ) → tải lại
+        });
         var doThieu = (!thieu.length || !configured() || !online()) ? Promise.resolve(null)
           : ensureClient().then(function (c) { return c ? layNhieuDong(c, thieu) : null; });
-        return doThieu.then(function () {
+        return doThieu.then(function (kq) {
+          /* Đóng dấu vân tay của chỉ mục lên mảnh VỪA TẢI VỀ ĐƯỢC — và chỉ những mảnh đó.
+             Mảnh đòi tải mà mạng không lấy được thì để nguyên (không dấu / dấu cũ) để lần đọc
+             sau còn biết là chưa khớp mà tải lại. */
+          ((kq && kq.ids) || []).forEach(function (x) {
+            try {
+              var r = jget(K.dsItem(x), null);
+              if (r && r.payload && hCua[x] != null && String(r.__h == null ? '' : r.__h) !== String(hCua[x])) {
+                r.__h = hCua[x]; jset(K.dsItem(x), r);
+              }
+            } catch (_) {}
+          });
           var caiGi = [];
           (p.manh || []).forEach(function (m) { caiGi.push({ loai: 'manh', md: m.md, id: m.id }); });
           if (p.anh && p.anh.id) caiGi.push({ loai: 'anh', id: p.anh.id });
@@ -903,7 +951,18 @@
         if (!mds.length) return { payload: null, bc: { maDon: 0, dong: 0, file: 0, thieu: 0 } };
         var ids = mds.map(function (m) { return chon[m].id; });
         if (anhId) ids.push(anhId);
-        var thieu = ids.filter(function (x) { return !jget(K.dsItem(x), null); });
+        /* ⚠⚠ CÙNG GỐC RỄ với fetchGoi (sửa 4/9 lần 3): id của mảnh KHÔNG đổi khi sửa nội dung,
+           nên "thiếu = chưa có trong máy" là sai — máy nào từng nạp đơn đó thì mãi mãi dựng lại
+           bản CŨ. Ở đây không có dấu vân tay `h` (chỉ xin 4 cột cho nhẹ) nhưng CÓ `updated_at`
+           của máy chủ: cache cũ hơn máy chủ ⇒ TẢI LẠI. */
+        var tMayChu = {};
+        tatCa.forEach(function (d) { var t = String(d.updated_at || ''); if (d && d.id && t > (tMayChu[d.id] || '')) tMayChu[d.id] = t; });
+        var thieu = ids.filter(function (x) {
+          var r = jget(K.dsItem(x), null);
+          if (!r || !r.payload) return true;                    // chưa có → tải
+          var tS = tMayChu[x]; if (!tS) return false;           // không biết mốc máy chủ → đành tin cache
+          return String(r.updated_at || '') < String(tS);       // cache cũ hơn máy chủ → tải lại
+        });
         var doThieu = (!thieu.length || !configured() || !online()) ? Promise.resolve(null)
           : ensureClient().then(function (c) { return c ? layNhieuDong(c, thieu) : null; });
         return doThieu.then(function () {
