@@ -1036,35 +1036,77 @@
   var _vaLuc = 0;             // lúc thử tự lấy lại bản đủ gần nhất
   var _soCanh = 0;            // đếm số lượt canh (để chẩn đoán)
   var _daNhacXuong = false;   // đã nhắc "chưa xác định được Xưởng" một lần
-  var CANH_GIAY = 25;
+  var CANH_GIAY = 15;      // 3/9 lần 3: 25s → 15s cho "tự cập nhật" thấy nhanh hơn (chỉ 1 dòng nhẹ)
+  var _loiCanh = '';          // câu lỗi gần nhất khi hỏi máy chủ (rỗng = đang đọc được)
+  var _soLoiCanh = 0;         // số lượt hỏi hỏng LIỀN NHAU
+  var _daChuaMu = 0;          // lúc tự chữa "mù với máy chủ" gần nhất
 
+  /* ===== MÙ VỚI MÁY CHỦ → TỰ CHỮA (thêm 3/9 lần 3) =====
+     Đo trên máy user 3/9: localStorage có 471 ô `clc_ds_` (~2MB) và KHÔNG có ô `sb-…-auth-token`
+     nào — tức Supabase không ghi nổi khoá phiên, máy đó đăng nhập xong vẫn MÙ với máy chủ: mọi
+     lệnh đọc trả về rỗng, app nằm mãi với bản cũ trong máy (đúng dải nâu "Đã dò 0 lần lưu").
+     Trước đây mocMayChu() nuốt lỗi im lặng nên không ai biết. Nay hỏng 3 lượt liền mà máy VẪN
+     CÓ MẠNG thì: dọn cache mảnh để chừa chỗ (mảnh lấy lại được từ máy chủ) → xin lại hồ sơ/phiên
+     → thử mở lại bản mới nhất. Tối đa 5 phút một lần cho khỏi quần máy. */
+  function khongDocDuocMayChu(loi) {
+    _loiCanh = String(loi || 'không rõ'); _soLoiCanh++;
+    try { console.warn('[CL] hỏi máy chủ hỏng (' + _soLoiCanh + ' lượt liền): ' + _loiCanh); } catch (_) {}
+    if (_soLoiCanh < 3) return;
+    try { if (typeof navigator !== 'undefined' && navigator.onLine === false) return; } catch (_) {}
+    if (Date.now() - _daChuaMu < 300000) return;
+    _daChuaMu = Date.now();
+    try { window.__CLAPP.ghiNhatKy('Không đọc được máy chủ (' + _loiCanh + ') — đang tự chữa phiên.'); } catch (_) {}
+    toast('Không đọc được máy chủ (' + _loiCanh + ') — đang tự chữa để lấy dữ liệu mới…', 'err');
+    try { if (window.CLCloud.donChoTrong) window.CLCloud.donChoTrong(); } catch (_) {}
+    var xin = null;
+    try { if (window.CLCloud.refreshProfile) xin = window.CLCloud.refreshProfile(); } catch (_) {}
+    Promise.resolve(xin).catch(function () { return null; }).then(function () {
+      try { autoLoadLatest(true); } catch (_) {}
+    });
+  }
+
+  /* ⚠ SỬA 3/9 lần 3 — vì sao "tài khoản khác không tự cập nhật":
+     Bản cũ coi "con trỏ đang nằm trong một ô nhập" là ĐANG SỬA DỞ nên KHÔNG nạp bản mới. Chỉ cần
+     ai đó bấm vào ô "Tìm bảng Box" rồi để đấy là tab đó nằm im mãi với bản cũ — không sai chỗ nào,
+     chỉ là bị chắn vĩnh viễn. Nay chỉ chắn khi thực sự CÒN ĐANG GÕ: có bấm phím trong 60 giây gần
+     đây. Hết 60 giây không gõ gì thì coi như xong, app tự nạp.
+     (Vẫn giữ hàng rào _choLuu — có sửa chưa lưu xong thì tuyệt đối không nạp đè.) */
+  var _goPhimLuc = 0;
+  try {
+    document.addEventListener('keydown', function () { _goPhimLuc = Date.now(); }, true);
+    document.addEventListener('paste', function () { _goPhimLuc = Date.now(); }, true);
+  } catch (_) {}
   function dangGoTrongO() {
     try {
       var e = document.activeElement;
       if (!e) return false;
-      if (e.isContentEditable) return true;
       var t = String(e.tagName || '').toUpperCase();
-      return t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT';
+      var trongO = e.isContentEditable || t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT';
+      if (!trongO) return false;
+      return (Date.now() - _goPhimLuc) < 60000;
     } catch (_) { return false; }
   }
   function anBangBanMoi() {
     _banMoiT = null;
     try { var el = document.getElementById('cl-banmoi'); if (el) el.remove(); } catch (_) {}
   }
+  /* ⚠ ĐÃ BỎ DẢI CAM CÓ NÚT "⟳ Lấy bản mới" ở góc dưới bên trái (sửa 3/9 lần 3).
+     User chốt: "Tất cả các tài khoản tự động cập nhật dữ liệu mới nhất" — nghĩa là KHÔNG bắt ai
+     bấm nút nào nữa. Nay chỉ GHI NHỚ mốc đang chờ; người canh chạy 15 giây một lượt nên hễ hết
+     việc chắn (lưu xong / thôi sửa dở) là nó TỰ NẠP ở lượt kế tiếp.
+     Vẫn nhắc bằng lời nhắc 3 giây nhưng 3 phút một lần cho khỏi ồn — user cần biết máy chủ có
+     bản mới mà mình đang sửa dở nên app chưa dám nạp đè. KHÔNG nuốt im lặng. */
+  var _nhacBanMoi = 0;
   function hienBangBanMoi(t, lyDo) {
     _banMoiT = t;
     try {
-      var el = document.getElementById('cl-banmoi');
-      if (el) el.remove();
-      var nut = h('button', { style: 'margin-left:10px;padding:2px 12px;border:0;border-radius:5px;' +
-          'background:#fff;color:#8A4B00;font-weight:700;font-size:12px;cursor:pointer',
-        onclick: function () { anBangBanMoi(); layBanMoi(autoSaveId(), t, true); } }, ['⟳ Lấy bản mới']);
-      el = h('div', { id: 'cl-banmoi',
-        style: 'position:fixed;left:14px;bottom:52px;z-index:99996;background:#8A4B00;color:#fff;' +
-               'font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:10px;max-width:480px;' +
-               'box-shadow:0 6px 20px rgba(0,0,0,.28);line-height:1.5' },
-        [String(lyDo || 'Có bản lưu MỚI HƠN trên máy chủ.'), nut]);
-      document.body.appendChild(el);
+      var el = document.getElementById('cl-banmoi'); if (el) el.remove();
+      var s = String(lyDo || 'Có bản lưu MỚI HƠN trên máy chủ.');
+      try { console.log('[CL] chờ nạp bản mới: ' + s); } catch (_) {}
+      if (Date.now() - _nhacBanMoi > 180000) {
+        _nhacBanMoi = Date.now();
+        toast(s + ' App sẽ TỰ NẠP ngay khi bạn xong.', 'err');
+      }
     } catch (_) {}
   }
   /* Nạp bản mới từ máy chủ đè lên màn hình. epTay=true nghĩa là người dùng đã tự bấm nút,
@@ -1110,7 +1152,9 @@
   function canhBanMoi() {
     _soCanh++;
     try {
-      if (!S.token || !S.cloud || !window.CLCloud || !window.CLCloud.mocMayChu) return;
+      /* ⚠ dungDamMay() chứ KHÔNG phải cờ S.cloud (bài học 3/9, tu-cap-nhat-khi-co-ban-moi):
+         cờ đó chỉ bật trong startCloudSession, mất cờ là người canh nằm im vĩnh viễn. */
+      if (!S.token || !dungDamMay() || !window.CLCloud || !window.CLCloud.mocMayChu) return;
       if (!can('dataset:read')) return;
       var id = autoSaveId();
       if (!id) {                       // hồ sơ đọc hỏng ⇒ mất factory_id ⇒ không biết ô lưu nào
@@ -1127,10 +1171,15 @@
         }
         return;
       }
-      // Đã có dữ liệu trên màn hình rồi thì tab đang ẩn khỏi cần hỏi — đỡ tốn đường truyền.
-      if (typeof document.hidden === 'boolean' && document.hidden) return;
+      /* ⚠ SỬA 3/9 lần 3: TAB ẨN VẪN HỎI. Bản cũ bỏ lượt khi tab ẩn để đỡ đường truyền, nhưng
+         xưởng mở app rồi chuyển sang tab khác cả buổi ⇒ đúng lúc cần thì vẫn là bản cũ, người
+         dùng quay lại phải đợi. Một dòng `select id,updated_at,created_by` là vài trăm byte —
+         rẻ hơn nhiều so với việc ngồi nhìn số liệu sai. */
       return window.CLCloud.mocMayChu(id).then(function (r) {
-        if (!r || !r.updated_at) return;   // mạng chập / chưa đăng nhập → im, 25 giây nữa thử lại
+        /* KHÔNG NUỐT LỖI: mocMayChu nay trả { loi: … } khi đọc hỏng, phân biệt được với
+           "máy chủ không có gì mới". Hỏng 3 lượt liền mà máy vẫn có mạng thì tự chữa. */
+        if (!r || !r.updated_at) { khongDocDuocMayChu(r && r.loi); return; }
+        _loiCanh = ''; _soLoiCanh = 0;
         var t = String(r.updated_at);
         if (t <= String(_dangMo.t || '')) {
           /* Máy chủ không có gì mới. NHƯNG nếu màn hình đang hụt so với nhãn thì phải tự đi lấy
@@ -1154,6 +1203,8 @@
         var vuaTuLuu = _luuLucNao && (Date.now() - _luuLucNao) < 120000;
         if (vuaTuLuu && toi && r.created_by && r.created_by === toi) { _dangMo.t = t; anBangBanMoi(); return; }
         if (_choLuu || _moTam || dangGoTrongO()) {
+          /* Chỉ HOÃN, không bỏ: _dangMo.t vẫn là mốc cũ nên 15 giây nữa người canh lại thấy
+             "máy chủ mới hơn" và thử lại — hết việc chắn là tự nạp, không cần ai bấm nút. */
           hienBangBanMoi(t, 'Tài khoản khác vừa lưu bản mới hơn — bạn đang sửa dở nên chưa nạp đè.');
           return;
         }
@@ -1188,25 +1239,28 @@
       boNhoMay: (function () { try { return Math.round(window.CLCloud.dungLuongMay() / 1024) + ' KB'; } catch (e) { return null; } })(),
       choLuu: _choLuu, moTam: _moTam, luuLucNao: _luuLucNao, vaLuc: _vaLuc,
       dangCanh: !!_canhT, soLuotCanh: _soCanh, tabAn: !!document.hidden,
-      dai: (document.getElementById('cl-ketqua') || {}).textContent || '',
-      cam: (document.getElementById('cl-banmoi') || {}).textContent || ''
+      loiCanh: _loiCanh, soLoiCanhLienTiep: _soLoiCanh, chuaMuLuc: _daChuaMu,
+      cauCuoi: _cauCuoi,
+      banMoiChoNap: _banMoiT || ''
     };
   };
-  /* Dải thông báo NẰM LẠI trên đầu trang (khác lời nhắc 3 giây). Dùng cho kết quả tự vá —
-     người dùng cần nhìn thấy con số, và tôi cần con số đó để biết kho còn gì. Bấm là đóng. */
+  /* ⚠ ĐÃ BỎ DẢI GÓC DƯỚI BÊN TRÁI (sửa 3/9 lần 3 — user: "Bỏ phần thông báo góc trái màn hình đi").
+     Trước đây đây là dải NẰM LẠI ở góc dưới bên trái (#cl-ketqua): nó che mất chữ
+     "↩ Quay về mốc lưu trước" và nằm mãi trên màn hình cho tới khi bấm. Nay KHÔNG vẽ gì nữa.
+     ⚠⚠ Nhưng KHÔNG ĐƯỢC NUỐT LỖI (luật su-co-mat-du-lieu-28-8) — mọi câu vẫn ra đủ 4 chỗ:
+       · lời nhắc 3 giây (toast) ở giữa dưới — chỗ user không phàn nàn
+       · NHẬT KÝ của app (window.__CLAPP.ghiNhatKy) — đọc lại được sau
+       · Console
+       · _cauCuoi để __CHANDOAN() còn soi được câu gần nhất */
+  var _cauCuoi = '';
   function bangKetQua(chu, mau) {
     try {
-      var el = document.getElementById('cl-ketqua');
-      if (el) el.remove();
-      /* ⬐ GÓC DƯỚI BÊN TRÁI, không phải đầu trang: dải ở đầu trang che mất thanh công cụ
-         (Lưu · Đăng xuất · Xuất Project) — user báo 3/9 "thông báo trên đầu trang nên bỏ đi".
-         Vẫn để nằm lại chứ không tự tắt, vì đây là chỗ báo "đã lưu xong" mà user cần đọc. */
-      el = h('div', { id: 'cl-ketqua', title: 'Bấm để đóng',
-        style: 'position:fixed;left:14px;bottom:14px;z-index:99997;background:' + (mau === 'xanh' ? '#0B6B3A' : '#8A4B00') + ';color:#fff;' +
-               'font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:10px;max-width:520px;' +
-               'box-shadow:0 6px 20px rgba(0,0,0,.28);cursor:pointer;line-height:1.45',
-        onclick: function () { el.remove(); } }, [chu]);
-      document.body.appendChild(el);
+      var s = String(chu || '').replace(/\s*\(bấm để đóng\)\s*$/, '');
+      _cauCuoi = new Date().toLocaleTimeString('vi-VN') + ' — ' + s;
+      try { var cu = document.getElementById('cl-ketqua'); if (cu) cu.remove(); } catch (_) {}
+      try { console.log('[CL] ' + s); } catch (_) {}
+      try { window.__CLAPP.ghiNhatKy(s); } catch (_) {}
+      toast(s, mau === 'xanh' ? 'ok' : 'err');
     } catch (e) {}
   }
   // Ghi BẢN MỞ NHANH vào IndexedDB — lần mở sau chỉ đọc đúng một bản ghi này là có dữ liệu

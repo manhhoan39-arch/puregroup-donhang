@@ -10,17 +10,16 @@
  *   3. Chưa có trong cache (lần đầu) → lấy mạng như thường rồi lưu lại.
  * Mất mạng vẫn mở được vì đã có cache. Supabase/CDN luôn đi thẳng ra mạng.
  */
-var CACHE = 'puregroup-nhapdon-v5';
+var CACHE = 'puregroup-nhapdon-v6';
+/* ⚠ 3/9 lần 3 — KHÔNG precache các file JS bằng đường dẫn trần nữa.
+   Từ bản này HTML gọi JS kèm số build (`cl.sync.js?v=0309292300`), nên ô cache của đường dẫn trần
+   không bao giờ được dùng tới — precache chúng chỉ tải thừa ~1MB. Ngay lần mở đầu tiên (có mạng),
+   phần `fetch` bên dưới đã tự cất đúng bản JS có ?v= vào cache, nên mất mạng vẫn mở được như cũ.
+   Tên cache đổi v5 → v6 để `activate` xoá sạch mấy ô JS cũ đang làm máy user chạy bản cũ. */
 var ASSETS = [
   './',
   './index.html',
   './don-hang-v1.html',
-  './engine.web.js',
-  './auth.store.js',
-  './auth.web.js',
-  './cl.config.js',
-  './cl.sync.js',
-  './cl.project.js',
   './xlsx.full.min.js',
   './manifest.webmanifest'
 ];

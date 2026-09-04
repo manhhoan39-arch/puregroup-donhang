@@ -478,13 +478,25 @@
        Người canh bản mới gọi hàm này vài chục giây một lần, nên nó phải THẬT NHẸ: chỉ lấy
        3 cột của ĐÚNG một dòng, không đụng tới payload (payload là cả kho, nặng vài MB).
        Không mạng / chưa cấu hình → trả null, người canh im lặng bỏ qua lượt đó. */
+    /* ⚠⚠ KHÔNG NUỐT LỖI (sửa 3/9 lần 3 — luật su-co-mat-du-lieu-28-8).
+       Bản cũ trả về `null` cho MỌI thứ: mất mạng, chưa có phiên, RLS chặn, bảng lỗi… đều giống
+       hệt "máy chủ không có gì mới". Vì vậy máy nào bị mù với máy chủ (đo được 3/9: localStorage
+       kín 471 ô `clc_ds_` nên Supabase không ghi nổi khoá phiên `sb-…-auth-token`) thì người canh
+       im lặng nằm mãi với bản cũ, không ai biết vì sao. Nay hỏng thì trả { loi: '…' } — có
+       `updated_at` mới là đọc được thật. */
     mocMayChu: function (id) {
-      if (!id || !configured() || !online()) return Promise.resolve(null);
+      if (!id) return Promise.resolve({ loi: 'chưa xác định được ô lưu của xưởng' });
+      if (!configured()) return Promise.resolve({ loi: 'chưa cấu hình máy chủ' });
+      if (!online()) return Promise.resolve({ loi: 'máy đang mất mạng' });
       return ensureClient().then(function (c) {
-        if (!c) return null;
+        if (!c) return { loi: 'không tạo được kết nối tới máy chủ' };
         return c.from('datasets').select('id,updated_at,created_by').eq('id', id).maybeSingle()
-          .then(function (r) { return (r && !r.error && r.data) ? r.data : null; });
-      }).catch(function () { return null; });
+          .then(function (r) {
+            if (r && r.error) return { loi: 'đọc bảng datasets hỏng: ' + (r.error.message || r.error.code || '?') };
+            if (!r || !r.data) return { loi: 'máy chủ không trả về ô lưu (chưa có phiên đăng nhập hoặc không có quyền đọc)' };
+            return r.data;
+          });
+      }).catch(function (e) { return { loi: (e && e.message) || 'lỗi không rõ khi hỏi máy chủ' }; });
     },
 
     // Kéo dữ liệu xưởng từ DB → cache (gọi khi đăng nhập / bấm làm tươi)
