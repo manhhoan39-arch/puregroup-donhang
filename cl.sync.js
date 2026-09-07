@@ -221,6 +221,9 @@
     }).catch(function () { return false; });
   }
   function khoaMoNhanh() { return 'mo-nhanh-' + (fid() || 'none'); }
+  /* Ô riêng giữ BẢN CHƯA BẤM ☁ LƯU khi nó bị bản của máy khác thay chỗ (thêm 4/9) — xem
+     CLCloud.luuChuaLuu / docChuaLuu. Không dùng chung ô "mở nhanh" kẻo đè mất bản đang dùng. */
+  function khoaChuaLuu() { return 'chua-luu-' + (fid() || 'none'); }
 
   function fid() { return profile && profile.factory_id; }
   function lenRoi() { return jget(K.daLen(fid()), {}); }
@@ -777,6 +780,31 @@
           n: n.n, d: n.d
         });
       }).catch(function () { return false; });
+    },
+    /* ===== PHAO CHO PHẦN CHƯA BẤM ☁ LƯU (thêm 4/9) =====
+       Từ 4/9 app KHÔNG tự đẩy lên đám mây nữa, và người canh thì LUÔN nạp bản mới nhất ngay.
+       Hai luật đó gặp nhau ở một chỗ đau: ai đang sửa mà chưa bấm ☁ Lưu thì phần sửa đó bị bản
+       của máy khác thay chỗ. Nên trước khi thay, cất nguyên bản đang sửa vào đây — lấy lại được
+       bằng CLCloud.docChuaLuu(). KHÔNG bao giờ tự nạp lại nó (tự nạp = lại dùng dữ liệu cũ). */
+    luuChuaLuu: function (payload, meta) {
+      if (!payload || !(payload.orders || []).length) return Promise.resolve(false);
+      meta = meta || {};
+      return nen(payload).then(function (n) {
+        return idbGhi(khoaChuaLuu(), {
+          v: 1, t: new Date().toISOString(), viSao: meta.viSao || '',
+          soFile: (payload.files || []).length, soDong: (payload.orders || []).length,
+          n: n.n, d: n.d
+        });
+      }).catch(function () { return false; });
+    },
+    docChuaLuu: function () {
+      return idbDoc(khoaChuaLuu()).then(function (r) {
+        if (!r || !r.d) return null;
+        return giaiNen({ n: r.n, d: r.d }).then(function (pl) {
+          if (!pl || !(pl.orders || []).length) return null;
+          return { payload: pl, t: r.t, viSao: r.viSao || '', soFile: r.soFile, soDong: r.soDong };
+        }).catch(function () { return null; });
+      }).catch(function () { return null; });
     },
     docMoNhanh: function () {
       return idbDoc(khoaMoNhanh()).then(function (r) {

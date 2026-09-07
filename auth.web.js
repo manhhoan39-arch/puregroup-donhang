@@ -137,6 +137,10 @@
       '.cl-btn.sm{padding:5px 10px;font-size:12.5px}',
       '.cl-btn.ghost{background:#fff;color:#c01050;border:1px solid #f6aecb}.cl-btn.ghost:hover{background:#fdeef4}',
       '.cl-btn.danger{background:#fff;color:#dc2626;border:1px solid #fca5a5}.cl-btn.danger:hover{background:#fef2f2}',
+      /* Nút ☁ Lưu khi CÒN thay đổi chưa công bố — từ 4/9 tự lưu không lên đám mây nữa nên phải
+         nhìn là thấy ngay, kẻo tưởng đã lưu rồi mà cả xưởng vẫn chưa thấy gì. */
+      '.cl-btn.ghost.cl-chualuu{background:#e8185c;color:#fff;border-color:#e8185c}',
+      '.cl-btn.ghost.cl-chualuu:hover{background:#c01050}',
       '.cl-err{background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:12px;display:none}',
       '.cl-hint{font-size:11px;color:#a08a94;margin-top:12px;line-height:1.5}',
       // top bar
@@ -334,7 +338,10 @@
          gì để chọn nữa.
        · "🛟 Cứu dữ liệu" bỏ đi: việc vá mảnh thiếu nay app tự làm lặng lẽ ngay lúc mở
          (xem vaManh() ở cl.sync.js + suaVaDon() bên dưới), không bắt người dùng bấm. */
-    if (can('dataset:create')) bar.appendChild(h('button', { class: 'cl-btn sm ghost', title: 'Lưu dữ liệu hiện tại lên server (theo xưởng)', onclick: saveDataset }, ['☁ Lưu']));
+    /* ⚠ Từ 4/9 tự lưu KHÔNG đẩy lên đám mây nữa, nên nút này là ĐƯỜNG DUY NHẤT công bố cho
+       xưởng. Phải cho người dùng thấy rõ khi còn thay đổi chưa công bố, kẻo tưởng đã lưu rồi. */
+    if (can('dataset:create')) bar.appendChild(h('button', { id: 'cl-nut-luu', class: 'cl-btn sm ghost', title: 'Lưu lên đám mây cho cả xưởng thấy', onclick: saveDataset }, ['☁ Lưu']));
+    veNutLuu();
 
     // Quản lý (User / Factory) — đám mây dùng Supabase, cục bộ dùng CLStore.
     if (can('user:read') || can('factory:create')) bar.appendChild(h('button', { class: 'cl-btn sm', onclick: (S.cloud ? openCloudAdminModal : openAdminModal) }, ['⚙ Quản lý']));
@@ -445,7 +452,7 @@
         var st = window.__CLAPP.getState();
         if (!_moTam) datMucTieu(st);                // mục tiêu mới = đúng số vừa lưu
         ghiMoNhanh(st, { id: id, nguon: 'lưu tay' });
-        _choLuu = false; _luuLucNao = Date.now(); anBangBanMoi(); ghiNhoMocVuaLuu(id);
+        _choLuu = false; veNutLuu(); _luuLucNao = Date.now(); anBangBanMoi(); ghiNhoMocVuaLuu(id);
         /* Con số + giờ vẫn được ghi vào Nhật ký (bangKetQua tự ghi), chỉ không đọc ra màn hình. */
         try { window.__CLAPP.ghiNhatKy('Đã lưu lên đám mây lúc ' + new Date().toLocaleTimeString('vi-VN') +
               ' — ' + (st.files || []).length + ' file · ' + (st.orders || []).length + ' dòng'); } catch (_) {}
@@ -465,8 +472,9 @@
       .catch(function (e) { toast(e.message, 'err'); });
   }
 
-  // ---------- TỰ ĐỘNG LƯU bản làm việc (không cần bấm ☁ Lưu) ----------
-  // Lưu vào 1 slot CỐ ĐỊNH theo xưởng (upsert đè) → đăng xuất/đăng nhập lại KHÔNG mất đơn đã xử lý.
+  // ---------- TỰ ĐỘNG LƯU bản làm việc — CHỈ TRONG MÁY, không lên đám mây (sửa 4/9) ----------
+  // Ghi vào BẢN MỞ NHANH (IndexedDB) → tải lại trang / đăng xuất rồi vào lại KHÔNG mất đơn đã
+  // xử lý. Muốn cả xưởng thấy thì phải bấm ☁ Lưu.
   var _autoSaveT = null;
   /* ⚠⚠ MỘT XƯỞNG = MỘT Ô LƯU, VÀ Ô ĐÓ PHẢI GIỐNG NHAU TRÊN MỌI MÁY, MỌI TÀI KHOẢN (sửa 3/9).
      Bản cũ sinh một uuid NGẪU NHIÊN rồi cất trong localStorage của TỪNG trình duyệt. Hậu quả
@@ -480,44 +488,34 @@
     var fid = S.factory && S.factory.id;
     return fid || null;
   }
+  /* ⚠⚠⚠ TỰ LƯU CHỈ LƯU TRONG MÁY — TUYỆT ĐỐI KHÔNG ĐẨY LÊN ĐÁM MÂY (user chốt 4/9).
+     User: "Step 1 khi chọn file xử lý nhập đơn. Chưa ấn lưu đám mây mà tài khoản khác đã cập
+     nhật luôn là sai. CHỈ KHI ẤN LƯU mới cập nhật lên cho các tài khoản khác."
+     Trước đây hàm này gọi `saveGoi` sau mỗi thay đổi 2,5 giây ⇒ vừa Xử lý xong 67 file là cả
+     xưởng thấy ngay, dù người nhập còn đang soi lại. Nay:
+       · ghi BẢN MỞ NHANH trong máy (IndexedDB) → tải lại trang / đăng xuất vẫn còn nguyên;
+       · KHÔNG gửi một byte nào lên Supabase;
+       · giữ `_choLuu = true` cho tới khi người dùng bấm ☁ Lưu — đó là nghĩa mới của cờ này:
+         "có sửa CHƯA CÔNG BỐ", không còn là "chưa kịp tự lưu".
+     🔴 Đường duy nhất được ghi lên máy chủ là nút ☁ Lưu (saveDataset). Thêm bất cứ lối tự ghi
+        nào nữa là quay lại đúng cái lỗi này. */
   function doAutoSave() {
     try {
-      /* Mấy lối "không lưu" dưới đây phải GỠ cờ chờ-lưu: giữ cờ mãi thì người canh bản mới
-         không bao giờ dám nạp, máy đó nằm im với bản cũ (đúng lỗi 3/9). Riêng _moTam thì
-         người canh đã tự xét lấy nên cứ để nguyên. */
-      var thoi = function () { _choLuu = false; };
-      if (!S.token || !can('dataset:create')) return thoi();
-      if (!window.__CLAPP || !window.__CLAPP.hasData || !window.__CLAPP.hasData()) return thoi();
-      if (_moTam) return;                   // ⚠ bản mở TẠM còn thiếu mảnh → tuyệt đối không tự lưu đè
-      var id = autoSaveId(); if (!id) return thoi();
-      if (!duocGhiXuong()) return thoi();   // đang xem xưởng khác → không tự lưu đè
-      var ten = tenBanLuu();
-      var xong = function () {
-        try { var ind = document.getElementById('cl-autosave-ind'); if (ind) { ind.textContent = '✓ Đã tự lưu ' + new Date().toLocaleTimeString('vi-VN'); } } catch (_) {}
-        // cập nhật luôn BẢN MỞ NHANH → mở lần sau là thấy đúng cái vừa lưu, kể cả mất mạng
-        try { ghiMoNhanh(window.__CLAPP.getState(), { id: id, nguon: 'tự lưu' }); } catch (_) {}
-        _choLuu = false;                  // đã lên máy chủ xong → người canh được phép làm việc lại
-        _luuLucNao = Date.now();
-        ghiNhoMocVuaLuu(id);              // dời mốc theo ĐÚNG dòng vừa ghi (xem chú thích ở hàm)
-      };
-      /* CHIA MẢNH THEO MÃ ĐƠN (chốt 28/8): trước đây mỗi lần tự lưu đẩy CẢ KHO lên Supabase
-         (68 đơn ≈ 7MB, mạng 5 Mbps mất ~11 giây), dù chỉ vừa sửa đúng một ô. Nay chỉ mảnh của
-         đơn vừa đổi được nén rồi gửi lại (~52KB). Máy nào không có saveGoi thì vẫn chạy lối cũ. */
-      if (dungDamMay() && window.CLCloud.saveGoi && window.__CLAPP.chiaLuu) {
-        window.CLCloud.saveGoi({ id: id, name: ten, goi: window.__CLAPP.chiaLuu() }).then(xong).catch(function () {});
-        return;
-      }
-      var payload = window.__CLAPP.getState();
-      var rec = { id: id, name: ten, payload: payload };
-      if (dungDamMay()) {
-        window.CLCloud.save(rec).then(xong).catch(function () {});
-      } else {
-        var fid = targetFactoryForWrite(); if (fid) api('POST', '/api/datasets', { id: id, name: rec.name, factory_id: fid, payload: payload }).catch(function () {});
-      }
+      if (!S.token || !can('dataset:create')) return;
+      if (!window.__CLAPP || !window.__CLAPP.hasData || !window.__CLAPP.hasData()) return;
+      if (_moTam) return;                   // ⚠ bản mở TẠM còn thiếu mảnh → không ghi đè bản mở nhanh
+      var id = autoSaveId(); if (!id) return;
+      if (!duocGhiXuong()) return;          // đang xem xưởng khác → không lưu lẫn
+      try { ghiMoNhanh(window.__CLAPP.getState(), { id: id, nguon: 'tự lưu trong máy' }); } catch (_) {}
+      try {
+        var ind = document.getElementById('cl-autosave-ind');
+        if (ind) ind.textContent = '✓ Đã lưu trong máy ' + new Date().toLocaleTimeString('vi-VN') + ' — bấm ☁ Lưu để công bố';
+      } catch (_) {}
     } catch (_) {}
   }
   function scheduleAutoSave() {
-    _choLuu = true;                       // có sửa chưa lưu → người canh không được nạp đè
+    _choLuu = true;                       // có sửa CHƯA CÔNG BỐ (từ 4/9 tự lưu không lên máy chủ)
+    veNutLuu();
     if (_autoSaveT) clearTimeout(_autoSaveT);
     _autoSaveT = setTimeout(doAutoSave, 2500);
   }
@@ -1182,7 +1180,7 @@
       }
       window.__CLAPP.loadData(pl);
       _dangMo = { id: id, t: String(t || '') };
-      _choLuu = false;
+      _choLuu = false; veNutLuu();
       datMoTam(false, 0);
       ghiMoNhanh(pl, { id: id, sv: String(t || ''), nguon: 'máy chủ · bản mới' });
       chotMucTieuTheo(pl);
@@ -1261,12 +1259,16 @@
         var toi = (window.CLCloud.getProfile() || {}).id;
         var vuaTuLuu = _luuLucNao && (Date.now() - _luuLucNao) < 20000;
         if (!_mocDaGhi && vuaTuLuu && toi && r.created_by && r.created_by === toi) return;
-        if (_choLuu || _moTam || dangGoTrongO()) {
-          /* Chỉ HOÃN, không bỏ: _dangMo.t vẫn là mốc cũ nên 15 giây nữa người canh lại thấy
-             "máy chủ mới hơn" và thử lại — hết việc chắn là tự nạp, không cần ai bấm nút. */
-          hienBangBanMoi(t, 'Tài khoản khác vừa lưu bản mới hơn — bạn đang sửa dở nên chưa nạp đè.');
-          return;
-        }
+        /* ⚠⚠⚠ CÓ BẢN MỚI HƠN LÀ NẠP NGAY (user chốt 4/9).
+           User: "khi ấn xóa đơn cập nhật lưu đám mây tôi muốn các app khác cập nhật LUÔN bản
+           mới, KHÔNG CẦN ĐỢI như thông báo" — ảnh chụp đúng dải đỏ "bạn đang sửa dở nên chưa
+           nạp đè. App sẽ TỰ NẠP ngay khi bạn xong".
+           Nên `_choLuu` và `dangGoTrongO()` KHÔNG còn được chắn ở đây nữa. Đổi lại, phần sửa
+           chưa bấm ☁ Lưu được cất vào ô riêng trong máy trước khi bị thay (xem catChuaLuu).
+           🔴 CHỈ còn `_moTam` được chắn — bản mở TẠM là bản THIẾU MẢNH, lấy nó làm gì cũng sai
+              (luật 28/8), mà người canh đã tự xét ở nhánh trên. */
+        if (_moTam) { hienBangBanMoi(t, 'Có bản mới hơn — bản đang mở còn thiếu mảnh nên chờ mở đủ đã.'); return; }
+        if (_choLuu) catChuaLuu(t);
         return layBanMoi(id, t, false);
       });
     } catch (_) {}
@@ -1323,8 +1325,39 @@
     } catch (e) {}
   }
   // Ghi BẢN MỞ NHANH vào IndexedDB — lần mở sau chỉ đọc đúng một bản ghi này là có dữ liệu
+  /* Nút ☁ Lưu: còn thay đổi chưa công bố thì đổi thành "☁ Lưu •" + đổi màu, hết thì về thường. */
+  function veNutLuu() {
+    try {
+      var n = document.getElementById('cl-nut-luu'); if (!n) return;
+      if (_choLuu) {
+        n.textContent = '☁ Lưu •';
+        n.title = 'CÓ thay đổi chưa lưu lên đám mây — các tài khoản khác chưa thấy. Bấm để lưu.';
+        n.classList.add('cl-chualuu');
+      } else {
+        n.textContent = '☁ Lưu';
+        n.title = 'Lưu lên đám mây cho cả xưởng thấy';
+        n.classList.remove('cl-chualuu');
+      }
+    } catch (_) {}
+  }
   function ghiMoNhanh(pl, meta) {
     try { if (window.CLCloud && window.CLCloud.luuMoNhanh) window.CLCloud.luuMoNhanh(pl, meta || {}); } catch (e) {}
+  }
+  /* ⚠ PHAO cho luật "luôn nạp bản mới nhất ngay": phần sửa chưa bấm ☁ Lưu sắp bị bản của máy
+     khác thay chỗ ⇒ cất nguyên nó vào một ô riêng trong máy + ghi Nhật ký, rồi mới cho nạp.
+     Lấy lại bằng: CLCloud.docChuaLuu().then(r => __CLAPP.loadData(r.payload))
+     KHÔNG tự nạp lại — tự nạp là lại dùng dữ liệu cũ, đúng cái user cấm. */
+  function catChuaLuu(t) {
+    try {
+      var st = window.__CLAPP.getState();
+      if (!st || !(st.orders || []).length) return;
+      var f = (st.files || []).length, d = (st.orders || []).length;
+      if (window.CLCloud.luuChuaLuu)
+        window.CLCloud.luuChuaLuu(st, { viSao: 'bị bản mới lúc ' + t + ' thay chỗ' });
+      try { window.__CLAPP.ghiNhatKy('Phần sửa CHƯA bấm ☁ Lưu (' + f + ' file · ' + d +
+            ' dòng) đã được cất trong máy trước khi nạp bản mới của máy khác — lấy lại bằng CLCloud.docChuaLuu()'); } catch (_) {}
+      toast('Đã nạp bản mới nhất. Phần bạn sửa chưa bấm ☁ Lưu được cất lại trong máy (xem Nhật ký).', 'ok');
+    } catch (_) {}
   }
   /* ===== TỰ LẤY LẠI BẢN ĐỦ, KHÔNG BẮT NGƯỜI DÙNG CHỌN MỐC (thêm 29/8) =====
      User: "Không cần tôi chọn mốc. Luôn lấy dữ liệu lần cập nhật dùng được."
@@ -1420,6 +1453,10 @@
     else { try { window.__CLAPP.datNhan(); } catch (_) {}     // viết lại nhãn, không thì soTuNhan nâng lại
            datMucTieu(window.__CLAPP.getState()); }            // kho chỉ còn bấy nhiêu → chốt lại, thôi dò mãi
     try { window.__CLAPP.ghiNhatKy('Tự lấy lại: ' + coF + '/' + can.file + ' file · ' + coD + '/' + can.dong + ' dòng — ' + ghiChu); } catch (e) {}
+    /* ⚠ Từ 4/9 chỉ nút ☁ Lưu được ghi lên máy chủ. Đường tự-vá này vẫn được ghi (nó đang CHỮA
+       một bản lưu rụng đơn trên máy chủ), NHƯNG chỉ khi trên màn hình không có phần sửa nào
+       chưa công bố — kẻo nó công bố hộ luôn cái người dùng chưa muốn cho ai thấy. */
+    if (_choLuu) { try { window.__CLAPP.ghiNhatKy('Không ghi bản vá lên máy chủ: đang có phần sửa chưa bấm ☁ Lưu.'); } catch (_) {} return; }
     if (duocGhiXuong() && window.CLCloud.saveGoi && window.__CLAPP.chiaLuu) {
       var sid = autoSaveId();
       if (sid) window.CLCloud.saveGoi({ id: sid, name: tenBanLuu(), goi: window.__CLAPP.chiaLuu() })
@@ -1527,6 +1564,7 @@
       _daSuaVa = true;
       if (!(dungDamMay() && window.CLCloud.saveGoi && window.__CLAPP && window.__CLAPP.chiaLuu)) return;
       if (!duocGhiXuong()) return;
+      if (_choLuu) return;                // (4/9) đang có phần sửa chưa bấm ☁ Lưu → không ghi hộ lên máy chủ
       var id = autoSaveId(); if (!id) return;
       if (va && va.hong && va.hong.length)
         toast('⚠ Không tìm lại được ' + va.hong.length + ' đơn: ' + va.hong.slice(0, 5).join(', ') + (va.hong.length > 5 ? '…' : ''), 'err');
