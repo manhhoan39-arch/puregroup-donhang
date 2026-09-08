@@ -653,7 +653,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0409290800</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0409290900</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1144,7 +1144,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=0409290800"></script>
+<script src="engine.web.js?v=0409290900"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -4934,11 +4934,27 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     o.curls=o.curls||{}; var old=+o.curls[curl]||0; if(old===val) return;
     pushUndo();
     if(val) o.curls[curl]=val; else delete o.curls[curl];
+    /* Dấu "người dùng đã chốt số này" — apCurlTay() áp lại sau khi tính dây, kẻo dây sinh lại
+       curls từ bảng Mix rồi ghi đè (lỗi 4/9: sửa xong sang ô khác lại quay về số cũ). */
+    o._curlTay=o._curlTay||{}; o._curlTay[curl]=val;
     o.sl = CURLS.reduce(function(a,k){ return a+(+((o.curls||{})[k])||0); },0);   // tổng SL = Σ độ cong
-    state._packR=null;
+    /* ⚡ NHANH: đừng bỏ bản tính sẵn rồi chạy lại CẢ DÂY cho 67 đơn chỉ vì sửa một ô — đó là
+       lý do user nói "chỉnh packing rất khó và chậm". Số sửa tay không làm đổi Mix/Keo/độ dài,
+       nên chỉ cần vá thẳng vào bản tính sẵn. Chưa có bản tính thì để boxR() tự lo. */
+    if(state._packR) apCurlTay(state._packR); else state._packR=null;
     logLine('Sửa số hộp packing '+key+' ['+curl+']: '+old+' → '+val);
-    renderSlip();
+    veLaiSlipSau();
   });
+  /* ⚠ VẼ LẠI SAU CÚ BẤM, ĐỪNG VẼ NGAY GIỮA CÚ BẤM (sửa 4/9).
+     `renderSlip()` dựng lại toàn bộ `#ps-body`. Bấm từ ô A sang ô B thì `focusout` của A bắn
+     NGAY TRONG mousedown của B ⇒ vẽ lại xoá luôn ô B, cú bấm rơi vào ô đã tháo khỏi trang, người
+     dùng phải bấm lại lần nữa — đúng cái "rất khó và chậm" user báo.
+     Nay hoãn một nhịp: cú bấm xong việc trước, rồi mới vẽ lại. Sửa liền mấy ô thì gộp một lần vẽ. */
+  var _slipHen=null;
+  function veLaiSlipSau(){
+    if(_slipHen) return;
+    _slipHen=setTimeout(function(){ _slipHen=null; try{ renderSlip(); }catch(e){ logErr('veLaiSlipSau', e); } }, 0);
+  }
   document.addEventListener('keydown', function(ev){
     if(ev.key==='Enter' && ev.target && ev.target.closest && ev.target.closest('td[data-boxcurl],td[data-cmk]')){ ev.preventDefault(); ev.target.blur(); }
   });
@@ -6253,7 +6269,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      state.pack = bản SAO của state.orders, chỉ tạo khi có sửa ở Box (clone-on-write).
      Box render/sửa/xuất/in đều chạy trên state.pack; state.orders (nguồn) giữ nguyên.
      Nguồn đổi (upload/nhập tay/sửa step 3) → reset packing (state.pack=null). */
-  function ensurePack(){ if(!state.pack) state.pack = JSON.parse(JSON.stringify(state.orders||[])); state._packR=null; return state.pack; }
+  /* ⚠⚠ CHỈ BỎ BẢN TÍNH SẴN KHI THỰC SỰ VỪA TẠO LỚP PACKING (sửa 4/9).
+     Bản cũ bỏ `state._packR` ở MỌI lần gọi, mà `boxFindIdx()` — hàm dùng ở khắp nơi, kể cả
+     trong đường sửa một ô — lại gọi `ensurePack()` đầu tiên. Hậu quả: sửa một ô là chạy lại
+     CẢ DÂY TÍNH TOÁN cho toàn bộ đơn, mỗi lần mấy trăm ms. Đúng cái user báo: "chỉnh packing
+     rất khó và chậm".
+     🔴 Chỗ nào SỬA `state.pack` thì tự gọi `state._packR=null` (boxRowOp · psDelRows đã làm),
+        đừng trông vào ensurePack() dọn hộ. */
+  function ensurePack(){
+    if(!state.pack){ state.pack = JSON.parse(JSON.stringify(state.orders||[])); state._packR=null; }
+    return state.pack;
+  }
   function resetPack(){ state.pack=null; state._packR=null; }
   /* ===== SỬA Ở BƯỚC NÀO THÌ BƯỚC 6 CŨNG PHẢI ĐỔI THEO (chốt 28/8) =====
      User: "nếu đã xác nhận sửa ở step nào thì các step khác cũng phải cập nhật theo."
@@ -6270,6 +6296,30 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     try{ return bam32(JSON.stringify([state.keoRows||[], state.colorMix||{}, state.lenApproved||{}])); }
     catch(e){ logErr('packNguonSig', e); return Date.now(); }   // đọc không được thì cứ tính lại
   }
+  /* ⚠⚠⚠ SỐ SỬA TAY Ở PACKING SLIP PHẢI SỐNG QUA DÂY TÍNH TOÁN (sửa 4/9).
+     GỐC RỄ user báo: *"chỉnh xong sang ô khác lại quay về chưa sửa"*. Dựng lại trên đơn thật
+     (Data/Đơn gửi xưởng 499P) thấy rõ: số ĐÃ vào `state.pack[i].curls` (27) nhưng bảng vẫn hiện
+     20 — vì `boxR()` chạy `runPipelineTheoDon` lại từ `state.pack`, mà dây tính toán SINH LẠI
+     `curls` từ bảng Mix/Keo ⇒ ghi đè đúng cái vừa sửa. Sửa xong thì `state._packR=null` nên lần
+     vẽ nào cũng tính lại ⇒ không bao giờ giữ được.
+     Nay mỗi lần sửa ô còn ghi thêm dấu `_curlTay` (số NGƯỜI DÙNG chốt) vào dòng của `state.pack`;
+     tính xong dây thì ÁP LẠI dấu đó lên bản tính. Người dùng nói gì thì cuối cùng phải là vậy.
+     🔴 Sửa `curls` ở Packing Slip thì BẮT BUỘC ghi kèm `_curlTay` — thiếu là lỗi này quay lại. */
+  function apCurlTay(R){
+    try{
+      if(!R || !R.orders || !state.pack) return R;
+      var tay={};
+      state.pack.forEach(function(o){ if(o && o._curlTay && Object.keys(o._curlTay).length) tay[boxRowKey(o)]=o._curlTay; });
+      if(!Object.keys(tay).length) return R;
+      R.orders.forEach(function(o){
+        var t=tay[boxRowKey(o)]; if(!t) return;
+        o.curls=o.curls||{};
+        Object.keys(t).forEach(function(k){ var v=+t[k]||0; if(v>0) o.curls[k]=v; else delete o.curls[k]; });
+        o.sl=CURLS.reduce(function(a2,k){ return a2+(+((o.curls||{})[k])||0); },0);
+      });
+    }catch(e){ logErr('apCurlTay', e); }
+    return R;
+  }
   function boxR(){
     if(!state.pack) return state.R;
     var _sig=packNguonSig();
@@ -6278,6 +6328,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       try{ attachColorMix(state.pack); }catch(e){ logErr('boxR.mixMau', e); }
       try{ var _pk = E.runPipelineTheoDon({ rawOrders: state.pack, mixSheets: state.mixSheets, keoRows: state.keoRows, khachCuon: state.khachCuon||null, opt:{ lenApproved: state.lenApproved||{} } }, state._khoPack);
            state._packR = _pk.R; state._khoPack = _pk.kho; }catch(e){ state._packR = state.R; }
+      apCurlTay(state._packR);          // ⬅ số người dùng chốt phải thắng dây tính toán
       state._packSig=_sig;
     }
     return state._packR;
@@ -6323,7 +6374,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   function psSelClear(){ psA=psH=null; psClearLock(); psPaint(); }
   // data-boxcurl rỗng = ô chữ (Mã đơn · Nguyên liệu…) hoặc cột Tổng/Còn lại → KHÔNG ghi số vào
-  function psWrite(el,val){ if(!el)return; var key=el.getAttribute('data-boxkey'),curl=el.getAttribute('data-boxcurl'); var idx=boxFindIdx(key); if(idx<0)return; if(!curl) return; var o=state.pack[idx]; o.curls=o.curls||{}; if(val>0)o.curls[curl]=val; else delete o.curls[curl]; o.sl=CURLS.reduce(function(a,k){return a+(+((o.curls||{})[k])||0);},0); }
+  function psWrite(el,val){ if(!el)return; var key=el.getAttribute('data-boxkey'),curl=el.getAttribute('data-boxcurl'); var idx=boxFindIdx(key); if(idx<0)return; if(!curl) return; var o=state.pack[idx]; o.curls=o.curls||{}; if(val>0)o.curls[curl]=val; else delete o.curls[curl]; o._curlTay=o._curlTay||{}; o._curlTay[curl]=(val>0?val:0); o.sl=CURLS.reduce(function(a,k){return a+(+((o.curls||{})[k])||0);},0); }
   function psKeyOfRow(r){ var td=psCellAt(r,0); return td?td.getAttribute('data-boxkey'):''; }
   function psDelRows(){
     var rg=psRange(), keys=[];
@@ -9927,14 +9978,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=0409290800"></script>
-<script src="cl.sync.js?v=0409290800"></script>
-<script src="auth.store.js?v=0409290800"></script>
-<script src="auth.web.js?v=0409290800"></script>
+<script src="cl.config.js?v=0409290900"></script>
+<script src="cl.sync.js?v=0409290900"></script>
+<script src="auth.store.js?v=0409290900"></script>
+<script src="auth.web.js?v=0409290900"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=0409290800"></script>
+<script src="cl.project.js?v=0409290900"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=0409290800" defer></script>
+<script src="firebase-bridge.js?v=0409290900" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
