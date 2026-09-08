@@ -322,12 +322,9 @@ td.cellsel-anchor,th.cellsel-anchor{box-shadow:inset 0 0 0 2px var(--accent)}
    Ghi chú độ cong là CHỈ DẪN CUỐN quan trọng (độ cong M cuốn theo V, 5mm C cuốn ống 6mm…)
    nên không cắt "…" và không phải trỏ chuột mới thấy — cột này vẫn còn thừa chỗ. */
 td.dc-note{white-space:pre-wrap;word-break:break-word;line-height:1.6;vertical-align:top;padding-top:7px;padding-bottom:7px}
-/* Ô Độ Cong khi giá trị KHÔNG phải tên độ cong (J/B/C/CC/D…) mà là MÃ BẢNG ĐỘ CONG RIÊNG
-   của khách (vd "A2022") → gắn nhãn cho khỏi đọc nhầm thành một độ cong. */
-td.dc-ref{vertical-align:top;padding-top:7px;padding-bottom:7px;white-space:normal;word-break:break-word;line-height:1.45}
-td.dc-ref .dc-lbl{display:block;font-size:9.5px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.02em}
-td.dc-ref .dc-ma{display:inline-block;margin-top:3px;padding:1px 6px;border:1px solid var(--accent);border-radius:6px;
-  font-weight:800;color:var(--accent);background:rgba(232,24,92,.06)}
+/* Ô Độ Cong (mã bảng độ cong của khách): in ĐẬM, CĂN GIỮA cho dễ nhìn — user 8/9.
+   KHÔNG dùng lớp .txt ở ô này, vì ".sheet td.txt{text-align:left}" nằm sau sẽ đè mất căn giữa. */
+td.dc-ten{font-weight:800;text-align:center;vertical-align:middle;white-space:normal;word-break:break-word}
 /* Hộp nhập mật khẩu cho việc KHÔNG hoàn tác được (Xóa tất cả) */
 .pw-ov{position:fixed;inset:0;z-index:500;background:rgba(20,10,18,.55);display:flex;align-items:center;justify-content:center;padding:20px}
 .pw-box{width:min(430px,94vw);background:var(--surface);border:1.5px solid var(--accent);border-radius:14px;
@@ -660,7 +657,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0809291630</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0809291830</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1151,7 +1148,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=0809291630"></script>
+<script src="engine.web.js?v=0809291830"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -1809,7 +1806,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   // Ghi chú độ cong · Bảng Hộp · độ cong · tiêu đề cột: SUY RA từ meta của file, không lưu riêng
   function dungLaiMetaTheoDon(){
     var cnbm={}, btbm={}, dcbm={}, chbm={};
-    (state.files||[]).forEach(function(F){ if(!F||!F.meta||!F.data) return; var seen={};
+    /* ⚠ BỎ QUA file đã bị đánh dấu BẢN CŨ (cùng mã đơn + cùng tiêu đề, app giữ bản nạp sau).
+       processFiles đã lọc !F.banCu rồi, nhưng đường phục hồi này thì chưa — nên mở lại project
+       có cả bản cũ là ghi chú/Bảng Hộp/Bảng Độ Cong của BẢN CŨ đè lên bản mới. Đúng ca 770P
+       user gặp 8/9: file mới đã để TRỐNG ô độ cong mà app vẫn hiện "A2022" của bản cũ. */
+    (state.files||[]).forEach(function(F){ if(!F||!F.meta||!F.data||F.banCu) return; var seen={};
       (F.data.rawOrders||[]).forEach(function(o){ var m=o&&o.maDon; if(m&&!seen[m]){ seen[m]=1;
         if(F.meta.curlNotes) cnbm[m]=Object.assign(cnbm[m]||{}, F.meta.curlNotes);
         if(F.meta.curlHeaders) chbm[m]=Object.assign(chbm[m]||{}, F.meta.curlHeaders);
@@ -7135,24 +7136,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(!md){ box.innerHTML='<div class="txt mini" style="padding:8px;color:var(--text-3)">Chọn Mã Đơn ở bộ lọc phía trên để xem bảng độ cong của đơn.</div>'; return; }
     var dc=(state.doCongByMadon&&state.doCongByMadon[md])||null;
     if(!dc||!dc.rows||!dc.rows.length){ box.innerHTML='<div class="txt mini" style="padding:8px;color:var(--text-3)">Đơn '+esc(md)+' không có bảng độ cong riêng trong file.</div>'; return; }
-    /* Ghi chú độ cong = CHỈ DẪN CUỐN quan trọng của khách → hiện NGUYÊN VĂN ngay trên bảng,
+    /* Ghi chú độ cong = CHỈ DẪN CUỐN quan trọng của khách → hiện NGUYÊN VĂN, đủ mọi dòng,
        xuống dòng đúng như file (trước đây cắt 1 dòng "…", phải trỏ chuột mới đọc được).
-       Ô "Độ Cong" chỉ để trơn khi ĐÚNG là tên độ cong (J/B/C/CC/D/DD/L/M/V/L+/LD/LC/LB/LJ…);
-       giá trị khác (vd "A2022" = mã bảng độ cong RIÊNG khách gửi kèm) thì gắn nhãn
-       "Bảng riêng" — điền trơn A2022 vào cột Độ Cong rất dễ bị đọc nhầm là một độ cong. */
-    var _laCurl={}; CURLS.forEach(function(k){ _laCurl[String(k).toUpperCase()]=1; });
+       Ô "Độ Cong" in ĐÚNG chữ trong file: file để trống thì để trống, KHÔNG tự điền gì. */
     var rows=dc.rows.map(function(r){
       /* Vài file gói ghi chú trong \r\n (499P) → đổi hết về \n cho xuống dòng đúng 1 lần. */
       var n=String(r.note||'').replace(/\r\n?/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
-      var nm=String(r.name||'').trim();
-      var oTen = (!nm || _laCurl[nm.toUpperCase()]===1)
-        ? '<td class="txt">'+esc(nm)+'</td>'
-        : '<td class="txt dc-ref" title="Không phải tên độ cong — đây là MÃ BẢNG ĐỘ CONG RIÊNG của khách (xem file bảng độ cong gửi kèm đơn)">'+
-          '<span class="dc-lbl">Bảng riêng</span><span class="dc-ma">'+esc(nm)+'</span></td>';
-      return '<tr>'+oTen+'<td class="txt dc-note">'+esc(n)+'</td></tr>';
+      return '<tr><td class="dc-ten">'+esc(String(r.name||'').trim())+'</td>'+
+             '<td class="txt dc-note">'+esc(n)+'</td></tr>';
     }).join('');
     box.innerHTML='<table class="sheet" style="width:100%;font-size:11px;table-layout:fixed"><thead><tr>'+
-      '<th style="width:112px">Độ Cong</th><th>Ghi Chú</th></tr></thead><tbody data-gs="1">'+rows+'</tbody></table>';
+      '<th style="width:130px">Độ Cong</th><th>Ghi Chú</th></tr></thead><tbody data-gs="1">'+rows+'</tbody></table>';
   }
 
   // Tổng hợp Line Cuốn tính theo Mã Đơn đang chọn (Tổng Dây/Single/Mix + dòng GRAND TOTAL)
@@ -10036,14 +10030,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=0809291630"></script>
-<script src="cl.sync.js?v=0809291630"></script>
-<script src="auth.store.js?v=0809291630"></script>
-<script src="auth.web.js?v=0809291630"></script>
+<script src="cl.config.js?v=0809291830"></script>
+<script src="cl.sync.js?v=0809291830"></script>
+<script src="auth.store.js?v=0809291830"></script>
+<script src="auth.web.js?v=0809291830"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=0809291630"></script>
+<script src="cl.project.js?v=0809291830"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=0809291630" defer></script>
+<script src="firebase-bridge.js?v=0809291830" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
