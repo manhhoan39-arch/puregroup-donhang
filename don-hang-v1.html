@@ -653,7 +653,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0409290900</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0409291000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1144,7 +1144,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=0409290900"></script>
+<script src="engine.web.js?v=0409291000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -4875,6 +4875,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      `keys` = MẢNG khoá dòng — user chốt 4/9: "khi bôi đen nhiều dòng thì cũng sẽ thêm hoặc nhân
      bản BẰNG ĐÓ DÒNG tương ứng". Làm từ DƯỚI LÊN để mấy chỉ số phía trên không bị xê dịch. */
   function boxRowOp(op, keys){
+    if(!psSuaDuoc()) return psChanSua();
     var pk=ensurePack();
     var ds=[].concat(keys||[]).filter(function(k){ return k!=null && k!==''; });
     if(!ds.length) return;
@@ -4920,6 +4921,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var tr = ev.target && ev.target.closest ? ev.target.closest('#ps-body tr[data-key]') : null;   // chỉ trong Packing Slip
     if(!tr) return;
     ev.preventDefault();
+    if(!psSuaDuoc()) return;                       // chỉ-xem: không mở menu Thêm/Nhân bản/Xoá
     psCurKey=tr.getAttribute('data-key');
     showBoxCtxMenu(ev.clientX, ev.clientY, tr.getAttribute('data-key'));
   });
@@ -4927,6 +4929,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   document.addEventListener('focusout', function(ev){
     var td=ev.target&&ev.target.closest?ev.target.closest('td[data-boxcurl]'):null; if(!td) return;
     if(!td.isConnected) return;   // ô đã bị gỡ sau render → bỏ qua
+    if(td.closest('#ps-body') && !psSuaDuoc()) return;   // chỉ-xem Packing Slip → không ghi
     var key=td.getAttribute('data-boxkey'), curl=td.getAttribute('data-boxcurl');
     var pk=ensurePack(); var idx=boxFindIdx(key); if(idx<0) return;
     var o=pk[idx];
@@ -6353,6 +6356,19 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       (lack!==0?'<span style="flex:0 0 auto;white-space:nowrap;font-weight:800;font-size:12px;padding:3px 10px;border-radius:8px;background:#ffdede;color:#b1102e">⚠ '+(lack>0?('THIẾU '+fmtN(lack)):('THỪA '+fmtN(-lack)))+' hộp so với đơn gốc ('+fmtN(origTot)+')</span>':'')+
       '</div>';
   }
+  /* ⚠⚠⚠ AI ĐƯỢC SỬA PACKING SLIP (user chốt 4/9).
+     User: *"Phần tạo Packing slip chỉ cho tài khoản super admin, admin, tk nhân viên TBP Box
+     được chỉnh sửa."* — ảnh chụp cho thấy tài khoản **TBP Cuốn · Nhân viên** vẫn sửa được, vì
+     trước đây khu Packing Slip KHÔNG kiểm quyền ở đâu cả (khác bảng Tổng hợp Box vốn chỉ-xem).
+     Nay dùng ĐÚNG bảng phân quyền sẵn có trong ⚙ Quản lý, không gõ cứng tên người:
+       · super_admin / factory_admin → `__STEP_PERMS` là null ⇒ luôn sửa được;
+       · nhân viên → chỉ khi được cấp **SỬA ở bước "6 Tổng hợp Box"** (mã bước là **s10**).
+     ⚠ Mặc định nhân viên mới là 'view' hết (cloudDefaultUserPerms) nên TBP Cuốn tự động bị
+       chặn; muốn TBP Box sửa được thì vào ⚙ Quản lý cấp SỬA cho bước 6 của người đó.
+     🔴 Bước 6 trên thanh bên là **s10**, KHÔNG phải 's6' (s6 là "5 Bảng Line Cuốn") — nhầm chỗ
+        này là chặn sai người. */
+  function psSuaDuoc(){ return canEditStep('s10'); }
+  function psChanSua(){ alert('Bạn chỉ có quyền XEM Packing Slip.\nMuốn sửa: nhờ quản trị viên cấp quyền SỬA ở bước "6 Tổng hợp Box" (⚙ Quản lý).'); }
   // ==== Bảng tính Packing Slip: chọn vùng · copy/cut/paste · Delete · xóa/thêm/nhân bản dòng ====
   var psCurKey='', psA=null, psH=null, psDrag=false;
   function psCellAt(r,c){ return document.querySelector('#ps-body td[data-r="'+r+'"][data-c="'+c+'"]'); }
@@ -6374,9 +6390,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   function psSelClear(){ psA=psH=null; psClearLock(); psPaint(); }
   // data-boxcurl rỗng = ô chữ (Mã đơn · Nguyên liệu…) hoặc cột Tổng/Còn lại → KHÔNG ghi số vào
-  function psWrite(el,val){ if(!el)return; var key=el.getAttribute('data-boxkey'),curl=el.getAttribute('data-boxcurl'); var idx=boxFindIdx(key); if(idx<0)return; if(!curl) return; var o=state.pack[idx]; o.curls=o.curls||{}; if(val>0)o.curls[curl]=val; else delete o.curls[curl]; o._curlTay=o._curlTay||{}; o._curlTay[curl]=(val>0?val:0); o.sl=CURLS.reduce(function(a,k){return a+(+((o.curls||{})[k])||0);},0); }
+  function psWrite(el,val){ if(!el)return; if(!psSuaDuoc()) return; var key=el.getAttribute('data-boxkey'),curl=el.getAttribute('data-boxcurl'); var idx=boxFindIdx(key); if(idx<0)return; if(!curl) return; var o=state.pack[idx]; o.curls=o.curls||{}; if(val>0)o.curls[curl]=val; else delete o.curls[curl]; o._curlTay=o._curlTay||{}; o._curlTay[curl]=(val>0?val:0); o.sl=CURLS.reduce(function(a,k){return a+(+((o.curls||{})[k])||0);},0); }
   function psKeyOfRow(r){ var td=psCellAt(r,0); return td?td.getAttribute('data-boxkey'):''; }
   function psDelRows(){
+    if(!psSuaDuoc()) return psChanSua();
     var rg=psRange(), keys=[];
     if(rg){ for(var r=rg.r1;r<=rg.r2;r++){ var k=psKeyOfRow(r); if(k&&keys.indexOf(k)<0) keys.push(k); } }
     else if(psCurKey) keys=[psCurKey];
@@ -6478,6 +6495,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(t>0) thieuNhom[_s]=t;
     });
     var no=0;
+    var sua=psSuaDuoc();                       // chỉ-xem thì không ô nào gõ được (user chốt 4/9)
     var trs=rows.map(function(o,ridx){ no++; var key=boxRowKey(o); if(boxSel[key]==null) boxSel[key]=''; var hp=boxHop(o);
       var _s=_sig(o), gOrig=origBySig[_s]||0, gPack=packBySig[_s]||0;
       var hasBox=!!String(boxSel[key]||'').trim();
@@ -6507,7 +6525,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var cBg=cDiff?'rgba(232,24,92,.16)':'rgba(0,207,200,.07)', cCol=cDiff?';color:#b1102e':'';
         var cTit=cDiff?(' title="Độ cong '+esc(k)+': '+(thuaK>0?('ô này THỪA '+thuaK+' hộp'):('nhóm còn THIẾU '+hutK+' hộp'))+
           ' (gốc '+(((origCurl[_s]||{})[k])||0)+' / đã chia '+(((packCurl[_s]||{})[k])||0)+')"'):'';
-        return '<td class="cw" contenteditable="true" data-r="'+(no-1)+'" data-c="'+ci+'" data-boxkey="'+esc(key)+'" data-boxcurl="'+esc(k)+'"'+cTit+' style="background:'+cBg+cCol+';min-width:32px;font-weight:700">'+(v||'')+'</td>'; }).join('');
+        return '<td class="cw"'+(sua?' contenteditable="true"':'')+' data-r="'+(no-1)+'" data-c="'+ci+'" data-boxkey="'+esc(key)+'" data-boxcurl="'+esc(k)+'"'+cTit+' style="background:'+cBg+cCol+';min-width:32px;font-weight:700">'+(v||'')+'</td>'; }).join('');
       var mlc = (/\r?\n/.test(String(o.material||''))||/\r?\n/.test(String(o.codeSoi||''))) ? ' cl-mlcell' : '';
       return '<tr class="'+(mlc?'cl-multiline':'')+'" data-key="'+esc(key)+'" data-madon="'+esc(o.maDon)+'">'+
         /* Mấy cột chữ mang toạ độ ÂM (-6…-1) để nối liền lưới với cột độ cong (0…n) — bôi đen
@@ -6515,13 +6533,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         '<td data-r="'+(no-1)+'" data-c="-6">'+no+'</td>'+
         '<td class="l" data-r="'+(no-1)+'" data-c="-5">'+esc(khOf(o.maDon))+'</td>'+
         '<td class="l" data-r="'+(no-1)+'" data-c="-4">'+esc(donOf(o.maDon))+'</td>'+
-        '<td class="txt ps-mat'+mlc+'" contenteditable="true" data-matcell="1" data-r="'+(no-1)+'" data-c="-3" data-boxkey="'+esc(key)+'" '+
-        'title="Bấm đúp để sửa tên nguyên liệu">'+nl2br(o.material||o.codeSoi||'')+'</td>'+
+        '<td class="txt ps-mat'+mlc+'"'+(sua?' contenteditable="true" data-matcell="1"':'')+' data-r="'+(no-1)+'" data-c="-3" data-boxkey="'+esc(key)+'" '+
+        'title="'+(sua?'Bấm đúp để sửa tên nguyên liệu':'Chỉ xem')+'">'+nl2br(o.material||o.codeSoi||'')+'</td>'+
         '<td data-r="'+(no-1)+'" data-c="-2">'+esc(o.length||'')+'</td>'+
         '<td data-r="'+(no-1)+'" data-c="-1">'+esc(o.mixSingle||'')+'</td>'+
         curlTds+'<td class="qty" data-r="'+(no-1)+'" data-c="'+UC.length+'"'+totStyle+totTitle+'>'+hp+(warnSum?' ⚠':'')+'</td>'+
         '<td class="qty rem-cell" data-r="'+(no-1)+'" data-c="'+(UC.length+1)+'"'+(remRed?' data-remlock="1" style="background:#ffdede;color:#b1102e;font-weight:800"':(remGreen?' style="background:#d7f5df;color:#1a7a3f;font-weight:800"':''))+remTitle+'>'+remVal+(remRed?' ⚠':'')+'</td>'+
-        '<td class="box-cell"><input class="box-pick" list="box-datalist" data-key="'+esc(key)+'" value="'+esc(boxSel[key]||'')+'" placeholder="— box —" style="width:82px"></td></tr>';
+        '<td class="box-cell"><input class="box-pick" list="box-datalist" data-key="'+esc(key)+'" value="'+esc(boxSel[key]||'')+'" placeholder="'+(sua?'— box —':'—')+'" style="width:82px"'+(sua?'':' readonly title="Chỉ xem"')+'></td></tr>';
     }).join('');
     body.innerHTML='<table class="sheet" style="width:100%;white-space:nowrap"><thead>'+head+'</thead><tbody>'+(trs||'<tr><td colspan="'+(UC.length+9)+'" class="mini txt">Không có dòng.</td></tr>')+'</tbody></table>';
     renderSlipSummary();
@@ -6538,6 +6556,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '<div class="tbl-toolbar" style="border-bottom:1px solid var(--border);flex:0 0 auto">'+
         '<b style="color:var(--accent);font-size:15px">📦 Tạo Packing Slip</b>'+
         '<input id="ps-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả mã đơn" autocomplete="off" style="width:140px;margin-left:12px">'+
+        (psSuaDuoc()?'':'<span style="margin-left:12px;font-weight:800;font-size:12px;padding:3px 10px;border-radius:8px;background:#fff4d6;color:#8a5a00">👁 Chỉ xem — không có quyền sửa</span>')+
         '<button class="btn sm ghost" id="ps-undo" title="Hoàn tác thao tác vừa rồi (Ctrl+Z)">↶ Hoàn tác</button>'+
         '<button class="btn sm ghost" id="ps-redo" title="Làm lại thao tác vừa hoàn tác (Ctrl+Y)">↷ Làm lại</button>'+
         '<div class="spacer"></div>'+
@@ -6574,9 +6593,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     document.getElementById('ps-madon').addEventListener('change', renderSlip);
     document.getElementById('ps-print').addEventListener('click', printPacking);
     document.getElementById('ps-xlsx').addEventListener('click', dlPacking);
-    document.getElementById('ps-reset').addEventListener('click', function(){ if(confirm('Làm mới packing về khớp ĐƠN GỐC (bỏ mọi chỉnh trong Packing Slip)?')){ resetPack(); ensurePack(); renderSlip(); } });
-    document.getElementById('ps-undo').addEventListener('click', function(){ doUndo(); if(document.getElementById('ps-ov')) renderSlip(); });
-    document.getElementById('ps-redo').addEventListener('click', function(){ doRedo(); if(document.getElementById('ps-ov')) renderSlip(); });
+    document.getElementById('ps-reset').addEventListener('click', function(){ if(!psSuaDuoc()) return psChanSua(); if(confirm('Làm mới packing về khớp ĐƠN GỐC (bỏ mọi chỉnh trong Packing Slip)?')){ resetPack(); ensurePack(); renderSlip(); } });
+    document.getElementById('ps-undo').addEventListener('click', function(){ if(!psSuaDuoc()) return psChanSua(); doUndo(); if(document.getElementById('ps-ov')) renderSlip(); });
+    document.getElementById('ps-redo').addEventListener('click', function(){ if(!psSuaDuoc()) return psChanSua(); doRedo(); if(document.getElementById('ps-ov')) renderSlip(); });
     psInitSheet();
     renderSlip();
   }
@@ -7317,6 +7336,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   document.addEventListener('input', function(ev){
     var s=ev.target&&ev.target.closest?ev.target.closest('#ps-body .box-pick'):null;
     if(!s) return;
+    if(!psSuaDuoc()){ s.value=String(boxSel[s.getAttribute('data-key')]||''); return; }
     var key=s.getAttribute('data-key'), val=String(s.value||'').trim(); boxSel[key]=val;
     try{ var mdk=String(key).split('|')[0]; state.packTimeByMd=state.packTimeByMd||{}; state.packTimeByMd[mdk]=new Date().toLocaleString('vi-VN'); }catch(e){ logErr('openColMenu', e); }
     // cập nhật ô "Còn lại" ngay (xanh khi đã gán thùng)
@@ -8193,6 +8213,28 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     /* pg-ttl = dòng tiêu đề CHỈ để lặp khi in; nội dung của nó đã có ở dòng h2 nên bỏ,
        khỏi lặp tên đơn hai lần trong file Excel. */
     var SKIP=/(^|\s)(noprint|pg-ttl|pg-brk|pl-cut|pl-tag|rz-col|rz-row|rz-ctx|rz-stats)(\s|$)/;
+    /* ⚠⚠ ĐỌC CHỮ TRONG Ô THÌ PHẢI BỎ MẤY THỨ TRANG TRÍ CỦA GIAO DIỆN (sửa 4/9).
+       `innerText` của một ô tiêu đề gồm cả nút lọc `<span class="ft-b noprint">▼</span>` mà
+       `__ftInit` gắn vào ⇒ file Excel tải về ra "Độ Cong▼" · "Mã keo▼" · "Tổng▼" (user chụp được).
+       `hidden()` không chặn được vì `.noprint` chỉ ẩn khi IN, trên màn hình vẫn hiện.
+       🔴 Đọc chữ để xuất file thì dùng `chuO()`, ĐỪNG dùng `innerText` trực tiếp. */
+    function chuO(el){
+      if(!el) return '';
+      var s2='';
+      (function di(n){
+        for(var i=0;i<n.childNodes.length;i++){
+          var c=n.childNodes[i];
+          if(c.nodeType===3){ s2+=c.nodeValue; continue; }
+          if(c.nodeType!==1) continue;
+          var cl=String(c.className||'');
+          if(SKIP.test(' '+cl+' ')) continue;          // .noprint, tay kéo, dải thống kê…
+          if(cl.indexOf('ft-')===0) continue;          // nút lọc ▼ và menu lọc
+          if(c.tagName==='BR'){ s2+='\n'; continue; }
+          di(c);
+        }
+      })(el);
+      return s2;
+    }
     function hidden(el){ return SKIP.test(' '+(el.className||'')+' ') || getComputedStyle(el).display==='none'; }
     function blocks(root){                                   // tách vùng in thành các khối: bảng / dòng chữ
       var out=[];
@@ -8205,11 +8247,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           if(el.querySelector('table')){ walk(el); continue; }
           var kids=[].slice.call(el.children);
           if(cs.display==='flex' && kids.length>1){
-            out.push({t:'row',cells:kids.map(function(c){ return {el:c,text:(c.innerText||'').trim()}; })});
+            out.push({t:'row',cells:kids.map(function(c){ return {el:c,text:chuO(c).replace(/\s+/g,' ').trim()}; })});
             continue;
           }
           if(kids.length && kids.every(function(c){ return /block|flex|grid|list-item/.test(getComputedStyle(c).display); })){ walk(el); continue; }
-          var tx=(el.innerText||'').trim();
+          var tx=chuO(el).replace(/[ \t]+/g,' ').trim();
           if(tx) out.push({t:'txt',el:el,text:tx});
         }
       })(root);
@@ -8245,7 +8287,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             for(var c=0;c<gr.length;c++){
               var cell=gr[c]; if(!cell) continue;
               line.cells.push({ c:c, el:cell.el,
-                text: cell.anchor ? (cell.el.innerText||'').replace(/ /g,' ').trim() : '' });
+                text: cell.anchor ? chuO(cell.el).replace(/ /g,' ').trim() : '' });
               if(c+1>maxc) maxc=c+1;
             }
             rows.push(line);
@@ -8309,7 +8351,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       } else {
         var sc=document.querySelector('.pr-scope')||document.body;
         var h2=sc.querySelector('h2');
-        sheets.push({ name:sname((h2&&h2.innerText)||document.title||'Sheet1', used),
+        sheets.push({ name:sname((h2&&chuO(h2))||document.title||'Sheet1', used),
                       xml:build(sc, document.body.getAttribute('data-land')==='1', P) });
       }
       var styles='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
@@ -9978,14 +10020,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=0409290900"></script>
-<script src="cl.sync.js?v=0409290900"></script>
-<script src="auth.store.js?v=0409290900"></script>
-<script src="auth.web.js?v=0409290900"></script>
+<script src="cl.config.js?v=0409291000"></script>
+<script src="cl.sync.js?v=0409291000"></script>
+<script src="auth.store.js?v=0409291000"></script>
+<script src="auth.web.js?v=0409291000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=0409290900"></script>
+<script src="cl.project.js?v=0409291000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=0409290900" defer></script>
+<script src="firebase-bridge.js?v=0409291000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
