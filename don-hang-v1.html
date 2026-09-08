@@ -653,7 +653,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0409290600</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0409290800</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1144,7 +1144,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=0409290600"></script>
+<script src="engine.web.js?v=0409290800"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -3319,6 +3319,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var t=ev.target;
     if(t && t.closest && t.closest('#rpt-bo-loc')){                    // gỡ cả 2 ô lọc của bảng tổng hợp
       ['rpt-makh','rpt-madon','rpt-tim'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+      /* Bỏ lọc ở bước 2 = bỏ lọc CẢ APP (từ 4/9 hai ô này đã đồng bộ mọi bước) — không thì
+         bấm "xem tất cả" mà sang bước 5 vẫn chỉ thấy một đơn. */
+      try{ setGlobalMadon(''); setGlobalMakh(''); }catch(e){ logErr('rpt-bo-loc', e); }
       try{ renderNhapDonReport(); }catch(e){ logErr('renderNhapDonReport', e); }
       return;
     }
@@ -3826,7 +3829,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      + nút gấp/mở + xuất Excel. Chỉ vẽ lại đúng cái bảng đó, không tính lại số liệu. */
   ['rpt-makh','rpt-madon','rpt-tim'].forEach(function(id){
     var el=document.getElementById(id); if(!el) return;
-    var ve=function(){ try{ renderNhapDonReport(); }catch(e){ logErr('renderNhapDonReport', e); } };
+    var ve=function(){
+      /* Mã đơn / mã KH: chọn xong là ĐẨY SANG MỌI BƯỚC (user chốt 4/9) — setGlobal* tự vẽ lại
+         bảng này. Gõ dở dang thì chỉ lọc riêng bảng này thôi. Ô "tìm nội dung" vẫn chỉ của
+         riêng bảng tổng hợp. */
+      try{
+        if(id==='rpt-madon' && dayDonSangMoiBuoc(el.value)) return;
+        if(id==='rpt-makh'  && dayKhSangMoiBuoc(el.value))  return;
+      }catch(e){ logErr('rpt.dongBo', e); }
+      try{ renderNhapDonReport(); }catch(e){ logErr('renderNhapDonReport', e); }
+    };
     el.addEventListener('input', debounce(ve, 160)); el.addEventListener('change', ve);
   });
   (function(){
@@ -4848,29 +4860,59 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   /* ---- MENU CHUỘT PHẢI + SỬA SỐ LƯỢNG cho TỔNG HỢP BOX (Step 6 eng-box) — thao tác state.orders ---- */
   // Box thao tác trên LỚP PACKING (state.pack) — KHÔNG đụng state.orders (nguồn Nhập Đơn)
   function boxFindIdx(key){ var arr=ensurePack(), i=-1; arr.forEach(function(o,ix){ if(boxRowKey(o)===key) i=ix; }); return i; }
-  function boxRowOp(op, key){
-    var pk=ensurePack(); var idx=boxFindIdx(key); if(idx<0) return;
+  /* ⚠⚠ ĐÁNH SỐ LẠI `seri` LÀ ĐỔI LUÔN KHOÁ DÒNG (`boxRowKey` = maDon|seri), mà lựa chọn Thùng
+     (`boxSel`) lại cất theo khoá đó. Thêm một dòng ở giữa mà không dời `boxSel` theo thì mọi
+     dòng phía dưới bị GÁN SANG THÙNG CỦA DÒNG KHÁC — sai im lặng, không ai thấy (sửa 4/9).
+     Cách làm: nhớ khoá CŨ của từng dòng trước khi đánh số, xong dựng lại `boxSel` theo khoá MỚI. */
+  function boxDanhSoLai(pk){
+    var cu=pk.map(function(x){ return boxRowKey(x); });
+    pk.forEach(function(x,i){ x.seri=i+1; });
+    var moi={};
+    pk.forEach(function(x,i){ var k=cu[i]; if(k!=null && boxSel[k]!=null && boxSel[k]!=='') moi[boxRowKey(x)]=boxSel[k]; });
+    boxSel=moi;
+  }
+  /* Thêm / nhân bản / xoá dòng packing.
+     `keys` = MẢNG khoá dòng — user chốt 4/9: "khi bôi đen nhiều dòng thì cũng sẽ thêm hoặc nhân
+     bản BẰNG ĐÓ DÒNG tương ứng". Làm từ DƯỚI LÊN để mấy chỉ số phía trên không bị xê dịch. */
+  function boxRowOp(op, keys){
+    var pk=ensurePack();
+    var ds=[].concat(keys||[]).filter(function(k){ return k!=null && k!==''; });
+    if(!ds.length) return;
+    var viTri=ds.map(function(k){ return boxFindIdx(k); }).filter(function(i){ return i>=0; });
+    if(!viTri.length) return;
+    viTri.sort(function(a2,b2){ return b2-a2; });          // từ dưới lên
     pushUndo();
-    var o=pk[idx];
     // dòng thêm THỦ CÔNG: kế thừa NL/độ dài/S-M của dòng gốc, ô độ cong TRỐNG để tự chia, _manual để luôn hiển thị
-    var mkBlank=function(){ return { seri:0, maDon:o.maDon, codeSoi:o.codeSoi||'', length:o.length||'', mixSingle:o.mixSingle||'', curls:{}, line:o.line||18, lineRaw:o.lineRaw||'', loaiHang:o.loaiHang||'', ghiChuKeo:o.ghiChuKeo||'', material:o.material||'', thickness:o.thickness||'', label:'', _manual:true }; };
-    if(op==='above') pk.splice(idx,0,mkBlank());
-    else if(op==='below') pk.splice(idx+1,0,mkBlank());
-    else if(op==='dup') pk.splice(idx+1,0,Object.assign({},o,{curls:Object.assign({},o.curls||{}),_manual:true}));
-    else if(op==='del') pk.splice(idx,1);
-    pk.forEach(function(x,i){ x.seri=i+1; });   // đánh số lại trong lớp packing
+    var mkBlank=function(o){ return { seri:0, maDon:o.maDon, codeSoi:o.codeSoi||'', length:o.length||'', mixSingle:o.mixSingle||'', curls:{}, line:o.line||18, lineRaw:o.lineRaw||'', loaiHang:o.loaiHang||'', ghiChuKeo:o.ghiChuKeo||'', material:o.material||'', thickness:o.thickness||'', label:'', _manual:true }; };
+    viTri.forEach(function(idx){
+      var o=pk[idx]; if(!o) return;
+      if(op==='above') pk.splice(idx,0,mkBlank(o));
+      else if(op==='below') pk.splice(idx+1,0,mkBlank(o));
+      else if(op==='dup') pk.splice(idx+1,0,Object.assign({},o,{curls:Object.assign({},o.curls||{}),_manual:true}));
+      else if(op==='del') pk.splice(idx,1);
+    });
+    boxDanhSoLai(pk);
     state._packR=null;
-    logLine((op==='del'?'Xóa':op==='dup'?'Nhân bản':'Thêm')+' dòng packing '+key);
+    logLine((op==='del'?'Xóa':op==='dup'?'Nhân bản':'Thêm')+' '+viTri.length+' dòng packing');
     renderSlip();
+  }
+  /* Khoá của MỌI dòng đang bôi đen; không bôi đen thì lấy dòng đang bấm. */
+  function psKeysDangChon(keyBam){
+    var rg=(typeof psRange==='function')?psRange():null, keys=[];
+    if(rg){ for(var r=rg.r1;r<=rg.r2;r++){ var k=psKeyOfRow(r); if(k && keys.indexOf(k)<0) keys.push(k); } }
+    if(!keys.length && keyBam) keys=[keyBam];
+    return keys;
   }
   function showBoxCtxMenu(x,y,key){
     try{
       closeCtxMenu();
       var m=document.createElement('div'); m.id='af-ctx'; m.className='ctx-menu';
-      m.innerHTML='<div class="mi" data-op="above">⬆️ Thêm 1 dòng phía trên</div><div class="mi" data-op="below">⬇️ Thêm 1 dòng phía dưới</div><div class="mi" data-op="dup">📄 Nhân bản dòng (tách packing)</div><hr><div class="mi danger" data-op="del">🗑️ Xóa dòng</div>';
+      /* Bôi đen N dòng thì menu nói rõ sẽ làm N dòng — khỏi bấm xong mới biết (user chốt 4/9). */
+      var keys=psKeysDangChon(key), n=keys.length, hau=(n>1?(' ('+n+' dòng)'):'');
+      m.innerHTML='<div class="mi" data-op="above">⬆️ Thêm dòng phía trên'+hau+'</div><div class="mi" data-op="below">⬇️ Thêm dòng phía dưới'+hau+'</div><div class="mi" data-op="dup">📄 Nhân bản dòng (tách packing)'+hau+'</div><hr><div class="mi danger" data-op="del">🗑️ Xóa dòng'+hau+'</div>';
       document.body.appendChild(m);
       m.style.left=Math.min(x,(window.innerWidth||1200)-240)+'px'; m.style.top=Math.min(y,(window.innerHeight||800)-180)+'px';
-      m.addEventListener('click', function(ev){ var mi=ev.target&&ev.target.closest?ev.target.closest('.mi'):null; if(mi) boxRowOp(mi.getAttribute('data-op'), key); closeCtxMenu(); });
+      m.addEventListener('click', function(ev){ var mi=ev.target&&ev.target.closest?ev.target.closest('.mi'):null; if(mi) boxRowOp(mi.getAttribute('data-op'), keys); closeCtxMenu(); });
       setTimeout(function(){ document.addEventListener('click', function h(){ closeCtxMenu(); document.removeEventListener('click',h); }); },0);
     }catch(e){ console.warn('box ctx-menu:', e); }
   }
@@ -5882,29 +5924,77 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // Ô nhập giữ nguyên mã đang chọn; nếu mã đó không còn thì trả về "tất cả".
     if(el.value && allMaDons(R).indexOf(el.value)<0) el.value='';
   }
-  // ĐỒNG BỘ mã đơn giữa các bước: chọn đơn ở bất kỳ bảng nào → mọi bảng cùng lọc theo đơn đó.
-  var MADON_IDS=['s3-madon','s4-madon','s5-madon','s6-madon','s10-madon','s7-madon'];
+  /* ĐỒNG BỘ mã đơn giữa các bước: chọn đơn ở bất kỳ bảng nào → mọi bảng cùng lọc theo đơn đó.
+     ⚠⚠ TỪ 4/9 GỒM CẢ BẢNG TỔNG HỢP ĐƠN Ở BƯỚC 2 (user: "chọn mã đơn ở bảng tổng hợp đơn xong
+     tôi muốn khi chuyển sang các step khác cũng sẽ hiển thị dữ liệu của đơn đó"). Trước đây
+     `rpt-madon` là bộ lọc RIÊNG, nên chọn đơn ở bước 2 rồi sang bước 3/4/5/6 vẫn thấy cả 67 đơn.
+     Nay hai chiều: bước 2 đẩy sang mọi bước, và mọi bước đẩy về bước 2 — cả app luôn cùng nhìn
+     MỘT đơn, không bao giờ lệch nhau.
+     🔴 Đây là danh sách DUY NHẤT cần sửa khi thêm ô chọn đơn mới ở bước nào đó. */
+  var MADON_IDS=['s3-madon','s4-madon','s5-madon','s6-madon','s10-madon','s7-madon','rpt-madon'];
   function setGlobalMadon(md){
     md=String(md||'').trim(); if(md==='Tất cả các đơn') md='';
-    MADON_IDS.forEach(function(id){ var el=document.getElementById(id); if(el && el.value!==md) el.value=md; });
+    var doi=false;
+    MADON_IDS.forEach(function(id){ var el=document.getElementById(id); if(el && el.value!==md){ el.value=md; if(id==='rpt-madon') doi=true; } });
     gridMadon=md;
     __capReflow();
     if(typeof applyGridFilter==='function') applyGridFilter();
     if(typeof applyAllFilters==='function') applyAllFilters();
     if(typeof updateErrChips==='function') updateErrChips();
+    // ô của bảng Tổng hợp đơn vừa đổi thì phải vẽ lại chính bảng đó (nó không nằm trong applyAllFilters)
+    if(doi){ try{ renderNhapDonReport(); }catch(e){ logErr('setGlobalMadon.rpt', e); } }
+  }
+  /* Chỉ đẩy sang các bước khác khi người dùng chọn ĐÚNG MỘT MÃ ĐƠN CÓ THẬT (hoặc xoá trắng).
+     Ô ở bước 2 cho gõ một phần ("746" cũng ra) — đẩy chuỗi dở dang đó sang các bước khác thì
+     mấy bước kia lọc ra RỖNG, người dùng tưởng mất dữ liệu. */
+  /* Có thật hay không: soi CẢ danh sách xổ (dl-*) lẫn allMaDons/allMaKHs. Chỉ soi `state.R`
+     thì lúc nó chưa dựng xong (vừa nạp bản lưu) mọi mã đều bị coi là "gõ dở" ⇒ đồng bộ im
+     lặng không chạy, mà không có gì báo. */
+  /* Có thật hay không: soi CẢ danh sách xổ (dl-*) lẫn allMaDons/allMaKHs.
+     ⚠⚠ `layDs` phải là HÀM, đừng truyền thẳng `allMaKHs(state.R)`: lúc `state.R` chưa dựng
+     (vừa nạp bản lưu xong) mấy hàm đó văng lỗi, mà nó văng NGAY LÚC TÍNH ĐỐI SỐ nên cả phần
+     đồng bộ chết theo và im lặng — đã dính đúng lỗi này 4/9, bộ kiểm bài 26 bắt được. */
+  function coTrongDs(v, dlId, layDs){
+    v=String(v||'');
+    try{ var dl=document.getElementById(dlId);
+         if(dl){ var os=dl.querySelectorAll('option');
+                 for(var i=0;i<os.length;i++) if(String(os[i].value||'')===v) return true; } }
+    catch(e){ logErr('coTrongDs.dl', e); }
+    try{ return (layDs()||[]).indexOf(v)>=0; }catch(e){ logErr('coTrongDs.ds', e); return false; }
+  }
+  function dayDonSangMoiBuoc(v){
+    v=String(v||'').trim();
+    if(v==='Tất cả các đơn') v='';
+    if(v!=='' && !coTrongDs(v,'dl-madon',function(){ return allMaDons(state.R); })) return false;   // đang gõ dở → chưa đẩy
+    setGlobalMadon(v); return true;
+  }
+  function dayKhSangMoiBuoc(v){
+    v=String(v||'').trim();
+    if(v==='Tất cả KH') v='';
+    if(v!=='' && !coTrongDs(v,'dl-makh',function(){ return allMaKHs(state.R); })) return false;
+    setGlobalMakh(v); return true;
   }
   // ===== Lọc theo Mã KH (đồng bộ mọi bước) =====
-  var MAKH_IDS=['s3-makh','s4-makh','s5-makh','s6-makh','s10-makh','s7-makh'];
+  var MAKH_IDS=['s3-makh','s4-makh','s5-makh','s6-makh','s10-makh','s7-makh','rpt-makh'];   // kèm bước 2 từ 4/9
   function allMaKHs(R){ return allMaKHsMoiTruoc(R); }   // KH của đơn mới nhất lên đầu
-  function fillMakhList(R){ var khs=allMaKHs(R); var dl=document.getElementById('dl-makh'); if(dl){ dl.innerHTML='<option value="Tất cả KH"></option>'+khs.map(function(k){ return '<option value="'+esc(k)+'"></option>'; }).join(''); } (typeof MAKH_IDS!=='undefined'?MAKH_IDS:[]).forEach(function(id){ var el=document.getElementById(id); if(el && el.value && khs.indexOf(el.value)<0) el.value=''; }); }
+  /* ⚠⚠ DỌN Ô LỌC THÌ CHỪA Ô CỦA BẢNG TỔNG HỢP ĐƠN (sửa 4/9).
+     Hàm này xoá mọi ô lọc đang giữ giá trị KHÔNG có trong danh sách — đúng cho các ô "chọn"
+     ở bước 3/4/5/6, nhưng `rpt-makh` ở bước 2 cho GÕ MỘT PHẦN ("gõ một phần cũng ra"), nên
+     vừa gõ nửa chữ là lượt vẽ sau xoá mất. Từ 4/9 `rpt-makh` đã nằm trong MAKH_IDS (để đồng
+     bộ), nên phải chừa nó ra ở đây. `fillMadonSelect` không mắc vì nó chỉ dọn đúng ô được
+     truyền vào, mà `rpt-madon` không nằm trong danh sách gọi. */
+  var MAKH_KHONG_DON=['rpt-makh'];
+  function fillMakhList(R){ var khs=allMaKHs(R); var dl=document.getElementById('dl-makh'); if(dl){ dl.innerHTML='<option value="Tất cả KH"></option>'+khs.map(function(k){ return '<option value="'+esc(k)+'"></option>'; }).join(''); } (typeof MAKH_IDS!=='undefined'?MAKH_IDS:[]).forEach(function(id){ if(MAKH_KHONG_DON.indexOf(id)>=0) return; var el=document.getElementById(id); if(el && el.value && khs.indexOf(el.value)<0) el.value=''; }); }
   function setGlobalMakh(kh){
     kh=String(kh||'').trim(); if(kh==='Tất cả KH') kh='';
-    MAKH_IDS.forEach(function(id){ var el=document.getElementById(id); if(el && el.value!==kh) el.value=kh; });
+    var doi=false;
+    MAKH_IDS.forEach(function(id){ var el=document.getElementById(id); if(el && el.value!==kh){ el.value=kh; if(id==='rpt-makh') doi=true; } });
     gridMakh=kh;
     __capReflow();
     if(typeof applyGridFilter==='function') applyGridFilter();
     if(typeof applyAllFilters==='function') applyAllFilters();
     if(typeof updateErrChips==='function') updateErrChips();
+    if(doi){ try{ renderNhapDonReport(); }catch(e){ logErr('setGlobalMakh.rpt', e); } }
   }
   // lọc chung cho bảng có <tr data-madon> (ưu tiên data-search nếu có)
   function filterRows(tbodyId, qStr, madon){
@@ -6240,7 +6330,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(rg){ for(var r=rg.r1;r<=rg.r2;r++){ var k=psKeyOfRow(r); if(k&&keys.indexOf(k)<0) keys.push(k); } }
     else if(psCurKey) keys=[psCurKey];
     if(!keys.length){ alert('Bôi đen hoặc bấm vào dòng cần xóa trước.'); return; }
-    pushUndo(); var pk=ensurePack(); state.pack=pk.filter(function(o){ return keys.indexOf(boxRowKey(o))<0; }); state.pack.forEach(function(o,i){o.seri=i+1;}); state._packR=null; psA=psH=null; renderSlip();
+    pushUndo(); var pk=ensurePack(); state.pack=pk.filter(function(o){ return keys.indexOf(boxRowKey(o))<0; }); boxDanhSoLai(state.pack); state._packR=null; psA=psH=null; renderSlip();
   }
   function psInitSheet(){
     if(psInitSheet._done) return; psInitSheet._done=true;
@@ -6306,22 +6396,66 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var _addCurl=function(map,o){ var s=_sig(o); map[s]=map[s]||{}; CURLS.forEach(function(k){ if(o.curls&&o.curls[k]) map[s][k]=(map[s][k]||0)+(+o.curls[k]||0); }); };
     try{ boxDataRows(state.R).forEach(function(o){ var s=_sig(o); origBySig[s]=(origBySig[s]||0)+boxHop(o); _addCurl(origCurl,o); }); }catch(e){ logErr('renderSlip', e); }
     try{ boxDataRows(boxR()).forEach(function(o){ var s=_sig(o); packBySig[s]=(packBySig[s]||0)+boxHop(o); _addCurl(packCurl,o); }); }catch(e){ logErr('renderSlip', e); }
-    var lastBySig={}; rows.forEach(function(o,i){ lastBySig[_sig(o)]=i; });   // dòng cuối của mỗi nhóm (để hiện số còn lại)
+    var lastBySig={}; rows.forEach(function(o,i){ lastBySig[_sig(o)]=i; });   // dòng cuối của mỗi nhóm (để hiện số còn THIẾU)
+    /* ⚠⚠ CẢNH BÁO PHẢI CHỈ ĐÚNG DÒNG ĐANG THỪA / ĐANG THIẾU (user chốt 4/9).
+       Bản cũ: nhóm lệch là tô đỏ HẾT MỌI DÒNG của nhóm, rồi dồn số lệch vào DÒNG CUỐI — nên
+       ảnh user gửi có 3 dòng Chocolate Brown đều ⚠ mà "Còn lại -10" lại nằm ở dòng cuối, trong
+       khi dòng thừa là dòng khác. Nhìn vào không biết phải sửa dòng nào.
+       Nay chia theo TỪNG Ô ĐỘ CONG, cộng dồn từ trên xuống theo hạn mức của đơn gốc:
+         · phần của dòng vượt quá hạn mức = THỪA → tô đỏ ĐÚNG Ô ĐÓ, đúng dòng đó;
+         · nhóm còn hụt so với gốc = THIẾU → chẳng dòng nào "sai", nên chỉ báo MỘT LẦN ở dòng
+           cuối nhóm để biết còn phải chia thêm bao nhiêu.
+       Dòng nào không thừa không thiếu thì SẠCH — không tô đỏ oan. */
+    var thuaO={};                                  // thuaO[ridx][curl] = số hộp thừa của ô đó
+    (function(){
+      var chay={};                                 // chay[sig][curl] = đã cộng dồn tới đâu
+      rows.forEach(function(o,ridx){
+        var _s=_sig(o); chay[_s]=chay[_s]||{};
+        CURLS.forEach(function(k){
+          var v=+((o.curls||{})[k]||0); if(!v) return;
+          var han=((origCurl[_s]||{})[k])||0;      // hạn mức của đơn gốc cho độ cong này
+          var truoc=chay[_s][k]||0;
+          var vuot=Math.max(0, (truoc+v)-han);
+          if(vuot>0){ thuaO[ridx]=thuaO[ridx]||{}; thuaO[ridx][k]=Math.min(v,vuot); }
+          chay[_s][k]=truoc+v;
+        });
+      });
+    })();
+    var thieuNhom={};                              // thieuNhom[sig] = tổng số hộp còn hụt so với gốc
+    Object.keys(origCurl).forEach(function(_s){
+      var t=0; CURLS.forEach(function(k){ t+=Math.max(0, (((origCurl[_s]||{})[k])||0) - (((packCurl[_s]||{})[k])||0)); });
+      if(t>0) thieuNhom[_s]=t;
+    });
     var no=0;
     var trs=rows.map(function(o,ridx){ no++; var key=boxRowKey(o); if(boxSel[key]==null) boxSel[key]=''; var hp=boxHop(o);
-      var _s=_sig(o), gOrig=origBySig[_s]||0, gPack=packBySig[_s]||0, gDiff=gOrig-gPack, warnSum=(gDiff!==0);
+      var _s=_sig(o), gOrig=origBySig[_s]||0, gPack=packBySig[_s]||0;
       var hasBox=!!String(boxSel[key]||'').trim();
-      // Còn lại: nhóm còn lệch → hiện số cần chia (đỏ) ở DÒNG CUỐI nhóm; nhóm đủ → số hộp dòng này chưa vào thùng (xanh khi đã gán)
       var isLastOfGrp=(ridx===lastBySig[_s]);
+      var oThua=thuaO[ridx]||{};
+      var soThuaDong=Object.keys(oThua).reduce(function(a2,k){ return a2+oThua[k]; },0);
+      var soThieuNhom=isLastOfGrp?(thieuNhom[_s]||0):0;
+      /* CHỈ dòng này thừa, hoặc dòng cuối của nhóm đang hụt, mới bị đánh dấu. */
+      var warnSum=(soThuaDong>0 || soThieuNhom>0);
       var remVal, remRed=false, remGreen=false, remTitle='';
-      if(warnSum && isLastOfGrp){ remVal=gDiff; remRed=true; remTitle=' title="Nhóm còn '+(gDiff>0?('THIẾU '+gDiff):('THỪA '+(-gDiff)))+' hộp cần chia (gốc '+gOrig+', đã chia '+gPack+')"'; }
-      else { remVal=hasBox?0:hp; remGreen=(hasBox&&hp>0); }
+      if(soThuaDong>0){
+        remVal=-soThuaDong; remRed=true;
+        remTitle=' title="Dòng này THỪA '+soThuaDong+' hộp so với đơn gốc ('+
+          Object.keys(oThua).map(function(k){ return esc(k)+' thừa '+oThua[k]; }).join(' · ')+') — bớt đi hoặc dời sang dòng khác."';
+      } else if(soThieuNhom>0){
+        remVal=soThieuNhom; remRed=true;
+        remTitle=' title="Nhóm này còn THIẾU '+soThieuNhom+' hộp chưa chia (gốc '+gOrig+', đã chia '+gPack+') — thêm vào dòng nào cũng được."';
+      } else { remVal=hasBox?0:hp; remGreen=(hasBox&&hp>0); }
       var totStyle=warnSum?' style="background:#ffdede;color:var(--red-700,#b1102e);font-weight:800"':'';
-      var totTitle=warnSum?' title="Nhóm này đã chia '+gPack+' / gốc '+gOrig+' → '+(gDiff>0?('THIẾU '+gDiff):('THỪA '+(-gDiff)))+' hộp. Chia số các ô độ cong cho khớp gốc."':'';
+      var totTitle=warnSum?' title="'+(soThuaDong>0?('Dòng này THỪA '+soThuaDong+' hộp'):('Nhóm còn THIẾU '+soThieuNhom+' hộp'))+
+        ' (nhóm: gốc '+gOrig+', đã chia '+gPack+')"':'';
       var curlTds=UC.map(function(k,ci){ var v=o.curls&&o.curls[k]?o.curls[k]:'';
-        var cDiff=(((origCurl[_s]||{})[k])||0)!==(((packCurl[_s]||{})[k])||0);   // độ cong này của nhóm khác gốc → tô đỏ
+        /* Tô đỏ ĐÚNG Ô: ô của chính dòng này đang thừa, hoặc (ở dòng cuối nhóm) độ cong này còn hụt. */
+        var thuaK=oThua[k]||0;
+        var hutK=isLastOfGrp?Math.max(0, (((origCurl[_s]||{})[k])||0) - (((packCurl[_s]||{})[k])||0)):0;
+        var cDiff=(thuaK>0 || hutK>0);
         var cBg=cDiff?'rgba(232,24,92,.16)':'rgba(0,207,200,.07)', cCol=cDiff?';color:#b1102e':'';
-        var cTit=cDiff?' title="Độ cong '+esc(k)+' của nhóm: gốc '+(((origCurl[_s]||{})[k])||0)+' / hiện '+(((packCurl[_s]||{})[k])||0)+'"':'';
+        var cTit=cDiff?(' title="Độ cong '+esc(k)+': '+(thuaK>0?('ô này THỪA '+thuaK+' hộp'):('nhóm còn THIẾU '+hutK+' hộp'))+
+          ' (gốc '+(((origCurl[_s]||{})[k])||0)+' / đã chia '+(((packCurl[_s]||{})[k])||0)+')"'):'';
         return '<td class="cw" contenteditable="true" data-r="'+(no-1)+'" data-c="'+ci+'" data-boxkey="'+esc(key)+'" data-boxcurl="'+esc(k)+'"'+cTit+' style="background:'+cBg+cCol+';min-width:32px;font-weight:700">'+(v||'')+'</td>'; }).join('');
       var mlc = (/\r?\n/.test(String(o.material||''))||/\r?\n/.test(String(o.codeSoi||''))) ? ' cl-mlcell' : '';
       return '<tr class="'+(mlc?'cl-multiline':'')+'" data-key="'+esc(key)+'" data-madon="'+esc(o.maDon)+'">'+
@@ -9793,14 +9927,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=0409290600"></script>
-<script src="cl.sync.js?v=0409290600"></script>
-<script src="auth.store.js?v=0409290600"></script>
-<script src="auth.web.js?v=0409290600"></script>
+<script src="cl.config.js?v=0409290800"></script>
+<script src="cl.sync.js?v=0409290800"></script>
+<script src="auth.store.js?v=0409290800"></script>
+<script src="auth.web.js?v=0409290800"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=0409290600"></script>
+<script src="cl.project.js?v=0409290800"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=0409290600" defer></script>
+<script src="firebase-bridge.js?v=0409290800" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
