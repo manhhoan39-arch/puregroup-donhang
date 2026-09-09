@@ -657,7 +657,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0909291545</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0909291710</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -916,7 +916,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <input id="s6-makh" class="madon-pick" list="dl-makh" placeholder="Tất cả KH" title="Lọc theo Mã KH — đồng bộ mọi bước" autocomplete="off" style="min-width:120px;margin-right:6px">
       <input id="s6-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
       <button class="btn sm" id="btn-th-line" style="color:var(--accent);font-weight:700" title="In bảng Tổng hợp Line (theo code sợi × mm)">🖨 Tổng hợp Line</button>
-      <select id="s6-th-mode" title="Lọc theo xưởng làm — bảng, 2 bảng tổng hợp, Tổng Dây VÀ CẢ 2 BẢN IN (Tổng hợp Line · Tổng hợp Cuốn) đều đi theo lựa chọn này. Tất cả: xưởng HY in cả 3 xưởng; xưởng NĐ thì Line lấy NĐ+HY, Cuốn lấy NĐ+TH" style="padding:3px 6px;margin-right:6px;font-size:11.5px">
+      <select id="s6-th-mode" style="padding:3px 6px;margin-right:6px;font-size:11.5px">
         <option value="all" selected>Tất cả</option>
         <option value="nd" title="Chỉ hàng xưởng NĐ — bỏ code sợi đuôi -TH và -HY">Xưởng NĐ</option>
         <option value="th" title="Chỉ hàng xưởng Thanh Hóa — code sợi đuôi -TH">Xưởng TH</option>
@@ -1148,7 +1148,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=0909291545"></script>
+<script src="engine.web.js?v=0909291710"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -7873,9 +7873,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
        CHỈ áp cho ĐÚNG thanh công cụ (con trực tiếp của body). Trước đây để trần ".noprint"
        nên MỌI thứ mang class đó — kể cả nút ▼ trong tiêu đề bảng — cũng bị nền xám + viền +
        padding 8px của thanh công cụ, trông như cái hộp to đùng (user báo 26/8). */
+    /* DÀN ĐỀU (9/9 — user: "thanh công cụ phân bố chưa đều"): trước đây thanh này là khối
+       text-align:right nên mọi thứ dồn cục sang phải, bỏ trống hẳn một khoảng bên trái.
+       Nay là FLEX: nhóm định dạng + nhóm trang bám lề trái, nhóm Undo/Redo/Excel/In bị
+       margin-left:auto đẩy sát lề phải, khoảng trống dồn vào GIỮA. */
     'body > .noprint{position:sticky;top:0;z-index:50;background:#f1f3f5;'+
       'border-bottom:1px solid #dcdfe3;padding:8px 12px!important;margin:0 0 14px!important;'+
-      'box-shadow:0 2px 6px rgba(0,0,0,.06)}'+
+      'box-shadow:0 2px 6px rgba(0,0,0,.06);'+
+      'display:flex;align-items:center;flex-wrap:wrap;gap:8px 16px;text-align:left!important}'+
+    'body > .noprint > .fmt-bar,body > .noprint > .pg-bar{margin-right:0}'+
+    'body > .noprint .rz-btn{margin-left:0}'+
+    'body > .noprint #rz-undo{margin-left:auto}'+
 
     'body.pg-doc{background:#f1f3f5}'+
     /* Khung xem trước = TỜ GIẤY THẬT: rộng đúng khổ giấy, padding chính là lề in.
@@ -8904,12 +8912,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      Khi in, h2 gốc bị ẩn — tên đơn hiện ra từ dòng lặp NẰM TRONG bảng. Vì vậy bảng kèm
      (Keo / Độ Cong) phải đặt thành DÒNG ĐẦU của tbody mới nằm DƯỚI tên đơn, và chỉ in
      một lần ở trang đầu (chốt 17/8). */
-  /* Bảng keo (bảng kèm) phải thẳng mép phải với bảng chính. Bảng chính rộng theo
-     tổng px các cột nên đo trực tiếp trong cửa sổ in rồi ép .hd2 rộng bằng đúng thế. */
-  var ALIGN_JS='<script>(function(){function canLe(){var t=document.getElementsByTagName("table"),m=null;'+
-    'for(var i=0;i<t.length;i++){if(!/hd-t/.test(t[i].className||"")){m=t[i];break;}}'+
-    'var h=document.querySelector(".hd2"); if(m&&h&&m.offsetWidth) h.style.width=m.offsetWidth+"px";}'+
-    'canLe(); window.addEventListener("load",canLe);})();<\/script>';
+  /* ⚠ ĐÃ BỎ SCRIPT CĂN LỀ .hd2 (9/9 — user: "bảng keo đang căn chỉnh chưa vừa trang").
+     Cái script căn lề cũ đo offsetWidth của bảng chính rồi ép .hd2 rộng đúng thế bằng PX.
+     Nhưng lúc nó chạy thì __pgInit CHƯA đặt bề ngang tờ giấy (.pg-sheet), nên nó đo bề ngang
+     CỬA SỔ (~1900px) rồi khoá cứng .hd2 ở con số đó; sau khi tờ giấy co về 1123px (A4 ngang)
+     thì Bảng Keo vẫn 1900px ⇒ tràn hẳn ra ngoài trang.
+     Không cần đo gì cả: .hd-t đã là width:100%, .hd2 để rộng TỰ NHIÊN (100% của .pg-sheet),
+     mà bảng chính cũng là width:100% của đúng khung đó ⇒ hai bảng tự thẳng mép.
+     Bằng chứng: bản in Tổng hợp Cuốn chưa bao giờ có script đó và luôn thẳng mép. */
   function thHead2(tieuDe, duoi){
     return '<div class="hd2"><h2 style="margin:0 0 6px">'+tieuDe+'</h2>'+
            '<div class="hd-r">'+(duoi||'')+'</div></div>';
@@ -9049,7 +9059,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '<th class="l" style="width:150px">Mã keo</th>'+
       '<th style="width:46px">MM</th>'+
       UC.map(function(k){ return '<th style="width:'+wCong+'px">'+esc(k.replace('Curl-CT','CT'))+'</th>'; }).join('')+
-      '<th style="width:64px">Tổng</th></tr></thead><tbody>'+body+'</tbody></table>'+ALIGN_JS;
+      '<th style="width:64px">Tổng</th></tr></thead><tbody>'+body+'</tbody></table>';
     thPrint('Tổng hợp Line · '+md+nhanCheDo, html, md+' · TỔNG HỢP LINE'+nhanCheDo, land);
   }
   var bthl=document.getElementById('btn-th-line'); if(bthl) bthl.addEventListener('click', printTongHopLine);
@@ -10048,14 +10058,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=0909291545"></script>
-<script src="cl.sync.js?v=0909291545"></script>
-<script src="auth.store.js?v=0909291545"></script>
-<script src="auth.web.js?v=0909291545"></script>
+<script src="cl.config.js?v=0909291710"></script>
+<script src="cl.sync.js?v=0909291710"></script>
+<script src="auth.store.js?v=0909291710"></script>
+<script src="auth.web.js?v=0909291710"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=0909291545"></script>
+<script src="cl.project.js?v=0909291710"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=0909291545" defer></script>
+<script src="firebase-bridge.js?v=0909291710" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
