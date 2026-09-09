@@ -42,6 +42,9 @@
   }
   function isSuper() { return can('scope:all'); }
   function role() { return S.user && S.user.role; }
+  /* CHỈ Super Admin (user chốt 9/9): "Quay về mốc lưu trước" lùi CẢ KHO dữ liệu của xưởng,
+     nhân viên nhìn thấy chữ đó là bấm thử. Dùng cho cả chỗ vẽ chữ lẫn chỗ chặn trong lõi. */
+  function laSieuAdmin() { return String(role() || '') === 'super_admin'; }
 
   // ---------- Gọi "API" — chạy hoàn toàn client qua CLStore (offline) ----------
   function api(method, path, body) {
@@ -354,10 +357,14 @@
        Ctrl+Shift+H hoặc gõ __CUU() trong Console cũng mở được. */
     try {
       var chan = document.querySelector('.sidebar-foot');
-      if (chan && !document.getElementById('cl-lui') && can('dataset:read')) {
-        chan.appendChild(h('br'));
-        chan.appendChild(h('span', { id: 'cl-lui',
-          style: 'opacity:.65;font-size:11px;text-decoration:underline;cursor:pointer',
+      var chuCu = document.getElementById('cl-lui');
+      /* CHỈ Super Admin mới thấy. Đổi sang tài khoản khác thì XOÁ luôn chữ đã vẽ lần trước —
+         chữ nằm trong .sidebar-foot nên không tự mất khi vẽ lại thanh trên. */
+      if (!laSieuAdmin()) {
+        if (chuCu && chuCu.parentNode) chuCu.parentNode.removeChild(chuCu);
+      } else if (chan && !chuCu && can('dataset:read')) {
+        chan.appendChild(h('div', { id: 'cl-lui',
+          style: 'margin-top:2px;opacity:.65;font-size:11px;text-decoration:underline;cursor:pointer',
           title: 'Xem lại các lần lưu trước và quay về một mốc (Ctrl+Shift+H)',
           onclick: function () { moKhoCuu(); } }, ['↩ Quay về mốc lưu trước']));
       }
@@ -1613,6 +1620,10 @@
     try { var d = new Date(v); return isNaN(d.getTime()) ? '' : d.toISOString(); } catch (_) { return ''; }
   }
   function moKhoCuu() {
+    /* CHẶN TẠI LÕI: ẩn chữ ở chân thanh bên là chưa đủ — Ctrl+Shift+H và __CUU() trong Console
+       vẫn mở được bảng này. Chỉ Super Admin (user chốt 9/9). */
+    if (!laSieuAdmin())
+      return toast('Chỉ tài khoản Super Admin được quay về mốc lưu trước.', 'err');
     if (!(window.CLCloud && window.CLCloud.dsKho && window.CLCloud.dungLaiToiMoc))
       return toast('Bản app quá cũ — tải lại trang (Ctrl+F5).', 'err');
     var tin = h('div', { class: 'cl-sub' }, ['Đang quét kho lưu trữ…']);
