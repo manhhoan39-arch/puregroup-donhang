@@ -481,6 +481,8 @@ body.gs-selecting{user-select:none}
 #eng-cuonbox td{overflow:hidden}
 #eng-cuonbox td:nth-child(4){white-space:nowrap;overflow:hidden}                       /* Code Sợi: cột tự giãn đủ 1 dòng */
 #eng-cuonbox td:nth-child(5){white-space:nowrap;overflow:hidden;text-overflow:ellipsis} /* Tên gọi NL: dài quá → … */
+/* …nhưng phải ĐỌC ĐƯỢC phần bị cắt: trỏ vào là khung nổi #cl-tip hiện nguyên văn (data-tip). */
+#eng-cuonbox td.cb-nl[data-tip]{cursor:help}
 #eng-box td.txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
 #eng-box td:nth-child(5){max-width:none}                                                /* Nguyên liệu: hiển thị đủ 1 dòng */
 /* Dòng Σ subtotal / GRAND TOTAL: số to (5-6 chữ số) → thu nhỏ font để hiện ĐỦ trong cột, không đè */
@@ -657,7 +659,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0909291750</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0909291900</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1148,7 +1150,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=0909291750"></script>
+<script src="engine.web.js?v=0909291900"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -2742,10 +2744,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var cell2=(r.multiMat?' cl-matcell':'')+(r.cmix?' cl-cmixcell':'');
         /* Độ dày NHẬP NHẰNG (2 keo, không cột nào phân biệt) → keo lấy theo BẢNG CHI TIẾT của
            khách, tô đỏ nhạt để user soi lại rồi sửa Bảng Keo nếu cần (chốt 21/8). */
+        /* Cột "Tên gọi nguyên liệu" bị cắt bằng "…" (CSS nth-child(5)) mà trỏ chuột vào KHÔNG
+           hiện gì — user báo 9/9 với "Flat Velvet / Super Flat 0.15". Nay gắn data-tip để
+           khung nổi #cl-tip hiện NGUYÊN VĂN (khung gắn vào body nên không bị bảng cắt, và
+           giữ được cả phần xuống dòng của dòng mix nhiều màu). */
+        var _nlDay=String(r.material||'');
         var keoTd='<td class="txt'+(r.keoAmb?' keo-amb-keo':'')+'" style="font-size:10px"'+
           (r.keoAmb?' title="1 độ dày sử dụng 2 loại keo — keo này lấy theo bảng chi tiết của khách"'
                   :(r.ovrRow?' title="Độ cong đặc biệt '+esc(OVR.join('/'))+' → Keo 2mm"':''))+'>'+esc(r.keo||'')+'</td>';
-        return '<tr class="'+(mc+ovr+th+cmx).trim()+'" data-cbk="1" data-search="'+esc(timKiemCuaDong(r))+'" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+cell2+'" title="'+(r.cmix?'Dòng tách từ Mix nhiều màu':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+cell2+'" style="font-size:10px">'+nl2br(r.material||'')+'</td><td data-sm="1" title="'+esc(smTitle(r))+'">'+nl2br(smText(r))+'</td><td>'+r.mm+'</td>'+keoTd+
+        return '<tr class="'+(mc+ovr+th+cmx).trim()+'" data-cbk="1" data-search="'+esc(timKiemCuaDong(r))+'" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+cell2+'" title="'+(r.cmix?'Dòng tách từ Mix nhiều màu':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+cell2+' cb-nl" style="font-size:10px"'+(_nlDay?' data-tip="'+esc(_nlDay)+'"':'')+'>'+nl2br(_nlDay)+'</td><td data-sm="1" title="'+esc(smTitle(r))+'">'+nl2br(smText(r))+'</td><td>'+r.mm+'</td>'+keoTd+
           UC.map(function(k){ return '<td class="cw">'+q(r.curls[k])+'</td>'; }).join('')+
           '<td class="qty">'+r.tong+'</td></tr>';
       }
@@ -10058,14 +10065,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=0909291750"></script>
-<script src="cl.sync.js?v=0909291750"></script>
-<script src="auth.store.js?v=0909291750"></script>
-<script src="auth.web.js?v=0909291750"></script>
+<script src="cl.config.js?v=0909291900"></script>
+<script src="cl.sync.js?v=0909291900"></script>
+<script src="auth.store.js?v=0909291900"></script>
+<script src="auth.web.js?v=0909291900"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=0909291750"></script>
+<script src="cl.project.js?v=0909291900"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=0909291750" defer></script>
+<script src="firebase-bridge.js?v=0909291900" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){

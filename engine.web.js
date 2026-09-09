@@ -478,6 +478,34 @@
     if (COLOR_KW.test(kw)) return true;
     return COLOR_NAME.test([f.codeSoi, f.material].join(' '));
   };
+  /* ===== ĐỘ DÀY LẤY THEO ĐUÔI CODE SỢI (user chốt 9/9) =====
+     Đuôi sau dấu chấm CUỐI của code sợi CHÍNH LÀ độ dày. Khách ghi 2 cách và app phải hiểu cả
+     hai (thickKey chuẩn hoá về cùng một khoá nên tra keo khớp cả 2):
+       .2→0.02 · .3→0.03 · .5→0.05 · .7→0.07 · .85→0.085
+       .10→0.1 · .12→0.12 · .15→0.15 · .18→0.18 · .20→0.2
+     🔴 KHÔNG suy độ dày từ TÊN GỌI NGUYÊN LIỆU. Đúng ca user gặp 9/9 (đơn C41-804P):
+       · "1.MK.5"      tên gọi "Faux Mink 0.5"          → độ dày 0.05, KHÔNG phải 0.5
+       · "27.MK.DB.7"  tên gọi "Dark Brown - Pecan 0.05" → độ dày 0.07, KHÔNG phải 0.05
+     Lấy theo tên gọi là điền SAI KEO — mà sai kiểu im lặng, không lỗi nào bắn ra.
+     Đuôi lạ (0.06, 0.08, 0.11…) vẫn suy được: 1 chữ số → 0.0d · 2 chữ số → 0.dd. */
+  var DODAY_DUOI = {
+    '2': '0.02', '02': '0.02', '3': '0.03', '03': '0.03', '5': '0.05', '05': '0.05',
+    '7': '0.07', '07': '0.07', '85': '0.085', '085': '0.085',
+    '1': '0.1', '10': '0.1', '12': '0.12', '15': '0.15', '18': '0.18', '20': '0.2'
+  };
+  function doDayTuCode(code) {
+    var s = String(code == null ? '' : code).split(/\r?\n/)[0].trim();
+    /* Bỏ đuôi xưởng "-TH" / "-HY" / ký hiệu "-LZ" trước khi đọc số, kẻo "130.SKV.7-TH"
+       không khớp và mất độ dày (dòng hàng xưởng ngoài cũng phải điền keo). */
+    s = s.replace(/\s*-\s*[A-Za-z+]{1,4}\s*$/, '');
+    var m = s.match(/\.(\d{1,3})\s*$/);
+    if (!m) return '';
+    var d = m[1];
+    if (DODAY_DUOI[d]) return DODAY_DUOI[d];
+    if (d.length === 1) return '0.0' + d;
+    if (d.length === 2) return '0.' + d;
+    return '';
+  }
   /**
    * Chuẩn hoá ĐỘ DÀY về "khóa chữ số" để so khớp 2 cách ghi của khách:
    * dòng đơn ghi 5 / 6 / 7 / 85 / 10 — bảng keo ghi 0.05 / 0.06 / 0.07 / 0.085 / 0.10.
@@ -2020,7 +2048,9 @@
         ghiChu: PS(col.ghiChu >= 0 ? row[col.ghiChu] : ''),    // Ghi Chú nguyên văn từ file khách
         ghiChuKeo: PS(col.keoNhiet >= 0 ? row[col.keoNhiet] : ''),
         material: PS(col.tenGoi >= 0 ? row[col.tenGoi] : ''),
-        thickness: PS(col.doDay >= 0 ? row[col.doDay] : ''),
+        /* Mẫu CŨ có cột "Độ Dày" khách tự khai → vẫn tin cột đó. Cột TRỐNG mới suy từ đuôi
+           code sợi (trước đây trống là mất độ dày ⇒ không tra được keo). */
+        thickness: PS(col.doDay >= 0 ? row[col.doDay] : '') || doDayTuCode(code),
         label: PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''),
         xuongMa: colXuongTH >= 0 ? (maXuongCuaO(row[colXuongTH]) || '') : '',   // TH · HY · '' (ND)
         xuongTH: colXuongTH >= 0 && LA_TH.test(PS(row[colXuongTH])),   // giữ tương thích chỗ cũ
@@ -2291,8 +2321,9 @@
       var isMix = !!lenRaw;
       var length = isMix ? lenRaw.replace(/\.\d+\s*$/, '') : (ds.length ? ds[0].mm : '');
       var gcX = PS(col.gcXuong >= 0 ? row[col.gcXuong] : '');    // "Faux Mink 0.085"
-      var thick = (gcX.match(/0[.,]\d+/) || [])[0] || '';
-      if (!thick) { var cm = code.match(/\.(\d+)$/); if (cm) thick = cm[1]; }
+      /* ĐUÔI CODE SỢI THẮNG (user chốt 9/9) — xem doDayTuCode(). Tên gọi nguyên liệu chỉ là
+         đường dự phòng khi code sợi không có đuôi số. */
+      var thick = doDayTuCode(code) || (gcX.match(/0[.,]\d+/) || [])[0] || '';
       /* QUY TẮC CHỐT 20/08/2026 (Hoàn): CHỈ hàng "MULTI COLOR" luôn là sợi độ dày 0.085 —
          "Mix Color" thì GIỮ NGUYÊN độ dày khách ghi (đã chốt lại chiều 20/8, đừng gộp 2 loại).
          Đặt cứng ở đây thì mục F dựng bảng keo cũng lấy 0.085 (info đọc chính o.thickness)
@@ -2436,7 +2467,9 @@
       var info = {};
       out.forEach(function (o) {
         String(o.codeSoi || '').split(/\r?\n/).forEach(function (cd) {
-          cd = cd.trim(); if (cd && !info[cd]) info[cd] = { mat: o.material, thick: o.thickness };
+          /* Độ dày theo ĐUÔI CỦA CHÍNH code đó — dòng Mix Color có nhiều code, đuôi có thể
+             khác nhau (33.MK.Violet.85 vs 32.MK.LViolet.7) nên không dùng chung o.thickness. */
+          cd = cd.trim(); if (cd && !info[cd]) info[cd] = { mat: o.material, thick: doDayTuCode(cd) || o.thickness };
         });
       });
       var byMat = {}, matOrder = [];
