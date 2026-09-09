@@ -2682,7 +2682,7 @@
     sheetRangeInfo: sheetRangeInfo, resolveMixDist: resolveMixDist,
     buildKeoRules: buildKeoRules, expandKeoRows: expandKeoRows, glueFor: glueFor, glueForShort: glueForShort, orderGlues: orderGlues,
     OVERRIDE_2MM_CURLS: OVERRIDE_2MM_CURLS, isOverrideCurl: isOverrideCurl,
-    parseKeoCond: parseKeoCond, thickKey: thickKey,
+    parseKeoCond: parseKeoCond, thickKey: thickKey, doDayTuCode: doDayTuCode,
     thicksOfDoDay: thicksOfDoDay, tachDoDay: tachDoDay, timKeoNhapNhang: timKeoNhapNhang, keoNhapNhangCuaDong: keoNhapNhangCuaDong,
     keoCoDieuKien: keoCoDieuKien,
     buildData1: buildData1, buildLineMatrix: buildLineMatrix, STRATEGIES: STRATEGIES,

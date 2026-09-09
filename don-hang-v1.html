@@ -336,9 +336,6 @@ td.dc-ten{font-weight:800;text-align:center;vertical-align:middle;white-space:no
 .pw-in:focus{border-color:var(--accent)}
 .pw-err{min-height:18px;margin-top:7px;font-size:12px;color:var(--red-600);font-weight:600}
 .pw-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
-#cl-tip{position:fixed;z-index:400;display:none;max-width:min(560px,80vw);white-space:pre-wrap;word-break:break-word;
-  background:var(--text,#1f2430);color:#fff;padding:9px 12px;border-radius:9px;font-size:12px;line-height:1.55;
-  box-shadow:0 8px 26px rgba(0,0,0,.28);pointer-events:none}
 .rpt-empty{font-size:12px;color:var(--text-3);padding:4px 2px}
 /* Chỉ báo ĐANG XỬ LÝ — chỉ hiện khi việc kéo dài >180ms để không nhấp nháy */
 #app-busy{position:fixed;inset:0;z-index:200000;display:none;align-items:center;justify-content:center;
@@ -481,8 +478,10 @@ body.gs-selecting{user-select:none}
 #eng-cuonbox td{overflow:hidden}
 #eng-cuonbox td:nth-child(4){white-space:nowrap;overflow:hidden}                       /* Code Sợi: cột tự giãn đủ 1 dòng */
 #eng-cuonbox td:nth-child(5){white-space:nowrap;overflow:hidden;text-overflow:ellipsis} /* Tên gọi NL: dài quá → … */
-/* …nhưng phải ĐỌC ĐƯỢC phần bị cắt: trỏ vào là khung nổi #cl-tip hiện nguyên văn (data-tip). */
-#eng-cuonbox td.cb-nl[data-tip]{cursor:help}
+#eng-cuonbox td.cb-nl{cursor:help}
+/* Do day o DUOI CODE SOI khac so trong TEN GOI NGUYEN LIEU -> to nen cam canh bao ca 2 o. */
+td.cl-daylech{background:#FFF0DC!important;color:#8a4b00!important;font-weight:700;cursor:help;
+  box-shadow:inset 0 -2px 0 #E8A33D}
 #eng-box td.txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
 #eng-box td:nth-child(5){max-width:none}                                                /* Nguyên liệu: hiển thị đủ 1 dòng */
 /* Dòng Σ subtotal / GRAND TOTAL: số to (5-6 chữ số) → thu nhỏ font để hiện ĐỦ trong cột, không đè */
@@ -659,7 +658,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0909291900</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0909292230</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1150,7 +1149,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=0909291900"></script>
+<script src="engine.web.js?v=0909292230"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -2744,15 +2743,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var cell2=(r.multiMat?' cl-matcell':'')+(r.cmix?' cl-cmixcell':'');
         /* Độ dày NHẬP NHẰNG (2 keo, không cột nào phân biệt) → keo lấy theo BẢNG CHI TIẾT của
            khách, tô đỏ nhạt để user soi lại rồi sửa Bảng Keo nếu cần (chốt 21/8). */
-        /* Cột "Tên gọi nguyên liệu" bị cắt bằng "…" (CSS nth-child(5)) mà trỏ chuột vào KHÔNG
-           hiện gì — user báo 9/9 với "Flat Velvet / Super Flat 0.15". Nay gắn data-tip để
-           khung nổi #cl-tip hiện NGUYÊN VĂN (khung gắn vào body nên không bị bảng cắt, và
-           giữ được cả phần xuống dòng của dòng mix nhiều màu). */
         var _nlDay=String(r.material||'');
+        var _L=dayLech(r);                                  // do day duoi code != ten goi NL
+        var _lechCls=_L?' cl-daylech':'';
+        var _lechTit=_L?(' title="'+esc(dayLechTitle(_L))+'"'):'';
         var keoTd='<td class="txt'+(r.keoAmb?' keo-amb-keo':'')+'" style="font-size:10px"'+
           (r.keoAmb?' title="1 độ dày sử dụng 2 loại keo — keo này lấy theo bảng chi tiết của khách"'
                   :(r.ovrRow?' title="Độ cong đặc biệt '+esc(OVR.join('/'))+' → Keo 2mm"':''))+'>'+esc(r.keo||'')+'</td>';
-        return '<tr class="'+(mc+ovr+th+cmx).trim()+'" data-cbk="1" data-search="'+esc(timKiemCuaDong(r))+'" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+cell2+'" title="'+(r.cmix?'Dòng tách từ Mix nhiều màu':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+cell2+' cb-nl" style="font-size:10px"'+(_nlDay?' data-tip="'+esc(_nlDay)+'"':'')+'>'+nl2br(_nlDay)+'</td><td data-sm="1" title="'+esc(smTitle(r))+'">'+nl2br(smText(r))+'</td><td>'+r.mm+'</td>'+keoTd+
+        return '<tr class="'+(mc+ovr+th+cmx).trim()+'" data-cbk="1" data-search="'+esc(timKiemCuaDong(r))+'" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+cell2+_lechCls+'" title="'+(_L?esc(dayLechTitle()):r.cmix?'Dòng tách từ Mix nhiều màu':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+cell2+' cb-nl'+_lechCls+'" style="font-size:10px"'+_lechTit+'>'+nl2br(_nlDay)+'</td><td data-sm="1" title="'+esc(smTitle(r))+'">'+nl2br(smText(r))+'</td><td>'+r.mm+'</td>'+keoTd+
           UC.map(function(k){ return '<td class="cw">'+q(r.curls[k])+'</td>'; }).join('')+
           '<td class="qty">'+r.tong+'</td></tr>';
       }
@@ -3753,37 +3751,26 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var b=ev.target&&ev.target.closest?ev.target.closest('.rpt-x'):null; if(!b) return;
     ev.preventDefault(); ev.stopPropagation(); removeOrder(b.getAttribute('data-rptmd'));
   });
-  /* KHUNG NỔI cho ô có data-tip (ghi chú dài bị cắt bớt).
-     Gắn thẳng vào <body> chứ không nằm trong bảng — bảng có overflow:auto, để bên trong
-     là bị cắt mất đúng phần cần đọc. Hiện ngay khi trỏ vào, không phải chờ như tooltip
-     mặc định của trình duyệt, và tự lật lên/sang trái khi sát mép màn hình. */
+  /* ===== O BI CAT CHU -> TRO CHUOT VAO LA HIEN DU (user chot 9/9) =====
+     Truoc day app tu ve mot khung noi DEN va phai gan tay thuoc tinh cho tung o => user bao
+     bo khung den di, va muon MOI o bi thieu chu deu xem duoc, o nao du chu thi thoi.
+     Nay: mot tay nghe chung o document — luc TRO VAO moi do scrollWidth > clientWidth
+     (dung dinh nghia "chu bi cat") roi dat title cho chinh o do. Dat title ngay trong
+     mouseover thi trinh duyet van hien loi nhac, khoi phai tinh truoc cho ca nghin o.
+     KHONG dung o nao da co title do app dat (o S/M, o keo nhap nhang, o do day lech...):
+     chi ghi/xoa title nao CHINH MINH dat, danh dau bang data-tipauto. */
   (function(){
-    var tip=null, el=null;
-    function hien(){
-      if(!tip){ tip=document.createElement('div'); tip.id='cl-tip'; document.body.appendChild(tip); }
-      return tip;
-    }
-    function dat(x,y){
-      var t=hien(), r=t.getBoundingClientRect(), m=14;
-      var L=x+m, T=y+m;
-      if(L+r.width  > window.innerWidth -8) L=Math.max(8, x-m-r.width);
-      if(T+r.height > window.innerHeight-8) T=Math.max(8, y-m-r.height);
-      t.style.left=L+'px'; t.style.top=T+'px';
-    }
     document.addEventListener('mouseover', function(ev){
-      var td=ev.target&&ev.target.closest?ev.target.closest('[data-tip]'):null;
-      if(!td || td===el) return;
-      el=td; var t=hien(); t.textContent=td.getAttribute('data-tip')||''; t.style.display=t.textContent?'block':'none';
-      dat(ev.clientX, ev.clientY);
-    });
-    document.addEventListener('mousemove', function(ev){ if(el && tip && tip.style.display==='block') dat(ev.clientX, ev.clientY); });
-    document.addEventListener('mouseout', function(ev){
+      var el=ev.target&&ev.target.closest?ev.target.closest('td,th'):null;
       if(!el) return;
-      var to=ev.relatedTarget;
-      if(to && to.closest && to.closest('[data-tip]')===el) return;   // vẫn còn trong ô đó
-      el=null; if(tip) tip.style.display='none';
+      if(el.hasAttribute('title') && !el.hasAttribute('data-tipauto')) return;
+      var go=function(){ if(el.hasAttribute('data-tipauto')){ el.removeAttribute('title'); el.removeAttribute('data-tipauto'); } };
+      if(!(el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)) return go();
+      var chu=String(el.innerText || el.textContent || '').trim();
+      if(!chu) return go();
+      if(el.getAttribute('title')===chu) return;
+      el.setAttribute('title', chu); el.setAttribute('data-tipauto','1');
     });
-    window.addEventListener('scroll', function(){ el=null; if(tip) tip.style.display='none'; }, true);
   })();
   ['chosen-madon','imported-madon'].forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener('input', debounce(renderFiles, 160)); el.addEventListener('change', renderFiles); } });
   /* ===== XÓA TẤT CẢ = việc KHÔNG hoàn tác được =====
@@ -6917,6 +6904,30 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(/-HY(\b|$)/m.test(c)) return 'HY';
     return '';
   }
+  /* ===== DO DAY LECH: duoi code soi != so trong ten goi nguyen lieu (user chot 9/9) =====
+     Ca that don C41-804P: code "79.MK.DB.5" (duoi .5 = 0.05) ma ten goi ghi
+     "Dark Brown - Pecan 0.1" — hai nguon noi hai do day khac nhau. App lay theo DUOI CODE,
+     nhung phai TO MAU canh bao de nguoi ta soi lai file, keo cuon sai soi ma khong ai biet.
+     So bang thickKey nen "5" = "0.05" khong bao oan.
+     Dong mix nhieu mau: so tung cap code<->ten goi theo thu tu; lech so luong thi so cap dau. */
+  function dayLech(r){
+    if(!r) return null;
+    var dtc=(E && E.doDayTuCode) ? E.doDayTuCode : null, tk=(E && E.thickKey) ? E.thickKey : null;
+    if(!dtc || !tk) return null;
+    var cs=String(r.codeSoi||'').split(/\r?\n/).map(function(x){ return x.trim(); }).filter(Boolean);
+    var ns=String(r.material||'').split(/\r?\n/).map(function(x){ return x.trim(); }).filter(Boolean);
+    if(!cs.length || !ns.length) return null;
+    var n=(cs.length===ns.length) ? cs.length : 1;
+    for(var i2=0;i2<n;i2++){
+      var dc=dtc(cs[i2]); if(!dc) continue;
+      var m=String(ns[i2]||'').match(/0[.,]\d+/); if(!m) continue;
+      if(tk(dc)!==tk(m[0])) return { code:cs[i2], ten:ns[i2], dayCode:dc, dayTen:m[0] };
+    }
+    return null;
+  }
+  /* Loi nhac NGAN GON theo yeu cau user 9/9 — dai dong che ca bang, doc met. */
+  function dayLechTitle(){ return '\u0110\u1ed9 d\u00e0y l\u1ec7ch nhau c\u1ea7n ki\u1ec3m tra l\u1ea1i'; }
+
   function hopXuongLoc(r){
     var che=String(getVal('s6-th-mode')||'all');
     if(che==='all') return true;
@@ -8780,7 +8791,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     } }catch(e){ console.warn('st.mo', e); }
     window.__stAgain=gan;
   }
-  var ST_CSS='.st-th{position:sticky;z-index:20;background:#f0f0f0;'+
+  var ST_CSS='.st-th{position:sticky;z-index:20;background:#FFF6D5;'+
       /* border-collapse làm viền của ô đang ghim bị mất khi cuộn → vẽ lại bằng box-shadow */
       'box-shadow:inset 0 1px 0 #333, inset 0 -1px 0 #333}'+
     '@media print{.st-th{position:static!important;box-shadow:none!important}}';
@@ -8873,7 +8884,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function thUsedCurls(rows){ var UC=state.usedCurls||CURLS; return UC.filter(function(k){ return rows.some(function(r){ return (r.curls&&r.curls[k])>0; }); }); }
   function thPrint(title, body, pageHead, land){
     var w=window.open('','_blank'); if(!w) return alert('Trình duyệt chặn cửa sổ in — cho phép popup rồi thử lại.');
-    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Calibri,Arial,sans-serif;padding:6px 14px 14px;color:#111}h2{margin:4px 0 6px;font-size:16px}h2 .dc{font-weight:700;font-size:13.5px;color:#111;margin-left:14px}.hd2{margin:4px 0 8px}.hd-r{margin-top:4px}.hd-t2{font:700 11.5px Calibri,Arial,sans-serif;margin:0 0 2px}.hd-t{width:100%;table-layout:fixed;margin:0 0 4px;font-size:10.5px;border-collapse:collapse}.hd-t th,.hd-t td{border:1px solid #333;padding:2px 5px;text-align:center;white-space:normal;word-break:break-word;vertical-align:top}.hd-t th{background:#f0f0f0}table{border-collapse:collapse;width:100%;margin-bottom:14px;font-size:12px}th,td{border:1px solid #333;padding:3px 6px;text-align:center}th{background:#f0f0f0}td.l,th.l{text-align:left}.tot{font-weight:800;background:#ffe6ef}.edit{background:#fffef2;word-break:break-word;white-space:normal;outline:none;cursor:text}.edit:focus{background:#fff8c4;box-shadow:inset 0 0 0 2px #E8185C}@media print{.noprint{display:none}.edit{background:transparent!important;box-shadow:none!important}}'+RZ_CSS+PG_CSS+ST_CSS+'</style></head><body class="pg-doc" data-ttl="'+esc(pageHead||'')+'" data-land="'+(land?'1':'0')+'"><div class="noprint" style="text-align:right;margin-bottom:8px">'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Calibri,Arial,sans-serif;padding:6px 14px 14px;color:#111}h2{margin:4px 0 6px;font-size:16px}h2 .dc{font-weight:700;font-size:13.5px;color:#111;margin-left:14px}.hd2{margin:4px 0 8px}.hd-r{margin-top:4px}.hd-t2{font:700 11.5px Calibri,Arial,sans-serif;margin:0 0 2px}.hd-t{width:100%;table-layout:fixed;margin:0 0 4px;font-size:10.5px;border-collapse:collapse}.hd-t th,.hd-t td{border:1px solid #333;padding:2px 5px;text-align:center;white-space:normal;word-break:break-word;vertical-align:top}.hd-t th{background:#FFF6D5}table{border-collapse:collapse;width:100%;margin-bottom:14px;font-size:12px}th,td{border:1px solid #333;padding:3px 6px;text-align:center}th{background:#FFF6D5}td.l,th.l{text-align:left}.tot{font-weight:800;background:#ffe6ef}.edit{background:#fff;word-break:break-word;white-space:normal;outline:none;cursor:text}.edit:focus{background:#fff8c4;box-shadow:inset 0 0 0 2px #E8185C}@media print{.noprint{display:none}.edit{background:transparent!important;box-shadow:none!important}}'+RZ_CSS+PG_CSS+ST_CSS+'</style></head><body class="pg-doc" data-ttl="'+esc(pageHead||'')+'" data-land="'+(land?'1':'0')+'"><div class="noprint" style="text-align:right;margin-bottom:8px">'+RZ_BAR+'<button class="rz-btn" onclick="window.print()">🖨 In</button></div>'+
       '<div class="pr-scope pg-sheet">'+body+'</div>'+RZ_JS_TAG+'</body></html>');
     w.document.close();
   }
@@ -9021,8 +9032,20 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var byCode={}, codeOrder=[];
     rows.forEach(function(r){
       var code=r.codeSoi, keo=r.keo||'';
-      if(!byCode[code]){byCode[code]={keo:{},keoOrder:[]};codeOrder.push(code);}
+      if(!byCode[code]){byCode[code]={keo:{},keoOrder:[],nl:{},nlOrder:[]};codeOrder.push(code);}
       var C=byCode[code];
+      /* LOẠI SỢI = "Tên gọi nguyên liệu" của Bảng Line Cuốn (user chốt 9/9) — thêm vào bản in
+         để đối chiếu trực tiếp với cột Loại Sợi của Bảng Keo ở đầu trang. Một code sợi bình
+         thường chỉ 1 nguyên liệu; dòng mix nhiều màu có thể nhiều → gom KHÔNG TRÙNG, mỗi cái
+         một dòng, giữ đúng thứ tự gặp. */
+      String(r.material||'').split(/\r?\n/).forEach(function(x){
+        x=x.trim(); if(x && !C.nl[x]){ C.nl[x]=1; C.nlOrder.push(x); }
+      });
+      /* Mang theo 2 canh bao cua Bang Line Cuon vao ban in (user chot 9/9): do day LECH giua
+         duoi code soi va ten goi nguyen lieu, va o keo NHAP NHANG. In ra phai thay ngay chu
+         khong phai mo lai app doi chieu. */
+      if(!C.lech){ var _l=dayLech(r); if(_l) C.lech=_l; }
+      if(r.keoAmb) C.keoAmb=1;
       if(!C.keo[keo]){C.keo[keo]={mm:{},cu:{},order:[]};C.keoOrder.push(keo);}
       var K=C.keo[keo];
       if(!(r.mm in K.mm)){K.mm[r.mm]=0;K.cu[r.mm]={};K.order.push(+r.mm);}
@@ -9039,32 +9062,42 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var K=C.keo[keo], mms=K.order.slice().sort(function(a,b){return a-b;});
         mms.forEach(function(mm,j){
           var cells='';
-          if(firstRow){ cells+='<td class="l edit" contenteditable="true" rowspan="'+totalRows+'"><b>'+esc(code)+'</b></td>'; firstRow=false; }
-          if(j===0){ cells+='<td class="l edit" contenteditable="true" rowspan="'+mms.length+'">'+esc(keo)+'</td>'; }
+          if(firstRow){
+            var _wL=C.lech?' style="background:#FFF0DC;color:#8a4b00;font-weight:700"':'';
+            var _tL=C.lech?(' title="'+esc(dayLechTitle(C.lech))+'"'):'';
+            cells+='<td class="l edit" contenteditable="true" rowspan="'+totalRows+'"'+_wL+_tL+'><b>'+esc(code)+'</b></td>'+
+                   '<td class="l edit" contenteditable="true" rowspan="'+totalRows+'"'+_wL+_tL+'>'+nl2br(C.nlOrder.join('\n'))+'</td>'; firstRow=false; }
+          if(j===0){
+            var _wK=C.keoAmb?' style="background:#FFEEF2;color:#a4123a;font-weight:700"':'';
+            var _tK=C.keoAmb?' title="1 do day su dung 2 loai keo - keo nay lay theo bang chi tiet cua khach"':'';
+            cells+='<td class="l edit" contenteditable="true" rowspan="'+mms.length+'"'+_wK+_tK+'>'+esc(keo)+'</td>'; }
           var t=K.mm[mm]; codeTot+=t; grand+=t;
           UC.forEach(function(k){ var v=(K.cu[mm]&&K.cu[mm][k])||0; if(v){ codeCur[k]=(codeCur[k]||0)+v; grandCur[k]=(grandCur[k]||0)+v; } });
           cells+='<td>'+mm+'</td>'+oCong(K.cu[mm])+'<td class="tot">'+t+'</td>';
           body+='<tr>'+cells+'</tr>';
         });
       });
-      body+='<tr class="tot" style="color:#E8185C"><td class="l" colspan="3">Tổng số '+esc(code)+'</td>'+oCong(codeCur)+'<td>'+codeTot+'</td></tr>';
+      body+='<tr class="tot" style="color:#E8185C"><td class="l" colspan="4">Tổng số '+esc(code)+'</td>'+oCong(codeCur)+'<td>'+codeTot+'</td></tr>';
     });
     // Dòng TỔNG CẢ ĐƠN ở cuối — giống bảng Tổng hợp Cuốn, để xưởng đối chiếu nhanh
-    body+='<tr class="tot" style="color:#E8185C;font-size:13px"><td class="l" colspan="3">TỔNG SỐ LƯỢNG '+esc(md)+'</td>'+
+    body+='<tr class="tot" style="color:#E8185C;font-size:13px"><td class="l" colspan="4">TỔNG SỐ LƯỢNG '+esc(md)+'</td>'+
       oCong(grandCur)+'<td>'+grand+'</td></tr>';
     /* HƯỚNG GIẤY LINH ĐỘNG: ưu tiên khổ DỌC, nhưng nhiều cột độ cong thì bảng tràn lề
        (mất đất, chữ bị bó) → tự quay NGANG. Bề rộng thật của 1 cột = width + padding 6+6
        + viền 1 = width+13; khổ A4 dọc chừa lề còn ~700px in được.
        Chọn hướng bằng bề rộng cột 56px (mức vừa phải, giữ nguyên cách chọn từ trước), rồi mới
        tính bề rộng THẬT cho vừa khít khổ giấy đã chọn. */
-    var rongBang=(150+150+46+64+56*UC.length)+13*(4+UC.length);
+    /* Thêm cột Loại sợi ⇒ 5 cột cố định. Code sợi co 150→130, Mã keo 150→120, MM 46→44 để
+       chừa 150px cho Loại sợi mà không lấn đất các cột độ cong. */
+    var rongBang=(130+150+120+44+64+56*UC.length)+13*(5+UC.length);
     var land=rongBang>700;
-    var wCong=prCotCong(150+150+46+64, 4, UC.length, land);
+    var wCong=prCotCong(130+150+120+44+64, 5, UC.length, land);
     var html=thHead2(esc(md)+' · TỔNG HỢP LINE'+nhanCheDo, thKeoInfo(md))+
       '<table style="table-layout:fixed"><thead><tr>'+
-      '<th class="l" style="width:150px">Code sợi</th>'+
-      '<th class="l" style="width:150px">Mã keo</th>'+
-      '<th style="width:46px">MM</th>'+
+      '<th class="l" style="width:130px">Code sợi</th>'+
+      '<th class="l" style="width:150px">Loại sợi</th>'+
+      '<th class="l" style="width:120px">Mã keo</th>'+
+      '<th style="width:44px">MM</th>'+
       UC.map(function(k){ return '<th style="width:'+wCong+'px">'+esc(k.replace('Curl-CT','CT'))+'</th>'; }).join('')+
       '<th style="width:64px">Tổng</th></tr></thead><tbody>'+body+'</tbody></table>';
     thPrint('Tổng hợp Line · '+md+nhanCheDo, html, md+' · TỔNG HỢP LINE'+nhanCheDo, land);
@@ -10065,14 +10098,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=0909291900"></script>
-<script src="cl.sync.js?v=0909291900"></script>
-<script src="auth.store.js?v=0909291900"></script>
-<script src="auth.web.js?v=0909291900"></script>
+<script src="cl.config.js?v=0909292230"></script>
+<script src="cl.sync.js?v=0909292230"></script>
+<script src="auth.store.js?v=0909292230"></script>
+<script src="auth.web.js?v=0909292230"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=0909291900"></script>
+<script src="cl.project.js?v=0909292230"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=0909291900" defer></script>
+<script src="firebase-bridge.js?v=0909292230" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
