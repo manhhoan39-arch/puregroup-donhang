@@ -1850,6 +1850,21 @@
     return mixSheets;
   }
 
+  /* ===== Ô "Mã Đơn" KHAI THIẾU → LẤY MÃ ĐƠN Ở TÊN FILE (user chốt 9/9) =====
+     Đơn 804P: ô Mã Đơn trong sheet chỉ ghi "C41-" (có mã KH, chưa điền số đơn) ⇒ trước đây ô
+     đó ĐÈ mất mã "804P" đã đọc từ tên file, cả đơn mang mã "C41-" — không tra, không lọc,
+     không gán keo theo mã đơn được. Nay:
+       · ô trống hẳn        → dùng luôn mã đơn của TÊN FILE;
+       · ô chỉ có mã KH     → ghép "MãKH-MãĐơnTênFile" (vd "C41-" + "804P" = "C41-804P");
+       · ô khai đủ          → trả null để chỗ gọi xử lý theo lệ cũ (sheet thắng tên file).
+     ⚠ Tên file KHÔNG có số đơn thì giữ nguyên "C41-" như trước (splitMd tách kh='C41', don=''),
+     đừng cắt dấu "-" đi kẻo app hiểu nhầm C41 là mã đơn. */
+  function ghepMaDonThieu(v, maTen) {
+    v = PS(v).trim();
+    if (!v) return maTen || '';
+    if (/^[A-Za-z]{1,5}\d*\s*-?$/.test(v)) return maTen ? v.replace(/[\s-]+$/, '') + '-' + maTen : v;
+    return null;
+  }
   function parseGuiXuongSheet(aoa, fileName) {
     if (!aoa || !aoa.length) return null;
     var i, r, q, row, rw, v;
@@ -1866,7 +1881,9 @@
           v = PS((aoa[r + 1] || [])[i]);
           // file copy thường ĐỔI TÊN (355P.1) nhưng ruột sheet vẫn ghi mã cũ (355P)
           // → tên file thắng khi nó MỞ RỘNG mã trong sheet; ngược lại tin sheet
-          if (v && !(maDon && maDon !== v && maDon.indexOf(v) === 0)) maDon = v;
+          var vd = ghepMaDonThieu(v, maDon);                 // ô khai thiếu → lấy ở tên file
+          if (vd !== null) maDon = vd;
+          else if (v && !(maDon && maDon !== v && maDon.indexOf(v) === 0)) maDon = v;
           r = 99; break;
         }
       }
@@ -2167,9 +2184,12 @@
       for (i = 0; i < row.length; i++) {
         if (PS(row[i]).toLowerCase() === 'mã đơn') {
           /* GIỮ NGUYÊN cả dấu "-" ở cuối: "CS185-" nghĩa là mã KH = CS185, CHƯA có mã đơn.
-             Cắt dấu đi thì app hiểu nhầm CS185 là mã đơn. splitMd() tách ra kh='CS185', don=''. */
+             Cắt dấu đi thì app hiểu nhầm CS185 là mã đơn. splitMd() tách ra kh='CS185', don=''.
+             Nhưng nếu TÊN FILE có số đơn thì ghép vào — xem ghepMaDonThieu(). */
           v = PS((aoa[r + 1] || [])[i]).trim();
-          if (v && !(maDon && maDon !== v && maDon.indexOf(v) === 0)) maDon = v;
+          var vd = ghepMaDonThieu(v, maDon);
+          if (vd !== null) maDon = vd;
+          else if (v && !(maDon && maDon !== v && maDon.indexOf(v) === 0)) maDon = v;
           r = 99; break;
         }
       }
