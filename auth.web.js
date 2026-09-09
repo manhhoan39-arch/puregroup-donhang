@@ -319,11 +319,15 @@
       facSel = h('select', { class: 'cl-input', style: 'padding:4px 8px;font-size:12px;width:auto', title: 'Xưởng đang xem (Super Admin)' });
       facSel.addEventListener('change', function () {
         localStorage.setItem(LS.activeFactory, facSel.value);
+        datMaXuong();                                // bản in bước 5 đi theo xưởng vừa chọn
         try { autoLoadLatest(true); } catch (e) {}   // xem dữ liệu của xưởng vừa chọn
       });
       bar.appendChild(h('span', { class: 'cl-sub', style: 'font-size:11px;margin:0 2px 0 4px;opacity:.75' }, ['Xưởng:']));
       bar.appendChild(facSel);
       refreshFactories(facSel);
+    } else {
+      /* Không có ô xổ xưởng, nhưng bản in bước 5 vẫn cần mã xưởng → hỏi một lần. */
+      refreshFactories(null);
     }
 
     // Khối tài khoản: GỘP 1 DÒNG (tên · vai trò · xưởng) để thanh công cụ không bị xuống dòng.
@@ -377,15 +381,31 @@
     document.documentElement.classList.add('cl-role-' + (role() || 'x'));
   }
 
+  /* ===== MÃ XƯỞNG ĐANG XEM → window.__CL_XUONG (thêm 9/9) =====
+     Bản in bước 5 ("Tổng hợp Line" · "Tổng hợp Cuốn") phải biết đang xem xưởng NÀO mới quyết
+     được "Tất cả" gồm những xưởng nào. Hồ sơ đăng nhập KHÔNG mang mã xưởng (cloudToSession chỉ
+     có factory_id, code rỗng), nên lấy từ bảng factories — RLS cho mỗi người đọc ĐÚNG dòng xưởng
+     của mình (`id = my_factory()`), super admin đọc hết. Nhân viên vẫn ra đúng 1 dòng. */
+  function datMaXuong() {
+    try {
+      var act = localStorage.getItem(LS.activeFactory) || (S.factory && S.factory.id) || '';
+      var ds = S.factories || [];
+      var f = ds.filter(function (x) { return x.id === act; })[0] || (ds.length === 1 ? ds[0] : null);
+      window.__CL_XUONG = (f && f.code) || '';
+    } catch (e) { window.__CL_XUONG = ''; }
+  }
+  window.__CL_MA_XUONG = function () { return window.__CL_XUONG || ''; };
+
   function refreshFactories(sel) {
     var done = function (list) {
       S.factories = list || [];
-      if (!sel) return;
       var active = localStorage.getItem(LS.activeFactory) || (S.factory && S.factory.id) || (list[0] && list[0].id) || '';
+      if (!sel) { datMaXuong(); return; }
       sel.innerHTML = '';
       (list || []).forEach(function (f) { sel.appendChild(h('option', { value: f.id }, [f.code + ' · ' + f.name])); });
       if (active) sel.value = active;
       if (sel.value) localStorage.setItem(LS.activeFactory, sel.value);
+      datMaXuong();
     };
     // ĐÁM MÂY: lấy xưởng qua Supabase; cục bộ: qua API backend.
     if (dungDamMay() && window.CLCloud.listFactories) { window.CLCloud.listFactories().then(done).catch(function () {}); return; }

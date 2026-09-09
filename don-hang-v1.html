@@ -657,7 +657,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0909291330</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0909291545</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -916,7 +916,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <input id="s6-makh" class="madon-pick" list="dl-makh" placeholder="Tất cả KH" title="Lọc theo Mã KH — đồng bộ mọi bước" autocomplete="off" style="min-width:120px;margin-right:6px">
       <input id="s6-madon" class="madon-pick" list="dl-madon" placeholder="Tất cả các đơn" title="Chọn/tìm Mã Đơn — đồng bộ mọi bước" autocomplete="off">
       <button class="btn sm" id="btn-th-line" style="color:var(--accent);font-weight:700" title="In bảng Tổng hợp Line (theo code sợi × mm)">🖨 Tổng hợp Line</button>
-      <select id="s6-th-mode" title="Lọc bảng theo xưởng làm — 2 bảng tổng hợp và Tổng Dây tính lại theo lựa chọn này (không ảnh hưởng bản in)" style="padding:3px 6px;margin-right:6px;font-size:11.5px">
+      <select id="s6-th-mode" title="Lọc theo xưởng làm — bảng, 2 bảng tổng hợp, Tổng Dây VÀ CẢ 2 BẢN IN (Tổng hợp Line · Tổng hợp Cuốn) đều đi theo lựa chọn này. Tất cả: xưởng HY in cả 3 xưởng; xưởng NĐ thì Line lấy NĐ+HY, Cuốn lấy NĐ+TH" style="padding:3px 6px;margin-right:6px;font-size:11.5px">
         <option value="all" selected>Tất cả</option>
         <option value="nd" title="Chỉ hàng xưởng NĐ — bỏ code sợi đuôi -TH và -HY">Xưởng NĐ</option>
         <option value="th" title="Chỉ hàng xưởng Thanh Hóa — code sợi đuôi -TH">Xưởng TH</option>
@@ -1148,7 +1148,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=0909291330"></script>
+<script src="engine.web.js?v=0909291545"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -8914,12 +8914,6 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return '<div class="hd2"><h2 style="margin:0 0 6px">'+tieuDe+'</h2>'+
            '<div class="hd-r">'+(duoi||'')+'</div></div>';
   }
-  /** Dòng hàng xưởng Hưng Yên? (code sợi đuôi "-HY" · cờ xuongMa của engine) */
-  function laHangHY(r){
-    if(!r) return false;
-    if(String(r.xuongMa||'').toUpperCase()==='HY') return true;
-    return String(r.codeSoi||'').split(/\r?\n/).some(function(x){ return /-HY$/.test(x.trim()); });
-  }
   /** Dòng hàng xưởng Thanh Hóa? (code sợi đuôi "-TH" · cờ xuongTH/xuongMa của engine).
       Xét CẢ đuôi code sợi để hàng gõ tay ở bước 2 cũng nhận ra, không phụ thuộc cờ (27/8). */
   function laHangTH(r){
@@ -8927,17 +8921,44 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(r.xuongTH || String(r.xuongMa||'').toUpperCase()==='TH') return true;
     return String(r.codeSoi||'').split(/\r?\n/).some(function(x){ return /-TH$/i.test(x.trim()); });
   }
+  /* ===== BẢN IN BƯỚC 5 ĐI THEO Ô XỔ XƯỞNG + XƯỞNG ĐANG XEM (user chốt 9/9) =====
+     Trước đây bản in cố định: Line luôn bỏ hàng -TH, Cuốn luôn bỏ hàng -HY, không nhìn ô xổ.
+     Nay:
+       · Chọn đúng MỘT xưởng (Xưởng NĐ / TH / HY) → in ĐÚNG hàng xưởng đó.
+         Xưởng NĐ = code sợi KHÔNG có đuôi · HY = đuôi -HY · TH = đuôi -TH.
+       · Chọn "Tất cả":
+           - tài khoản/xưởng đang xem là HY → in cả 3 xưởng;
+           - còn lại (NĐ…)  → Tổng hợp Line lấy NĐ+HY (bỏ -TH) · Tổng hợp Cuốn lấy NĐ+TH (bỏ -HY),
+             đúng lệ đã chốt 17/8 và 19/8.
+     Mã xưởng do auth.web.js bơm vào window.__CL_XUONG (đọc bảng factories). Không lấy được thì
+     coi như KHÔNG phải HY — giữ nguyên cách in cũ, không đổi số liệu ngoài ý muốn. */
+  function maXuongDangXem(){
+    /* Không bọc try/catch: đọc biến toàn cục và .normalize không thể văng, mà catch rỗng thì
+       bài kiểm "không nuốt lỗi im lặng" (ui.test mục E) bắt ngay — đúng luật của dự án. */
+    var v=String(window.__CL_XUONG||'');
+    if(v && v.normalize) v=v.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    return v.replace(/[Đđ]/g,'D').toUpperCase().trim();
+  }
+  function locXuongIn(loai){
+    var che=String(getVal('s6-th-mode')||'all');
+    if(che==='nd') return { giu:function(r){ return !xuongCuaDong(r); },        nhan:' · Xưởng NĐ' };
+    if(che==='th') return { giu:function(r){ return xuongCuaDong(r)==='TH'; },  nhan:' · Xưởng TH' };
+    if(che==='hy') return { giu:function(r){ return xuongCuaDong(r)==='HY'; },  nhan:' · Xưởng HY' };
+    if(maXuongDangXem()==='HY') return { giu:function(){ return true; }, nhan:' · cả 3 xưởng' };
+    return loai==='line'
+      ? { giu:function(r){ return xuongCuaDong(r)!=='TH'; }, nhan:'' }
+      : { giu:function(r){ return xuongCuaDong(r)!=='HY'; }, nhan:'' };
+  }
   function printTongHopCuon(){
     var md=getVal('s6-madon');
     if(!md) return alert('Hãy CHỌN 1 mã đơn ở ô lọc trước khi in "Tổng hợp Cuốn".');
     var mds=thMdList(md); if(!mds.length) return alert('Đơn "'+md+'" chưa có dữ liệu Cuốn.');
     var html='';
-    if(!thRows(md).filter(function(r){ return !laHangHY(r); }).length)
-      return alert('Đơn "'+md+'" chỉ có hàng xưởng HY (code sợi đuôi -HY) — bản in Tổng hợp Cuốn không tính hàng này.');
+    var LX=locXuongIn('cuon');
+    if(!thRows(md).filter(LX.giu).length)
+      return alert('Đơn "'+md+'" không có dòng nào thuộc phần đang chọn để in'+(LX.nhan||' (Tất cả)')+'.');
     mds.forEach(function(m){
-      /* BỎ HÀNG HƯNG YÊN khỏi bản in Tổng hợp Cuốn (chốt 19/8): code sợi đuôi "-HY" là hàng
-         xưởng HY làm, xưởng mình không cuốn nên đưa vào chỉ gây nhầm. Hàng "-TH" vẫn giữ. */
-      var rows=thRows(md).filter(function(r){ return r.maDon===m && !laHangHY(r); }), UC=thUsedCurls(rows);
+      var rows=thRows(md).filter(function(r){ return r.maDon===m && LX.giu(r); }), UC=thUsedCurls(rows);
       if(!rows.length) return;
       // gom theo code, sắp xếp keo → S/M → mm để merge như bảng Line
       var byCode={}, codeOrder=[];
@@ -8961,24 +8982,21 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var wCong=prCotCong(120+120+52+46+64, 5, UC.length, true);
       var thead='<tr><th class="l" style="width:120px">Code Sợi</th><th class="l" style="width:120px">Mã keo</th><th style="width:52px">S/M</th><th style="width:46px">MM</th>'+
         UC.map(function(k){return '<th style="width:'+wCong+'px">'+esc(k.replace('Curl-CT','CT'))+'</th>';}).join('')+'<th style="width:64px">Tổng</th></tr>';
-      html+=thHead2(esc(m)+' · TỔNG HỢP CUỐN', thDoCongInfo(m))+
+      html+=thHead2(esc(m)+' · TỔNG HỢP CUỐN'+esc(LX.nhan), thDoCongInfo(m))+
         '<table style="table-layout:fixed"><thead>'+thead+'</thead><tbody>'+body+
         '<tr class="tot" style="color:#E8185C;font-size:13px"><td class="l" colspan="4">TỔNG SỐ LƯỢNG '+esc(m)+'</td>'+UC.map(function(k){return '<td>'+(grandCurl[k]||'')+'</td>';}).join('')+'<td>'+grand+'</td></tr></tbody></table>';
     });
     // Cuốn nhiều cột độ cong → mặc định giấy NGANG (đổi được ở ô "Hướng giấy")
-    thPrint('Tổng hợp Cuốn · '+(md||(mds.length?mds.join(', '):'Tất cả đơn')), html, (md||mds.join(', '))+' · TỔNG HỢP CUỐN', true);
+    thPrint('Tổng hợp Cuốn · '+(md||(mds.length?mds.join(', '):'Tất cả đơn'))+LX.nhan, html, (md||mds.join(', '))+' · TỔNG HỢP CUỐN'+LX.nhan, true);
   }
   function printTongHopLine(){
     var md=getVal('s6-madon');
     if(!md) return alert('Hãy CHỌN 1 mã đơn ở ô lọc trước khi in "Tổng hợp Line".');
-    /* Hàng xưởng Thanh Hóa (đuôi "-TH") KHÔNG in trong Tổng hợp Line — bộ phận line
-       không làm mấy code đó nên đưa vào chỉ gây nhầm (chốt 17/8). Bảng Tổng hợp Cuốn
-       và bảng ở bước 5 vẫn giữ đủ để đối chiếu. */
-    /* BẢN IN KHÔNG ĐI THEO Ô LỌC TRÊN MÀN HÌNH (chốt 19/8): ô xổ cạnh nút chỉ để LỌC BẢNG.
-       Tổng hợp Line luôn in hàng xưởng nhà — bỏ hàng "-TH" (chốt 17/8). */
-    var rows=thRows(md).filter(function(r){ return r.maDon===md && !laHangTH(r); });
-    if(!rows.length) return alert('Đơn "'+md+'" không có dòng Line nào cần in (hàng "-TH" của xưởng Thanh Hóa không tính).');
-    var nhanCheDo = '';
+    /* Chọn dòng theo ô xổ xưởng + xưởng đang xem — xem locXuongIn() ở trên (user chốt 9/9). */
+    var LX=locXuongIn('line');
+    var rows=thRows(md).filter(function(r){ return r.maDon===md && LX.giu(r); });
+    if(!rows.length) return alert('Đơn "'+md+'" không có dòng nào thuộc phần đang chọn để in'+(LX.nhan||' (Tất cả)')+'.');
+    var nhanCheDo = LX.nhan;
     /* Cột ĐỘ CONG thay cho cột "Nhân viên" (chốt 17/8) — giống bảng Tổng hợp Cuốn.
        Chỉ hiện những độ cong đơn này THẬT SỰ có, khỏi thừa cột trống. */
     var UC=thUsedCurls(rows);
@@ -10030,14 +10048,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=0909291330"></script>
-<script src="cl.sync.js?v=0909291330"></script>
-<script src="auth.store.js?v=0909291330"></script>
-<script src="auth.web.js?v=0909291330"></script>
+<script src="cl.config.js?v=0909291545"></script>
+<script src="cl.sync.js?v=0909291545"></script>
+<script src="auth.store.js?v=0909291545"></script>
+<script src="auth.web.js?v=0909291545"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=0909291330"></script>
+<script src="cl.project.js?v=0909291545"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=0909291330" defer></script>
+<script src="firebase-bridge.js?v=0909291545" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
