@@ -485,6 +485,9 @@ td.cl-daylech{background:#FFF0DC!important;color:#8a4b00!important;font-weight:7
 /* Thong tin Bang Hop KHAC Bang Line trong cung 1 file don (keo, so mau) -> to nen xanh. */
 td.cl-hoplech{background:#E7F0FF!important;color:#0B4A8F!important;font-weight:700;cursor:help;
   box-shadow:inset 0 -2px 0 #2F6FD0}
+/* Bang Keo (buoc 4 + buoc 5): dong dung nguyen lieu/ma keo cua mot dong BI LECH -> to ca dong. */
+#eng-keo tr.cl-hoplech td,#eng-keo-full tr.cl-hoplech td{background:#E7F0FF!important;color:#0B4A8F!important;cursor:help}
+#eng-keo tr.cl-hoplech td:nth-child(3),#eng-keo-full tr.cl-hoplech td:nth-child(3){font-weight:700;box-shadow:inset 0 -2px 0 #2F6FD0}
 #eng-box td.txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
 #eng-box td:nth-child(5){max-width:none}                                                /* Nguyên liệu: hiển thị đủ 1 dòng */
 /* Dòng Σ subtotal / GRAND TOTAL: số to (5-6 chữ số) → thu nhỏ font để hiện ĐỦ trong cột, không đè */
@@ -661,7 +664,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1009090000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1009133000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1152,7 +1155,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1009090000"></script>
+<script src="engine.web.js?v=1009133000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -6144,8 +6147,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       /* Dòng cần kiểm (thiếu thông tin, hoặc 1 độ dày 2 keo) được đánh dấu để chip
          "N dòng cần kiểm" bấm vào là nhảy tới đúng dòng (user chốt 26/8). */
       var canKiem=conBao?' data-keowarn="1"':'';
-      var cls=(amb&&!okAmb)?'keo-amb':(((miss||amb)&&!conBao)?'keo-ok':'');
-      var ti=(amb?keoAmbTitle(amb):'')+((miss||amb)&&!conBao?((amb?' — ':'')+'✓ đã xác nhận đã kiểm'):'');
+      var _HK=hlLechKeo(k);                              // Bảng Hộp khai khác Bảng Line
+      var cls=((amb&&!okAmb)?'keo-amb':(((miss||amb)&&!conBao)?'keo-ok':''))+(_HK?' cl-hoplech':'');
+      var ti=_HK?hlLechTitle(_HK)
+        :((amb?keoAmbTitle(amb):'')+((miss||amb)&&!conBao?((amb?' — ':'')+'✓ đã xác nhận đã kiểm'):''));
       var ambAttr=(cls?(' class="'+cls+'"'):'')+(ti?(' title="'+esc(ti)+'"'):'')+canKiem;
       var wc=(miss&&!okMiss)?'cell-warn':'';
       // ô SỬA ĐƯỢC cho admin (contenteditable + data-keoedit/data-keoidx → handler chung cập nhật state.keoRows)
@@ -6936,6 +6941,33 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      Ca that C213-785P No.45: Bang Hop ghi keo XanhLX70.2, bang line ghi Vang80.2 — app cuon
      theo bang line nen khong ai thay. Loi nhac NGAN nhu ben do day. */
   function hlLech(r){ return (r && r.hlLech) ? r.hlLech : null; }
+  /* BANG KEO cung phai to mau (user chot 10/9): Bang Keo la CHO NGUOI TA SUA keo, thay canh
+     bao o Bang Line Cuon ma bang keo im lang thi khong biet sua dong nao. Dong keo nao dung
+     dung (nguyen lieu + ma keo) cua mot dong bi lech thi to theo. Nho ket qua theo dung mang
+     rows cua engine, engine chay lai la tu tinh lai. */
+  var _hlKeoCache={arr:null,map:null};
+  function hlLechKeoMap(){
+    var rs=(state.R&&state.R.cuonSheet&&state.R.cuonSheet.rows)||[];
+    if(_hlKeoCache.arr===rs) return _hlKeoCache.map;
+    var m={};
+    rs.forEach(function(r){
+      if(!r||r.type!=='row'||!r.hlLech) return;
+      String(r.material||'').split(/\r?\n/).forEach(function(nl){
+        nl=nl.trim(); if(!nl) return;
+        String(r.keo||'').split(/\s*,\s*/).forEach(function(kk){
+          kk=kk.trim(); if(!kk) return;
+          m[String(r.maDon||'')+'|'+nl.toLowerCase()+'|'+kk.toLowerCase()]=r.hlLech;
+        });
+      });
+    });
+    _hlKeoCache={arr:rs,map:m};
+    return m;
+  }
+  function hlLechKeo(k){
+    if(!k) return null;
+    return hlLechKeoMap()[String(k.maDon||'')+'|'+String(k.loaiSoi||'').trim().toLowerCase()+
+      '|'+String(k.loaiKeo||'').trim().toLowerCase()]||null;
+  }
   function hlLechTitle(L){
     return (L && L.loai==='somau')
       ? 'S\u1ed1 m\u00e0u b\u1ea3ng h\u1ed9p v\u00e0 b\u1ea3ng line kh\u00e1c nhau c\u1ea7n ki\u1ec3m tra l\u1ea1i'
@@ -7136,8 +7168,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var amb=keoAmbCuaDong(k);
       // đã bấm "✓ Đã kiểm" ở Bảng Keo thì bảng bên này cũng hết đỏ, chỉ còn vạch xanh
       var okAmb=amb&&idx>=0&&keoDaKiem(k,idx,'amb');
-      var ambCls=amb?(okAmb?' keo-ok':' keo-amb'):'';
-      var ambTi=amb?(' title="'+esc(keoAmbTitle(amb)+(okAmb?' — ✓ đã xác nhận đã kiểm':''))+'"'):'';
+      var _HK=hlLechKeo(k);                              // Bảng Hộp khai khác Bảng Line
+      var ambCls=(amb?(okAmb?' keo-ok':' keo-amb'):'')+(_HK?' cl-hoplech':'');
+      var ambTi=_HK?(' title="'+esc(hlLechTitle(_HK))+'"')
+        :(amb?(' title="'+esc(keoAmbTitle(amb)+(okAmb?' — ✓ đã xác nhận đã kiểm':''))+'"'):'');
       var kbl=k._daTach?null:parseKeoByLength(k.ghiChu);   // đã bung thành dòng thật → khỏi vẽ dòng dẫn xuất
       if(kbl){
         return kbl.map(function(seg,si){
@@ -7156,7 +7190,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         if(pn && String(pn[field]||'').trim()) return ed(field, pn[field], pn[field]);
         return ed(field,val);
       };
-      return '<tr class="'+((malformed?'cell-warn':'')+ambCls).trim()+'" data-keoidx="'+idx+'" title="'+(amb?esc(keoAmbTitle(amb)):'Chuột phải để thêm/xóa/nhân bản dòng')+'">'+
+      return '<tr class="'+((malformed?'cell-warn':'')+ambCls).trim()+'" data-keoidx="'+idx+'" title="'+(_HK?esc(hlLechTitle(_HK)):amb?esc(keoAmbTitle(amb)):'Chuột phải để thêm/xóa/nhân bản dòng')+'">'+
         '<td>'+esc(khOf(k.maDon))+'</td><td>'+esc(donOf(k.maDon))+'</td>'+ed('loaiKeo',k.loaiKeo)+col('loaiSoi',k.loaiSoi)+col('doDay',k.doDay)+col('doDai',k.doDai)+ed('ghiChu',k.ghiChu)+
         '</tr>';
     }).join('') : '<tr><td colspan="7" class="txt mini">Đơn '+esc(md)+' không có bảng keo trong file.</td></tr>');
@@ -10115,14 +10149,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1009090000"></script>
-<script src="cl.sync.js?v=1009090000"></script>
-<script src="auth.store.js?v=1009090000"></script>
-<script src="auth.web.js?v=1009090000"></script>
+<script src="cl.config.js?v=1009133000"></script>
+<script src="cl.sync.js?v=1009133000"></script>
+<script src="auth.store.js?v=1009133000"></script>
+<script src="auth.web.js?v=1009133000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1009090000"></script>
+<script src="cl.project.js?v=1009133000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1009090000" defer></script>
+<script src="firebase-bridge.js?v=1009133000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
