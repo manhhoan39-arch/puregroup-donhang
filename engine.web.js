@@ -131,6 +131,9 @@
          sẵn, KHÔNG cuốn dải line, chỉ tính SỐ HỘP. Giữ cờ để các bước sau đừng đòi bảng Mix
          và đừng báo "thiếu dây" cho mấy dòng này (C213-785P, 20/8/2026). */
       premade: !!raw.premade || /premade/i.test(String(raw.lineRaw == null ? '' : raw.lineRaw)),
+      /* Co CANH BAO doi chieu Bang Hop <-> Bang Line (mau 2026). Dat o day de di theo
+         suot: data1 -> Bang Line Cuon -> ban in Tong hop Line. */
+      hopLineLech: (raw.hopLineLech && typeof raw.hopLineLech === 'object') ? raw.hopLineLech : null,
       soMau: Number(raw.soMau) || 0,     // mẫu 2026: cột "Số màu" (Mix Color mấy màu)
       _manual: !!raw._manual,
     };
@@ -384,6 +387,7 @@
     // mỗi dòng data1 MANG THEO material/độ dày/keo khách ghi của CHÍNH DÒNG ĐƠN sinh ra nó
     // (2 dòng đơn cùng code sợi có thể khác material → không được tra keo qua meta gộp)
     var carry = { material: o.material || o.detail || '', thickness: o.thickness || '', ghiChuKeo: o.ghiChuKeo || '',
+                  hopLineLech: o.hopLineLech || null,
                   xuongTH: !!o.xuongTH, xuongMa: o.xuongMa || (o.xuongTH ? 'TH' : '') };
     // TÁCH THEO MÀU: dòng Mix có NHIỀU code sợi (mix nhiều màu) → tách MỖI code = 1 component,
     // dùng phân bổ mm RIÊNG của màu đó (colorBlocks theo THỨ TỰ khớp code sợi). Tổng dây bảo toàn.
@@ -412,7 +416,7 @@
       var r = parseRange(o.length), smm = r ? r.lo : NaN;
       for (curl in curls) {
         sl = strategy(o, { mm: smm, mixQty: o.line, qty: curls[curl] }, { rangeTotal: o.line });
-        if (sl) rows.push({ codeSoi: o.codeSoi, length: o.length, mm: smm, curl: curl, sl: sl, maDon: o.maDon, mixSingle: 'Single', material: carry.material, thickness: carry.thickness, ghiChuKeo: carry.ghiChuKeo, xuongTH: carry.xuongTH, xuongMa: carry.xuongMa });
+        if (sl) rows.push({ codeSoi: o.codeSoi, length: o.length, mm: smm, curl: curl, sl: sl, maDon: o.maDon, mixSingle: 'Single', material: carry.material, thickness: carry.thickness, ghiChuKeo: carry.ghiChuKeo, hopLineLech: carry.hopLineLech, xuongTH: carry.xuongTH, xuongMa: carry.xuongMa });
       }
       return rows;
     }
@@ -421,7 +425,7 @@
     for (curl in curls) {
       for (mm in dist) {
         sl = strategy(o, { mm: +mm, mixQty: dist[mm], qty: curls[curl] }, { rangeTotal: rangeTotal });
-        if (sl) rows.push({ codeSoi: o.codeSoi, length: o.length, mm: +mm, curl: curl, sl: sl, maDon: o.maDon, mixSingle: 'Mix', material: carry.material, thickness: carry.thickness, ghiChuKeo: carry.ghiChuKeo, xuongTH: carry.xuongTH, xuongMa: carry.xuongMa });
+        if (sl) rows.push({ codeSoi: o.codeSoi, length: o.length, mm: +mm, curl: curl, sl: sl, maDon: o.maDon, mixSingle: 'Mix', material: carry.material, thickness: carry.thickness, ghiChuKeo: carry.ghiChuKeo, hopLineLech: carry.hopLineLech, xuongTH: carry.xuongTH, xuongMa: carry.xuongMa });
       }
     }
     return rows;
@@ -1239,6 +1243,7 @@
       var key = r.mm + '|' + (r.material || '') + '|' + (r.thickness || '') + '|' + (r.mixSingle || '') + '|' + (r.length || '');
       var g = c.rows[key];
       if (!g) { g = c.rows[key] = { length: r.length, lengths: [], mm: r.mm, curls: {}, tong: 0, keoSet: {}, keo2mmSet: {}, material: r.material || '', thickness: r.thickness || '', mixSingle: r.mixSingle || '' }; c.order.push(key); }
+      if (r.hopLineLech) { g.hlLech = g.hlLech || r.hopLineLech; c.hlLech = c.hlLech || r.hopLineLech; }
       if (r.cmix) { g.cmix = true; c.cmix = true; }   // dòng tách từ Mix nhiều màu → tô màu ở bước 5
       if (g.lengths.indexOf(r.length) < 0) g.lengths.push(r.length);   // các dải đã gộp (để tra nguồn)
       g.curls[r.curl] = (g.curls[r.curl] || 0) + r.sl; g.tong += r.sl; c.total += r.sl;
@@ -1311,7 +1316,7 @@
         var base = { maDon: c.maDon, codeSoi: codeHien, xuongTH: !!c.xuongTH, xuongMa: c.xuongMa || '', length: g.length,
                      lengths: (g.lengths && g.lengths.length ? g.lengths.slice().sort() : [g.length]),
                      mm: g.mm, box: m.box || '—', mixSingle: g.mixSingle || m.mixSingle || 'Mix',
-                     material: g.material || m.material || '', thickness: g.thickness || m.thickness || '', multiMat: multiMat, cmix: !!g.cmix, keoAmb: !!g.keoAmb };
+                     material: g.material || m.material || '', thickness: g.thickness || m.thickness || '', multiMat: multiMat, cmix: !!g.cmix, keoAmb: !!g.keoAmb, hlLech: g.hlLech || null };
         // Nếu có độ cong đặc biệt và keo 2mm KHÁC keo chuẩn → TÁCH 2 dòng, mỗi dòng 1 keo đúng
         if (hasOvr && keo2mm && keo2mm !== keo) {
           if (normTot > 0) rows.push(Object.assign({ type: 'row', stt: ++stt, curls: normC, tong: normTot, keo: keo, keo2mm: keo2mm }, base));
@@ -1325,7 +1330,7 @@
           rows.push(Object.assign({ type: 'row', stt: ++stt, curls: curls, tong: g.tong, keo: keo, keo2mm: keo2mm }, base));
         }
       });
-      rows.push({ type: 'subtotal', maDon: c.maDon, codeSoi: codeHien, xuongTH: !!c.xuongTH, xuongMa: c.xuongMa || '', curls: subCurls, tong: c.total, multiMat: multiMat, cmix: !!c.cmix }); grand += c.total;
+      rows.push({ type: 'subtotal', maDon: c.maDon, codeSoi: codeHien, xuongTH: !!c.xuongTH, xuongMa: c.xuongMa || '', curls: subCurls, tong: c.total, multiMat: multiMat, cmix: !!c.cmix, hlLech: c.hlLech || null }); grand += c.total;
     });
     rows.push({ type: 'grand', curls: grandCurls, tong: grand });
     return { rows: rows, grand: grand, summary: buildSummary(data1) };
@@ -2400,15 +2405,19 @@
         var k3 = curlOf(PS(MH[c3]));
         if (k3 && mCurl[k3] < 0) mCurl[k3] = c3;
       }
-      var rows2 = [], tong = 0, mauByNo = {}, mauOrd = {};
+      var rows2 = [], tong = 0, mauByNo = {}, mauOrd = {}, keoByNo = {};
       for (var r3 = mr + 1; r3 < aoa.length; r3++) {
         var rw4 = aoa[r3] || [], n4 = num(rw4[cNo]);
         if (n4 == null || n4 <= 0) { if (rows2.length) break; else continue; }
         var cs = {};
         CURLS.forEach(function (k) { var ci2 = mCurl[k]; if (ci2 >= 0) { var q3 = PN(rw4[ci2]); if (q3) cs[k] = q3; } });
         var _nl = cNL >= 0 ? PS(rw4[cNL]) : '';
+        var _keoD = cKeoFix >= 0 ? PS(rw4[cKeoFix]) : '';
         rows2.push({ no: Math.round(n4), mm: mmOf(rw4[cMM]), curls: cs,
-          nl: _nl, keo: cKeoFix >= 0 ? PS(rw4[cKeoFix]) : '' });   // codeSoi gắn sau
+          nl: _nl, keo: _keoD });   // codeSoi gắn sau
+        /* Mã keo của bảng dưới, gom KHÔNG TRÙNG theo từng No — để so với ô Keo của Bảng Hộp. */
+        if (_keoD) { var _kn = Math.round(n4), _kl = keoByNo[_kn] || (keoByNo[_kn] = []);
+          if (_kl.indexOf(_keoD) < 0) _kl.push(_keoD); }
         /* TÊN MÀU (code sợi) của dòng Mix Color: bảng này ghi rõ từng mm dùng màu nào
            (No.45 → 33.MK.Violet.85 · 32.MK.LViolet.85). Chỉ lấy TÊN (không lấy số lượng)
            để bước 3 điền sẵn vào Bảng Mix Màu, khỏi phải gõ tay. */
@@ -2430,6 +2439,28 @@
         if ((PN(o.soMau) || 0) !== ds.length) return;      // số màu khai phải khớp số tên tìm được
         o.codeSoi = ds.join('\n');
       });
+      /* ---- ĐỐI CHIẾU BẢNG HỘP ↔ BẢNG LINE (user chốt 10/9) ----
+         Ca thật C213-785P No.45 (Mix Color 2 màu): Bảng Hộp ghi keo XanhLX70.2, bảng line
+         bên dưới lại ghi Vang80.2 — app lấy keo ở BẢNG LINE nên in ra Vang80.2 mà không ai
+         biết Bảng Hộp nói khác. Sai kiểu IM LẶNG ⇒ phải tô màu cảnh báo, không tự chọn bên nào.
+         Đo trên toàn bộ đơn mẫu 2026 (95 dòng có keo ở cả 2 bảng): đúng 1 dòng lệch — chính
+         No.45 này, không dòng nào bị báo oan. Keo đổi theo mm (130.SKV.7 dùng .2 cho 4-10mm,
+         .3 từ 11mm) KHÔNG tính là lệch vì Bảng Hộp cũng ghi 1 trong mấy mã đó. */
+      (function () {
+        var chuanKeo = function (k) { return String(k == null ? '' : k).replace(/\s+/g, '').toUpperCase(); };
+        out.forEach(function (o) {
+          var ks = keoByNo[o.seri] || [], ds = mauByNo[o.seri] || [], kh = PS(o.ghiChuKeo);
+          var sm = PN(o.soMau) || 0, l = null;
+          if (kh && ks.length) {
+            var la = [];
+            ks.forEach(function (k) { if (chuanKeo(k) !== chuanKeo(kh)) la.push(k); });
+            if (la.length === ks.length) l = { loai: 'keo', keoHop: kh, keoLine: ks.slice() };
+          }
+          if (!l && sm > 1 && ds.length && sm !== ds.length)
+            l = { loai: 'somau', soMauHop: sm, soMauLine: ds.length, tenLine: ds.slice() };
+          if (l) { l.no = o.seri; o.hopLineLech = l; }
+        });
+      })();
       bangDuoiRows = rows2;      // để mục F dựng bảng keo (chỉ đọc CHỮ: Nguyên Liệu + Keo Đã Fix)
       if (!rows2.length || !tong) return;
       // QUY VỀ DẢI: so với chính Bảng Hộp (Σ số hộp × số line ÷ 2) — gấp đôi thì là SỢI.

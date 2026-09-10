@@ -482,6 +482,9 @@ body.gs-selecting{user-select:none}
 /* Do day o DUOI CODE SOI khac so trong TEN GOI NGUYEN LIEU -> to nen cam canh bao ca 2 o. */
 td.cl-daylech{background:#FFF0DC!important;color:#8a4b00!important;font-weight:700;cursor:help;
   box-shadow:inset 0 -2px 0 #E8A33D}
+/* Thong tin Bang Hop KHAC Bang Line trong cung 1 file don (keo, so mau) -> to nen xanh. */
+td.cl-hoplech{background:#E7F0FF!important;color:#0B4A8F!important;font-weight:700;cursor:help;
+  box-shadow:inset 0 -2px 0 #2F6FD0}
 #eng-box td.txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
 #eng-box td:nth-child(5){max-width:none}                                                /* Nguyên liệu: hiển thị đủ 1 dòng */
 /* Dòng Σ subtotal / GRAND TOTAL: số to (5-6 chữ số) → thu nhỏ font để hiện ĐỦ trong cột, không đè */
@@ -658,7 +661,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">0909292230</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1009090000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1149,7 +1152,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=0909292230"></script>
+<script src="engine.web.js?v=1009090000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -2747,9 +2750,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var _L=dayLech(r);                                  // do day duoi code != ten goi NL
         var _lechCls=_L?' cl-daylech':'';
         var _lechTit=_L?(' title="'+esc(dayLechTitle(_L))+'"'):'';
-        var keoTd='<td class="txt'+(r.keoAmb?' keo-amb-keo':'')+'" style="font-size:10px"'+
-          (r.keoAmb?' title="1 độ dày sử dụng 2 loại keo — keo này lấy theo bảng chi tiết của khách"'
-                  :(r.ovrRow?' title="Độ cong đặc biệt '+esc(OVR.join('/'))+' → Keo 2mm"':''))+'>'+esc(r.keo||'')+'</td>';
+        var _H=hlLech(r);                                   // Bang Hop khai keo/so mau khac Bang Line
+        var keoTd='<td class="txt'+(r.keoAmb?' keo-amb-keo':'')+(_H?' cl-hoplech':'')+'" style="font-size:10px"'+
+          (_H?' title="'+esc(hlLechTitle(_H))+'"'
+            :(r.keoAmb?' title="1 độ dày sử dụng 2 loại keo — keo này lấy theo bảng chi tiết của khách"'
+                  :(r.ovrRow?' title="Độ cong đặc biệt '+esc(OVR.join('/'))+' → Keo 2mm"':'')))+'>'+esc(r.keo||'')+'</td>';
         return '<tr class="'+(mc+ovr+th+cmx).trim()+'" data-cbk="1" data-search="'+esc(timKiemCuaDong(r))+'" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+cell2+_lechCls+'" title="'+(_L?esc(dayLechTitle()):r.cmix?'Dòng tách từ Mix nhiều màu':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+cell2+' cb-nl'+_lechCls+'" style="font-size:10px"'+_lechTit+'>'+nl2br(_nlDay)+'</td><td data-sm="1" title="'+esc(smTitle(r))+'">'+nl2br(smText(r))+'</td><td>'+r.mm+'</td>'+keoTd+
           UC.map(function(k){ return '<td class="cw">'+q(r.curls[k])+'</td>'; }).join('')+
           '<td class="qty">'+r.tong+'</td></tr>';
@@ -6927,6 +6932,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   /* Loi nhac NGAN GON theo yeu cau user 9/9 — dai dong che ca bang, doc met. */
   function dayLechTitle(){ return '\u0110\u1ed9 d\u00e0y l\u1ec7ch nhau c\u1ea7n ki\u1ec3m tra l\u1ea1i'; }
+  /* BANG HOP <-> BANG LINE lech nhau (engine danh dau o r.hlLech, xem muc D parseGuiXuong2026).
+     Ca that C213-785P No.45: Bang Hop ghi keo XanhLX70.2, bang line ghi Vang80.2 — app cuon
+     theo bang line nen khong ai thay. Loi nhac NGAN nhu ben do day. */
+  function hlLech(r){ return (r && r.hlLech) ? r.hlLech : null; }
+  function hlLechTitle(L){
+    return (L && L.loai==='somau')
+      ? 'S\u1ed1 m\u00e0u b\u1ea3ng h\u1ed9p v\u00e0 b\u1ea3ng line kh\u00e1c nhau c\u1ea7n ki\u1ec3m tra l\u1ea1i'
+      : 'Keo b\u1ea3ng h\u1ed9p v\u00e0 b\u1ea3ng line kh\u00e1c nhau c\u1ea7n ki\u1ec3m tra l\u1ea1i';
+  }
 
   function hopXuongLoc(r){
     var che=String(getVal('s6-th-mode')||'all');
@@ -9046,6 +9060,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
          khong phai mo lai app doi chieu. */
       if(!C.lech){ var _l=dayLech(r); if(_l) C.lech=_l; }
       if(r.keoAmb) C.keoAmb=1;
+      if(!C.hl){ var _h=hlLech(r); if(_h) C.hl=_h; }
       if(!C.keo[keo]){C.keo[keo]={mm:{},cu:{},order:[]};C.keoOrder.push(keo);}
       var K=C.keo[keo];
       if(!(r.mm in K.mm)){K.mm[r.mm]=0;K.cu[r.mm]={};K.order.push(+r.mm);}
@@ -9068,8 +9083,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             cells+='<td class="l edit" contenteditable="true" rowspan="'+totalRows+'"'+_wL+_tL+'><b>'+esc(code)+'</b></td>'+
                    '<td class="l edit" contenteditable="true" rowspan="'+totalRows+'"'+_wL+_tL+'>'+nl2br(C.nlOrder.join('\n'))+'</td>'; firstRow=false; }
           if(j===0){
-            var _wK=C.keoAmb?' style="background:#FFEEF2;color:#a4123a;font-weight:700"':'';
-            var _tK=C.keoAmb?' title="1 do day su dung 2 loai keo - keo nay lay theo bang chi tiet cua khach"':'';
+            var _wK=C.hl?' style="background:#E7F0FF;color:#0b4a8f;font-weight:700"'
+                   :(C.keoAmb?' style="background:#FFEEF2;color:#a4123a;font-weight:700"':'');
+            var _tK=C.hl?(' title="'+esc(hlLechTitle(C.hl))+'"')
+                   :(C.keoAmb?' title="1 do day su dung 2 loai keo - keo nay lay theo bang chi tiet cua khach"':'');
             cells+='<td class="l edit" contenteditable="true" rowspan="'+mms.length+'"'+_wK+_tK+'>'+esc(keo)+'</td>'; }
           var t=K.mm[mm]; codeTot+=t; grand+=t;
           UC.forEach(function(k){ var v=(K.cu[mm]&&K.cu[mm][k])||0; if(v){ codeCur[k]=(codeCur[k]||0)+v; grandCur[k]=(grandCur[k]||0)+v; } });
@@ -10098,14 +10115,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=0909292230"></script>
-<script src="cl.sync.js?v=0909292230"></script>
-<script src="auth.store.js?v=0909292230"></script>
-<script src="auth.web.js?v=0909292230"></script>
+<script src="cl.config.js?v=1009090000"></script>
+<script src="cl.sync.js?v=1009090000"></script>
+<script src="auth.store.js?v=1009090000"></script>
+<script src="auth.web.js?v=1009090000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=0909292230"></script>
+<script src="cl.project.js?v=1009090000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=0909292230" defer></script>
+<script src="firebase-bridge.js?v=1009090000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
