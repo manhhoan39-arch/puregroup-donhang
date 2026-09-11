@@ -664,7 +664,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1109173000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1109180000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1155,7 +1155,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1109173000"></script>
+<script src="engine.web.js?v=1109180000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -6133,7 +6133,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var rows=[], warn=0, daKiem=0;
     // lặp trực tiếp trên state.keoRows để có chỉ số ổn định phục vụ xóa hàng loạt
     var canEdit=canEditStep('s5');
-    (state.keoRows||[]).forEach(function(k, idx){
+    /* Giữ CHỈ SỐ GỐC đi kèm từng dòng rồi mới sắp xếp — ô sửa được (data-keoidx), xoá hàng
+       loạt và chip "N dòng cần kiểm" đều bám idx này. */
+    keoSapXep((state.keoRows||[]).map(function(k, i){ return { k:k, i:i }; })).forEach(function(_e){
+      var k=_e.k, idx=_e.i;
       // "thiếu thông tin" = trống CẢ cột thuộc tính LẪN Ghi Chú (dữ liệu gốc để keo trong Ghi Chú vẫn hợp lệ)
       var miss=!(k.loaiSoi&&String(k.loaiSoi).trim()) && !(k.doDay&&String(k.doDay).trim()) && !(k.doDai&&String(k.doDai).trim()) && !(k.ghiChu&&String(k.ghiChu).trim());
       var amb=keoAmbCuaDong(k);
@@ -6940,6 +6943,32 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   /* BANG HOP <-> BANG LINE lech nhau (engine danh dau o r.hlLech, xem muc D parseGuiXuong2026).
      Ca that C213-785P No.45: Bang Hop ghi keo XanhLX70.2, bang line ghi Vang80.2 — app cuon
      theo bang line nen khong ai thay. Loi nhac NGAN nhu ben do day. */
+  /* ===== SẮP XẾP BẢNG KEO: Độ dày → Loại sợi → Độ dài (user chốt 11/9) =====
+     Bảng keo khách ghi theo thứ tự tuỳ ý (794P: Super Silk 0.07 → 0.12 → 0.08 → 0.05 rồi
+     mới sang hàng màu) nên dò bằng mắt rất mệt. Sắp lại cho cùng độ dày nằm liền nhau.
+     CHỈ ĐỔI THỨ TỰ HIỂN THỊ — state.keoRows giữ nguyên, nên tra keo, sửa ô (data-keoidx),
+     thêm/xoá dòng và số "ô cần kiểm" đều không đổi. */
+  function keoSortKey(k){
+    var so=function(x){ var m=String(x==null?'':x).match(/\d+(?:[.,]\d+)?/); return m?parseFloat(m[0].replace(',','.')):null; };
+    var pn={}; try{ pn=parseKeoNote(k&&k.ghiChu)||{}; }catch(e){ pn={}; }
+    var day=so((k&&k.doDay)||pn.doDay);
+    var soi=String(((k&&k.loaiSoi)||pn.loaiSoi)||'').replace(/\s+/g,' ').trim().toLowerCase();
+    var daiRaw=String(((k&&k.doDai)||pn.doDai)||'').trim();
+    var dai=so(daiRaw);
+    /* Độ dày trống → xuống cuối; Độ dài trống (= mọi độ dài) → cuối nhóm nguyên liệu đó. */
+    return { day:(day==null?1e9:day), soi:soi, daiTrong:(daiRaw?0:1), dai:(dai==null?1e9:dai) };
+  }
+  function keoSapXep(ds){
+    return (ds||[]).map(function(x,i){ return { x:x, i:i, s:keoSortKey(x && x.k !== undefined ? x.k : x) }; })
+      .sort(function(a,b){
+        return (a.s.day-b.s.day)
+          || (a.s.soi<b.s.soi?-1:a.s.soi>b.s.soi?1:0)
+          || (a.s.daiTrong-b.s.daiTrong)
+          || (a.s.dai-b.s.dai)
+          || (a.i-b.i);            // hoà hết thì giữ đúng thứ tự khách ghi
+      })
+      .map(function(e){ return e.x; });
+  }
   function hlLech(r){ return (r && r.hlLech) ? r.hlLech : null; }
   /* BANG KEO cung phai to mau (user chot 10/9): Bang Keo la CHO NGUOI TA SUA keo, thay canh
      bao o Bang Line Cuon ma bang keo im lang thi khong biet sua dong nao. Dong keo nao dung
@@ -7154,7 +7183,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var warnRow = malformed
       ? '<tr data-noflt="1"><td colspan="7" style="background:var(--red-50);color:var(--red-700);font-weight:600;font-size:11px;white-space:normal">⚠ Bảng keo đơn '+esc(md)+' SAI CẤU TRÚC — cột "Keo nhiệt" đã để TRỐNG. Sửa các ô bên dưới cho đúng (Độ Dày = số như 0.07; hoặc để trống và ghi điều kiện vào Ghi Chú) → keo tự tính lại.</td></tr>'
       : '';
-    tbody.innerHTML = warnRow + (keo.length ? keo.map(function(k){
+    tbody.innerHTML = warnRow + (keo.length ? keoSapXep(keo).map(function(k){
       var idx = state.keoRows.indexOf(k);
       var ed = function(field,val,seed){
         var ke=(field==='loaiKeo')?keoErrAttr(val):{cls:'',ti:''};
@@ -8946,7 +8975,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var R=state.R, ks=(R&&R.keoByOrder&&R.keoByOrder[m])||[];
     if(!ks.length) return '';
     var mot=function(v){ return String(v==null?'':v).replace(/\r?\n/g,' / ').trim(); };
-    var tr=ks.map(function(k){
+    var tr=keoSapXep(ks).map(function(k){
       var pn=null; try{ pn=parseKeoNote(k.ghiChu); }catch(e){ logErr('thKeoInfo', e); }
       pn=pn||{};
       return '<tr><td class="l"><b>'+esc(mot(k.loaiKeo))+'</b></td>'+
@@ -10163,14 +10192,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1109173000"></script>
-<script src="cl.sync.js?v=1109173000"></script>
-<script src="auth.store.js?v=1109173000"></script>
-<script src="auth.web.js?v=1109173000"></script>
+<script src="cl.config.js?v=1109180000"></script>
+<script src="cl.sync.js?v=1109180000"></script>
+<script src="auth.store.js?v=1109180000"></script>
+<script src="auth.web.js?v=1109180000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1109173000"></script>
+<script src="cl.project.js?v=1109180000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1109173000" defer></script>
+<script src="firebase-bridge.js?v=1109180000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
