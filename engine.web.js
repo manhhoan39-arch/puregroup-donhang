@@ -1911,6 +1911,17 @@
        · ô khai đủ          → trả null để chỗ gọi xử lý theo lệ cũ (sheet thắng tên file).
      ⚠ Tên file KHÔNG có số đơn thì giữ nguyên "C41-" như trước (splitMd tách kh='C41', don=''),
      đừng cắt dấu "-" đi kẻo app hiểu nhầm C41 là mã đơn. */
+  /* MIX MÀU = ô nào có chữ "Mix Color" / "Mix Colour" (user chốt 11/9).
+     "MULTI Color" KHÔNG phải mix màu — bỏ hết khoảng trắng thì "multicolor" không chứa
+     "mixcolor" nên tự nằm ngoài. TUYỆT ĐỐI đừng nới thành "cứ Số màu ≥ 2 là mix màu":
+     đơn K24-787P có dòng Multi Color khai Số màu 4, nới ra là app đòi điền Bảng Mix Màu
+     cho một dòng không hề trộn màu. */
+  function laMixColor(o) {
+    if (!o) return false;
+    var t = (PS(o.material) + ' ' + PS(o.detail) + ' ' + PS(o.loaiHang) + ' ' +
+             PS(o.label) + ' ' + PS(o.codeSoi)).toLowerCase().replace(/\s+/g, '');
+    return t.indexOf('mixcolor') >= 0 || t.indexOf('mixcolour') >= 0;
+  }
   function ghepMaDonThieu(v, maTen) {
     v = PS(v).trim();
     if (!v) return maTen || '';
@@ -2454,6 +2465,7 @@
          đỏ E-CODE. Chỉ lấy TÊN, số lượng vẫn ĐIỀN TAY (số của khách ở bảng đó không tin được). */
       out.forEach(function (o) {
         var ds = mauByNo[o.seri];
+        if (!laMixColor(o)) return;                       // Multi Color KHÔNG phải mix màu
         if (!ds || ds.length < 2 || String(o.codeSoi || '').indexOf('\n') >= 0) return;
         if ((PN(o.soMau) || 0) !== ds.length) return;      // số màu khai phải khớp số tên tìm được
         o.codeSoi = ds.join('\n');
@@ -2475,7 +2487,7 @@
             ks.forEach(function (k) { if (chuanKeo(k) !== chuanKeo(kh)) la.push(k); });
             if (la.length === ks.length) l = { loai: 'keo', keoHop: kh, keoLine: ks.slice() };
           }
-          if (!l && sm > 1 && ds.length && sm !== ds.length)
+          if (!l && laMixColor(o) && sm > 1 && ds.length && sm !== ds.length)
             l = { loai: 'somau', soMauHop: sm, soMauLine: ds.length, tenLine: ds.slice() };
           if (l) { l.no = o.seri; o.hopLineLech = l; }
         });
@@ -2732,7 +2744,7 @@
     sheetRangeInfo: sheetRangeInfo, resolveMixDist: resolveMixDist,
     buildKeoRules: buildKeoRules, expandKeoRows: expandKeoRows, glueFor: glueFor, glueForShort: glueForShort, orderGlues: orderGlues,
     OVERRIDE_2MM_CURLS: OVERRIDE_2MM_CURLS, isOverrideCurl: isOverrideCurl,
-    parseKeoCond: parseKeoCond, thickKey: thickKey, doDayTuCode: doDayTuCode,
+    parseKeoCond: parseKeoCond, thickKey: thickKey, doDayTuCode: doDayTuCode, laMixColor: laMixColor,
     thicksOfDoDay: thicksOfDoDay, tachDoDay: tachDoDay, timKeoNhapNhang: timKeoNhapNhang, keoNhapNhangCuaDong: keoNhapNhangCuaDong,
     keoCoDieuKien: keoCoDieuKien,
     buildData1: buildData1, buildLineMatrix: buildLineMatrix, STRATEGIES: STRATEGIES,

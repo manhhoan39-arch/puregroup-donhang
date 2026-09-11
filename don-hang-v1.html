@@ -664,7 +664,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1109180000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1109190000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1155,7 +1155,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1109180000"></script>
+<script src="engine.web.js?v=1109190000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -1511,7 +1511,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function _isMixColorRowThat(o){
     var t=(String(o.material||'')+' '+String(o.detail||'')+' '+String(o.loaiHang||'')+' '+String(o.label||'')+' '+String(o.codeSoi||'')).toLowerCase().replace(/\s+/g,'');
     var mc = t.indexOf('mixcolor')>=0 || t.indexOf('mixcolour')>=0;   // khách ghi cả "Mix Colour"
-    if(mc && /\r?\n/.test(String(o.codeSoi||''))) return true;        // mẫu cũ: nhiều code sợi 1 ô
+    /* PHẢI CÓ CHỮ "MIX COLOR" MỚI LÀ MIX MÀU (user chốt 11/9). "Multi Color" KHÔNG phải —
+       đơn K24-787P có dòng Multi Color khai Số màu 4, trước đây nhánh 2026 bên dưới chỉ nhìn
+       cột "Số màu" nên bước 3 sinh bảng "Multi Color (Trộn màu) 1..4" bắt điền tay, mà dòng
+       đó không hề trộn màu. Chặn ngay ở đây, đúng như ghi chú ở đầu hàm. */
+    if(!mc) return false;
+    if(/\r?\n/.test(String(o.codeSoi||''))) return true;              // mẫu cũ: nhiều code sợi 1 ô
     /* MẪU 2026: cột "Code nguyên liệu" chỉ ghi chữ "Mix Color", số màu thật khai ở cột
        "Số màu" (C213-785P No.45 = 2 màu). Nhận theo cột đó để bước 3 hiện bảng điền tay. */
     return (+o.soMau||0) >= 2 && o.mixSingle !== 'Single';
@@ -10192,14 +10197,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1109180000"></script>
-<script src="cl.sync.js?v=1109180000"></script>
-<script src="auth.store.js?v=1109180000"></script>
-<script src="auth.web.js?v=1109180000"></script>
+<script src="cl.config.js?v=1109190000"></script>
+<script src="cl.sync.js?v=1109190000"></script>
+<script src="auth.store.js?v=1109190000"></script>
+<script src="auth.web.js?v=1109190000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1109180000"></script>
+<script src="cl.project.js?v=1109190000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1109180000" defer></script>
+<script src="firebase-bridge.js?v=1109190000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
