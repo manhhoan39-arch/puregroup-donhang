@@ -664,7 +664,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1009133000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1109173000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1155,7 +1155,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1009133000"></script>
+<script src="engine.web.js?v=1109173000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -9038,10 +9038,24 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(!rows.length) return;
       // gom theo code, sắp xếp keo → S/M → mm để merge như bảng Line
       var byCode={}, codeOrder=[];
-      rows.forEach(function(r){ var code=r.codeSoi||''; if(!byCode[code]){byCode[code]=[];codeOrder.push(code);} byCode[code].push({keo:r.keo||'', sm:smText(r), mm:+r.mm, tong:r.tong||0, curls:r.curls||{}}); });
+      /* CỘT S/M CHỈ GỘP "Single" / "Mix" (user chốt 11/9) — xưởng cuốn không cần biết dải mix
+         nào, mà tách theo từng dải thì cùng 1 mm ra 3-4 dòng, bảng dài gấp mấy lần. Gộp lại:
+         cùng (mã keo · Single|Mix · mm) nhập MỘT dòng, số lượng cộng dồn. Tổng không đổi. */
+      rows.forEach(function(r){
+        var code=r.codeSoi||'';
+        if(!byCode[code]){byCode[code]={ds:{},thuTu:[]};codeOrder.push(code);}
+        var C=byCode[code];
+        var sm=/single/i.test(String(r.mixSingle||''))?'Single':'Mix';
+        var k=(r.keo||'')+'\u0000'+sm+'\u0000'+(+r.mm);
+        var e=C.ds[k];
+        if(!e){ e=C.ds[k]={keo:r.keo||'', sm:sm, mm:+r.mm, tong:0, curls:{}}; C.thuTu.push(e); }
+        e.tong+=r.tong||0;
+        var cs=r.curls||{};
+        Object.keys(cs).forEach(function(c){ e.curls[c]=(e.curls[c]||0)+(cs[c]||0); });
+      });
       var body='', grand=0, grandCurl={};
       codeOrder.forEach(function(code){
-        var list=byCode[code].slice();
+        var list=byCode[code].thuTu.slice();
         list.sort(function(a,b){ return (a.keo<b.keo?-1:a.keo>b.keo?1:0)||(a.sm<b.sm?-1:a.sm>b.sm?1:0)||(a.mm-b.mm); });
         var codeTot=0, codeCurl={};
         for(var i=0;i<list.length;i++){ var e=list[i]; codeTot+=e.tong; grand+=e.tong;
@@ -10149,14 +10163,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1009133000"></script>
-<script src="cl.sync.js?v=1009133000"></script>
-<script src="auth.store.js?v=1009133000"></script>
-<script src="auth.web.js?v=1009133000"></script>
+<script src="cl.config.js?v=1109173000"></script>
+<script src="cl.sync.js?v=1109173000"></script>
+<script src="auth.store.js?v=1109173000"></script>
+<script src="auth.web.js?v=1109173000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1009133000"></script>
+<script src="cl.project.js?v=1109173000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1009133000" defer></script>
+<script src="firebase-bridge.js?v=1109173000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){

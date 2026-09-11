@@ -28,6 +28,14 @@
   function normalizeLength(len) {
     if (len == null) return '';
     var s = String(len).trim().toLowerCase().replace(/\s|mm/g, '').replace('~', '-');
+    /* CHÚ THÍCH DÍNH SAU DẢI: khách ghi Độ Dài "7-14mm.DB" (đơn CS89-794P) — chữ ".DB" chỉ là
+       ghi chú của khách, dải vẫn là 7-14mm và vẫn 16 lines. Trước đây khoá thành "7-14.dbmm"
+       nên tra bảng Mix KHÔNG RA ⇒ app báo "không có bảng Mix cho dải này" và thiếu 160 dây.
+       Bảng Mix (parseMixLengthBlocks) đã cắt phần chú thích từ lâu — chỗ này phải cắt Y HỆT,
+       không thì 2 bên lệch khoá. Chỉ cắt khi phần dư mở đầu bằng "." "_" hoặc CHỮ, nên
+       "4-5-6" (liệt kê nhiều mm) và "*5-13" vẫn giữ nguyên. */
+    var m = s.match(/^(\*?\d+(?:-\d+)?)([._a-z].*)$/);
+    if (m) s = m[1];
     return s === '' ? '' : s + 'mm';
   }
   function parseRange(lenNorm) {
@@ -467,6 +475,13 @@
   //   1 Material có thể nhiều keo theo khoảng chiều dài (5~8mm → Nau155C.2 · 9~13mm → Nau155C.3),
   //   1 quy tắc có thể chỉ ghi Độ dày (0,07; 0,085) hoặc chỉ ghi Material.
   var normTxt = function (s) { return PS(s).toLowerCase().replace(/\s+/g, ' '); };
+  /* Ten nguyen lieu de tra keo: khach go KHONG NHAT QUAN khoang trang quanh dau ngoac
+     (don CS89-794P: Bang Keo ghi "Blue 0.07 ( Blu)" ma bang line ghi "Blue 0.07 (Blu)")
+     -> truoc day tra khong ra, 8 dong mat keo IM LANG. Bo khoang trang sat dau ngoac. */
+  var chuanMat = function (s) {
+    return normTxt(s).replace(/\d+(?:[.,]\d+)?/g, ' ')
+      .replace(/\s*([()\[\]])\s*/g, '$1').replace(/\s+/g, ' ').trim();
+  };
   // "hàng màu / sợi màu / màu" (trong bảng keo) = lớp sợi MÀU
   var isColorMat = function (a) { var s = normTxt(a).replace(/hàng|sợi|loại/g, '').replace(/[.,;:]/g, ' ').replace(/\s+/g, ' ').trim(); return s === 'màu' || s === 'mầu' || s === 'mau'; };
   // Nhận diện 1 dòng đơn có phải "hàng màu" không: xét Code Sợi · Tên Gọi NL · Phân Loại · Ghi Chú
@@ -1080,7 +1095,7 @@
       // "hàng màu/sợi màu/màu" → khớp mọi sợi MÀU (không chứa Mink/Silk)
       if (isColorMat(a)) { if (isColorComp(comp)) hit = Math.max(hit, 30); return; }
       // "hàng Mink" / "sợi Mink" = mọi sợi có chữ Mink → bỏ chữ chỉ loại đứng đầu
-      var an = normTxt(a).replace(/\d+(?:[.,]\d+)?/g, ' ').replace(/^(?:hàng|sợi|loại)\s+/, '').replace(/\s+/g, ' ').trim();
+      var an = chuanMat(String(a == null ? '' : a).replace(/^\s*(?:hàng|sợi|loại)\s+/i, ''));
       if (!an) return;
       if (mat === an) hit = Math.max(hit, an.length + 50);        // khớp chính xác
       // CHỈ 1 CHIỀU: material của dòng CHỨA tên rule ("premium faux mink" chứa "faux mink" → rule
@@ -1090,7 +1105,7 @@
     return hit;
   }
   function glueFor(rules, comp, out) {
-    var mat = normTxt(comp.material).replace(/\d+(?:[.,]\d+)?/g, ' ').replace(/\s+/g, ' ').trim();
+    var mat = chuanMat(comp.material);
     var mm = Number(comp.mm);
     // Code sợi có thể mang NHIỀU độ dày (vd "0.07/0.08") → khớp nếu BẤT KỲ độ dày nào nằm trong rule
     var compThicks = (String(comp.thickness == null ? '' : comp.thickness).match(/\d+(?:[.,]\d+)?/g) || []).map(thickKey).filter(function (x) { return x; });
@@ -1126,7 +1141,11 @@
       // ---- CHẤM ĐIỂM theo THỨ TỰ ƯU TIÊN: Material > Thickness > Length ----
       // Material trọng số cao nhất (rule chỉ-định-material luôn thắng); rồi Thickness; rồi Length
       // (khoảng độ dài đặc hiệu spec3 > nửa hở spec2 > tất cả spec0) chỉ để phá hoà bậc thấp nhất.
-      var score = (matHit + (hasMat ? 1 : 0)) * 1000000 + (hasThick ? 1000 : 0) + (r.spec || 0);
+      /* Cung do dac hieu (2 khoang dong) ma CHONG NHAU -> khoang HEP HON la y khach
+         (794P: "4-14mm" va "9-14mm" cung Super Silk 0.07 -> mm 9..14 phai an 9-14mm).
+         Truoc day hoa diem nen bao tranh chap va dien CA HAI ma keo vao 1 o. */
+      var hep = (r.lo != null && isFinite(r.hi)) ? Math.max(0, 99 - Math.min(99, r.hi - r.lo)) : 0;
+      var score = (matHit + (hasMat ? 1 : 0)) * 1000000 + (hasThick ? 1000 : 0) + (r.spec || 0) * 100 + hep;
       /* HOÀ ĐIỂM mà 2 keo KHÁC NHAU = app không có căn cứ chọn (775P độ dày 0.05: 2 quy tắc
          y hệt nhau, chỉ khác mã keo). Gom lại vào out.tranh để nơi gọi biết mà lấy keo theo
          BẢNG CHI TIẾT thay vì im lặng lấy quy tắc đầu tiên. */
