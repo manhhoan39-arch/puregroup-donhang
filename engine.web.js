@@ -1177,12 +1177,37 @@
     return glueFor(rs, Object.assign({}, comp, { curlNhom: true }));
   }
   /** Tất cả mã keo của 1 dòng đơn (duyệt từng mm trong dải) — dùng cho Tổng hợp Box. */
+  /* KEO NHIỆT của 1 DÒNG ĐƠN (cột ở bảng Tổng hợp Box).
+     PHẢI RA ĐÚNG NHƯ BẢNG LINE CUỐN — cùng một đơn mà 2 bảng ghi 2 mã keo khác nhau thì
+     xưởng tin bảng nào? Vì vậy chép ĐÚNG 3 luật của buildCuonBoxSheet:
+       1. Tra theo TỪNG mm trong dải (keo có thể đổi theo mm).
+       2. 2 quy tắc TRANH NHAU (cùng điều kiện, khác mã keo) → KHÔNG đoán, lấy keo khách ghi
+          trên chính dòng đó. (K54-754P: độ dày 6 có cả Cam837.2 lẫn Nau155C.2; dòng
+          2.MK.6 khách ghi Cam837.2, dòng 2.MK.6-1ES ghi Nau155C.2.)
+       3. Độ cong LB/LC/LJ/LC+ LUÔN ăn "keo 2mm" (keo của dải ngắn nhất), không theo mm thật.
+          (K6-774P: dòng chỉ có LB+LJ, dải 6-13mm — Line Cuốn ra Nau155C.2, Box trước đây
+          liệt kê cả Nau155C.3 vì tra theo mm ≥10.)
+     Trước bản này hàm chỉ làm bước 1 ⇒ Box điền sai keo mà không có cảnh báo nào. */
   function orderGlues(rules, o) {
     var rg = parseRange(o.length); if (!rg) return [];
     var seen = {}, out = [];
-    for (var mm = rg.lo; mm <= rg.hi; mm++) {
-      var g = glueFor(rules, { maDon: o.maDon, material: o.material || o.detail || '', thickness: o.thickness, mm: mm, codeSoi: o.codeSoi, detail: o.detail, loaiHang: o.loaiHang, label: o.label, ghiChu: o.ghiChu });
-      if (g && !seen[g]) { seen[g] = 1; out.push(g); }
+    var them = function (g) { if (g && !seen[g]) { seen[g] = 1; out.push(g); } };
+    var ctx = { maDon: o.maDon, material: o.material || o.detail || '', thickness: o.thickness,
+                codeSoi: o.codeSoi, detail: o.detail, loaiHang: o.loaiHang, label: o.label, ghiChu: o.ghiChu };
+    var ks = Object.keys(o.curls || {}), coThuong = false, coDacBiet = false;
+    ks.forEach(function (k) { if (isOverrideCurl(k)) coDacBiet = true; else coThuong = true; });
+    if (!ks.length) coThuong = true;      // dòng không khai độ cong → tính như độ cong thường
+    if (coThuong) {
+      for (var mm = rg.lo; mm <= rg.hi; mm++) {
+        var _tr = {};
+        var g = glueFor(rules, Object.assign({}, ctx, { mm: mm, curlNhom: false }), _tr);
+        if (_tr.tranh) g = PS(o.ghiChuKeo) || '';
+        them(g);
+      }
+    }
+    if (coDacBiet) {
+      var c2 = Object.assign({}, ctx, { mm: rg.lo });
+      them(glueForCurlOnly(rules, c2) || glueForShort(rules, c2));
     }
     return out;
   }
