@@ -2367,6 +2367,8 @@
 
     // cột đánh dấu hàng xưởng Thanh Hóa (bên phải cột "Tổng")
     var colTH26 = timCotXuongTH(H, aoa, hr, col.tong);
+    /* Cột "Laser?" của mẫu 2026. Tách thành hàm vì có HAI chỗ cần: ký hiệu -LZ và cột NHÓM. */
+    var laLaser26 = function (rw) { return col.laser >= 0 && /laser|liigos/i.test(PS(rw[col.laser])); };
     var out = [];
     for (r = hr + 1; r < aoa.length; r++) {
       row = aoa[r] || [];
@@ -2400,13 +2402,19 @@
         detail: PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''),
         xuongMa: colTH26 >= 0 ? (maXuongCuaO(row[colTH26]) || '') : '',
         xuongTH: colTH26 >= 0 && LA_TH.test(PS(row[colTH26])),
-        _kw: (function () { var k = {}; if (col.laser >= 0 && /laser|liigos/i.test(PS(row[col.laser]))) k.LZ = 1; return k; })(),
+        _kw: (function () { var k = {}; if (laLaser26(row)) k.LZ = 1; return k; })(),
         length: length, mixSingle: isMix ? 'Mix' : 'Single', curls: curls,
         line: PN(soLineRaw.replace(/lines?/i, '').trim()), lineRaw: soLineRaw,
         /* PHÂN LOẠI suy từ CỘT "SỐ LINE" của Bảng Hộp (chốt 20/08/2026) — trước lấy ở bảng
            dải line bên dưới, giờ không đọc bảng đó nữa. Ghi chữ "Premade" = hàng đặt sẵn
            (chỉ tính hộp, không cuốn dải); có số line = hàng Classic. */
-        loaiHang: /premade/i.test(soLineRaw) ? 'Premade' : (soLineRaw ? 'Classic' : ''),
+        /* NHÓM (user chốt 16/9): mẫu 2026 KHÔNG có cột "Loại Hàng" như mẫu cũ nên app tự
+           suy — trước chỉ biết Premade/Classic, nên đơn CS567-780P khai cả 20 dòng cột
+           "Laser?" = Laser mà cột Nhóm vẫn ghi Classic. Dùng ĐÚNG chữ khách vẫn tự ghi ở
+           cột "Loại Hàng" của mẫu cũ ("Laser"), không đặt tên mới.
+           Premade vẫn thắng: đó là việc khác hẳn ở xưởng (không cuốn dải line). */
+        loaiHang: /premade/i.test(soLineRaw) ? 'Premade'
+                : (laLaser26(row) ? 'Laser' : (soLineRaw ? 'Classic' : '')),
         premade: /premade/i.test(soLineRaw),
         /* SỐ MÀU: mẫu 2026 ghi Code nguyên liệu là chữ "Mix Color" rồi khai số màu ở cột
            riêng (vd 2). Mang theo để bước 3 sinh đủ N ô tên màu cho admin điền tay. */
