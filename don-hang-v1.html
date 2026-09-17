@@ -664,7 +664,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709160000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709340000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1155,7 +1155,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1709160000"></script>
+<script src="engine.web.js?v=1709340000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -3547,7 +3547,22 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     /* Quét CẢ DÒNG chứ không chỉ 6 cột đầu: mẫu đơn 2026 đặt "Bảng Độ Cong" ở cột K,
        nằm ngang hàng với Bảng Hộp — trước đây tìm không ra nên báo "đơn không có bảng độ cong". */
     var hr=-1, hc=1;
-    for(var r=0;r<A.length && hr<0;r++){ var row0=A[r]||[]; for(var c=0;c<row0.length;c++){ if(low(row0[c]).indexOf('bang do cong')===0){ hr=r; hc=c; break; } } }
+    /* Tieu de THAT luon la DUNG chu "Bang Do Cong". Cot Note cua Bang Hop hay co dong ghi chu
+       "Bang do cong LiiLash" (don LS403-269S: o L30, NAM TREN o B34 that) — khop theo tien to nen
+       app bat trung dong ghi chu do roi doc lan ra ca vung ghi chu thua (* TEM, * C Curl...).
+       => Khop DUNG CHU truoc; chi khi khong co moi tim kieu cu, va con phai co o "Ghi Chu" ben phai
+       cung dong moi coi la tieu de bang. */
+    var _tdc=function(v){ return low(v).replace(/[:.\u00b7|-]+$/,'').trim(); };
+    for(var r=0;r<A.length && hr<0;r++){ var row0=A[r]||[]; for(var c=0;c<row0.length;c++){ if(_tdc(row0[c])==='bang do cong'){ hr=r; hc=c; break; } } }
+    if(hr<0){
+      for(var r9=0;r9<A.length && hr<0;r9++){
+        var rw9=A[r9]||[];
+        for(var c9=0;c9<rw9.length && hr<0;c9++){
+          if(_tdc(rw9[c9]).indexOf('bang do cong')!==0) continue;
+          for(var c8=c9+1;c8<Math.min(rw9.length,c9+6);c8++){ if(low(rw9[c8])==='ghi chu'){ hr=r9; hc=c9; break; } }
+        }
+      }
+    }
     if(hr<0) return null;
     /* Cột "Ghi Chú" phải là cột NẰM SAU tiêu đề Bảng Độ Cong — dòng đó còn một "Ghi Chú"
        nữa của Bảng Hộp ở bên trái, lấy nhầm là đọc sang ghi chú của hộp. */
@@ -6303,7 +6318,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   function boxSapKhoa(o){
     var mm = (function(){ var r = E && E.parseRange ? E.parseRange(o.length) : null; return r ? r.lo : 9999; })();
-    return { code: String(o.codeSoi || '').toLowerCase(), keo: String(boxKeo(o) || '').toLowerCase(),
+    /* MÃ ĐƠN xếp TRƯỚC (user chốt 17/9): mở nhiều đơn cùng lúc mà xếp theo code sợi trước thì
+       các đơn cài răng lược vào nhau, nhìn bảng không ra đơn nào. Gom hết dòng của một đơn
+       lại rồi mới xếp theo thứ tự cũ bên trong đơn đó. */
+    return { don: String(o.maDon || '').toLowerCase(),
+             code: String(o.codeSoi || '').toLowerCase(), keo: String(boxKeo(o) || '').toLowerCase(),
              mm: mm, sm: /single/i.test(String(o.mixSingle || '')) ? 0 : 1, dai: String(o.length || '') };
   }
   function gopBoxRows(ds){
@@ -6321,7 +6340,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     thuTu.forEach(function(e){ if (e.gop && e.gop.length > 1) e.o._gopSeri = e.gop.slice(); });
     return thuTu.map(function(e){ return { o: e.o, i: e.i, s: boxSapKhoa(e.o) }; })
       .sort(function(a, b){
-        return (a.s.code < b.s.code ? -1 : a.s.code > b.s.code ? 1 : 0)
+        return (a.s.don < b.s.don ? -1 : a.s.don > b.s.don ? 1 : 0)
+          || (a.s.code < b.s.code ? -1 : a.s.code > b.s.code ? 1 : 0)
           || (a.s.keo < b.s.keo ? -1 : a.s.keo > b.s.keo ? 1 : 0)
           || (a.s.sm - b.s.sm)
           || (a.s.mm - b.s.mm)
@@ -8394,7 +8414,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     function zip(files){                                    // zip không nén (STORE) — đủ cho xlsx
       var out=[], cen=[], off=0;
       files.forEach(function(f){
-        var nm=ENC.encode(f.n), dt=ENC.encode(f.d), crc=crc32(dt);
+        var nm=ENC.encode(f.n), dt=(f.b? f.b : ENC.encode(f.d)), crc=crc32(dt);
         var lh=new Uint8Array(30+nm.length), dv=new DataView(lh.buffer);
         dv.setUint32(0,0x04034b50,true); dv.setUint16(4,20,true);
         dv.setUint32(14,crc,true); dv.setUint32(18,dt.length,true); dv.setUint32(22,dt.length,true);
@@ -8410,6 +8430,20 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       ev.setUint32(0,0x06054b50,true); ev.setUint16(8,files.length,true); ev.setUint16(10,files.length,true);
       ev.setUint32(12,cs,true); ev.setUint32(16,off,true);
       return new Blob(out.concat(cen,[eo]),{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    }
+    /* Anh trong don duoc luu bang data-URL (xem imgStore) => doc thang ra byte de nhet vao
+       xl/media cua file Excel. Khong phai data-URL (blob:, http:) thi bo qua vi doc duoc phai
+       cho mang, luc nguoi dung bam Excel thi da muon. */
+    function b64u8(d){
+      var i=String(d||'').indexOf(','); if(i<0) return null;
+      try{ var bin=atob(String(d).slice(i+1)), u=new Uint8Array(bin.length);
+        for(var k=0;k<bin.length;k++) u[k]=bin.charCodeAt(k); return u; }catch(e){ return null; }
+    }
+    function extAnh(d){
+      var m=/^data:image\/([a-z0-9+.-]+)/i.exec(String(d||''));
+      var e=(m?m[1]:'png').toLowerCase();
+      if(e==='jpg') e='jpeg'; if(e==='svg+xml') e='svg';
+      return e;
     }
     function X(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,''); }
@@ -8427,7 +8461,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(!t || /^0\d/.test(t) || !/^-?\d+(\.\d+)?$/.test(t)) return null;
       var n=+t; return isFinite(n)?n:null;
     }
-    function styleOf(el, P){
+    function styleOf(el, P, epWrap){
       var cs=getComputedStyle(el);
       var fw=cs.fontWeight, bold=(fw==='bold'||+fw>=600);
       var f='<font>'+(bold?'<b/>':'')+(cs.fontStyle==='italic'?'<i/>':'')+
@@ -8455,7 +8489,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         sd('top',cs.borderTopWidth,cs.borderTopColor,cs.borderTopStyle)+
         sd('bottom',cs.borderBottomWidth,cs.borderBottomColor,cs.borderBottomStyle)+'<diagonal/></border>';
       var ta=cs.textAlign, ha=(ta==='center')?'center':((ta==='right'||ta==='end')?'right':'left');
-      var wrap=!/nowrap|^pre$/.test(cs.whiteSpace);
+      var wrap=(epWrap===false) ? false : !/nowrap|^pre$/.test(cs.whiteSpace);
       return P.xfs.id('<xf numFmtId="0" fontId="'+P.fonts.id(f)+'" fillId="'+P.fills.id(fl)+'" borderId="'+P.borders.id(bd)+
         '" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">'+
         '<alignment horizontal="'+ha+'" vertical="center"'+(wrap?' wrapText="1"':'')+'/></xf>');
@@ -8505,8 +8539,18 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             continue;
           }
           if(el.tagName==='TABLE'){ out.push({t:'tbl',el:el}); continue; }
+          if(el.tagName==='IMG'){ out.push({t:'img',els:[el]}); continue; }
           if(el.querySelector('table')){ walk(el); continue; }
           var kids=[].slice.call(el.children);
+          /* HANG ANH (.anh-ds cua "Anh trong don khach"): truoc day di qua nhanh flex nen file
+             Excel chi co may O TRONG ke vien, khong co anh (user chot 17/9). Gio thanh khoi
+             rieng t:'img' de save() dung phan drawing that cua xlsx. */
+          var _ims=kids.filter(function(c){ return c.tagName==='IMG'; });
+          if(_ims.length && _ims.length===kids.length){
+            _ims=_ims.filter(function(c){ return !hidden(c); });
+            if(_ims.length) out.push({t:'img',els:_ims});
+            continue;
+          }
           if(cs.display==='flex' && kids.length>1){
             out.push({t:'row',cells:kids.map(function(c){ return {el:c,text:chuO(c).replace(/\s+/g,' ').trim()}; })});
             continue;
@@ -8549,7 +8593,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           for(var i2=0;i2<n;i2++){
             var a=L.rows[i2], c2=Rp.rows[i2], ln2={h:Math.max(a?a.h:0,c2?c2.h:0),cells:[]};
             if(a) a.cells.forEach(function(x){ ln2.cells.push(x); });
-            if(c2) c2.cells.forEach(function(x){ ln2.cells.push({c:x.c+off,el:x.el,text:x.text}); });
+            if(c2) c2.cells.forEach(function(x){ ln2.cells.push({c:x.c+off,el:x.el,text:x.text,chu:x.chu}); });
+            if(a&&a.anh) a.anh.forEach(function(x){ (ln2.anh=ln2.anh||[]).push(x); });
+            if(c2&&c2.anh) c2.anh.forEach(function(x){ (ln2.anh=ln2.anh||[]).push({el:x.el,c:x.c+off,x:x.x,w:x.w,h:x.h}); });
             rows.push(ln2);
           }
           L.merges.forEach(function(m){ merges.push([base+m[0],m[1],base+m[2],m[3]]); });
@@ -8559,6 +8605,22 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           if(L.maxc>maxc) maxc=L.maxc;
           if(off+Rp.maxc>maxc) maxc=off+Rp.maxc;
           rows.push({h:0,cells:[]});
+          return;
+        }
+        if(b.t==='img'){
+          /* Anh KHONG an bo ngang cot nao: neo vao cot A cua dong anh roi day ngang bang
+             colOff (EMU). Nho vay bo rong cot cua bang ben tren khong bi anh lam pheo. */
+          var lnA={h:0,cells:[],anh:[]}, xo=0, hmax=0;
+          b.els.forEach(function(im){
+            var rc=im.getBoundingClientRect();
+            var h2a=rc.height||150, w2a=rc.width||150;
+            if(im.naturalWidth>0 && im.naturalHeight>0) w2a=h2a*im.naturalWidth/im.naturalHeight;
+            lnA.anh.push({el:im,c:0,x:xo,w:w2a,h:h2a});
+            /* Cach nhau 20px: de 6px thi trong Excel hai anh nhin nhu de len nhau (user 17/9). */
+            xo+=w2a+20; if(h2a>hmax) hmax=h2a;
+          });
+          lnA.h=hmax+10;
+          rows.push(lnA); rows.push({h:0,cells:[]});
           return;
         }
         if(b.t==='tbl'){
@@ -8581,7 +8643,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           b.cells.forEach(function(x,i){ ln.cells.push({c:i,el:x.el,text:x.text}); if(i+1>maxc) maxc=i+1; });
           rows.push(ln);
         } else {
-          rows.push({h:0,cells:[{c:0,el:b.el,text:b.text}],span:true});
+          rows.push({h:0,cells:[{c:0,el:b.el,text:b.text,chu:1}],span:true});
         }
       });
       /* Dòng CHỮ trải ngang: gộp theo bề rộng CỦA CHÍNH DÃY NÀY — nửa trái của cặp không được
@@ -8592,17 +8654,32 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     function build(root, land, P){
       var K=dungKhoi(blocks(root),P);
       var rows=K.rows, merges=K.merges, widths=K.widths, maxc=K.maxc;
-      var sd='';
+      var sd='', ANH=[];
       rows.forEach(function(ln,ri){
-        var cells='';
+        var cells='', coWrap=false;
+        (ln.anh||[]).forEach(function(a){ ANH.push({el:a.el,r:ri,c:a.c,x:a.x,w:a.w,h:a.h}); });
+        /* ===== DONG GHI CHU / NOTE (user chot 17/9) =====
+           Moi dong note la MOT O. De wrap thi Excel bop chu vao be ngang 1 cot (~64px) roi keo
+           dong cao ngoang, doc khong noi. Nen TAT wrap cho may dong nay: chu nam tren DUNG 1
+           dong va tran sang cac o trong ben phai — nhin het thong tin ma dong van thap. */
+        var moiChu=(ln.cells.length>0);
         ln.cells.forEach(function(cl){
-          var s=styleOf(cl.el,P), ref=cn(cl.c)+(ri+1), n=numOf(cl.text);
+          var ngang=!!cl.chu; if(!ngang) moiChu=false;
+          var s=styleOf(cl.el,P,ngang?false:undefined), ref=cn(cl.c)+(ri+1), n=numOf(cl.text);
+          /* doc khong duoc kieu o thi cu coi nhu co wrap: de Excel tu gian dong con hon cat chu */
+          try{ if(!ngang && !/nowrap|^pre$/.test(getComputedStyle(cl.el).whiteSpace)) coWrap=true; }catch(e){ coWrap=true; }
           cells += (n===null)
             ? '<c r="'+ref+'" s="'+s+'" t="inlineStr"><is><t xml:space="preserve">'+X(cl.text)+'</t></is></c>'
             : '<c r="'+ref+'" s="'+s+'"><v>'+n+'</v></c>';
         });
-        var h=ln.h?Math.max(15,Math.round(ln.h*0.75*10)/10):(ln.cells.length?16:6);
-        sd+='<row r="'+(ri+1)+'" ht="'+h+'" customHeight="1">'+cells+'</row>';
+        var coAnh=!!(ln.anh&&ln.anh.length);
+        var h=moiChu?15:(ln.h?Math.max(15,Math.round(ln.h*0.75*10)/10):(ln.cells.length?16:6));
+        /* ===== DONG GHI CHU PHAI CAO DU (user chot 17/9) =====
+           Cot trong Excel hep hon o tren giay nen chu wrap thanh nhieu dong hon. Khoa cung
+           ht theo chieu cao do tren trang in => chu bi cat, cac dong note nhin nhu de len nhau.
+           O nao co wrapText thi BO ht/customHeight luon, de Excel tu gian dong cho vua chu.
+           Rieng dong chua ANH van phai khoa chieu cao, vi anh la khoi noi khong day dong ra. */
+        sd+='<row r="'+(ri+1)+'"'+((coAnh||moiChu||!coWrap)?(' ht="'+h+'" customHeight="1"'):'')+'>'+cells+'</row>';
       });
       var cols='';
       for(var i=0;i<maxc;i++){
@@ -8610,8 +8687,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         cols+='<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+(Math.round(Math.max(3,(px-5)/7)*100)/100)+'" customWidth="1"/>';
       }
       var mg=merges.map(function(m){ return '<mergeCell ref="'+cn(m[1])+(m[0]+1)+':'+cn(m[3])+(m[2]+1)+'"/>'; }).join('');
-      return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
-        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+      return { anh:ANH, xml:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'+
+        ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+
         '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>'+
         '<dimension ref="A1:'+cn(Math.max(0,maxc-1))+Math.max(1,rows.length)+'"/>'+
         '<sheetViews><sheetView workbookViewId="0"/></sheetViews>'+
@@ -8621,7 +8699,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         (mg?'<mergeCells count="'+merges.length+'">'+mg+'</mergeCells>':'')+
         '<pageMargins left="0.39" right="0.39" top="0.47" bottom="0.47" header="0.3" footer="0.3"/>'+
         '<pageSetup paperSize="9" orientation="'+(land?'landscape':'portrait')+'" fitToWidth="1" fitToHeight="0"/>'+
-        '</worksheet>';
+        '</worksheet>' };
     }
     function sname(s, used){
       s=String(s||'Sheet').replace(/[\[\]\*\/\\\?:]/g,' ').replace(/\s+/g,' ').trim().slice(0,31)||'Sheet';
@@ -8636,12 +8714,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var used={}, sheets=[];
       var pls=[].slice.call(document.getElementsByClassName('pl-page'));
       if(pls.length){
-        pls.forEach(function(p,i){ sheets.push({ name:sname('Thung '+(i+1), used), xml:build(p,true,P) }); });
+        pls.forEach(function(p,i){ var B=build(p,true,P); sheets.push({ name:sname('Thung '+(i+1), used), xml:B.xml, anh:B.anh }); });
       } else {
         var sc=document.querySelector('.pr-scope')||document.body;
         var h2=sc.querySelector('h2');
-        sheets.push({ name:sname((h2&&chuO(h2))||document.title||'Sheet1', used),
-                      xml:build(sc, document.body.getAttribute('data-land')==='1', P) });
+        var B2=build(sc, document.body.getAttribute('data-land')==='1', P);
+        sheets.push({ name:sname((h2&&chuO(h2))||document.title||'Sheet1', used), xml:B2.xml, anh:B2.anh });
       }
       var styles='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
         '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
@@ -8658,6 +8736,55 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         sheets.map(function(s,i){ return '<sheet name="'+X(s.name)+'" sheetId="'+(i+1)+'" r:id="rId'+(i+1)+'"/>'; }).join('')+
         '</sheets></workbook>';
       var R='http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+      /* ===== ANH TRONG FILE EXCEL (user chot 17/9: "phan tai ve excel chua co hinh anh") =====
+         Cua so in khong co thu vien Excel nao, ca file xlsx la do zip() o tren tu dung. Nen
+         phan anh cung phai tu viet: xl/media/* + xl/drawings/drawing*.xml + rels + Content_Types
+         + the <drawing r:id> o CUOI worksheet (dung thu tu the trong lieu xlsx, dat truoc
+         pageSetup la Excel bao file loi). */
+      var mediaFiles=[], drawFiles=[], shRels=[], ctThem='';
+      sheets.forEach(function(sh,i){
+        var an=(sh.anh||[]).filter(function(a){ return a.el && /^data:image\//i.test(String(a.el.getAttribute('src')||'')); });
+        if(!an.length) return;
+        var rels='', dr='', k=0;
+        an.forEach(function(a){
+          var src=a.el.getAttribute('src'), u8=b64u8(src); if(!u8) return;
+          var ext=extAnh(src), nm='image'+(mediaFiles.length+1)+'.'+ext;
+          mediaFiles.push({ n:'xl/media/'+nm, b:u8, ext:ext });
+          k++;
+          rels+='<Relationship Id="rId'+k+'" Type="'+R+'/image" Target="../media/'+nm+'"/>';
+          var cx=Math.max(1,Math.round(a.w*9525)), cy=Math.max(1,Math.round(a.h*9525));
+          dr+='<xdr:oneCellAnchor><xdr:from><xdr:col>'+(a.c||0)+'</xdr:col>'+
+              '<xdr:colOff>'+Math.max(0,Math.round((a.x||0)*9525))+'</xdr:colOff>'+
+              '<xdr:row>'+(a.r||0)+'</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>'+
+              '<xdr:ext cx="'+cx+'" cy="'+cy+'"/>'+
+              '<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="'+k+'" name="Anh '+k+'"/><xdr:cNvPicPr/></xdr:nvPicPr>'+
+              '<xdr:blipFill><a:blip r:embed="rId'+k+'"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>'+
+              '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'+cx+'" cy="'+cy+'"/></a:xfrm>'+
+              '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic>'+
+              '<xdr:clientData/></xdr:oneCellAnchor>';
+        });
+        if(!dr) return;
+        var di=(drawFiles.length/2|0)+1;
+        drawFiles.push({ n:'xl/drawings/drawing'+di+'.xml',
+          d:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+            '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"'+
+            ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'+
+            ' xmlns:r="'+R+'">'+dr+'</xdr:wsDr>' });
+        drawFiles.push({ n:'xl/drawings/_rels/drawing'+di+'.xml.rels',
+          d:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+rels+'</Relationships>' });
+        shRels.push({ n:'xl/worksheets/_rels/sheet'+(i+1)+'.xml.rels',
+          d:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+            '<Relationship Id="rId1" Type="'+R+'/drawing" Target="../drawings/drawing'+di+'.xml"/></Relationships>' });
+        ctThem+='<Override PartName="/xl/drawings/drawing'+di+'.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>';
+        sh.xml=sh.xml.replace('</worksheet>','<drawing r:id="rId1"/></worksheet>');
+      });
+      var _ext={}; mediaFiles.forEach(function(m){ _ext[m.ext]=1; });
+      var ctExt=Object.keys(_ext).map(function(e){
+        var mt=(e==='jpeg')?'image/jpeg':(e==='svg'?'image/svg+xml':('image/'+e));
+        return '<Default Extension="'+e+'" ContentType="'+mt+'"/>';
+      }).join('');
       var wbr='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
         sheets.map(function(s,i){ return '<Relationship Id="rId'+(i+1)+'" Type="'+R+'/worksheet" Target="worksheets/sheet'+(i+1)+'.xml"/>'; }).join('')+
@@ -8668,11 +8795,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         '<Default Extension="xml" ContentType="application/xml"/>'+
         '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'+
         sheets.map(function(s,i){ return '<Override PartName="/xl/worksheets/sheet'+(i+1)+'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'; }).join('')+
-        '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>';
+        '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'+
+        ctExt+ctThem+'</Types>';
       var files=[{n:'[Content_Types].xml',d:ct},
         {n:'_rels/.rels',d:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="'+R+'/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
         {n:'xl/workbook.xml',d:wb},{n:'xl/_rels/workbook.xml.rels',d:wbr},{n:'xl/styles.xml',d:styles}];
       sheets.forEach(function(s,i){ files.push({n:'xl/worksheets/sheet'+(i+1)+'.xml',d:s.xml}); });
+      shRels.forEach(function(f){ files.push(f); });
+      drawFiles.forEach(function(f){ files.push(f); });
+      mediaFiles.forEach(function(m){ files.push({n:m.n,b:m.b}); });
       window.__xlLast=files;                                 // giữ lại phần XML thô để soi khi cần
       return zip(files);
     }
@@ -9261,7 +9392,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         if(!cs) continue;
         var nen=cs.backgroundColor||'';
         var st='color:'+cs.color+';font-weight:'+cs.fontWeight+';text-align:'+cs.textAlign+';'+
-               'vertical-align:middle;white-space:normal;word-break:break-word;'+
+               'vertical-align:middle;white-space:normal;word-break:normal;overflow-wrap:break-word;'+
                (/rgba\(0, 0, 0, 0\)|transparent/.test(nen)?'':('background:'+nen+';'));
         oM[j].setAttribute('style', st);
         oM[j].removeAttribute('contenteditable');
@@ -9270,7 +9401,130 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     /* Nút lọc ▼ và mọi thứ chỉ dành cho màn hình thì bỏ khỏi tờ giấy. */
     [].slice.call(ban.querySelectorAll('.fbtn,.noprint')).forEach(function(e){ if(e.parentNode) e.parentNode.removeChild(e); });
     ban.removeAttribute('id');
-    ban.setAttribute('style','table-layout:auto;width:100%');
+    /* ===== BO CAC COT TRONG (user chot 17/9: "in bi xuong nhieu dong lam mat dien tich") =====
+       Bang Box co 13 cot chu + TOAN BO 20+ cot do cong, ma moi don chi dung vai cot do cong va
+       thuong bo trong Ten Goi NL / Ghi Chu. Cot trong van an bo ngang => cot chu bi bop lai va
+       chu bi xuong dong tung tieng. Cot nao MOI DONG DU LIEU deu trong thi bo khoi to giay
+       (tren man hinh khong doi gi). O GOP (colspan cua dong Sigma) thi tru bot colspan. */
+    (function(){
+      var trs=[].slice.call(ban.querySelectorAll('tr'));
+      if(!trs.length) return;
+      var hTr=null;
+      for(var t=0;t<trs.length;t++){ if(trs[t].querySelector('th')){ hTr=trs[t]; break; } }
+      if(!hTr) return;
+      var mapo=function(tr){ var m=[], k=0;
+        [].slice.call(tr.children).forEach(function(td){ var sp=td.colSpan||1; for(var x=0;x<sp;x++) m[k++]=td; });
+        return m; };
+      var maps=trs.map(mapo), hMap=mapo(hTr), bo=[];
+      for(var ci=0;ci<hMap.length;ci++){
+        var th0=hMap[ci]; if(!th0 || hMap[ci-1]===th0) continue;
+        /* Cot DO CONG thi GIU HET, ke ca cot khong co so lieu (user chot 17/9) — xuong can
+           nhin thay day du danh sach do cong cua bang. Chi bo cac cot CHU bo trong. */
+        if(th0.hasAttribute && th0.hasAttribute('data-curl')) continue;
+        var trong=true, co=false;
+        for(var ti=0;ti<trs.length && trong;ti++){
+          if(trs[ti]===hTr) continue;
+          var c0=maps[ti][ci]; if(!c0 || (c0.colSpan||1)>1) continue;
+          co=true;
+          if(String(c0.textContent||'').replace(/[\s\u00a0]/g,'')!=='') trong=false;
+        }
+        if(co && trong) bo.push(ci);
+      }
+      if(!bo.length) return;
+      for(var t2=0;t2<trs.length;t2++){
+        var mm=maps[t2];
+        bo.forEach(function(ci){
+          var c=mm[ci]; if(!c) return;
+          if((c.colSpan||1)>1){ c.colSpan=Math.max(1,c.colSpan-1); return; }
+          if(c.parentNode) c.parentNode.removeChild(c);
+        });
+      }
+    })();
+    /* ===== BE RONG TUNG COT TINH THEO KHO GIAY (user chot 17/9) =====
+       3 yeu cau cua xuong: (1) STT nho lai; (2) cot Nguyen lieu du rong de doc HET ma soi;
+       (3) tat ca cot phai vua kho ngang, khong chia ra mep phai. Neu cu de trinh duyet tu chia
+       (table-layout:auto) thi cot nowrap se day bang rong hon to giay. Nen o day TU TINH:
+         - do be rong CAN co cua tung cot theo chu that trong o (dong dai nhat);
+         - cot do cong 20px, STT 22px, Tong So Hop hep theo so;
+         - phan con lai chia cho may cot chu dai (Phan Loai / Ten Goi NL / Ghi Chu) — dai qua
+           thi cat bang dau "..." y nhu bang tren man hinh;
+         - quy ra PHAN TRAM roi dat table-layout:fixed => tong luon dung 100% be ngang to giay,
+           doi sang kho doc cung khong tran. */
+    (function(){
+      var trs2=[].slice.call(ban.querySelectorAll('tr'));
+      var hTr2=null;
+      for(var t=0;t<trs2.length;t++){ if(trs2[t].querySelector('th')){ hTr2=trs2[t]; break; } }
+      if(!hTr2) return;
+      var mapo2=function(tr){ var m=[], k=0;
+        [].slice.call(tr.children).forEach(function(td){ var sp=td.colSpan||1; for(var x=0;x<sp;x++) m[k++]=td; });
+        return m; };
+      var kdau=function(v){ try{ return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+          .replace(/[\u0110\u0111]/g,'d').toLowerCase().replace(/[^a-z0-9]+/g,''); }
+        catch(e){ return String(v||'').toLowerCase(); } };
+      /* Do chu: lay DONG DAI NHAT trong o (o nhieu dong ngan cach bang <br>). */
+      var daiO=function(c){
+        var m=0;
+        String(c.innerHTML||'').split(/<br\s*\/?>/i).forEach(function(x){
+          var t=x.replace(/<[^>]*>/g,'').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&')
+                 .replace(/&lt;/g,'<').replace(/&gt;/g,'>').trim();
+          if(t.length>m) m=t.length;
+        });
+        return m;
+      };
+      var GIAN={ phanloai:1, tengoinguyenlieu:1, ghichu:1 };
+      var W=1040, CH=5.45, hM=mapo2(hTr2), maps2=trs2.map(mapo2);
+      var can=[], kieu=[], ten=[];
+      for(var ci=0;ci<hM.length;ci++){
+        var th=hM[ci];
+        var k=th?kdau(th.textContent):'';
+        var curl=!!(th && th.hasAttribute && th.hasAttribute('data-curl'));
+        var dmax=0;
+        for(var t2=0;t2<trs2.length;t2++){
+          if(trs2[t2]===hTr2) continue;
+          var c=maps2[t2][ci]; if(!c || (c.colSpan||1)>1) continue;
+          var d=daiO(c); if(d>dmax) dmax=d;
+        }
+        var w=Math.max(34, Math.ceil(dmax*CH)+10);
+        if(curl) w=20; else if(k==='stt') w=26; else if(k==='tongsohop') w=Math.max(34,Math.ceil(dmax*CH)+8);
+        can.push(w); ten.push(k); kieu.push(curl?'curl':(GIAN[k]?'gian':'cung'));
+      }
+      var tongCung=0, canGian=0;
+      can.forEach(function(w,i){ if(kieu[i]==='gian') canGian+=w; else tongCung+=w; });
+      var conLai=W-tongCung, rong=can.slice();
+      if(canGian>0){
+        can.forEach(function(w,i){
+          if(kieu[i]!=='gian') return;
+          rong[i]=(conLai>=canGian) ? w : Math.max(40, Math.floor(conLai*w/canGian));
+        });
+      }
+      var tong=0; rong.forEach(function(w){ tong+=w; });
+      if(!(tong>0)) return;
+      /* Quy ra % cua chinh tong nay: don nao nhieu cot qua thi moi cot co deu lai, bang van
+         vua dung 100% be ngang to giay chu khong bao gio chia ra ngoai. */
+      var cg=ban.querySelector('colgroup'); if(cg && cg.parentNode) cg.parentNode.removeChild(cg);
+      var g=document.createElement('colgroup');
+      rong.forEach(function(w){
+        var co=document.createElement('col');
+        co.setAttribute('style','width:'+(Math.round(w/tong*10000)/100)+'%');
+        g.appendChild(co);
+      });
+      ban.insertBefore(g, ban.firstChild);
+      var CAT='overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      for(var ci2=0;ci2<hM.length;ci2++){
+        var th2=hM[ci2]; if(!th2 || hM[ci2-1]===th2) continue;
+        var lu=(kieu[ci2]==='curl')
+          ? 'padding-left:1px;padding-right:1px;font-size:8.5px;white-space:normal;word-break:normal;overflow:hidden'
+          : (kieu[ci2]==='gian' ? CAT : 'overflow:hidden;white-space:nowrap');
+        for(var t3=0;t3<trs2.length;t3++){
+          var c2=maps2[t3][ci2]; if(!c2 || (c2.colSpan||1)>1) continue;
+          var them=(c2.tagName==='TH' && kieu[ci2]!=='curl')
+            ? 'overflow:hidden;white-space:normal;word-break:normal'
+            : lu;
+          c2.setAttribute('style', (c2.getAttribute('style')||'')+';'+them);
+        }
+      }
+    })();
+    ban.setAttribute('style','table-layout:fixed;width:100%');
     return ban.outerHTML;
   }
   function boxPerBoxInHtml(){
@@ -10449,14 +10703,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1709160000"></script>
-<script src="cl.sync.js?v=1709160000"></script>
-<script src="auth.store.js?v=1709160000"></script>
-<script src="auth.web.js?v=1709160000"></script>
+<script src="cl.config.js?v=1709340000"></script>
+<script src="cl.sync.js?v=1709340000"></script>
+<script src="auth.store.js?v=1709340000"></script>
+<script src="auth.web.js?v=1709340000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1709160000"></script>
+<script src="cl.project.js?v=1709340000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1709160000" defer></script>
+<script src="firebase-bridge.js?v=1709340000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
