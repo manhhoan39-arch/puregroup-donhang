@@ -664,7 +664,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1609143000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709103000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1020,7 +1020,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <button class="btn sm" id="btn-pack-sum" style="flex:0 0 auto" title="Xem lại packing slip đã tạo (bản sau cùng)">📦 Tổng hợp Packing Slip</button>
       <button class="btn sm" id="btn-packing" style="color:var(--accent);font-weight:700;flex:0 0 auto">📦 Tạo Packing Slip</button>
       <button class="btn sm" id="btn-dl-box" style="flex:0 0 auto">⬇ Xuất xlsx</button>
-      <button class="btn primary sm" onclick="go('s9')" style="flex:0 0 auto">Xuất dữ liệu →</button>
+      <button class="btn primary sm" id="btn-in-box" style="flex:0 0 auto" title="In 1 tờ đủ: Tổng hợp Box + Bảng Hộp + Bảng Keo + Bảng Độ Cong + Note + Ảnh trong đơn">🖨 In Tổng hợp Box</button>
     </div>
     <datalist id="box-datalist"></datalist>
     <div id="box-detail-view">
@@ -1155,7 +1155,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1609143000"></script>
+<script src="engine.web.js?v=1709103000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -6285,8 +6285,53 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return o.ghiChuKeo||'';
   }
   // MỖI DÒNG BOX = 1 dòng ĐƠN GỬI XƯỞNG (số HỘP theo độ cong)
+  /* ===== GỘP + SẮP XẾP BẢNG TỔNG HỢP BOX (user chốt 17/9) =====
+     Khách hay khai một sản phẩm thành nhiều dòng rời, nên bảng Box dài lê thê mà nhìn không ra
+     code sợi nào đi với keo nào (đơn C127-783P: 245.MKPS.7 rải rác 6 chỗ). Nay:
+       · SẮP XẾP: Code sợi → Mã keo → Độ dài (mm đầu dải) → Single trước Mix;
+       · GỘP DÒNG: dòng nào TRÙNG HỆT nhau thì nhập làm một, SỐ HỘP CỘNG DỒN.
+     "Trùng hệt" = trùng TẤT CẢ ô chữ đang hiện (mã đơn, số line, code sợi, độ dày, nhóm, phân
+     loại, tên gọi NL, keo, ghi chú, độ dài, Single/Mix) VÀ trùng ĐÚNG BỘ ĐỘ CONG có số. Khác
+     một thứ là vẫn 2 dòng — không nhập bừa làm mất dấu.
+     TỔNG SỐ HỘP CẢ ĐƠN KHÔNG ĐỔI. Dùng chung cho cả bảng Box lẫn Tạo Packing Slip, nên 2 bảng
+     luôn cùng một bộ dòng (yêu cầu của user). */
+  function boxGopKhoa(o){
+    var cs = Object.keys(o.curls || {}).filter(function(k){ return +o.curls[k] > 0; }).sort().join(',');
+    return [o.maDon, o.lineRaw || o.line || '', o.codeSoi || '', o.thickness || '', o.loaiHang || '',
+            o.label || '', o.material || '', boxKeo(o), o.ghiChu || '', o.length || '',
+            o.mixSingle || '', cs].join('\u0000');
+  }
+  function boxSapKhoa(o){
+    var mm = (function(){ var r = E && E.parseRange ? E.parseRange(o.length) : null; return r ? r.lo : 9999; })();
+    return { code: String(o.codeSoi || '').toLowerCase(), keo: String(boxKeo(o) || '').toLowerCase(),
+             mm: mm, sm: /single/i.test(String(o.mixSingle || '')) ? 0 : 1, dai: String(o.length || '') };
+  }
+  function gopBoxRows(ds){
+    var map = {}, thuTu = [];
+    (ds || []).forEach(function(o, i){
+      /* Dòng nhập tay và dòng đã tách packing giữ NGUYÊN, không gộp — người dùng cố ý tách ra. */
+      if (o && (o._manual || o._tach)) { thuTu.push({ o: o, i: i, rieng: 1 }); return; }
+      var k = boxGopKhoa(o), e = map[k];
+      if (!e) { e = map[k] = { o: Object.assign({}, o, { curls: Object.assign({}, o.curls || {}) }), i: i, gop: [o.seri] };
+                thuTu.push(e); return; }
+      var cs = o.curls || {};
+      Object.keys(cs).forEach(function(c){ e.o.curls[c] = (+e.o.curls[c] || 0) + (+cs[c] || 0); });
+      e.gop.push(o.seri);
+    });
+    thuTu.forEach(function(e){ if (e.gop && e.gop.length > 1) e.o._gopSeri = e.gop.slice(); });
+    return thuTu.map(function(e){ return { o: e.o, i: e.i, s: boxSapKhoa(e.o) }; })
+      .sort(function(a, b){
+        return (a.s.code < b.s.code ? -1 : a.s.code > b.s.code ? 1 : 0)
+          || (a.s.keo < b.s.keo ? -1 : a.s.keo > b.s.keo ? 1 : 0)
+          || (a.s.sm - b.s.sm)
+          || (a.s.mm - b.s.mm)
+          || (a.s.dai < b.s.dai ? -1 : a.s.dai > b.s.dai ? 1 : 0)
+          || (a.i - b.i);                 // hoà hết thì giữ đúng thứ tự khách khai
+      })
+      .map(function(e){ return e.o; });
+  }
   function boxDataRows(R){
-    return (R && R.orders ? R.orders : []).filter(function(o){ return (o.curls && Object.keys(o.curls).length) || o._manual; });
+    return gopBoxRows((R && R.orders ? R.orders : []).filter(function(o){ return (o.curls && Object.keys(o.curls).length) || o._manual; }));
   }
   /* ===== LỚP PACKING (Step 6) — sửa để làm packing nhưng KHÔNG đổi dữ liệu gốc Nhập Đơn =====
      state.pack = bản SAO của state.orders, chỉ tạo khi có sửa ở Box (clone-on-write).
@@ -6300,7 +6345,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      🔴 Chỗ nào SỬA `state.pack` thì tự gọi `state._packR=null` (boxRowOp · psDelRows đã làm),
         đừng trông vào ensurePack() dọn hộ. */
   function ensurePack(){
-    if(!state.pack){ state.pack = JSON.parse(JSON.stringify(state.orders||[])); state._packR=null; }
+    if(!state.pack){
+      state.pack = JSON.parse(JSON.stringify(state.orders||[]));
+      /* GỘP NGAY TRÊN LỚP PACKING (user chốt 17/9): bảng Box và Packing Slip đều hiện dòng đã
+         gộp, nên ô sửa được phải có ĐÚNG MỘT chỗ để ghi. Nếu chỉ gộp lúc vẽ mà lớp packing vẫn
+         giữ các dòng rời thì sửa một ô chỉ ghi vào dòng ĐẦU của nhóm, mấy dòng kia giữ số cũ —
+         nhìn vào tưởng sửa hụt. Gộp thẳng ở đây thì mỗi dòng hiện ra là một dòng thật.
+         state.orders (nguồn Nhập Đơn) KHÔNG bị đụng. */
+      try{ state.pack = gopBoxRows(state.pack); }catch(e){ logErr('ensurePack.gop', e); }
+      state._packR=null;
+    }
     return state.pack;
   }
   function resetPack(){ state.pack=null; state._packR=null; }
@@ -6710,6 +6764,44 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         '🏷️ <b>Ghi chú tiêu đề độ cong</b> (dán tem cho Box): '+out.join(' · ')+'</div>'
       : '';
   }
+  /* ===== BẢNG KEO + BẢNG ĐỘ CONG Ở BƯỚC 6 (user chốt 17/9) =====
+     Người đóng hộp phải vừa soi keo vừa soi ghi chú độ cong mà trước đây phải nhảy ngược về
+     bước 5. Đưa 2 bảng đó xuống ngay dưới Bảng Hộp, CHỈ XEM (sửa vẫn ở bước 4/5) và dùng
+     CHUNG thứ tự sắp xếp với bước 5 (keoSapXep) để 2 chỗ nhìn giống hệt nhau. */
+  function boxKeoHtml(md){
+    var ks=(state.R&&state.R.keoByOrder&&state.R.keoByOrder[md])||[];
+    if(!ks.length) return '<div class="bt-general" id="box-keo-card"><div class="bt-gtitle">🧷 Bảng Keo · 0 dòng</div>'+
+      '<div class="txt mini" style="color:var(--text-3)">Đơn '+esc(md)+' chưa có Bảng Keo.</div></div>';
+    var mot=function(v){ return String(v==null?'':v).replace(/\r?\n/g,' / ').trim(); };
+    var tr=keoSapXep(ks).map(function(k){
+      var pn=null; try{ pn=parseKeoNote(k.ghiChu); }catch(e){ pn=null; } pn=pn||{};
+      var HL=null; try{ HL=hlLechKeo(k); }catch(e){ HL=null; }
+      return '<tr'+(HL?(' class="cl-hoplech" title="'+esc(hlLechTitle(HL))+'"'):'')+'>'+
+        '<td class="txt"><b>'+esc(mot(k.loaiKeo))+'</b></td>'+
+        '<td class="txt">'+esc(mot(k.loaiSoi||pn.loaiSoi))+'</td>'+
+        '<td>'+esc(mot(k.doDay||pn.doDay))+'</td>'+
+        '<td>'+esc(mot(k.doDai||pn.doDai))+'</td>'+
+        '<td class="txt">'+esc(mot(k.ghiChu))+'</td></tr>';
+    }).join('');
+    return '<div class="bt-general" id="box-keo-card"><div class="bt-gtitle">🧷 Bảng Keo · '+ks.length+' dòng</div>'+
+      '<div style="max-height:260px;overflow:auto"><table class="sheet" id="box-keo-tbl" style="width:100%;font-size:11px">'+
+      '<thead><tr><th class="l">Mã Keo</th><th class="l">Loại Sợi</th><th>Độ Dày</th><th>Độ Dài</th><th class="l">Ghi Chú</th></tr></thead>'+
+      '<tbody>'+tr+'</tbody></table></div></div>';
+  }
+  function boxDoCongHtml(md){
+    var dc=(state.doCongByMadon&&state.doCongByMadon[md])||null;
+    if(!dc||!dc.rows||!dc.rows.length)
+      return '<div class="bt-general" id="box-docong-card"><div class="bt-gtitle">📏 Bảng Độ Cong</div>'+
+             '<div class="txt mini" style="color:var(--text-3)">Đơn '+esc(md)+' không có bảng độ cong riêng trong file.</div></div>';
+    var tr=dc.rows.map(function(r){
+      var n=String(r.note||'').replace(/\r\n?/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
+      return '<tr><td class="dc-ten">'+esc(String(r.name||'').trim())+'</td>'+
+             '<td class="txt dc-note">'+esc(n)+'</td></tr>';
+    }).join('');
+    return '<div class="bt-general" id="box-docong-card"><div class="bt-gtitle">📏 Bảng Độ Cong · '+dc.rows.length+' dòng</div>'+
+      '<div style="max-height:260px;overflow:auto"><table class="sheet" id="box-docong-tbl" style="width:100%;font-size:11px;table-layout:fixed">'+
+      '<thead><tr><th style="width:110px">Độ Cong</th><th>Ghi Chú</th></tr></thead><tbody>'+tr+'</tbody></table></div></div>';
+  }
   function renderBoxTypes(tot, md){
     var pb=document.getElementById('box-perbox'); if(!pb) return;
     if(!md){ pb.innerHTML='<div class="bt-hint">📦 Chọn 1 mã đơn ở ô "Tất cả các đơn" để xem <b>Bảng Hộp</b> của đơn đó.</div>'; return; }
@@ -6758,7 +6850,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         '<tfoot><tr><td class="bt-name bt-foot">Đã chọn</td><td class="bt-qty bt-fq" style="color:'+col+'">'+fmtN(chosen)+'</td><td class="bt-note bt-fn" style="color:'+col+';font-weight:700">'+fnote+'</td></tr></tfoot>'+
       '</table></div>';
     // ghi chú dán tem (lấy từ tiêu đề cột độ cong của đơn) đặt NGAY TRÊN Bảng Hộp
-    pb.innerHTML = temNoteHtml(md) + (gen ? ('<div class="boxtypes-wrap">'+card+gen+'</div>') : card) + anhDonHtml(md);
+    /* Lưới 2 cột: Bảng Hộp | Note  —  rồi Bảng Keo | Bảng Độ Cong (đúng 2 ô trống user chỉ). */
+    pb.innerHTML = temNoteHtml(md) +
+      '<div class="boxtypes-wrap">' + card + (gen || '<div></div>') + boxKeoHtml(md) + boxDoCongHtml(md) + '</div>' +
+      anhDonHtml(md);
   }
   function updateBoxTotals(R){
     R=R||state.R; if(!R) return;
@@ -7442,6 +7537,40 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   });
   // đổi Box (gõ tay / chọn từ gợi ý; copy-paste Ctrl+C/Ctrl+V hoạt động như ô nhập bình thường)
   var boxTb=document.getElementById('eng-box');
+  /* ===== CHÉP SỐ BOX XUỐNG NHIỀU DÒNG (user chốt 17/9) =====
+     Đóng cả chục dòng vào cùng một thùng mà phải gõ lại từng ô thì vừa lâu vừa dễ gõ nhầm.
+     Nay: điền ô Box của dòng ĐẦU, rồi GIỮ SHIFT bấm ô Box của dòng CUỐI — mọi dòng ở giữa ăn
+     theo đúng số thùng đó. Ctrl+V một giá trị vào vùng vừa chọn cũng ra kết quả y hệt.
+     Chỉ chép trong CÙNG MỘT bảng, và chỉ khi Packing Slip đang cho sửa. */
+  var psBoxNeo=null;   // ô Box bấm gần nhất (điểm neo của vùng chọn)
+  function psBoxInputs(){ return Array.prototype.slice.call(document.querySelectorAll('#ps-body .box-pick')); }
+  function psChepBoxTo(neo, den){
+    var ds=psBoxInputs(), i0=ds.indexOf(neo), i1=ds.indexOf(den);
+    if(i0<0||i1<0||i0===i1) return 0;
+    var val=String(neo.value||'').trim();
+    if(!val){ toast && toast('Điền số box cho dòng đầu trước, rồi giữ Shift bấm dòng cuối.','err'); return 0; }
+    if(typeof pushUndo==='function') pushUndo();
+    var a=Math.min(i0,i1), b=Math.max(i0,i1), n=0;
+    for(var i=a;i<=b;i++){
+      var inp=ds[i]; if(!inp || inp.readOnly) continue;
+      inp.value=val; boxSel[inp.getAttribute('data-key')]=val; n++;
+    }
+    try{ renderSlip(); }catch(e){ logErr('psChepBoxTo', e); }
+    try{ renderSlipSummary(); }catch(e){ logErr('psChepBoxTo', e); }
+    if(typeof logLine==='function') logLine('Chép số box "'+val+'" cho '+n+' dòng Packing Slip');
+    if(typeof toast==='function') toast('Đã điền box "'+val+'" cho '+n+' dòng.','ok');
+    return n;
+  }
+  document.addEventListener('mousedown', function(ev){
+    var inp=ev.target&&ev.target.closest?ev.target.closest('#ps-body .box-pick'):null;
+    if(!inp) return;
+    if(ev.shiftKey && psBoxNeo && psBoxNeo!==inp && psSuaDuoc()){
+      ev.preventDefault();
+      psChepBoxTo(psBoxNeo, inp);
+      return;
+    }
+    psBoxNeo=inp;
+  }, true);
   // Gán Box: chỉ trong Packing Slip (#ps-body). Cập nhật boxSel + làm tươi tổng theo thùng.
   document.addEventListener('input', function(ev){
     var s=ev.target&&ev.target.closest?ev.target.closest('#ps-body .box-pick'):null;
@@ -7557,6 +7686,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     logLine('Đã tạo Packing List: '+order.length+' box'+(md?(' · đơn '+md):''));
     if(typeof alert==='function') alert('📦 Đã tạo '+tenXuat('PackingList.xlsx')+' — '+order.length+' Box (mỗi Box 1 sheet): '+order.join(', '));
   }
+  (function(){ var b=document.getElementById('btn-in-box');
+    if(b) b.addEventListener('click', function(){ try{ printTongHopBox(); }catch(e){ logErr('printTongHopBox', e); } });
+  })();
   [['btn-dl-mix',dlMix],['btn-dl-keo',dlKeo],['btn-dl-linecuon',dlLineCuon],['btn-dl-box',dlBox]].forEach(function(p){
     var b=document.getElementById(p[0]); if(b) b.addEventListener('click', p[1]);
   });
@@ -9059,6 +9191,50 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       ? { giu:function(r){ return xuongCuaDong(r)!=='TH'; }, nhan:'' }
       : { giu:function(r){ return xuongCuaDong(r)!=='HY'; }, nhan:'' };
   }
+  /* ===== BẢN IN TỔNG HỢP BOX (user chốt 17/9) =====
+     Người đóng hộp cần MỘT tờ có đủ: bảng Tổng hợp Box + Bảng Hộp + Bảng Keo + Bảng Độ Cong +
+     Note + Ảnh trong đơn — trước đây phải in rời từng chỗ rồi ghép tay.
+     Phần dưới lấy THẲNG khối đang hiện trên màn hình (#box-perbox) nên in ra luôn khớp những
+     gì user vừa nhìn; chỉ đổi ô nhập thành chữ để bản in không có khung gõ. */
+  function boxPerBoxInHtml(){
+    var pb=document.getElementById('box-perbox'); if(!pb) return '';
+    var h=String(pb.innerHTML||'');
+    // ô nhập số lượng hộp → in ra chữ
+    h=h.replace(/<input\b[^>]*\bvalue="([^"]*)"[^>]*>/gi, function(_m, v){ return v || '0'; });
+    h=h.replace(/<input\b[^>]*>/gi, '');
+    h=h.replace(/\scontenteditable="true"/gi, '');
+    return h;
+  }
+  function printTongHopBox(){
+    var md=getVal('s10-madon');
+    if(!md) return alert('Hãy CHỌN 1 mã đơn ở ô lọc phía trên trước khi in "Tổng hợp Box".');
+    var R=boxR(); var rows=boxDataRows(R).filter(function(o){ return o.maDon===md; });
+    if(!rows.length) return alert('Đơn "'+md+'" chưa có dữ liệu Box.');
+    /* chỉ in những độ cong đơn này THẬT SỰ có — khỏi thừa cột trống */
+    var UC=(state.usedCurls||CURLS).filter(function(k){ return rows.some(function(o){ return (o.curls||{})[k]; }); });
+    var no=0, tong=0, cong={};
+    var body=rows.map(function(o){
+      no++; var hop=boxHop(o); tong+=hop;
+      return '<tr><td>'+no+'</td><td>'+esc(donOf(o.maDon))+'</td><td>'+esc(o.lineRaw||o.line||'')+'</td>'+
+        '<td class="l">'+nl2br(o.codeSoi||'')+'</td><td>'+esc(o.thickness||'')+'</td>'+
+        '<td>'+esc(o.loaiHang||'')+'</td><td class="l">'+nl2br(o.label||'')+'</td>'+
+        '<td class="l">'+nl2br(o.material||'')+'</td><td>'+esc(boxKeo(o))+'</td>'+
+        '<td class="l">'+esc(o.ghiChu||'')+'</td><td>'+esc(o.length||'')+'</td><td>'+esc(o.mixSingle||'')+'</td>'+
+        UC.map(function(k){ var v=(o.curls||{})[k]||0; if(v) cong[k]=(cong[k]||0)+v; return '<td>'+(v||'')+'</td>'; }).join('')+
+        '<td class="tot">'+hop+'</td></tr>';
+    }).join('');
+    var head='<tr><th style="width:34px">STT</th><th style="width:60px">Mã Đơn</th><th style="width:46px">Số Line</th>'+
+      '<th class="l" style="width:110px">Nguyên liệu</th><th style="width:48px">Độ Dày</th><th style="width:58px">Nhóm</th>'+
+      '<th class="l">Phân Loại</th><th class="l" style="width:110px">Tên Gọi NL</th><th style="width:76px">Keo Nhiệt</th>'+
+      '<th class="l" style="width:90px">Ghi Chú</th><th style="width:62px">Độ Dài</th><th style="width:52px">S/M</th>'+
+      UC.map(function(k){ return '<th style="width:38px">'+esc(k)+'</th>'; }).join('')+'<th style="width:54px">Tổng</th></tr>';
+    var html=thHead2(esc(md)+' · TỔNG HỢP BOX', '')+
+      '<table style="table-layout:fixed"><thead>'+head+'</thead><tbody>'+body+
+      '<tr class="tot"><td class="l" colspan="12">TỔNG SỐ HỘP '+esc(md)+'</td>'+
+      UC.map(function(k){ return '<td>'+(cong[k]||'')+'</td>'; }).join('')+'<td>'+tong+'</td></tr></tbody></table>'+
+      boxPerBoxInHtml();
+    thPrint('Tổng hợp Box · '+md, html, md+' · TỔNG HỢP BOX', true);
+  }
   function printTongHopCuon(){
     var md=getVal('s6-madon');
     if(!md) return alert('Hãy CHỌN 1 mã đơn ở ô lọc trước khi in "Tổng hợp Cuốn".');
@@ -10197,14 +10373,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1609143000"></script>
-<script src="cl.sync.js?v=1609143000"></script>
-<script src="auth.store.js?v=1609143000"></script>
-<script src="auth.web.js?v=1609143000"></script>
+<script src="cl.config.js?v=1709103000"></script>
+<script src="cl.sync.js?v=1709103000"></script>
+<script src="auth.store.js?v=1709103000"></script>
+<script src="auth.web.js?v=1709103000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1609143000"></script>
+<script src="cl.project.js?v=1709103000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1609143000" defer></script>
+<script src="firebase-bridge.js?v=1709103000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
