@@ -664,7 +664,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709140000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709160000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1155,7 +1155,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1709140000"></script>
+<script src="engine.web.js?v=1709160000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -9235,6 +9235,44 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      Note + Ảnh trong đơn — trước đây phải in rời từng chỗ rồi ghép tay.
      Phần dưới lấy THẲNG khối đang hiện trên màn hình (#box-perbox) nên in ra luôn khớp những
      gì user vừa nhìn; chỉ đổi ô nhập thành chữ để bản in không có khung gõ. */
+  /* ===== BẢN IN LẤY NGUYÊN BẢNG TRÊN MÀN HÌNH (user chốt 17/9) =====
+     Trước đây bản in tự dựng lại bảng bằng tay nên thiếu cột Mã KH, cột Phân Loại bị bóp chữ
+     đè lên nhau, và mất sạch màu chữ (code sợi đỏ, Nhóm/Single-Mix xanh…). Nay CHÉP THẲNG
+     bảng đang hiện: đúng cột, đúng thứ tự, đúng dòng đã gộp.
+     Cửa sổ in có CSS riêng nên lớp màu của app không sang được ⇒ đọc màu THẬT của từng ô
+     (getComputedStyle) rồi ghi đè vào chính ô đó. Cách này không phụ thuộc lớp nào sinh ra màu,
+     sau này đổi giao diện bản in vẫn ăn theo. */
+  function boxTblInHtml(){
+    var tb=document.getElementById('eng-box'); if(!tb) return '';
+    var tbl=tb.closest ? tb.closest('table') : null; if(!tbl) return '';
+    var goc=[].slice.call(tbl.querySelectorAll('tr'));
+    var ban=tbl.cloneNode(true);
+    var moi=[].slice.call(ban.querySelectorAll('tr'));
+    for(var i=goc.length-1;i>=0;i--){
+      var hienTr=true;
+      try{ hienTr=getComputedStyle(goc[i]).display!=='none'; }catch(e){ hienTr=true; }
+      if(!hienTr || goc[i].hasAttribute('data-noflt')){                 // dòng đang bị lọc ẩn
+        if(moi[i] && moi[i].parentNode) moi[i].parentNode.removeChild(moi[i]);
+        continue;
+      }
+      var oG=[].slice.call(goc[i].children), oM=[].slice.call(moi[i].children);
+      for(var j=0;j<oG.length && j<oM.length;j++){
+        var cs=null; try{ cs=getComputedStyle(oG[j]); }catch(e){ cs=null; }
+        if(!cs) continue;
+        var nen=cs.backgroundColor||'';
+        var st='color:'+cs.color+';font-weight:'+cs.fontWeight+';text-align:'+cs.textAlign+';'+
+               'vertical-align:middle;white-space:normal;word-break:break-word;'+
+               (/rgba\(0, 0, 0, 0\)|transparent/.test(nen)?'':('background:'+nen+';'));
+        oM[j].setAttribute('style', st);
+        oM[j].removeAttribute('contenteditable');
+      }
+    }
+    /* Nút lọc ▼ và mọi thứ chỉ dành cho màn hình thì bỏ khỏi tờ giấy. */
+    [].slice.call(ban.querySelectorAll('.fbtn,.noprint')).forEach(function(e){ if(e.parentNode) e.parentNode.removeChild(e); });
+    ban.removeAttribute('id');
+    ban.setAttribute('style','table-layout:auto;width:100%');
+    return ban.outerHTML;
+  }
   function boxPerBoxInHtml(){
     var pb=document.getElementById('box-perbox'); if(!pb) return '';
     var h=String(pb.innerHTML||'');
@@ -9260,36 +9298,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     '.boxtypes-wrap th,.boxtypes-wrap td{padding:2px 5px}'+
     '.bt-general ol,.bt-general ul{margin:3px 0 0 16px;padding:0}'+
     '.bt-general li{margin:1px 0}'+
-    '.anh-don img{max-width:100%;height:auto}'+
+    '.anh-don .anh-ds{display:flex;gap:6px;flex-wrap:wrap;padding:6px 0 0}'+
+    '.anh-don img{height:150px;width:auto;max-width:100%;border:1px solid #333;object-fit:contain}'+
+    '.pr-scope table th,.pr-scope table td{font-size:10px;padding:2px 4px}'+
     '</style>';
   function printTongHopBox(){
     var md=getVal('s10-madon');
     if(!md) return alert('Hãy CHỌN 1 mã đơn ở ô lọc phía trên trước khi in "Tổng hợp Box".');
     var R=boxR(); var rows=boxDataRows(R).filter(function(o){ return o.maDon===md; });
     if(!rows.length) return alert('Đơn "'+md+'" chưa có dữ liệu Box.');
-    /* chỉ in những độ cong đơn này THẬT SỰ có — khỏi thừa cột trống */
-    var UC=(state.usedCurls||CURLS).filter(function(k){ return rows.some(function(o){ return (o.curls||{})[k]; }); });
-    var no=0, tong=0, cong={};
-    var body=rows.map(function(o){
-      no++; var hop=boxHop(o); tong+=hop;
-      return '<tr><td>'+no+'</td><td>'+esc(donOf(o.maDon))+'</td><td>'+esc(o.lineRaw||o.line||'')+'</td>'+
-        '<td class="l">'+nl2br(o.codeSoi||'')+'</td><td>'+esc(o.thickness||'')+'</td>'+
-        '<td>'+esc(o.loaiHang||'')+'</td><td class="l">'+nl2br(o.label||'')+'</td>'+
-        '<td class="l">'+nl2br(o.material||'')+'</td><td>'+esc(boxKeo(o))+'</td>'+
-        '<td class="l">'+esc(o.ghiChu||'')+'</td><td>'+esc(o.length||'')+'</td><td>'+esc(o.mixSingle||'')+'</td>'+
-        UC.map(function(k){ var v=(o.curls||{})[k]||0; if(v) cong[k]=(cong[k]||0)+v; return '<td>'+(v||'')+'</td>'; }).join('')+
-        '<td class="tot">'+hop+'</td></tr>';
-    }).join('');
-    var head='<tr><th style="width:34px">STT</th><th style="width:60px">Mã Đơn</th><th style="width:46px">Số Line</th>'+
-      '<th class="l" style="width:110px">Nguyên liệu</th><th style="width:48px">Độ Dày</th><th style="width:58px">Nhóm</th>'+
-      '<th class="l">Phân Loại</th><th class="l" style="width:110px">Tên Gọi NL</th><th style="width:76px">Keo Nhiệt</th>'+
-      '<th class="l" style="width:90px">Ghi Chú</th><th style="width:62px">Độ Dài</th><th style="width:52px">S/M</th>'+
-      UC.map(function(k){ return '<th style="width:38px">'+esc(k)+'</th>'; }).join('')+'<th style="width:54px">Tổng</th></tr>';
-    var html=thHead2(esc(md)+' · TỔNG HỢP BOX', '')+
-      '<table style="table-layout:fixed"><thead>'+head+'</thead><tbody>'+body+
-      '<tr class="tot"><td class="l" colspan="12">TỔNG SỐ HỘP '+esc(md)+'</td>'+
-      UC.map(function(k){ return '<td>'+(cong[k]||'')+'</td>'; }).join('')+'<td>'+tong+'</td></tr></tbody></table>'+
-      BOX_IN_CSS + boxPerBoxInHtml();
+    var html=BOX_IN_CSS + thHead2(esc(md)+' · TỔNG HỢP BOX', '') + boxTblInHtml() + boxPerBoxInHtml();
     /* Bảng Box nhiều cột → LUÔN mặc định khổ NGANG (đổi được ở ô "Hướng giấy"). */
     thPrint('Tổng hợp Box · '+md, html, md+' · TỔNG HỢP BOX', true);
   }
@@ -10431,14 +10449,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1709140000"></script>
-<script src="cl.sync.js?v=1709140000"></script>
-<script src="auth.store.js?v=1709140000"></script>
-<script src="auth.web.js?v=1709140000"></script>
+<script src="cl.config.js?v=1709160000"></script>
+<script src="cl.sync.js?v=1709160000"></script>
+<script src="auth.store.js?v=1709160000"></script>
+<script src="auth.web.js?v=1709160000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1709140000"></script>
+<script src="cl.project.js?v=1709160000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1709140000" defer></script>
+<script src="firebase-bridge.js?v=1709160000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
