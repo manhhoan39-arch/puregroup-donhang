@@ -664,7 +664,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709103000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709120000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1155,7 +1155,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1709103000"></script>
+<script src="engine.web.js?v=1709120000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -9203,8 +9203,26 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     h=h.replace(/<input\b[^>]*\bvalue="([^"]*)"[^>]*>/gi, function(_m, v){ return v || '0'; });
     h=h.replace(/<input\b[^>]*>/gi, '');
     h=h.replace(/\scontenteditable="true"/gi, '');
+    /* BỎ KHUNG CUỘN của bản màn hình (user chốt 17/9): trên giấy mà còn max-height + overflow
+       thì bảng bị cắt ngang, thanh cuộn in ra thành vạch đen, và dòng tiêu đề <thead> nhảy vào
+       giữa bảng — đúng cảnh Bảng Keo trong ảnh. Trên giấy cho bảng dài ra hết cỡ. */
+    h=h.replace(/max-height:\s*\d+px;?\s*overflow:\s*auto;?/gi, '');
     return h;
   }
+  /* Cửa sổ in có BỘ CSS RIÊNG nên mấy lớp của màn hình (lưới 2 cột .boxtypes-wrap, thẻ
+     .bt-general…) không có tác dụng — vì vậy trước đây Bảng Hộp · Note · Bảng Keo · Bảng Độ
+     Cong in ra nằm chồng dọc hết chiều ngang tờ giấy. Chèn lại đúng mấy lớp đó cho bản in:
+     Bảng Hộp | Note  ·  Bảng Keo | Bảng Độ Cong — mỗi cặp một hàng 2 cột. */
+  var BOX_IN_CSS='<style>'+
+    '.boxtypes-wrap{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start;margin:0 0 10px;page-break-inside:avoid}'+
+    '.bt-general{border:1px solid #333;padding:7px 9px;font-size:10.5px;line-height:1.45}'+
+    '.bt-gtitle{font-weight:800;font-size:11.5px;margin:0 0 5px}'+
+    '.boxtypes-wrap table{width:100%;margin:0;font-size:10.5px;table-layout:auto}'+
+    '.boxtypes-wrap th,.boxtypes-wrap td{padding:2px 5px}'+
+    '.bt-general ol,.bt-general ul{margin:3px 0 0 16px;padding:0}'+
+    '.bt-general li{margin:1px 0}'+
+    '.anh-don img{max-width:100%;height:auto}'+
+    '</style>';
   function printTongHopBox(){
     var md=getVal('s10-madon');
     if(!md) return alert('Hãy CHỌN 1 mã đơn ở ô lọc phía trên trước khi in "Tổng hợp Box".');
@@ -9232,7 +9250,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '<table style="table-layout:fixed"><thead>'+head+'</thead><tbody>'+body+
       '<tr class="tot"><td class="l" colspan="12">TỔNG SỐ HỘP '+esc(md)+'</td>'+
       UC.map(function(k){ return '<td>'+(cong[k]||'')+'</td>'; }).join('')+'<td>'+tong+'</td></tr></tbody></table>'+
-      boxPerBoxInHtml();
+      BOX_IN_CSS + boxPerBoxInHtml();
+    /* Bảng Box nhiều cột → LUÔN mặc định khổ NGANG (đổi được ở ô "Hướng giấy"). */
     thPrint('Tổng hợp Box · '+md, html, md+' · TỔNG HỢP BOX', true);
   }
   function printTongHopCuon(){
@@ -10373,14 +10392,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1709103000"></script>
-<script src="cl.sync.js?v=1709103000"></script>
-<script src="auth.store.js?v=1709103000"></script>
-<script src="auth.web.js?v=1709103000"></script>
+<script src="cl.config.js?v=1709120000"></script>
+<script src="cl.sync.js?v=1709120000"></script>
+<script src="auth.store.js?v=1709120000"></script>
+<script src="auth.web.js?v=1709120000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1709103000"></script>
+<script src="cl.project.js?v=1709120000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1709103000" defer></script>
+<script src="firebase-bridge.js?v=1709120000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
