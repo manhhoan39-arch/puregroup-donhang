@@ -664,7 +664,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709120000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709140000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1155,7 +1155,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1709120000"></script>
+<script src="engine.web.js?v=1709140000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -8493,6 +8493,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           var el=node.children[i];
           if(hidden(el)) continue;
           var cs=getComputedStyle(el);
+          /* LƯỚI 2 CỘT (.boxtypes-wrap — Bảng Hộp|Note, Bảng Keo|Bảng Độ Cong): trên giấy nằm
+             cạnh nhau thì file Excel cũng phải cạnh nhau (user chốt 17/9). Trước đây đi qua
+             walk() nên 4 khối xếp dọc hết vào cột A. Bắt thành từng CẶP để build() đặt cạnh. */
+          if(/(^|\s)boxtypes-wrap(\s|$)/.test(String(el.className||''))){
+            var k2=[].slice.call(el.children).filter(function(c){ return !hidden(c); });
+            for(var q=0;q<k2.length;q+=2){
+              if(k2[q+1]) out.push({t:'pair',left:k2[q],right:k2[q+1]});
+              else walk(k2[q]);
+            }
+            continue;
+          }
           if(el.tagName==='TABLE'){ out.push({t:'tbl',el:el}); continue; }
           if(el.querySelector('table')){ walk(el); continue; }
           var kids=[].slice.call(el.children);
@@ -8526,9 +8537,30 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       });
       return { g:g, merges:merges, widths:widths, heights:heights, n:trs.length };
     }
-    function build(root, land, P){
+    /* Dựng một DÃY KHỐI thành ma trận dòng/ô. Tách riêng khỏi build() để mỗi nửa của cặp
+       2 cột dựng được độc lập rồi mới ghép ngang. */
+    function dungKhoi(bs, P){
       var rows=[], merges=[], widths=[], maxc=0;
-      blocks(root).forEach(function(b){
+      bs.forEach(function(b){
+        if(b.t==='pair'){
+          var L=dungKhoi(blocks(b.left),P), Rp=dungKhoi(blocks(b.right),P);
+          var base=rows.length, off=Math.max(L.maxc,1)+1;     // chừa 1 cột trống ngăn 2 bên
+          var n=Math.max(L.rows.length,Rp.rows.length);
+          for(var i2=0;i2<n;i2++){
+            var a=L.rows[i2], c2=Rp.rows[i2], ln2={h:Math.max(a?a.h:0,c2?c2.h:0),cells:[]};
+            if(a) a.cells.forEach(function(x){ ln2.cells.push(x); });
+            if(c2) c2.cells.forEach(function(x){ ln2.cells.push({c:x.c+off,el:x.el,text:x.text}); });
+            rows.push(ln2);
+          }
+          L.merges.forEach(function(m){ merges.push([base+m[0],m[1],base+m[2],m[3]]); });
+          Rp.merges.forEach(function(m){ merges.push([base+m[0],m[1]+off,base+m[2],m[3]+off]); });
+          L.widths.forEach(function(w,i3){ if(w>(widths[i3]||0)) widths[i3]=w; });
+          Rp.widths.forEach(function(w,i3){ if(w>(widths[i3+off]||0)) widths[i3+off]=w; });
+          if(L.maxc>maxc) maxc=L.maxc;
+          if(off+Rp.maxc>maxc) maxc=off+Rp.maxc;
+          rows.push({h:0,cells:[]});
+          return;
+        }
         if(b.t==='tbl'){
           var G=grid(b.el), base=rows.length;
           G.widths.forEach(function(w,i){ if(w>(widths[i]||0)) widths[i]=w; });
@@ -8552,6 +8584,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           rows.push({h:0,cells:[{c:0,el:b.el,text:b.text}],span:true});
         }
       });
+      /* Dòng CHỮ trải ngang: gộp theo bề rộng CỦA CHÍNH DÃY NÀY — nửa trái của cặp không được
+         trải sang nửa phải. */
+      rows.forEach(function(ln,ri){ if(ln.span && maxc>1) merges.push([ri,0,ri,maxc-1]); });
+      return { rows:rows, merges:merges, widths:widths, maxc:maxc };
+    }
+    function build(root, land, P){
+      var K=dungKhoi(blocks(root),P);
+      var rows=K.rows, merges=K.merges, widths=K.widths, maxc=K.maxc;
       var sd='';
       rows.forEach(function(ln,ri){
         var cells='';
@@ -8561,7 +8601,6 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             ? '<c r="'+ref+'" s="'+s+'" t="inlineStr"><is><t xml:space="preserve">'+X(cl.text)+'</t></is></c>'
             : '<c r="'+ref+'" s="'+s+'"><v>'+n+'</v></c>';
         });
-        if(ln.span && maxc>1) merges.push([ri,0,ri,maxc-1]);
         var h=ln.h?Math.max(15,Math.round(ln.h*0.75*10)/10):(ln.cells.length?16:6);
         sd+='<row r="'+(ri+1)+'" ht="'+h+'" customHeight="1">'+cells+'</row>';
       });
@@ -10392,14 +10431,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1709120000"></script>
-<script src="cl.sync.js?v=1709120000"></script>
-<script src="auth.store.js?v=1709120000"></script>
-<script src="auth.web.js?v=1709120000"></script>
+<script src="cl.config.js?v=1709140000"></script>
+<script src="cl.sync.js?v=1709140000"></script>
+<script src="auth.store.js?v=1709140000"></script>
+<script src="auth.web.js?v=1709140000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1709120000"></script>
+<script src="cl.project.js?v=1709140000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1709120000" defer></script>
+<script src="firebase-bridge.js?v=1709140000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
