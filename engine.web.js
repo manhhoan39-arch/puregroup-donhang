@@ -1120,26 +1120,6 @@
     });
     return hit;
   }
-  /* ===== BẢNG KEO CÓ PHỦ NGUYÊN LIỆU NÀY KHÔNG? (user chốt 18/9) =====
-     Phân biệt 2 kiểu "tra không ra keo", vì cách xử lý phải khác hẳn:
-       a) Bảng Keo CÓ dòng cho nguyên liệu này (hoặc dòng dùng chung không ghi nguyên liệu)
-          nhưng lệch độ dày / độ dài  → thiếu một dòng trong bảng ⇒ ĐỂ TRỐNG cho thấy mà bổ
-          sung (đơn 519P: xoá Độ Dày 0.05 thì mấy dòng 0.05 phải trống).
-       b) Bảng Keo KHÔNG hề có dòng nào cho nguyên liệu này → bảng vốn không nói gì về nó
-          (đơn C213-813P: bảng chỉ khai "Faux Mink…", còn LEGNO · CARAMELLO · CAFFE không có)
-          ⇒ dùng keo khách đã fix ở cột "Keo" ngay trên dòng đơn. */
-  function keoCoNguyenLieu(rules, maDon, material) {
-    var mat = chuanMat(material);
-    var co = false;
-    (rules || []).forEach(function (r) {
-      if (co) return;
-      if (maDon && r.maDon && r.maDon !== maDon) return;
-      var hasMat = r.mats && r.mats.length;
-      if (!hasMat) { co = true; return; }                 // dòng dùng chung → phủ mọi nguyên liệu
-      if (mat && diemKhopMat(r.mats, mat, { material: material }) >= 0) co = true;
-    });
-    return co;
-  }
   function glueFor(rules, comp, out) {
     var mat = chuanMat(comp.material);
     var mm = Number(comp.mm);
@@ -1238,9 +1218,6 @@
         var _tr = {};
         var g = glueFor(rules, Object.assign({}, ctx, { mm: mm, curlNhom: false }), _tr);
         if (_tr.tranh) g = PS(o.ghiChuKeo) || '';
-        /* Tra không ra → lấy keo khách fix ngay trên dòng đơn, ĐÚNG như Bảng Line Cuốn
-           (xem buildCuonBoxSheet + keoCoNguyenLieu) để hai bảng không lệch nhau. */
-        if (!g && !keoCoNguyenLieu(rules, o.maDon, ctx.material)) g = PS(o.ghiChuKeo) || '';
         them(g);
       }
     }
@@ -1331,7 +1308,7 @@
       if (g.lengths.indexOf(r.length) < 0) g.lengths.push(r.length);   // các dải đã gộp (để tra nguồn)
       g.curls[r.curl] = (g.curls[r.curl] || 0) + r.sl; g.tong += r.sl; c.total += r.sl;
       // KEO TRA THEO TỪNG DÒNG data1 (material + độ dày + mm CỦA CHÍNH DÒNG) — không qua meta gộp
-      var k1 = '', k2 = '', ambRow = false, donRow = false;
+      var k1 = '', k2 = '', ambRow = false;
       if (keoMalformed[r.maDon]) {
         // BẢNG KEO SAI CẤU TRÚC → TUYỆT ĐỐI KHÔNG điền keo (kể cả fallback), chờ user sửa
         k1 = ''; k2 = '';
@@ -1350,24 +1327,18 @@
              dòng đó, đánh dấu để bước 5 tô ô "Keo nhiệt" cho user soi lại (21/8). */
           if (_tr.tranh) { k1 = r.ghiChuKeo || ''; if (!_kCurl) k2 = k1; ambRow = true; }
         }
-        /* ===== CỘT "KEO" TRÊN CHÍNH DÒNG ĐƠN (user chốt 18/9) =====
-           Mẫu 2026 có cột "Keo" ngay trong bảng đơn — khách fix keo cho ĐÚNG dòng đó, cụ thể
-           hơn Bảng Keo (Bảng Keo chỉ khai theo nguyên liệu + độ dày).
-           Trước đây đơn CÓ Bảng Keo mà tra không ra thì để TRỐNG, để thấy Bảng Keo còn thiếu.
-           Nhưng đơn C213-813P: Bảng Keo chỉ khai 4 dòng "Faux Mink…", còn 28.MK.DB.85 (LEGNO)
-           · 111.SKS.Caramel.10 (CARAMELLO) · 143.SKS.Cafe.10 (CAFFE) không có dòng nào khớp —
-           mất sạch keo dù cột Keo của từng dòng ghi rõ XanhLX70.2 ⇒ 640 dây "chưa gán keo".
-           Nay: tra không ra thì LẤY keo khách ghi trên dòng, và TÔ CẢNH BÁO (keoDon) để xưởng
-           vẫn nhìn ra ngay là keo này đến từ dòng đơn chứ không phải từ Bảng Keo. */
-        if (!k1 && !keoCoNguyenLieu(keoRules, r.maDon, r.material || r.detail || '')) {
-          k1 = r.ghiChuKeo || ''; if (k1) donRow = true;
-        }
+        /* CHỈ mượn cột "Keo Nhiệt" của khách khi đơn đó KHÔNG CÓ Bảng Keo nào dùng được.
+           Đơn CÓ Bảng Keo mà tra không ra thì phải ĐỂ TRỐNG — trước đây lặng lẽ lấy keo trong
+           cột của khách, nên xoá một dòng trong Bảng Keo vẫn thấy có keo (mà là keo lạ, không
+           hề có trong bảng), tưởng app tính đúng. Trống mới thấy ngay là bảng còn thiếu.
+           (Mẫu 2026 thiếu dòng keo thì đã được vá ngay từ lúc ĐỌC FILE — xem mục F: Bảng Keo
+           tự đối chiếu với bảng dải line bên dưới, nên tới đây bảng đã đủ.) */
+        if (!k1 && !keoHasRules[r.maDon]) k1 = r.ghiChuKeo || '';
         if (!k2) k2 = k1;
       }
       if (k1) g.keoSet[k1] = 1;
       if (k2) g.keo2mmSet[k2] = 1;
       if (ambRow) g.keoAmb = true;   // ô "Keo nhiệt" ở bước 5 tô cảnh báo để dễ soi lại
-      if (donRow) g.keoDon = true;   // keo lấy từ cột Keo của dòng đơn (Bảng Keo chưa có dòng khớp)
     });
     var rows = [], grand = 0, stt = 0, grandCurls = {};
     CURLS.forEach(function (k) { grandCurls[k] = 0; });
@@ -1407,7 +1378,7 @@
         var base = { maDon: c.maDon, codeSoi: codeHien, xuongTH: !!c.xuongTH, xuongMa: c.xuongMa || '', length: g.length,
                      lengths: (g.lengths && g.lengths.length ? g.lengths.slice().sort() : [g.length]),
                      mm: g.mm, box: m.box || '—', mixSingle: g.mixSingle || m.mixSingle || 'Mix',
-                     material: g.material || m.material || '', thickness: g.thickness || m.thickness || '', multiMat: multiMat, cmix: !!g.cmix, keoAmb: !!g.keoAmb, keoDon: !!g.keoDon, hlLech: g.hlLech || null };
+                     material: g.material || m.material || '', thickness: g.thickness || m.thickness || '', multiMat: multiMat, cmix: !!g.cmix, keoAmb: !!g.keoAmb, hlLech: g.hlLech || null };
         // Nếu có độ cong đặc biệt và keo 2mm KHÁC keo chuẩn → TÁCH 2 dòng, mỗi dòng 1 keo đúng
         if (hasOvr && keo2mm && keo2mm !== keo) {
           if (normTot > 0) rows.push(Object.assign({ type: 'row', stt: ++stt, curls: normC, tong: normTot, keo: keo, keo2mm: keo2mm }, base));
@@ -2499,7 +2470,12 @@
           if (v2 === 'mm') hasMM2 = true;
           if (/^\**\s*no\.?$/.test(v2)) hasNo = true;
         }
-        if (hasPL && hasMM2 && hasNo) { mr = r2; MH = rw3; break; }
+        /* Ô "No." của dòng tiêu đề BỎ TRỐNG vẫn phải nhận ra bảng (đơn C213-813P: tiêu đề
+           chỉ có " Phân Loại | Tên Danh mục | Nguyên Liệu | Laser Check | Keo Đã Fix | MM",
+           ô đầu trống trơn). Trước đây đòi đủ cả "No." nên app BỎ QUA cả bảng dải line ⇒
+           Bảng Keo phải quay về lấy ở Bảng Mix Chi Tiết, mà bảng đó chỉ khai 4 nguyên liệu
+           "Faux Mink…" ⇒ LEGNO 0.07 · CARAMELLO 0.07 · CAFFE 0.07 mất sạch keo (640 dây). */
+        if (hasPL && hasMM2 && (hasNo || !PS(rw3[0]))) { mr = r2; MH = rw3; break; }
       }
       if (mr < 0) return;
       var cNo = -1, cPL = findCol(MH, 'Phân Loại'), cMM = findCol(MH, 'MM', true), cTot = findCol(MH, 'Tổng');
@@ -2508,6 +2484,13 @@
          phải có cột cùng tên nhưng khách không phải lúc nào cũng sửa cả hai. */
       var cKeoFix = findCol(MH, 'Keo Đã Fix'), cNL = findCol(MH, 'Nguyên Liệu');
       for (var k2 = 0; k2 < MH.length; k2++) if (/^\**\s*no\.?$/i.test(PS(MH[k2]))) { cNo = k2; break; }
+      /* Không thấy chữ "No." → lấy CỘT ĐẦU, nhưng chỉ khi mấy dòng ngay dưới thật sự đánh số
+         (khỏi vơ nhầm một bảng khác). */
+      if (cNo < 0 && !PS(MH[0])) {
+        var coSo = 0;
+        for (var _r = mr + 1; _r < Math.min(aoa.length, mr + 6); _r++) { if (num((aoa[_r] || [])[0]) > 0) coSo++; }
+        if (coSo >= 2) cNo = 0;
+      }
       if (cNo < 0 || cMM < 0) return;
       var mCurl = {};
       CURLS.forEach(function (k) { mCurl[k] = -1; });
@@ -2641,6 +2624,61 @@
           var sig = [row.loaiKeo, row.loaiSoi, row.doDay, row.doDai].join('|');
           if (daCo[sig]) return; daCo[sig] = 1;
           keoRows.push(row);
+        });
+      });
+
+      /* ===== ĐỐI CHIẾU BẢNG KEO ↔ BẢNG DẢI LINE (user chốt 18/9) — CHỈ MẪU 2026 =====
+         Mẫu 2026 có 2 chỗ ghi keo:
+           · BẢNG HỘP  = chính bảng đơn ở trên, cột "Keo" + cột "Ghi chú (Xưởng SX)" (nguyên liệu);
+           · BẢNG DẢI LINE bên dưới = bảng No. | MM | … | Nguyên Liệu | Keo Đã Fix — chỗ khách
+             sửa keo theo TỪNG mm (vd 130.SKV.7 dùng .2 cho 4-10mm, .3 từ 11mm).
+         Luật: BẢNG DẢI LINE LÀ CHUẨN.
+           · nguyên liệu có ở bảng dải line  → giữ nguyên dòng keo dựng từ bảng đó (không được
+             phá cách tách theo mm). Keo bên Bảng Hộp mà KHÔNG nằm trong bộ keo của bảng line
+             → ghi chú "Keo ở bảng hộp và bảng line khác nhau" + tô màu, số vẫn theo bảng line.
+           · nguyên liệu bảng dải line KHÔNG hề có (đơn C213-813P: LEGNO 0.07 · CARAMELLO 0.07 ·
+             CAFFE 0.07) → BỔ SUNG dòng lấy từ Bảng Hộp, cũng ghi chú + tô màu.
+         Mẫu đơn CŨ không đụng tới — bên đó có bảng "Độ Dày | Mã Keo" riêng, đọc y như cũ. */
+      /* Khách gõ tên nguyên liệu KHÔNG ĐỒNG NHẤT giữa 2 bảng: đơn 794P Bảng Hộp ghi
+         "Blue 0.07 (Blu)" còn bảng dải line ghi "Blue 0.07 ( Blu)" — chỉ lệch 1 dấu cách
+         trong ngoặc. So chữ thô là đẻ thêm một dòng keo trùng. Chuẩn hoá nhẹ trước khi so
+         (thường/hoa, khoảng trắng, khoảng trắng quanh ngoặc) — KHÔNG bỏ chữ số vì "0.07" là
+         phần phân biệt thật của tên nguyên liệu. */
+      var chuanTenNL = function (v) {
+        return PS(v).toLowerCase().replace(/\s*([()\[\]])\s*/g, '$1').replace(/\s+/g, ' ').trim();
+      };
+      var theoHop = {}, thOrder = [];
+      out.forEach(function (o) {
+        var nl = PS(o.material), keo = PS(o.ghiChuKeo);
+        if (!nl || !keo) return;
+        var kn = chuanTenNL(nl);
+        var m = theoHop[kn];
+        if (!m) { m = theoHop[kn] = { ten: nl, keo: {}, order: [], thick: PS(o.thickness) }; thOrder.push(kn); }
+        if (!m.thick) m.thick = PS(o.thickness);
+        if (!m.keo[keo]) { m.keo[keo] = 1; m.order.push(keo); }
+      });
+      thOrder.forEach(function (kn) {
+        var hop = theoHop[kn], nl = hop.ten;
+        var cu = keoRows.filter(function (k) { return chuanTenNL(k.loaiSoi) === kn; });
+        if (cu.length) {
+          /* Bảng dải line CÓ nguyên liệu này → số theo bảng line, chỉ soi xem có lệch không.
+             Bảng line tách nhỏ hơn (1 keo cho 7-8mm, 1 keo cho 9-15mm) mà Bảng Hộp chỉ ghi 1
+             trong số đó thì KHÔNG phải lệch — chỉ là bảng line chi tiết hơn. */
+          var boLine = {};
+          cu.forEach(function (k) { boLine[PS(k.loaiKeo)] = 1; });
+          var lech = hop.order.some(function (g2) { return !boLine[g2]; });
+          if (lech) cu.forEach(function (k) {
+            k.ghiChu = 'Keo ở bảng hộp và bảng line khác nhau';
+            k.lechHopLine = true;
+          });
+          return;
+        }
+        /* Bảng dải line không hề nhắc tới nguyên liệu này → bổ sung từ Bảng Hộp. */
+        hop.order.forEach(function (gk) {
+          keoRows.push({
+            maDon: maDon, loaiKeo: gk, loaiSoi: nl, doDay: hop.thick || '', doDai: '',
+            ghiChu: 'Keo ở bảng hộp và bảng line khác nhau', lechHopLine: true,
+          });
         });
       });
     })();
@@ -2831,7 +2869,7 @@
     buildCuonBox: buildCuonBox, buildCuonBoxSheet: buildCuonBoxSheet, buildSummary: buildSummary,
     runPipeline: runPipeline, runPipelineTheoDon: runPipelineTheoDon,
     parseNhapDonRows: parseNhapDonRows, parseLabelRows: parseLabelRows,
-    parseKeoRows: parseKeoRows, parseWorkbookData: parseWorkbookData, keoCoNguyenLieu: keoCoNguyenLieu,
+    parseKeoRows: parseKeoRows, parseWorkbookData: parseWorkbookData,
     parseGuiXuongSheet: parseGuiXuongSheet, parseMixColorAOA: parseMixColorAOA,
     parseMixLengthBlocks: parseMixLengthBlocks, khoiMauNgang: khoiMauNgang,
     sinhKeoTuDonHang: sinhKeoTuDonHang,

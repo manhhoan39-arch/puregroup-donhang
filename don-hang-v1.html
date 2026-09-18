@@ -361,9 +361,6 @@ td.dc-ten{font-weight:800;text-align:center;vertical-align:middle;white-space:no
 tr.keo-amb > td{ background:#FFEEF2!important; }
 tr.keo-amb > td:first-child{ box-shadow:inset 3px 0 0 var(--red-600); }
 td.keo-amb-keo{ background:#FFEEF2; color:var(--red-700); font-weight:700; }
-/* Keo lấy từ cột "Keo" của CHÍNH dòng đơn (Bảng Keo chưa có dòng khớp nguyên liệu) —
-   vẫn điền để xưởng làm được, nhưng tô khác màu để biết nguồn không phải Bảng Keo. */
-td.keo-don{ background:#FFF6D5; color:#8A5A00; font-weight:700; }
 /* Dòng Bảng Keo ĐÃ XÁC NHẬN ĐÃ KIỂM (nút ✓ Đã kiểm ở bước 4): hết đỏ/vàng, còn vạch xanh mép
    trái để vẫn nhận ra là dòng từng cần kiểm — bấm "↺ Hiện lại" là trả về như cũ. */
 tr.keo-ok > td{ background:var(--green-50)!important; }
@@ -667,7 +664,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709380000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709420000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1158,7 +1155,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1709380000"></script>
+<script src="engine.web.js?v=1709420000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -2762,11 +2759,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var _lechCls=_L?' cl-daylech':'';
         var _lechTit=_L?(' title="'+esc(dayLechTitle(_L))+'"'):'';
         var _H=hlLech(r);                                   // Bang Hop khai keo/so mau khac Bang Line
-        var keoTd='<td class="txt'+(r.keoAmb?' keo-amb-keo':(r.keoDon?' keo-don':''))+(_H?' cl-hoplech':'')+'" style="font-size:10px"'+
+        var keoTd='<td class="txt'+(r.keoAmb?' keo-amb-keo':'')+(_H?' cl-hoplech':'')+'" style="font-size:10px"'+
           (_H?' title="'+esc(hlLechTitle(_H))+'"'
             :(r.keoAmb?' title="1 độ dày sử dụng 2 loại keo — keo này lấy theo bảng chi tiết của khách"'
-              :(r.keoDon?' title="Keo lấy từ cột \'Keo\' của chính dòng đơn — Bảng Keo chưa có dòng nào khớp nguyên liệu này"'
-                  :(r.ovrRow?' title="Độ cong đặc biệt '+esc(OVR.join('/'))+' → Keo 2mm"':''))))+'>'+esc(r.keo||'')+'</td>';
+                  :(r.ovrRow?' title="Độ cong đặc biệt '+esc(OVR.join('/'))+' → Keo 2mm"':'')))+'>'+esc(r.keo||'')+'</td>';
         return '<tr class="'+(mc+ovr+th+cmx).trim()+'" data-cbk="1" data-search="'+esc(timKiemCuaDong(r))+'" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td>'+r.stt+'</td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+cell2+_lechCls+'" title="'+(_L?esc(dayLechTitle()):r.cmix?'Dòng tách từ Mix nhiều màu':'')+'">'+nl2br(r.codeSoi)+'</td><td class="txt'+cell2+' cb-nl'+_lechCls+'" style="font-size:10px"'+_lechTit+'>'+nl2br(_nlDay)+'</td><td data-sm="1" title="'+esc(smTitle(r))+'">'+nl2br(smText(r))+'</td><td>'+r.mm+'</td>'+keoTd+
           UC.map(function(k){ return '<td class="cw">'+q(r.curls[k])+'</td>'; }).join('')+
           '<td class="qty">'+r.tong+'</td></tr>';
@@ -7127,10 +7123,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   function hlLechKeo(k){
     if(!k) return null;
+    /* Mẫu 2026: lúc ĐỌC FILE app đã đối chiếu Bảng Keo với bảng dải line bên dưới; dòng nào
+       khác/thiếu thì đã sửa lại theo bảng dải line và gắn cờ lechHopLine (xem parseGuiXuong2026).
+       Tô đúng màu cảnh báo như trường hợp lệch Bảng Hộp ↔ Bảng Line, để xưởng soi lại. */
+    if(k.lechHopLine) return { loai:'keo', tuLine:1 };
     return hlLechKeoMap()[String(k.maDon||'')+'|'+String(k.loaiSoi||'').trim().toLowerCase()+
       '|'+String(k.loaiKeo||'').trim().toLowerCase()]||null;
   }
   function hlLechTitle(L){
+    if(L && L.tuLine) return 'Keo \u1edf b\u1ea3ng h\u1ed9p v\u00e0 b\u1ea3ng line kh\u00e1c nhau \u2014 app \u0111\u00e3 l\u1ea5y theo b\u1ea3ng d\u1ea3i line b\u00ean d\u01b0\u1edbi';
     return (L && L.loai==='somau')
       ? 'S\u1ed1 m\u00e0u b\u1ea3ng h\u1ed9p v\u00e0 b\u1ea3ng line kh\u00e1c nhau c\u1ea7n ki\u1ec3m tra l\u1ea1i'
       : 'Keo b\u1ea3ng h\u1ed9p v\u00e0 b\u1ea3ng line kh\u00e1c nhau c\u1ea7n ki\u1ec3m tra l\u1ea1i';
@@ -10716,14 +10717,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1709380000"></script>
-<script src="cl.sync.js?v=1709380000"></script>
-<script src="auth.store.js?v=1709380000"></script>
-<script src="auth.web.js?v=1709380000"></script>
+<script src="cl.config.js?v=1709420000"></script>
+<script src="cl.sync.js?v=1709420000"></script>
+<script src="auth.store.js?v=1709420000"></script>
+<script src="auth.web.js?v=1709420000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1709380000"></script>
+<script src="cl.project.js?v=1709420000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1709380000" defer></script>
+<script src="firebase-bridge.js?v=1709420000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
