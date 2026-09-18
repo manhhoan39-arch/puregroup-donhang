@@ -139,6 +139,11 @@
          sẵn, KHÔNG cuốn dải line, chỉ tính SỐ HỘP. Giữ cờ để các bước sau đừng đòi bảng Mix
          và đừng báo "thiếu dây" cho mấy dòng này (C213-785P, 20/8/2026). */
       premade: !!raw.premade || /premade/i.test(String(raw.lineRaw == null ? '' : raw.lineRaw)),
+      /* DONG KHONG CO SO LINE (user chot 17/9, don C213-813P): cot "Lines" bo trong nghia la
+         hang do XUONG KHAC lam — Line · Cuon · Box deu khong dung toi. Co nay do runStep1 dat
+         lai theo TUNG DON (xem ben duoi) chu khong tu doc o day, vi mau don CU khong co cot
+         "So Line" nao ca — doc mu o day la ca kho bien mat. */
+      khongLine: !!raw.khongLine,
       /* Co CANH BAO doi chieu Bang Hop <-> Bang Line (mau 2026). Dat o day de di theo
          suot: data1 -> Bang Line Cuon -> ban in Tong hop Line. */
       hopLineLech: (raw.hopLineLech && typeof raw.hopLineLech === 'object') ? raw.hopLineLech : null,
@@ -256,6 +261,16 @@
     // này thì phần kiểm mã keo bên dưới nổ "Cannot read properties of undefined".
     opt = opt || {};
     var orders = rawList.map(normalizeOrder), errors = [], seen = {};
+    /* ===== DONG KHONG CO SO LINE = XUONG KHAC LAM (user chot 17/9) =====
+       Don C213-813P co may dong Bigtray/Premade bo trong o "Lines" => khong cuon dai, khong
+       vao Bang Line Cuon, khong vao Tong hop Box. CHi danh dau khi trong CUNG MOT DON con co
+       dong ghi so line — don nao ca don khong co cot "So Line" (mau cu) thi giu nguyen nhu truoc,
+       khong dong nao bi bo. */
+    (function () {
+      var coLine = {};
+      orders.forEach(function (o) { if (+o.line > 0) coLine[o.maDon] = 1; });
+      orders.forEach(function (o) { o.khongLine = !!coLine[o.maDon] && !o.premade && !(+o.line > 0); });
+    })();
     orders.forEach(function (o) {
       var k = o.maDon + '#' + o.seri;
       if (seen[k]) errors.push({ maDon: o.maDon, seri: o.seri, col: 'seri', code: 'E-DUP', level: 'error', msg: 'Trùng Seri ' + o.seri });
@@ -451,6 +466,7 @@
          "Mix Length" có cột 5-13mm, nên không chặn là app cấp cho nó phân bổ mm của cột đó
          rồi sinh dải khống (C213-785P: +320 dải). Số hộp vẫn cộng bình thường ở bước 6. */
       if (o.premade) return;
+      if (o.khongLine) return;   // xuong khac lam — khong cuon dai (xem runStep1)
       expandOrder(o, getMix(o) || {}, strategy, cb).forEach(function (r) { out.push(r); });
     });
     return out;
@@ -1104,6 +1120,26 @@
     });
     return hit;
   }
+  /* ===== BẢNG KEO CÓ PHỦ NGUYÊN LIỆU NÀY KHÔNG? (user chốt 18/9) =====
+     Phân biệt 2 kiểu "tra không ra keo", vì cách xử lý phải khác hẳn:
+       a) Bảng Keo CÓ dòng cho nguyên liệu này (hoặc dòng dùng chung không ghi nguyên liệu)
+          nhưng lệch độ dày / độ dài  → thiếu một dòng trong bảng ⇒ ĐỂ TRỐNG cho thấy mà bổ
+          sung (đơn 519P: xoá Độ Dày 0.05 thì mấy dòng 0.05 phải trống).
+       b) Bảng Keo KHÔNG hề có dòng nào cho nguyên liệu này → bảng vốn không nói gì về nó
+          (đơn C213-813P: bảng chỉ khai "Faux Mink…", còn LEGNO · CARAMELLO · CAFFE không có)
+          ⇒ dùng keo khách đã fix ở cột "Keo" ngay trên dòng đơn. */
+  function keoCoNguyenLieu(rules, maDon, material) {
+    var mat = chuanMat(material);
+    var co = false;
+    (rules || []).forEach(function (r) {
+      if (co) return;
+      if (maDon && r.maDon && r.maDon !== maDon) return;
+      var hasMat = r.mats && r.mats.length;
+      if (!hasMat) { co = true; return; }                 // dòng dùng chung → phủ mọi nguyên liệu
+      if (mat && diemKhopMat(r.mats, mat, { material: material }) >= 0) co = true;
+    });
+    return co;
+  }
   function glueFor(rules, comp, out) {
     var mat = chuanMat(comp.material);
     var mm = Number(comp.mm);
@@ -1202,6 +1238,9 @@
         var _tr = {};
         var g = glueFor(rules, Object.assign({}, ctx, { mm: mm, curlNhom: false }), _tr);
         if (_tr.tranh) g = PS(o.ghiChuKeo) || '';
+        /* Tra không ra → lấy keo khách fix ngay trên dòng đơn, ĐÚNG như Bảng Line Cuốn
+           (xem buildCuonBoxSheet + keoCoNguyenLieu) để hai bảng không lệch nhau. */
+        if (!g && !keoCoNguyenLieu(rules, o.maDon, ctx.material)) g = PS(o.ghiChuKeo) || '';
         them(g);
       }
     }
@@ -1292,7 +1331,7 @@
       if (g.lengths.indexOf(r.length) < 0) g.lengths.push(r.length);   // các dải đã gộp (để tra nguồn)
       g.curls[r.curl] = (g.curls[r.curl] || 0) + r.sl; g.tong += r.sl; c.total += r.sl;
       // KEO TRA THEO TỪNG DÒNG data1 (material + độ dày + mm CỦA CHÍNH DÒNG) — không qua meta gộp
-      var k1 = '', k2 = '', ambRow = false;
+      var k1 = '', k2 = '', ambRow = false, donRow = false;
       if (keoMalformed[r.maDon]) {
         // BẢNG KEO SAI CẤU TRÚC → TUYỆT ĐỐI KHÔNG điền keo (kể cả fallback), chờ user sửa
         k1 = ''; k2 = '';
@@ -1311,16 +1350,24 @@
              dòng đó, đánh dấu để bước 5 tô ô "Keo nhiệt" cho user soi lại (21/8). */
           if (_tr.tranh) { k1 = r.ghiChuKeo || ''; if (!_kCurl) k2 = k1; ambRow = true; }
         }
-        /* CHỈ mượn cột "Keo Nhiệt" của khách khi đơn đó KHÔNG CÓ Bảng Keo nào dùng được.
-           Đơn CÓ Bảng Keo mà tra không ra thì phải ĐỂ TRỐNG — trước đây lặng lẽ lấy keo trong
-           cột của khách, nên xoá một dòng trong Bảng Keo vẫn thấy có keo (mà là keo lạ, không
-           hề có trong bảng), tưởng app tính đúng. Trống mới thấy ngay là bảng còn thiếu. */
-        if (!k1 && !keoHasRules[r.maDon]) k1 = r.ghiChuKeo || '';
+        /* ===== CỘT "KEO" TRÊN CHÍNH DÒNG ĐƠN (user chốt 18/9) =====
+           Mẫu 2026 có cột "Keo" ngay trong bảng đơn — khách fix keo cho ĐÚNG dòng đó, cụ thể
+           hơn Bảng Keo (Bảng Keo chỉ khai theo nguyên liệu + độ dày).
+           Trước đây đơn CÓ Bảng Keo mà tra không ra thì để TRỐNG, để thấy Bảng Keo còn thiếu.
+           Nhưng đơn C213-813P: Bảng Keo chỉ khai 4 dòng "Faux Mink…", còn 28.MK.DB.85 (LEGNO)
+           · 111.SKS.Caramel.10 (CARAMELLO) · 143.SKS.Cafe.10 (CAFFE) không có dòng nào khớp —
+           mất sạch keo dù cột Keo của từng dòng ghi rõ XanhLX70.2 ⇒ 640 dây "chưa gán keo".
+           Nay: tra không ra thì LẤY keo khách ghi trên dòng, và TÔ CẢNH BÁO (keoDon) để xưởng
+           vẫn nhìn ra ngay là keo này đến từ dòng đơn chứ không phải từ Bảng Keo. */
+        if (!k1 && !keoCoNguyenLieu(keoRules, r.maDon, r.material || r.detail || '')) {
+          k1 = r.ghiChuKeo || ''; if (k1) donRow = true;
+        }
         if (!k2) k2 = k1;
       }
       if (k1) g.keoSet[k1] = 1;
       if (k2) g.keo2mmSet[k2] = 1;
       if (ambRow) g.keoAmb = true;   // ô "Keo nhiệt" ở bước 5 tô cảnh báo để dễ soi lại
+      if (donRow) g.keoDon = true;   // keo lấy từ cột Keo của dòng đơn (Bảng Keo chưa có dòng khớp)
     });
     var rows = [], grand = 0, stt = 0, grandCurls = {};
     CURLS.forEach(function (k) { grandCurls[k] = 0; });
@@ -1360,7 +1407,7 @@
         var base = { maDon: c.maDon, codeSoi: codeHien, xuongTH: !!c.xuongTH, xuongMa: c.xuongMa || '', length: g.length,
                      lengths: (g.lengths && g.lengths.length ? g.lengths.slice().sort() : [g.length]),
                      mm: g.mm, box: m.box || '—', mixSingle: g.mixSingle || m.mixSingle || 'Mix',
-                     material: g.material || m.material || '', thickness: g.thickness || m.thickness || '', multiMat: multiMat, cmix: !!g.cmix, keoAmb: !!g.keoAmb, hlLech: g.hlLech || null };
+                     material: g.material || m.material || '', thickness: g.thickness || m.thickness || '', multiMat: multiMat, cmix: !!g.cmix, keoAmb: !!g.keoAmb, keoDon: !!g.keoDon, hlLech: g.hlLech || null };
         // Nếu có độ cong đặc biệt và keo 2mm KHÁC keo chuẩn → TÁCH 2 dòng, mỗi dòng 1 keo đúng
         if (hasOvr && keo2mm && keo2mm !== keo) {
           if (normTot > 0) rows.push(Object.assign({ type: 'row', stt: ++stt, curls: normC, tong: normTot, keo: keo, keo2mm: keo2mm }, base));
@@ -2784,7 +2831,7 @@
     buildCuonBox: buildCuonBox, buildCuonBoxSheet: buildCuonBoxSheet, buildSummary: buildSummary,
     runPipeline: runPipeline, runPipelineTheoDon: runPipelineTheoDon,
     parseNhapDonRows: parseNhapDonRows, parseLabelRows: parseLabelRows,
-    parseKeoRows: parseKeoRows, parseWorkbookData: parseWorkbookData,
+    parseKeoRows: parseKeoRows, parseWorkbookData: parseWorkbookData, keoCoNguyenLieu: keoCoNguyenLieu,
     parseGuiXuongSheet: parseGuiXuongSheet, parseMixColorAOA: parseMixColorAOA,
     parseMixLengthBlocks: parseMixLengthBlocks, khoiMauNgang: khoiMauNgang,
     sinhKeoTuDonHang: sinhKeoTuDonHang,
