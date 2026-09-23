@@ -567,6 +567,15 @@
        chẳng khớp nguyên liệu nào. Đổi xuống dòng thành dấu ';' để tách như dấu phẩy. */
     var s = ' ' + PS(String(text == null ? '' : text).replace(/\r?\n+/g, ' ; ')) + ' ';
     var lo = null, hi = null, spec = 0, m, dsMm = null;
+    /* "0.05mm" LÀ ĐỘ DÀY, KHÔNG PHẢI ĐỘ DÀI (user báo 23/9 — đơn CS594-793P).
+       Mẫu 2026 lấy cột "Ghi chú (Xưởng SX)" của Bảng Hộp làm Loại Sợi, khách ghi
+       "Premium Matte 0.05mm". Nhánh "đúng N mm" bên dưới vớ luôn "05mm" ⇒ quy tắc keo
+       thành "chỉ dùng cho độ dài 5mm", mà đơn chỉ có 6→13mm ⇒ KHÔNG dòng nào khớp:
+       Bảng Line Cuốn và cột Keo Nhiệt ở Tổng hợp Box trống trơn (đơn 806P ghi
+       "Premium Matte 0.07" không có chữ mm nên không dính).
+       Độ dài mi luôn là số NGUYÊN (4–25mm); số bắt đầu bằng "0," / "0." là độ dày.
+       Chỉ gỡ chữ "mm" — con số vẫn ở lại để được gom vào thickRaw như thường. */
+    s = s.replace(/0\s*[.,]\s*\d+\s*mm\b/gi, function (x) { return x.replace(/\s*mm\b/i, ' '); });
     /* "N mm TRỞ LÊN / TRỞ XUỐNG / TRỞ ĐI" — phải bóc TRƯỚC mấy nhánh dưới. Đơn K54-754P ghi
        "cho độ dài từ 7mm trở lên": nhánh "từ N" cũ lấy đúng lo=7 nhưng để LẠI chữ "trở lên",
        chữ đó rơi xuống phần tách nguyên liệu → quy tắc đòi nguyên liệu chứa "trở lên" nên
@@ -2420,7 +2429,18 @@
         detail: PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''),
         xuongMa: colTH26 >= 0 ? (maXuongCuaO(row[colTH26]) || '') : '',
         xuongTH: colTH26 >= 0 && LA_TH.test(PS(row[colTH26])),
-        _kw: (function () { var k = {}; if (laLaser26(row)) k.LZ = 1; return k; })(),
+        /* ===== KÝ HIỆU HÀNG ĐẶC BIỆT Ở MẪU 2026 (user chốt 23/9) =====
+           Trước đây mẫu 2026 CHỈ dò chữ Laser (cột "Laser?"), nên hàng Easy Fan · DU không
+           bao giờ được gắn ký hiệu: đơn CS340-806P có dòng "11.2_16 · 16Lines . 1S Easy Fan"
+           mà code sợi 229.SPK2S.7 vẫn trơn, không có đuôi. Mẫu CŨ thì đã dò đủ từ lâu
+           (xem SPECIAL_SYM ở parseGuiXuongSheet) — nay dùng CHUNG một bộ để hai bên khớp nhau.
+           Cột "Laser?" vẫn được cộng thêm vì mẫu 2026 khai laser ở cột riêng, không phải trong chữ. */
+        _kw: (function () {
+          var k = {}, txt = row.map(PS).join(' ¦ ');
+          SPECIAL_SYM.forEach(function (p) { if (khopKyHieu(p[1], txt)) k[p[0]] = 1; });
+          if (laLaser26(row)) k.LZ = 1;
+          return k;
+        })(),
         length: length, mixSingle: isMix ? 'Mix' : 'Single', curls: curls,
         line: PN(soLineRaw.replace(/lines?/i, '').trim()), lineRaw: soLineRaw,
         /* PHÂN LOẠI suy từ CỘT "SỐ LINE" của Bảng Hộp (chốt 20/08/2026) — trước lấy ở bảng
@@ -2501,7 +2521,22 @@
       var rows2 = [], tong = 0, mauByNo = {}, mauOrd = {}, keoByNo = {};
       for (var r3 = mr + 1; r3 < aoa.length; r3++) {
         var rw4 = aoa[r3] || [], n4 = num(rw4[cNo]);
-        if (n4 == null || n4 <= 0) { if (rows2.length) break; else continue; }
+        /* DÒNG TRỐNG XEN GIỮA BẢNG — không được dừng vội. Đơn C213-813P chèn 1 dòng trắng
+           ngay sau No.34 rồi chạy tiếp No.44 → No.53; break ngay ở dòng trắng làm mất 41
+           dòng cuối ⇒ LEGNO 0.07 · CARAMELLO 0.07 · CAFFE 0.07 không có mặt trong bảng dải
+           line ⇒ Bảng Keo phải mượn Bảng Hộp rồi báo oan "Keo ở bảng hộp và bảng line khác
+           nhau". Chỉ dừng thật khi trong 5 dòng kế KHÔNG còn dòng nào vừa đánh số vừa có mm
+           (hết bảng), nên vẫn không vơ nhầm bảng khác nằm phía dưới. */
+        if (n4 == null || n4 <= 0) {
+          if (!rows2.length) continue;
+          var conTiep = false;
+          for (var rl2 = r3 + 1; rl2 < Math.min(aoa.length, r3 + 6); rl2++) {
+            var rwl2 = aoa[rl2] || [], nl2 = num(rwl2[cNo]);
+            if (nl2 != null && nl2 > 0 && PS(rwl2[cMM])) { conTiep = true; break; }
+          }
+          if (!conTiep) break;
+          continue;
+        }
         var cs = {};
         CURLS.forEach(function (k) { var ci2 = mCurl[k]; if (ci2 >= 0) { var q3 = PN(rw4[ci2]); if (q3) cs[k] = q3; } });
         var _nl = cNL >= 0 ? PS(rw4[cNL]) : '';
