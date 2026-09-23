@@ -361,11 +361,6 @@ td.dc-ten{font-weight:800;text-align:center;vertical-align:middle;white-space:no
 tr.keo-amb > td{ background:#FFEEF2!important; }
 tr.keo-amb > td:first-child{ box-shadow:inset 3px 0 0 var(--red-600); }
 td.keo-amb-keo{ background:#FFEEF2; color:var(--red-700); font-weight:700; }
-/* File đã đọc bằng BẢN CŨ của app — nhắc kéo lại file để áp bộ đọc mới (chốt 23/9). */
-#doc-build-warn:empty{display:none}
-#doc-build-warn{background:#FFF6D5;border:1px solid var(--amber-500);border-radius:8px;
-  padding:7px 9px;margin:0 0 6px;font-size:11.5px;line-height:1.5;color:#8A5A00}
-#doc-build-warn b{color:#6B4500}
 /* Dòng Bảng Keo ĐÃ XÁC NHẬN ĐÃ KIỂM (nút ✓ Đã kiểm ở bước 4): hết đỏ/vàng, còn vạch xanh mép
    trái để vẫn nhận ra là dòng từng cần kiểm — bấm "↺ Hiện lại" là trả về như cũ. */
 tr.keo-ok > td{ background:var(--green-50)!important; }
@@ -669,7 +664,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709460000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709470000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -748,7 +743,6 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
         <div class="fcol">
           <div class="fcol-head">✅ File đã nhập <span class="chip" id="imported-count">0</span><span class="mini" style="margin-left:6px;color:var(--text-3)">đã xử lý</span></div>
           <input class="fcol-filter" id="imported-madon" list="dl-madon" placeholder="Lọc theo mã đơn hoặc tên file…" autocomplete="off">
-          <div id="doc-build-warn"></div>
           <ul class="file-list" id="file-list-imported"><li><span class="mini">Chưa có file đã xử lý.</span></li></ul>
         </div>
       </div>
@@ -1161,7 +1155,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1709460000"></script>
+<script src="engine.web.js?v=1709470000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -3653,7 +3647,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             var curlWarn = (meta && meta.curlWarnings && meta.curlWarnings.length) ? meta.curlWarnings : null;
             // _new = vừa nạp, CHƯA báo cáo lần nào → popup "Xử lý xong" chỉ nói về mấy file này
             /* docBuild = số build của app LÚC ĐỌC file này. Bộ đọc sửa về sau mà file chưa
-               kéo lại thì số liệu vẫn là của bản cũ — xem veCanhBaoBuild(). */
+               kéo lại thì số liệu vẫn là của bản cũ (app KHÔNG mở lại file Excel khi bấm
+               "▶ Xử lý") — giữ con số để tra khi cần, không hiện nhắc trên màn hình. */
             state.files.push({name:f.name, data:data, stats:s1.stats, kind:kind, meta:meta, maDons:Object.keys(mas), curlWarn:curlWarn, docBuild:buildHienTai(), _new:true, addedAt:Date.now()});
             try{ hutAnhTuFile(ev.target.result, Object.keys(mas)); }catch(e){ logErr('hutAnhTuFile', e); }   // ảnh trong file → bước 6
             logLine('Đã đọc '+f.name+' ['+kind+']: '+s1.stats.total+' đơn · '+s1.stats.errorCells+' ô lỗi · '+s1.stats.warnCells+' cảnh báo'
@@ -3697,31 +3692,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       (note?'<div style="flex-basis:100%;padding-left:32px">'+note+'</div>':'')+
       '</li>';
   }
-  /* ===== FILE ĐỌC BẰNG BẢN CŨ THÌ PHẢI NHẮC (user chốt 23/9) =====
-     Kết quả đọc file (Bảng Keo · Bảng Độ Cong · Bảng Hộp · ghi chú…) được lưu THẲNG vào
-     project, và bấm "▶ Xử lý" chỉ dựng lại từ kết quả ĐÃ ĐỌC — app KHÔNG mở lại file Excel.
-     Nên mỗi lần bộ đọc được sửa, đơn cũ vẫn hiện y số liệu cũ: đơn 813P vẫn báo "Keo ở bảng
-     hộp và bảng line khác nhau", đơn 269S vẫn lấy nhầm ghi chú độ cong — dù bản mới đã sửa
-     xong. Mất công soi lại nhiều lần mà không phải lỗi tính toán.
-     Nay mỗi file mang theo số build lúc đọc; mở ra thấy lệch build là app nhắc ngay. */
+  /* Số build lúc ĐỌC file — ghi kèm mỗi file để còn biết kết quả đang hiện đọc bằng bản nào.
+     (Dải nhắc màu vàng ở bước 1 đã BỎ theo yêu cầu 23/9 — chỉ giữ lại con số.) */
   function buildHienTai(){
     var el=document.getElementById('build-tag');
     return el ? String(el.textContent||'').trim() : '';
   }
-  function veCanhBaoBuild(){
-    var box=document.getElementById('doc-build-warn'); if(!box) return;
-    var nay=buildHienTai();
-    var cu=(state.files||[]).filter(function(F){ return F && F.data && F.docBuild && F.docBuild!==nay; });
-    var chuaRo=(state.files||[]).filter(function(F){ return F && F.data && !F.docBuild; });
-    var ds=cu.concat(chuaRo);
-    if(!ds.length){ box.innerHTML=''; return; }
-    var ten=ds.slice(0,6).map(function(F){ return esc(F.name); }).join(' · ');
-    box.innerHTML='⚠ <b>'+ds.length+' file đọc bằng bản cũ của app.</b> Số liệu đang hiện là kết quả '+
-      'đọc lúc đó — bấm "▶ Xử lý" KHÔNG đọc lại file. Muốn áp bộ đọc mới thì <b>kéo lại file</b> '+
-      'vào ô bên trái rồi Xử lý.<br><span class="mini">'+ten+(ds.length>6?(' … +'+(ds.length-6)+' file'):'')+'</span>';
-  }
   function renderFiles(){
-    try{ veCanhBaoBuild(); }catch(e){ logErr('veCanhBaoBuild', e); }
     setTxt('file-count', state.files.length);
     setTxt('kpi-files', state.files.length);
     var chosenUl=document.getElementById('file-list-chosen');
@@ -10749,14 +10726,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1709460000"></script>
-<script src="cl.sync.js?v=1709460000"></script>
-<script src="auth.store.js?v=1709460000"></script>
-<script src="auth.web.js?v=1709460000"></script>
+<script src="cl.config.js?v=1709470000"></script>
+<script src="cl.sync.js?v=1709470000"></script>
+<script src="auth.store.js?v=1709470000"></script>
+<script src="auth.web.js?v=1709470000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1709460000"></script>
+<script src="cl.project.js?v=1709470000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1709460000" defer></script>
+<script src="firebase-bridge.js?v=1709470000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
