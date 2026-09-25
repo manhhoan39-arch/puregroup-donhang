@@ -665,7 +665,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709780000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709790000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1326,7 +1326,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1709780000"></script>
+<script src="engine.web.js?v=1709790000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -11157,10 +11157,58 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   /* ===== CỘT LOẠI HỘP BỎ DÒNG "Đã chọn|…" (user chốt 25/9) =====
      Nguồn nào cũng kèm dòng máy sinh "Đã chọn|0" / "Đã chọn|3390" — là số tồn của app,
      không phải thông tin loại hộp, để trên bảng chỉ tổ rối mắt. */
+  /* Mã số hộp (1200 · 3390 · 16050…) là số tồn kho, không phải thông tin loại hộp —
+     bỏ đi cho gọn; bỏ xong mà hai vế giống hệt nhau thì gộp làm một (user chốt 25/9).
+     "(Box|Line)" có sẵn dấu | nên phải che lại kẻo cắt nhầm. */
+  function khBoSoHop(l){
+    var che='\u0002';
+    var t=khTxt(l).replace(/\(Box\|Line\)/gi, che);
+    var ph=t.split('|').map(function(x){ return khTxt(x); })
+            .filter(function(x){ return x && !/^[\d.,\s]+$/.test(x); });
+    var ra=[], co={};
+    ph.forEach(function(x){ var k=khKhoa(x); if(co[k]) return; co[k]=1; ra.push(x); });
+    return ra.join(' | ').split(che).join('(Box|Line)');
+  }
   function khChuanHop(m){
     var t=khTxt(m.loaiHop); if(!t) return;
-    m.loaiHop = t.split('\n').filter(function(l){ return !/^\s*đã\s*chọn\s*\|/i.test(l); })
-                 .join('\n').replace(/\n{2,}/g,'\n').trim();
+    var ra=[], co={};
+    t.split('\n').forEach(function(l){
+      if(/^\s*đã\s*chọn\s*\|/i.test(l)) return;          // dòng máy sinh, không phải loại hộp
+      var v=khBoSoHop(l); if(!v) return;
+      var k=khKhoa(v); if(co[k]) return;                    // ghi chú giống nhau → gộp
+      co[k]=1; ra.push(v);
+    });
+    m.loaiHop = ra.join('\n');
+  }
+  /* ===== CỘT NỘI DUNG BỎ TÊN SALE (user chốt 25/9) =====
+     Nguồn hay để tên người phụ trách ở dòng đầu ("Henry Vu", "Camilla Nguyen") — đó là
+     người, không phải thông số hàng. Tên sale lấy từ cột Sale của tờ Check list; kèm sẵn
+     danh sách mặc định để project chưa nạp tờ đó vẫn lọc được. Chỉ bỏ dòng CHỈ CÓ tên,
+     dòng nào có thêm nội dung thì giữ nguyên. */
+  var KH_SALE_MAC_DINH = ['Alex','Amber','Biroo','Camilla','Christine','Coral','Helen','Henry','Jessica'];
+  function khTenSale(){
+    var d=state.khData, co={};
+    KH_SALE_MAC_DINH.forEach(function(x){ co[khKhoa(x)]=1; });
+    if(d && d.kh) (d.thuTu||[]).forEach(function(k){
+      ((d.kh[k]||{}).muc||[]).forEach(function(m){
+        khDong(m.sale).forEach(function(v){ v=khKhoa(v).split(' ')[0]; if(v) co[v]=1; });
+      });
+    });
+    return co;
+  }
+  function khChuanNoiDung(m, ds){
+    var t=khTxt(m.noiDung); if(!t) return;
+    ds = ds || khTenSale();
+    var ra=[];
+    t.split('\n').forEach(function(l){
+      var v=khTxt(l); if(!v) return ra.push(l);
+      /* Tên người: 2–3 chữ, chữ nào cũng viết hoa đầu, không số không dấu câu,
+         và chữ ĐẦU trùng một tên sale đã biết. */
+      var w=v.split(/\s+/);
+      if(w.length>=2 && w.length<=3 && !/[\d.,:;*\-\/|()]/.test(v) && ds[khKhoa(w[0])]) return;
+      ra.push(v);
+    });
+    m.noiDung = ra.join('\n').replace(/\n{3,}/g,'\n\n').trim();
   }
   function khChuanDoCong(m){
     var t=khTxt(m.doCong), ghi=khTxt(m.doCongGhi);
@@ -11194,7 +11242,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     m.don = khTxt(m.don); m.ngay = khNgay(m.ngay);
     khChuanKeo(m);                       // gộp theo mã keo + dồn độ dài trước khi cất
     khChuanDoCong(m);                    // tách tên bảng độ cong khỏi phần ghi chú
-    khChuanHop(m);                       // bỏ dòng "Đã chọn|…" máy sinh ra
+    khChuanHop(m);                       // bỏ dòng "Đã chọn|…", bỏ mã số hộp, gộp ghi chú trùng
+    khChuanNoiDung(m);                   // bỏ dòng chỉ có tên sale
     var id = m.nguon==='checklist' ? 'checklist'
            : m.nguon+'|'+khKhoa(m.don)+'|'+m.ngay;
     if(m.nguon==='file') id += '|'+khBam(KH_COT.map(function(c){ return m[c[0]]; }).join('\u0001')+'\u0001'+m.mail);
@@ -11854,14 +11903,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(xongRoi) xongRoi(bo);
     }).catch(function(e){ khDangQuetAnh=false; logErr('khQuetAnhTrung', e); });
   }
-  var KH_CHUAN_VER = 4;
+  var KH_CHUAN_VER = 5;
   function khChuanLai(){
     var d=state.khData; if(!d || d._chuan===KH_CHUAN_VER) return;
     try{
-      var rung=0;
+      var rung=0, sale=khTenSale();
       (d.thuTu||[]).forEach(function(k){
         var r=d.kh[k]; if(!r) return;
-        (r.muc||[]).forEach(function(m){ khChuanKeo(m); khChuanDoCong(m); khChuanHop(m); });
+        (r.muc||[]).forEach(function(m){ khChuanKeo(m); khChuanDoCong(m); khChuanHop(m); khChuanNoiDung(m, sale); });
         rung += khTiaMuc(r);                    // tỉa còn 5 đơn mới nhất, bỏ mã đơn trùng
       });
       d._chuan = KH_CHUAN_VER;
@@ -11887,8 +11936,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         /* Đếm luôn số Mã KH đã có Nhãn hiệu — nhìn là biết tờ Check list đã nạp chưa,
            chứ nhìn cột trống thì không phân biệt được "chưa nạp" với "file không có mã đó". */
         st.innerHTML='<b>'+d.thuTu.length+' Mã KH</b> · '+soMuc+' dòng · '+soAnh+' ảnh · '+
-          soNhan+'/'+d.thuTu.length+' có nhãn hiệu'+
-          (soNhan ? '' : ' <span class="mini" style="color:var(--text-3)">(nạp “Check list KH” để lấy)</span>');
+          soNhan+'/'+d.thuTu.length+' có nhãn hiệu';
       }
     }
     if(!ds.length){
@@ -12642,14 +12690,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1709780000"></script>
-<script src="cl.sync.js?v=1709780000"></script>
-<script src="auth.store.js?v=1709780000"></script>
-<script src="auth.web.js?v=1709780000"></script>
+<script src="cl.config.js?v=1709790000"></script>
+<script src="cl.sync.js?v=1709790000"></script>
+<script src="auth.store.js?v=1709790000"></script>
+<script src="auth.web.js?v=1709790000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1709780000"></script>
+<script src="cl.project.js?v=1709790000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1709780000" defer></script>
+<script src="firebase-bridge.js?v=1709790000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
