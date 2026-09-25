@@ -665,7 +665,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709710000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709780000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1075,6 +1075,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
         <input class="fcol-filter" id="kh-filter-don" placeholder="Tìm mã đơn…"
                autocomplete="off" style="max-width:170px">
       </div>
+      <div id="kh-bao" style="display:none"></div>
       <div style="max-height:70vh;overflow:auto">
         <table class="sheet" id="eng-khdata"></table>
       </div>
@@ -1233,6 +1234,16 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 #eng-khdata td.kh-so{text-align:right}
 #eng-khdata td.kh-brand{font-weight:700}
 /* Hai nút lọc theo LOẠI ĐƠN — bật lên thì tô màu cho biết đang lọc. */
+/* Thông báo nạp file — file Check list tới 50MB, đọc cả phút, không báo gì thì
+   tưởng app treo (user chốt 25/9). */
+#kh-bao{margin:0 0 8px;padding:7px 11px;border-radius:9px;font-size:12.5px;font-weight:600;
+  border:1px solid var(--line);display:flex;align-items:center;gap:8px}
+#kh-bao.dang{background:#FBEE93;color:#4A3B00;border-color:#E0CE5A}
+#kh-bao.xong{background:#BCE9A4;color:#173D06;border-color:#8FCF6B}
+#kh-bao.hong{background:#FBC9C9;color:#5A0E0E;border-color:#EE9A9A}
+#kh-bao .xoay{display:inline-block;width:13px;height:13px;border:2px solid currentColor;
+  border-right-color:transparent;border-radius:50%;animation:khxoay .7s linear infinite}
+@keyframes khxoay{to{transform:rotate(360deg)}}
 .kh-loai{display:flex;gap:6px}
 .kh-loai .btn.bat{background:var(--accent);border-color:var(--accent);color:#fff}
 /* Ô SỬA ĐƯỢC (chỉ super admin): viền mờ cho biết gõ được, bấm vào thì rõ hẳn */
@@ -1270,6 +1281,10 @@ table.kh-tk th.kh-so,table.kh-tk td.kh-so{text-align:right}
 #eng-khdata tbody tr{cursor:pointer}
 #eng-khdata tbody tr:hover td{background:var(--bg-2)}
 .kh-cell{max-height:92px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+/* Khối keo cuộn chung: viền trái mờ cho thấy ba cột là MỘT khối, không phải ba ô rời. */
+#eng-khdata td.kh-keo3{position:relative}
+#eng-khdata td.kh-keo3 + td.kh-keo3{border-left:1px dotted rgba(0,0,0,.12)}
+#eng-khdata tr:hover td.kh-keo3{background:var(--bg-2)}
 /* Ba cột keo: mỗi dòng phải nằm TRỌN một dòng, tự ngắt là lệch ngay với cột bên cạnh. */
 #eng-khdata td.kh-keo .kh-cell,#eng-khdata td.kh-so .kh-cell{white-space:pre;word-break:normal}
 .kh-cell:empty::after{content:'—';color:var(--text-3)}
@@ -1311,7 +1326,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1709710000"></script>
+<script src="engine.web.js?v=1709780000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -10869,6 +10884,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   var KH_COT_SO = { doDay:1 };
   /* Hai cột keo còn lại cũng phải giữ mỗi mục một dòng cho thẳng hàng với Độ dày. */
   var KH_COT_KEO = { keo:1, doDai:1 };
+  /* CẢ BA cột keo đi liền một khối: cuộn cột nào thì hai cột kia cuộn theo. */
+  var KH_COT_KEO3 = { doDay:1, keo:1, doDai:1 };
   /* Brand gắn theo KHÁCH (một khách một brand), không theo từng đơn. */
   var KH_COT_KH = { maKH:1, brand:1 };
   /* Các trường đem ra SO SÁNH giữa những đơn của cùng một khách (bỏ Sale/Khách/Mã KH/ngày).
@@ -11406,12 +11423,19 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       state.khData.file = ten; state.khData.napLuc = Date.now();
       logLine('🗂 Nạp Check list KH từ '+ten+': '+kq.kh+' Mã KH');
       renderKH();
+      khBao('dang', 'Đã đọc xong bảng — đang lấy ảnh trong '+ten+'…');
       /* Ảnh cột "Hình ảnh" neo vào dòng nào thì thuộc khối khách chứa dòng đó */
       var chuKhoi={}; kq.khoi.forEach(function(k){ k.dong.forEach(function(r){ chuKhoi[r]=k.ma; }); });
       khHutAnh(ab, 'Data', function(dong){
         var ma=chuKhoi[dong]; return ma ? khLay(ma) : null;
-      }, function(n){ if(n) logLine('🖼 Check list KH: đọc '+n+' ảnh'); renderKH(); khLuuNgam(); })
-        .catch(function(e){ logErr('khNapAnh.checklist', e); });
+      }, function(n){
+        if(n) logLine('🖼 Check list KH: đọc '+n+' ảnh');
+        renderKH(); khLuuNgam();
+        khBao('xong', 'Nạp xong "'+ten+'" — '+kq.kh+' Mã KH · '+khDemAnh()+' ảnh', 8);
+      }).catch(function(e){
+        logErr('khNapAnh.checklist', e);
+        khBao('xong', 'Nạp xong "'+ten+'" — '+kq.kh+' Mã KH (không đọc được ảnh)', 8);
+      });
       return;
     }
     if(!pickSheet(wb,'Tổng hợp theo KH') && !pickSheet(wb,'Chi tiết theo đơn')){
@@ -11419,18 +11443,49 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             '· "Check list KH.xlsx" — sheet Data, cột Sale | Khách hàng | Mã KH | Độ dày | Keo…\n' +
             '· File tổng hợp từ Gmail — sheet "Tổng hợp theo KH" + "Chi tiết theo đơn".\n\n' +
             'Sheet đang có trong file: '+wb.SheetNames.join(', '));
+      khBao('hong', 'Chưa nhận ra file "'+ten+'" — bước 7 chỉ nhận Check list KH hoặc file tổng hợp Gmail.', 10);
       return;
     }
     var d = khDocGmail(wb);
     state.khData.file = ten; state.khData.napLuc = Date.now();
     logLine('🗂 Nạp dữ liệu khách hàng từ '+ten+': '+d.kh+' Mã KH · '+d.don+' đơn');
     renderKH();
+    var xongGm=function(them){
+      khBao('xong', 'Nạp xong "'+ten+'" — '+d.kh+' Mã KH · '+d.don+' đơn'+(them||''), 8);
+    };
     var bang = khBangAnhGmail(wb);
-    if(!bang){ khLuuNgam(); return; }
+    if(!bang){ khLuuNgam(); xongGm(''); return; }
+    khBao('dang', 'Đã đọc xong bảng — đang lấy ảnh trong '+ten+'…');
     khHutAnh(ab, 'Hình ảnh', function(dong){
       var ten2=khTxt((bang.A[dong]||[])[bang.cMa]); return ten2 ? khLay(ten2) : null;
-    }, function(n){ if(n) logLine('🖼 Dữ liệu khách hàng: đọc '+n+' ảnh'); renderKH(); khLuuNgam(); })
-      .catch(function(e){ logErr('khNapAnh.gmail', e); });
+    }, function(n){
+      if(n) logLine('🖼 Dữ liệu khách hàng: đọc '+n+' ảnh');
+      renderKH(); khLuuNgam(); xongGm(' · '+khDemAnh()+' ảnh');
+    }).catch(function(e){ logErr('khNapAnh.gmail', e); xongGm(' (không đọc được ảnh)'); });
+  }
+  /* ===== BÁO TRẠNG THÁI NẠP FILE (user chốt 25/9) =====
+     kieu: 'dang' (đang đọc, có vòng xoay) · 'xong' · 'hong'. 'xong' tự ẩn sau vài giây,
+     'dang' thì ở lì cho tới khi có kết quả. */
+  var khBaoHen=0;
+  function khBao(kieu, chu, giay){
+    var el=document.getElementById('kh-bao'); if(!el) return;
+    if(khBaoHen){ clearTimeout(khBaoHen); khBaoHen=0; }
+    if(!kieu){ el.style.display='none'; el.innerHTML=''; return; }
+    el.className=kieu;
+    el.innerHTML=(kieu==='dang'?'<span class="xoay"></span>':(kieu==='xong'?'✅ ':'⚠ '))+'<span>'+esc(chu)+'</span>';
+    el.style.display='';
+    if(giay) khBaoHen=setTimeout(function(){ el.style.display='none'; el.innerHTML=''; khBaoHen=0; }, giay*1000);
+  }
+  function khDemAnh(){
+    var d=state.khData; if(!d) return 0;
+    var co={}, n=0;
+    (d.thuTu||[]).forEach(function(k){
+      khMoiAnh(d.kh[k]||{}).forEach(function(x){
+        var im=(state.imgStore||{})[x]; if(!im) return;
+        var v=im.ah||x; if(co[v]) return; co[v]=1; n++;
+      });
+    });
+    return n;
   }
   function khLuuNgam(){ try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('kh.autosave', e); } }
 
@@ -11658,7 +11713,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var f=c[0], sua=khSuaDuoc();
     /* Ô sửa được mang sẵn khóa: dòng nào (data-khk) · mục thứ mấy (data-khi) · trường nào. */
     var oSua=function(lop, noiDung){
-      return '<td class="'+lop+(KH_COT_SO[f]?' kh-so':'')+(KH_COT_KEO[f]?' kh-keo':'')+'"'+
+      return '<td class="'+lop+(KH_COT_SO[f]?' kh-so':'')+(KH_COT_KEO[f]?' kh-keo':'')+
+        (KH_COT_KEO3[f]?' kh-keo3':'')+'"'+
         (sua?(' contenteditable="true" data-khf="'+f+'"'):'')+'>'+noiDung+'</td>';
     };
     if(f==='maKH') return '<td class="kh-ma" data-khmo="kh" title="Bấm để so sánh mọi đơn của khách này">'+
@@ -11815,6 +11871,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function renderKH(){
     var tb=document.getElementById('eng-khdata'); if(!tb) return;
     window.__khRender = renderKH;      // go('s11') gọi qua đây (go nằm ngoài khối này)
+    window.__khNap    = khNapFile;     // bộ kiểm thử gọi thẳng, khỏi qua bước chờ vẽ màn hình
     khChuanLai(); khApNhan();
     khQuetAnhTrung(function(bo){ if(bo) renderKH(); });   // quét kho ảnh một lần, xong thì vẽ lại
     var d=state.khData, ds=khDsLoc();
@@ -11831,7 +11888,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
            chứ nhìn cột trống thì không phân biệt được "chưa nạp" với "file không có mã đó". */
         st.innerHTML='<b>'+d.thuTu.length+' Mã KH</b> · '+soMuc+' dòng · '+soAnh+' ảnh · '+
           soNhan+'/'+d.thuTu.length+' có nhãn hiệu'+
-          (soNhan ? '' : ' <span class="mini" style="color:var(--text-3)"></span>');
+          (soNhan ? '' : ' <span class="mini" style="color:var(--text-3)">(nạp “Check list KH” để lấy)</span>');
       }
     }
     if(!ds.length){
@@ -12013,23 +12070,206 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(needXLSX(khTaiXlsx)) return;
     var ds=khDsLoc();
     if(!ds.length) return alert('Chưa có dữ liệu khách hàng để tải.');
-    /* File tải về ghi ĐỦ, kể cả Sale và Khách hàng — hai cột này đã bỏ khỏi màn hình cho gọn
-       nhưng dữ liệu vẫn còn (tờ Check list có), xuất ra Excel thì nên có. */
-    var head=['Sale','Khách hàng','Ngày'].concat(KH_COT.map(function(c){ return c[1]; }));
+    /* File tải về ghi ĐÚNG mấy cột đang thấy trên màn hình, thêm Ngày cho biết đơn mới nhất.
+       Sale và Khách hàng đã bỏ khỏi bảng từ 23/9 nên file cũng không kèm nữa (user chốt 25/9) —
+       Nhãn hiệu chính là tên khách rồi, để thêm hai cột trống chỉ tổ rối. */
+    var head=KH_COT.map(function(c){ return c[1]; }).concat(['Ngày']);
+    /* Ảnh nằm NGAY TRONG file, từ cột kế tiếp trở đi — mỗi Mã KH một dòng, ảnh xếp ngang. */
+    var cot0=head.length, dat=[], soAnh=0, soKH=0, boBot=0, nhieuNhat=0;
     var rows=[head];
-    ds.forEach(function(x){
-      rows.push([khTxt(x.m.sale), khTxt(x.m.khach), khTxt(x.m.ngay)].concat(KH_COT.map(function(c){
+    ds.forEach(function(x, i){
+      rows.push(KH_COT.map(function(c){
         if(c[0]==='maKH')  return x.r.maKH;
         if(c[0]==='brand') return khTxt(x.r.brand);
-        if(c[0]==='anh')   return (x.m.anh||[]).length;
         return khTxt(x.m[c[0]]);
-      })));
+      }).concat([khTxt(x.m.ngay)]));
+      /* Lọc trùng theo vân tay — một tấm chỉ vào file một lần dù nhiều đơn cùng đính. */
+      var co={}, ks=[];
+      khMoiAnh(x.r).forEach(function(k){
+        var im=(state.imgStore||{})[k]; if(!im) return;
+        var v=im.ah || k; if(co[v]) return; co[v]=1; ks.push(k);
+      });
+      if(!ks.length) return;
+      soKH++;
+      if(ks.length>KH_ANH_MOI_KH) boBot += ks.length-KH_ANH_MOI_KH;
+      var lay=ks.slice(0, KH_ANH_MOI_KH), anh=[];
+      lay.forEach(function(k, j){
+        var im=state.imgStore[k], u=khDataURLBytes(im.d); if(!u) return;
+        anh.push({ bytes:u, w:im.w||KH_ANH_W, h:im.h||KH_ANH_H, c:cot0+j });
+        soAnh++;
+      });
+      nhieuNhat=Math.max(nhieuNhat, anh.length);
+      dat.push({ r:i+1, anh:anh });          // +1 vì dòng 0 là tiêu đề
     });
+    var ws=XLSX.utils.aoa_to_sheet(rows);
+    /* Ô nhiều dòng phải cao đủ chỗ, không thì Excel dồn hết vào một dòng, đọc không ra
+       (user chốt 25/9). Đếm dòng nhiều nhất trong hàng rồi lấy chiều cao theo đó, nhưng
+       không thấp hơn ô ảnh. */
+    ws['!rows']=rows.map(function(r, i){
+      if(i===0) return { hpx:24 };
+      var nd=1;
+      r.forEach(function(v){ nd=Math.max(nd, String(v==null?'':v).split('\n').length); });
+      return { hpx: Math.min(560, Math.max(KH_ANH_H+8, nd*15+8)) };
+    });
+    var cols=head.map(function(h){ return { wch: h==='Nội dung' ? 46 : (h==='Loại hộp' ? 26 : 16) }; });
+    for(var q=0;q<nhieuNhat;q++) cols.push({ wpx: KH_ANH_W+8 });
+    ws['!cols']=cols;
+    /* Mở rộng vùng dữ liệu để Excel chừa chỗ cho mấy cột ảnh. */
+    try{
+      var rg=XLSX.utils.decode_range(ws['!ref']);
+      rg.e.c=Math.max(rg.e.c, cot0+Math.max(0,nhieuNhat-1));
+      ws['!ref']=XLSX.utils.encode_range(rg);
+    }catch(e){ logErr('khTaiXlsx.ref', e); }
     var wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Data');
+    XLSX.utils.book_append_sheet(wb, ws, 'Data');
     var ten=tenXuat('DuLieuKhachHang.xlsx');
-    XLSX.writeFile(wb, ten);
-    logLine('Đã tải '+ten+' ('+ds.length+' dòng)');
+    /* compression:false → mọi phần trong gói ở dạng STORE, mở ra nhét ảnh vào rồi đóng lại được. */
+    var ab=XLSX.write(wb, { bookType:'xlsx', type:'array', compression:false });
+    var xong=function(blob, ghi){
+      var a=document.createElement('a');
+      a.href=URL.createObjectURL(blob); a.download=ten;
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ try{ URL.revokeObjectURL(a.href); a.remove(); }catch(e){ logErr('khTaiXlsx.don', e); } }, 4000);
+      logLine('Đã tải '+ten+' ('+ds.length+' dòng'+ghi+')');
+    };
+    /* Kể cả khi không có ảnh vẫn phải đi qua khNhungAnh: nó còn bật xuống dòng trong ô. */
+    khNhungAnh(ab, dat).then(function(blob){
+      if(!blob) return xong(new Blob([ab],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), '');
+      xong(blob, ' · '+soAnh+' ảnh của '+soKH+' Mã KH'+
+        (boBot?(' · bỏ bớt '+boBot+' ảnh, mỗi Mã KH nhúng tối đa '+KH_ANH_MOI_KH):''));
+    }).catch(function(e){
+      logErr('khNhungAnh', e);
+      xong(new Blob([ab],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), ' · KHÔNG nhúng được ảnh');
+    });
+  }
+  /* ===== XUẤT ẢNH THEO MÃ KH (user chốt 25/9) =====
+     Excel (SheetJS bản cộng đồng) KHÔNG nhúng được ảnh, nên ảnh đi ra bằng file .zip:
+     mỗi Mã KH một thư mục, trong đó là ảnh của khách đó. Zip dựng tay theo kiểu STORE
+     (không nén) — ảnh vốn đã là JPEG nén rồi, nén nữa chẳng lợi mà phải kéo thêm thư viện. */
+  var KH_CRC = (function(){
+    var t=new Uint32Array(256);
+    for(var n=0;n<256;n++){ var c=n; for(var k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0; }
+    return t;
+  })();
+  function khCrc32(u8){
+    var c=0xFFFFFFFF;
+    for(var i=0;i<u8.length;i++) c=KH_CRC[(c^u8[i])&0xFF]^(c>>>8);
+    return (c^0xFFFFFFFF)>>>0;
+  }
+  function khZip(files){
+    var enc=new TextEncoder(), phan=[], tt=[], off=0;
+    var u16=function(v){ return [v&255,(v>>8)&255]; };
+    var u32=function(v){ return [v&255,(v>>8)&255,(v>>16)&255,(v>>>24)&255]; };
+    files.forEach(function(f){
+      var ten=enc.encode(f.ten), crc=khCrc32(f.bytes), n=f.bytes.length;
+      var lh=[].concat(u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(0), u16(0),
+                       u32(crc), u32(n), u32(n), u16(ten.length), u16(0));
+      phan.push(new Uint8Array(lh), ten, f.bytes);
+      tt.push({ ten:ten, crc:crc, n:n, off:off });
+      off += lh.length + ten.length + n;
+    });
+    var tam=off;
+    tt.forEach(function(e){
+      var ch=[].concat(u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0),
+                       u32(e.crc), u32(e.n), u32(e.n), u16(e.ten.length), u16(0), u16(0),
+                       u16(0), u16(0), u32(0), u32(e.off));
+      phan.push(new Uint8Array(ch), e.ten);
+      off += ch.length + e.ten.length;
+    });
+    var eo=[].concat(u32(0x06054b50), u16(0), u16(0), u16(tt.length), u16(tt.length),
+                     u32(off-tam), u32(tam), u16(0));
+    phan.push(new Uint8Array(eo));
+    return new Blob(phan, { type:'application/zip' });
+  }
+  function khDataURLBytes(d){
+    var i=String(d||'').indexOf(','); if(i<0) return null;
+    var b=atob(d.slice(i+1)), u=new Uint8Array(b.length);
+    for(var j=0;j<b.length;j++) u[j]=b.charCodeAt(j);
+    return u;
+  }
+  /* ===== NHÚNG ẢNH THẲNG VÀO FILE .XLSX (user chốt 25/9) =====
+     SheetJS bản cộng đồng không ghi được ảnh, nên làm thủ công: .xlsx vốn LÀ một file zip,
+     cứ mở ra, nhét thêm ảnh + tờ khai "drawing" rồi đóng lại là Excel mở lên thấy ảnh
+     nằm đúng dòng của Mã KH. Khỏi phải tách thành hai file. */
+  var KH_ANH_MOI_KH = 8;          // mỗi Mã KH nhúng tối đa bấy nhiêu ảnh cho file khỏi nặng
+  var KH_ANH_W = 132, KH_ANH_H = 96;      // cỡ ô ảnh trong Excel (px)
+  var EMU = 9525;                          // 1 px = 9525 EMU
+  function khXmlEsc(v){
+    return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+  }
+  /* Dựng lại gói xlsx: thêm media + drawing, khai báo quan hệ rồi đóng zip lại. */
+  /* Bật XUỐNG DÒNG TRONG Ô cho cả bảng: sửa thẳng ô định dạng gốc (xf số 0) trong
+     styles.xml — mọi ô không khai style riêng đều theo nó, khỏi phải gắn style từng ô.
+     SheetJS bản cộng đồng không ghi được style, nên phải vá ở đây. */
+  function khBatXuongDong(map, td, te){
+    var t='xl/styles.xml', x=map[t] ? td.decode(map[t]) : '';
+    if(!x || x.indexOf('wrapText')>=0) return;
+    var m=x.match(/<cellXfs[^>]*>\s*<xf\b[^>]*?\/>/);
+    if(!m) return;
+    var xf=m[0].slice(m[0].indexOf('<xf'));
+    var moi=xf.replace(/\/>$/, ' applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>');
+    map[t]=te.encode(x.replace(xf, moi));
+  }
+  function khNhungAnh(ab, dat){
+    return zipDocEntries(ab, function(){ return true; }).then(function(ds){
+      var map={}; ds.forEach(function(e){ map[e.ten]=e.bytes; });
+      var td=new TextDecoder(), te=new TextEncoder();
+      var doc=function(t){ return map[t] ? td.decode(map[t]) : ''; };
+      khBatXuongDong(map, td, te);
+      var dat2=dat.filter(function(x){ return x.anh.length; });
+      if(!dat2.length) return khZip(Object.keys(map).map(function(t){ return { ten:t, bytes:map[t] }; }));
+      /* media + rels của drawing */
+      var neo=[], rels=[], sott=0;
+      dat2.forEach(function(x){
+        x.anh.forEach(function(a){
+          sott++;
+          var ten='image'+sott+'.jpeg';
+          map['xl/media/'+ten]=a.bytes;
+          rels.push('<Relationship Id="rIdA'+sott+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/'+ten+'"/>');
+          /* Giữ đúng tỉ lệ ảnh trong khung cho khỏi méo. */
+          var r=Math.min(KH_ANH_W/(a.w||KH_ANH_W), KH_ANH_H/(a.h||KH_ANH_H), 1);
+          var cx=Math.max(1,Math.round((a.w||KH_ANH_W)*r*EMU)), cy=Math.max(1,Math.round((a.h||KH_ANH_H)*r*EMU));
+          neo.push('<xdr:oneCellAnchor><xdr:from><xdr:col>'+a.c+'</xdr:col><xdr:colOff>9525</xdr:colOff>'+
+            '<xdr:row>'+x.r+'</xdr:row><xdr:rowOff>9525</xdr:rowOff></xdr:from>'+
+            '<xdr:ext cx="'+cx+'" cy="'+cy+'"/>'+
+            '<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="'+sott+'" name="'+khXmlEsc('Anh '+sott)+'"/><xdr:cNvPicPr/></xdr:nvPicPr>'+
+            '<xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="rIdA'+sott+'"/>'+
+            '<a:stretch><a:fillRect/></a:stretch></xdr:blipFill>'+
+            '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'+cx+'" cy="'+cy+'"/></a:xfrm>'+
+            '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>');
+        });
+      });
+      if(!sott) return null;
+      map['xl/drawings/drawing1.xml']=te.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+        '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"'+
+        ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'+neo.join('')+'</xdr:wsDr>');
+      map['xl/drawings/_rels/drawing1.xml.rels']=te.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+rels.join('')+'</Relationships>');
+      /* [Content_Types]: khai kiểu jpeg + tờ drawing */
+      var ct=doc('[Content_Types].xml');
+      if(ct.indexOf('Extension="jpeg"')<0)
+        ct=ct.replace('<Types ', '<Types ').replace(/(<Types[^>]*>)/, '$1<Default Extension="jpeg" ContentType="image/jpeg"/>');
+      if(ct.indexOf('drawing1.xml')<0)
+        ct=ct.replace('</Types>', '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>');
+      map['[Content_Types].xml']=te.encode(ct);
+      /* Quan hệ của sheet1 → drawing1 */
+      var rp='xl/worksheets/_rels/sheet1.xml.rels', rx=doc(rp);
+      if(!rx) rx='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
+      if(rx.indexOf('drawings/drawing1.xml')<0)
+        rx=rx.replace('</Relationships>', '<Relationship Id="rIdDraw1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>');
+      map[rp]=te.encode(rx);
+      /* Thẻ <drawing> phải nằm CUỐI worksheet — sai chỗ là Excel báo hỏng file. */
+      var sp='xl/worksheets/sheet1.xml', sx=doc(sp);
+      if(sx && sx.indexOf('<drawing ')<0){
+        sx=sx.replace('</worksheet>', '<drawing r:id="rIdDraw1"/></worksheet>');
+        if(sx.indexOf('xmlns:r=')<0)
+          sx=sx.replace(/(<worksheet[^>]*)>/, '$1 xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">');
+        map[sp]=te.encode(sx);
+      }
+      return khZip(Object.keys(map).map(function(t){ return { ten:t, bytes:map[t] }; }));
+    });
   }
   function khIn(){
     var ds=khDsLoc();
@@ -12106,10 +12346,26 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var dz=document.getElementById('kh-thanh'), fi=document.getElementById('kh-input');
     var doc=function(file){
       if(!file) return;
-      if(!/\.(xlsx|xlsm|xls)$/i.test(file.name)) return alert('Cần file Excel (.xlsx).');
+      if(!/\.(xlsx|xlsm|xls)$/i.test(file.name)){
+        khBao('hong', 'Cần file Excel (.xlsx) — "'+file.name+'" không phải.', 8);
+        return alert('Cần file Excel (.xlsx).');
+      }
+      khBao('dang', 'Đang đọc "'+file.name+'"… file lớn có thể mất một lúc, đừng đóng trang.');
       var rd=new FileReader();
-      rd.onload=function(ev){ try{ khNapFile(ev.target.result, file.name); }
-        catch(e){ logErr('khNapFile', e); alert('Không đọc được file: '+(e&&e.message||e)); } };
+      rd.onload=function(ev){
+        var ab=ev.target.result;
+        /* Đọc file khóa luồng chính, nên phải để trình duyệt VẼ XONG dòng "đang đọc" rồi
+           mới bắt đầu — không thì người ta bấm nạp mà màn hình đứng im, tưởng app treo. */
+        requestAnimationFrame(function(){ setTimeout(function(){
+          try{ khNapFile(ab, file.name); }
+          catch(e){
+            logErr('khNapFile', e);
+            khBao('hong', 'Không đọc được "'+file.name+'": '+(e&&e.message||e), 12);
+            alert('Không đọc được file: '+(e&&e.message||e));
+          }
+        }, 30); });
+      };
+      rd.onerror=function(){ khBao('hong', 'Không mở được "'+file.name+'".', 10); };
       rd.readAsArrayBuffer(file);
     };
     document.getElementById('kh-choose').addEventListener('click', function(){ fi.click(); });
@@ -12160,6 +12416,41 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         renderKHDon(tr.getAttribute('data-khk'), +(td.getAttribute('data-khi')||0));
       else renderKHTiet(tr.getAttribute('data-khk'));
     });
+    /* ===== BA CỘT KEO CUỘN CÙNG NHAU (user chốt 25/9) =====
+       Độ dày · Mã keo · Độ dài là BA phần của cùng một dòng keo. Mỗi ô cuộn riêng thì
+       kéo một cột là ba cột lệch nhau, đọc ra keo này mà độ dày của keo kia. Kéo ô nào
+       cũng được, hai ô kia đi theo đúng bấy nhiêu.
+       ⚠ Sự kiện 'scroll' KHÔNG nổi bọt lên cha → phải bắt ở pha CAPTURE (tham số true). */
+    var khDangCuonKeo=false;
+    if(tb) tb.addEventListener('scroll', function(e){
+      var o=e.target;
+      if(khDangCuonKeo || !o || !o.classList || !o.classList.contains('kh-cell')) return;
+      var td=o.closest ? o.closest('td.kh-keo3') : null; if(!td) return;
+      var tr=td.closest('tr'); if(!tr) return;
+      khDangCuonKeo=true;
+      try{
+        Array.prototype.forEach.call(tr.querySelectorAll('td.kh-keo3 > .kh-cell'), function(c){
+          if(c!==o && c.scrollTop!==o.scrollTop) c.scrollTop=o.scrollTop;
+        });
+      }catch(err){ logErr('khCuonKeo', err); }
+      khDangCuonKeo=false;
+    }, true);
+    /* Lăn chuột ở ĐÂU trong khối keo cũng cuộn cả ba — khỏi phải nhắm đúng ô có thanh cuộn. */
+    if(tb) tb.addEventListener('wheel', function(e){
+      var td=e.target.closest ? e.target.closest('td.kh-keo3') : null; if(!td) return;
+      var tr=td.closest('tr'); if(!tr) return;
+      var os=tr.querySelectorAll('td.kh-keo3 > .kh-cell'); if(!os.length) return;
+      var cao=0, toi=0;
+      Array.prototype.forEach.call(os, function(c){
+        cao=Math.max(cao, c.scrollHeight); toi=Math.max(toi, c.clientHeight);
+      });
+      if(cao<=toi+1) return;                       // không có gì để cuộn thì để trang cuộn
+      e.preventDefault();
+      var moi=Math.min(cao-toi, Math.max(0, os[0].scrollTop + (e.deltaY>0?40:-40)));
+      khDangCuonKeo=true;
+      Array.prototype.forEach.call(os, function(c){ c.scrollTop=moi; });
+      khDangCuonKeo=false;
+    }, { passive:false });
     /* SỬA Ô (chỉ super admin): gõ xong rời ô là ghi thẳng vào dữ liệu rồi tự lưu. */
     if(tb) tb.addEventListener('focusout', function(e){
       var td=e.target.closest ? e.target.closest('td[data-khf]') : null; if(!td) return;
@@ -12351,14 +12642,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1709710000"></script>
-<script src="cl.sync.js?v=1709710000"></script>
-<script src="auth.store.js?v=1709710000"></script>
-<script src="auth.web.js?v=1709710000"></script>
+<script src="cl.config.js?v=1709780000"></script>
+<script src="cl.sync.js?v=1709780000"></script>
+<script src="auth.store.js?v=1709780000"></script>
+<script src="auth.web.js?v=1709780000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1709710000"></script>
+<script src="cl.project.js?v=1709780000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1709710000" defer></script>
+<script src="firebase-bridge.js?v=1709780000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
