@@ -11831,7 +11831,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
            chứ nhìn cột trống thì không phân biệt được "chưa nạp" với "file không có mã đó". */
         st.innerHTML='<b>'+d.thuTu.length+' Mã KH</b> · '+soMuc+' dòng · '+soAnh+' ảnh · '+
           soNhan+'/'+d.thuTu.length+' có nhãn hiệu'+
-          (soNhan ? '' : ' <span class="mini" style="color:var(--text-3)">(nạp “Check list KH” để lấy)</span>');
+          (soNhan ? '' : ' <span class="mini" style="color:var(--text-3)"></span>');
       }
     }
     if(!ds.length){
