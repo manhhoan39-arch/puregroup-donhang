@@ -98,6 +98,7 @@
     { key: 's5', label: 'Bảng Keo' },
     { key: 's6', label: 'Line Cuốn' },
     { key: 's10', label: 'Tổng hợp Box' },
+    { key: 's11', label: 'Dữ liệu khách hàng' },
     { key: 's7', label: 'So sánh / Đối chiếu' },
     { key: 's8', label: 'Lịch sử' },
     { key: 's9', label: 'Cài đặt' },
