@@ -658,13 +658,14 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
     <a data-s="s5"><span class="num">4</span> Bảng Keo</a>
     <a data-s="s6"><span class="num">5</span> Bảng Line Cuốn</a>
     <a data-s="s10"><span class="num">6</span> Tổng hợp Box</a>
-    <a data-s="s7"><span class="num">7</span> So sánh</a>
-    <a data-s="s8"><span class="num">8</span> Lịch sử thay đổi</a>
-    <a data-s="s9"><span class="num">9</span> Xuất dữ liệu</a>
+    <a data-s="s11"><span class="num">7</span> Dữ liệu khách hàng</a>
+    <a data-s="s7"><span class="num">8</span> So sánh</a>
+    <a data-s="s8"><span class="num">9</span> Lịch sử thay đổi</a>
+    <a data-s="s9"><span class="num">10</span> Xuất dữ liệu</a>
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709470000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709660000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1046,7 +1047,48 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
     <div id="pack-summary-view" style="display:none;margin-top:8px"></div>
   </section>
 
-  <!-- ========== SCREEN 7: SO SÁNH ========== -->
+  <!-- ========== SCREEN 7: DỮ LIỆU KHÁCH HÀNG ========== -->
+  <section class="screen" id="s11">
+    <!-- Một THANH duy nhất: tên bước + số liệu + mọi nút. Cả thanh là ô kéo-thả file. -->
+    <div class="card" id="kh-thanh" style="margin-bottom:10px;padding:10px 12px">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <h3 style="color:var(--accent);margin:0;font-size:15px">🗂 Dữ liệu khách hàng</h3>
+        <div id="kh-stat" class="mini">Chưa có dữ liệu.</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:auto">
+          <button class="btn primary sm" id="kh-choose">📂 Nạp file</button>
+          <button class="btn sm" id="kh-xlsx">⬇ Tải Excel</button>
+          <button class="btn sm" id="kh-in">🖨 In</button>
+          <button class="btn sm danger" id="kh-xoa">🗑 Xóa dữ liệu KH</button>
+          <input type="file" id="kh-input" accept=".xlsx,.xlsm,.xls" style="display:none">
+        </div>
+      </div>
+    </div>
+    <div class="card" style="padding:10px 12px">
+      <div class="card-head" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <h3 style="font-size:14px">📋 Dữ liệu khách hàng <span class="chip" id="kh-count">0</span></h3>
+        <div class="kh-loai" style="margin-left:auto">
+          <button class="btn sm" id="kh-loai-p" data-loai="P" title="Đơn có đuôi P — số càng lớn càng mới">Đơn Charmlash</button>
+          <button class="btn sm" id="kh-loai-s" data-loai="S" title="Đơn có đuôi S — số càng lớn càng mới">Đơn Liilash</button>
+        </div>
+        <input class="fcol-filter" id="kh-filter" placeholder="Tìm Mã KH / Nhãn hiệu…"
+               autocomplete="off" style="max-width:230px">
+        <input class="fcol-filter" id="kh-filter-don" placeholder="Tìm mã đơn…"
+               autocomplete="off" style="max-width:170px">
+      </div>
+      <div style="max-height:70vh;overflow:auto">
+        <table class="sheet" id="eng-khdata"></table>
+      </div>
+      <div id="kh-tiet" style="display:none"></div>
+    </div>
+  </section>
+  <div id="kh-lightbox">
+    <button class="kh-lb-nut" id="kh-lb-truoc" title="Ảnh trước (←)">‹</button>
+    <img alt="">
+    <button class="kh-lb-nut" id="kh-lb-sau" title="Ảnh sau (→)">›</button>
+    <div id="kh-lb-dem"></div>
+  </div>
+
+  <!-- ========== SCREEN 8: SO SÁNH ========== -->
   <section class="screen" id="s7">
     <div id="step7"></div>
     <!-- HÀNG ĐIỀU KHIỂN: 2 cột (trái: gốc↔hiện tại · phải: so sánh 2 file) -->
@@ -1152,10 +1194,105 @@ tr.cl-ovrrow > td, tr.cl-ovrrow > td .qty{ color:var(--accent); }
 tr.cl-throw > td{ background:#FFF3D6; }
 tr.cl-throw > td:nth-child(4){ font-weight:700; }
 tr.subtotal.cl-throw > td{ background:#FFE9B3; }
+
+/* =====================================================================
+ * BƯỚC 7 · DỮ LIỆU KHÁCH HÀNG — bố cục + MÀU DẢI TIÊU ĐỀ theo tờ "Check list KH":
+ *   Mã KH · Mã đơn · Ngày (xanh lơ) ‖ LINE (xanh lá) ‖ CUỐN (vàng) ‖ BOX (cam) ‖ Chú ý.
+ * Một dòng cho MỖI ĐƠN; bấm vào dòng mở bảng so sánh mọi dòng của khách đó.
+ * ===================================================================== */
+#kh-thanh{border:1px dashed transparent;border-radius:10px;transition:border-color .15s,background .15s}
+#kh-thanh.keo{border-color:var(--accent);background:var(--bg-2)}
+#kh-stat{font-size:12px;color:var(--text-2);line-height:1.5;white-space:nowrap}
+/* Bảng kéo HẾT bề ngang khung; cột "Nội dung" không đặt bề rộng nên ăn hết phần dư
+   (user chốt 24/9 — trước để max-content nên bên phải thừa một mảng trắng). */
+#eng-khdata{table-layout:fixed;width:100%;min-width:1150px}
+/* DẢI TIÊU ĐỀ PHẢI ĐỤC (không trong suốt) và dính đúng chỗ, nếu không chữ tiêu đề chồng
+   lên dòng dữ liệu đầu tiên lúc cuộn. Chữ ghim màu tối vì mấy nền pastel này không đổi
+   theo chế độ sáng/tối. */
+#eng-khdata thead th{position:sticky;top:0;z-index:3;white-space:normal;word-break:break-word;
+  line-height:1.25;vertical-align:bottom;color:#16202B;font-size:10.5px;letter-spacing:.01em;
+  padding:4px 6px;border-bottom:1px solid rgba(0,0,0,.18)}
+#eng-khdata th.kh-nhom{text-align:center;letter-spacing:.08em;font-size:11px}
+#eng-khdata th.g-kh  {background:#A9E4F2}
+#eng-khdata th.g-line{background:#BCE9A4}
+#eng-khdata th.g-cuon{background:#FBEE93}
+#eng-khdata th.g-box {background:#FBCE97}
+#eng-khdata th.g-chu {background:#E2E2E2}
+#eng-khdata td{vertical-align:top;font-size:11px;line-height:1.45;padding:4px 6px;text-align:left}
+#eng-khdata td.kh-so,#eng-khdata th.kh-so{text-align:right}
+#eng-khdata td.kh-brand{font-weight:700}
+/* Hai nút lọc theo LOẠI ĐƠN — bật lên thì tô màu cho biết đang lọc. */
+.kh-loai{display:flex;gap:6px}
+.kh-loai .btn.bat{background:var(--accent);border-color:var(--accent);color:#fff}
+/* Ô SỬA ĐƯỢC (chỉ super admin): viền mờ cho biết gõ được, bấm vào thì rõ hẳn */
+#eng-khdata td[contenteditable="true"]{outline:1px dashed rgba(232,24,92,.22);outline-offset:-2px;cursor:text}
+#eng-khdata td[contenteditable="true"]:focus{outline:2px solid var(--accent);background:var(--bg-1)}
+#eng-khdata td.kh-ma{font-weight:800;color:var(--accent);white-space:normal;word-break:break-word}
+#eng-khdata td.kh-don{font-weight:700;white-space:normal;word-break:break-word}
+/* Hai ô này BẤM ĐƯỢC và mở hai thứ khác nhau — gạch chân nhạt cho biết bấm được */
+#eng-khdata td[data-khmo]{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;
+  text-underline-offset:3px}
+#eng-khdata td[data-khmo]:hover{background:var(--bg-1)}
+/* Bảng chi tiết của một đơn — xếp thành thẻ cho dễ đọc, giống bản in Tổng hợp Box */
+/* auto-FIT (không phải auto-fill): mấy thẻ giãn đều hết bề ngang, không bỏ trống bên phải */
+.kh-luoi{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px;align-items:stretch}
+.kh-luoi>.kh-the:first-child{grid-column:span 2}
+.kh-the{border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:var(--bg-1)}
+.kh-the h5{margin:0 0 5px;font-size:11.5px;color:var(--accent);font-weight:800}
+.kh-vb{font-size:11.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:150px;overflow:auto}
+.kh-vb:empty::after{content:'—';color:var(--text-3)}
+.kh-vb[contenteditable="true"]{outline:1px dashed rgba(232,24,92,.22);outline-offset:2px;
+  min-height:16px;cursor:text}
+.kh-vb[contenteditable="true"]:focus{outline:2px solid var(--accent)}
+table.kh-tk{width:100%;font-size:11.5px}
+table.kh-tk th{background:#BCE9A4;color:#16202B;padding:3px 5px;text-align:left}
+table.kh-tk td{padding:3px 5px;vertical-align:top}
+table.kh-tk th.kh-so,table.kh-tk td.kh-so{text-align:right}
+.kh-khuanh{margin-top:10px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--bg-1)}
+.kh-khuanh h5{margin:0 0 6px;font-size:11.5px;color:var(--accent);font-weight:800}
+.kh-anhluoi{display:flex;flex-wrap:wrap;gap:4px}
+/* Mấy <img> dính liền nhau nên KHÔNG có chỗ ngắt dòng → ảnh thứ 4 bị cắt mất nửa.
+   Bọc vào flex-wrap thì tự xuống hàng, nằm gọn trong cột (user chốt 25/9). */
+.kh-anho{display:flex;flex-wrap:wrap;gap:3px;align-items:flex-start}
+.kh-anho .kh-thumb{margin:0}
+.kh-anhluoi .kh-thumb{width:74px;height:74px}
+#eng-khdata tbody tr{cursor:pointer}
+#eng-khdata tbody tr:hover td{background:var(--bg-2)}
+.kh-cell{max-height:92px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+/* Ba cột keo: mỗi dòng phải nằm TRỌN một dòng, tự ngắt là lệch ngay với cột bên cạnh. */
+#eng-khdata td.kh-so .kh-cell{white-space:pre;word-break:normal}
+.kh-cell:empty::after{content:'—';color:var(--text-3)}
+.kh-ng2{display:block;font-size:9.5px;font-weight:600;color:var(--text-3);margin-top:2px}
+.kh-thumb{width:44px;height:44px;object-fit:cover;border-radius:5px;border:1px solid var(--line);
+  cursor:zoom-in;margin:0 3px 3px 0;display:inline-block;vertical-align:top}
+#kh-tiet{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px;background:var(--bg-2)}
+#kh-tiet h4{margin:0 0 8px;font-size:13px;color:var(--accent)}
+table.kh-ss{table-layout:fixed;width:max-content;min-width:100%;font-size:11px}
+table.kh-ss th{position:sticky;top:0;z-index:2;background:#A9E4F2;color:#16202B;text-align:left;
+  vertical-align:top;white-space:normal;word-break:break-word;line-height:1.3;padding:4px 6px}
+table.kh-ss th.kh-tf{width:124px;left:0;z-index:3;background:#E2E2E2}
+table.kh-ss td{vertical-align:top;padding:4px 6px}
+/* Hàng mà các dòng của khách ghi KHÁC nhau — tô vàng để soi nhanh, app không tự chọn hộ */
+table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
+.kh-co{display:block;font-size:9.5px;font-weight:700;color:#8A5A00;margin-top:2px}
+#kh-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;display:none;
+  align-items:center;justify-content:center;cursor:zoom-out}
+#kh-lightbox img{max-width:76vw;max-height:88vh;border-radius:8px;cursor:default}
+/* Nút lật ĐỨNG YÊN MỘT CHỖ (user chốt 25/9): trước đây nút nằm cạnh ảnh nên ảnh to nhỏ
+   khác nhau là nút nhảy chỗ, bấm liên tiếp không trúng. Ghim vào mép màn hình, kèm một
+   vùng bấm rộng suốt chiều cao để đưa chuột tới là bấm được ngay. */
+.kh-lb-nut{position:fixed;top:0;bottom:0;width:11vw;min-width:76px;border:0;cursor:pointer;
+  background:transparent;color:#fff;font-size:40px;line-height:1;font-weight:700;
+  display:flex;align-items:center;justify-content:center;text-shadow:0 2px 8px rgba(0,0,0,.9)}
+#kh-lb-truoc{left:0}
+#kh-lb-sau{right:0}
+.kh-lb-nut:hover{background:rgba(255,255,255,.14)}
+#kh-lb-dem{position:fixed;left:0;right:0;bottom:16px;text-align:center;color:#fff;font-size:12px;
+  text-shadow:0 1px 3px rgba(0,0,0,.8);pointer-events:none}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1709470000"></script>
+<script src="engine.web.js?v=1709660000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -1175,6 +1312,7 @@ const titles={s1:["Nhập Đơn","Nhập đơn từ file Excel"],
   s3:["Bảng Nhập Đơn","Bảng Nhập Đơn (DataGrid)"],s4:["Bảng Mix Label","Bảng Mix Label"],
   s5:["Bảng Keo","Bảng Keo theo độ cong"],s6:["Bảng Line Cuốn","Bảng Line Cuốn (IN-Bảng Cuốn-Box)"],
   s10:["Tổng hợp Box","Bảng tổng hợp Box (Packing List)"],
+  s11:["Dữ liệu khách hàng","Dữ liệu khách hàng theo Mã KH"],
   s7:["So sánh","So sánh Đơn khách vs AI"],s8:["Lịch sử thay đổi","Lịch sử thay đổi (Audit log)"],
   s9:["Xuất dữ liệu","Xuất dữ liệu Module Nhập Đơn"],
   "s-manual":["Nhập đơn thủ công","Nhập đơn thủ công"]};
@@ -1226,6 +1364,8 @@ function go(id){
     var _tm=document.getElementById('s6-th-mode');
     if(_tm && _tm.value!=='all'){ _tm.value='all'; try{ __capReflow(); }catch(e){ logErr('go.thmode', e); } }
   }
+  // Bước 7 vẽ lại mỗi lần vào: đơn có thể vừa được Xử lý hoặc vừa sửa mã đơn ở bước khác.
+  if(id==='s11'){ try{ if(window.__khRender) window.__khRender(); }catch(e){ logErr('go.kh', e); } }
   // Bảng của bước này bị HOÃN vẽ lúc trước (đang ẩn) → vẽ ngay bây giờ.
   // Dùng lại kết quả đã tính, KHÔNG tính lại → số liệu không thể lệch.
   try{ if(window.__flushStale) window.__flushStale(id); }catch(e){ logErr('go', e); }
@@ -1279,6 +1419,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     role: 'admin',   // 'admin' = được thêm/xóa dòng · 'viewer' = chỉ xem
     filters: {},     // bộ lọc theo cột kiểu Google Sheet: {key: {giátrị:1}}
     processed: false,
+    khData: null,    // bước 7 — dữ liệu khách hàng theo Mã KH (xem khRong/gopDonVaoKH)
   };
   var isAdmin = function(){ return state.role === 'admin'; };
   // Quyền SỬA theo từng step (user bị giới hạn); admin/chưa cấu hình → true
@@ -1758,6 +1899,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var manh = mds.map(function(m){ var g=rong(); g.md=m; return g; });
     var chung = rong();
     chung.log=st.log; chung.source=st.source; chung.processed=st.processed; chung.savedAt=st.savedAt;
+    chung.khData=st.khData||null;         // bước 7 — gom theo Mã KH, không chia được theo mã đơn
     chung.mds=mds; chung.dsMd={}; chung.coPack=Array.isArray(st.pack); chung.coKhachCuon=!!(st.khachCuon&&st.khachCuon.rows);
     var vao=function(m){ return (viTri[m]!=null) ? manh[viTri[m]] : chung; };
     _MANG_LUU.forEach(function(p){
@@ -1778,6 +1920,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     goi=goi||{}; var chung=goi.chung||{}, manh=goi.manh||[], anh=goi.anh||{};
     var theoMd={}; manh.forEach(function(g){ if(g && g.md!=null) theoMd[String(g.md)]=g; });
     var st={ log:chung.log, source:chung.source, processed:chung.processed, savedAt:chung.savedAt,
+             khData:chung.khData||null,
              imgStore:(anh&&anh.imgStore)||{} };
     var lay=function(m){ return theoMd[m] || chung; };
     var dem={};
@@ -1972,8 +2115,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      JPEG ~0.62) và LƯU 1 LẦN theo nội dung (hash) — nhiều đơn dùng chung ảnh tem thì chỉ tốn
      1 bản, bản lưu/đám mây không phình. */
   function fnv(u8){ var h=0x811c9dc5; for(var i=0;i<u8.length;i++){ h^=u8[i]; h=(h*0x01000193)>>>0; } return h.toString(16)+'-'+u8.length; }
-  function zipDocMedia(ab){
-    // đọc central directory của zip → lấy các entry xl/media/*
+  /* Rút RUỘT file .xlsx (zip) ra: trả về [{ten, bytes}] cho mọi entry mà loc(ten) nhận.
+     Dùng chung cho 2 việc: lấy ẢNH (xl/media/*) và lấy XML để biết ảnh neo vào DÒNG nào
+     (bước 7 · Dữ liệu khách hàng cần cái thứ hai). */
+  function zipDocEntries(ab, loc){
+    // đọc central directory của zip
     var dv=new DataView(ab), u8=new Uint8Array(ab), n=ab.byteLength, eocd=-1;
     for(var i=n-22;i>=0 && i>n-66000;i--){ if(dv.getUint32(i,true)===0x06054b50){ eocd=i; break; } }
     if(eocd<0) return Promise.resolve([]);
@@ -1985,7 +2131,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var nlen=dv.getUint16(p+28,true), elen=dv.getUint16(p+30,true), clen=dv.getUint16(p+32,true);
       var lho=dv.getUint32(p+42,true);
       var ten=td.decode(u8.subarray(p+46, p+46+nlen));
-      if(/^xl\/media\//i.test(ten) && /\.(png|jpe?g|gif|bmp|webp)$/i.test(ten)) ds.push({ten:ten, pp:pp, csize:csize, lho:lho});
+      if(loc(ten)) ds.push({ten:ten, pp:pp, csize:csize, lho:lho});
       p += 46+nlen+elen+clen;
     }
     var out=[];
@@ -2002,7 +2148,51 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       });
     }, Promise.resolve()).then(function(){ return out; });
   }
+  function zipDocMedia(ab){
+    return zipDocEntries(ab, function(ten){
+      return /^xl\/media\//i.test(ten) && /\.(png|jpe?g|gif|bmp|webp)$/i.test(ten);
+    });
+  }
   var ANH_MAX=1000, ANH_Q=0.62;
+  /* ===== VÂN TAY ẢNH (average hash 16×16 xám) =====
+     Cùng MỘT tấm ảnh nhưng đi qua hai đường (đơn gốc ở bước 6 · file tổng hợp Gmail ở
+     bước 7) thì byte khác nhau → fnv khác nhau → kho ảnh phình gấp đôi, project nặng gấp
+     đôi mà người xem thấy y hệt. Vân tay nhìn vào NỘI DUNG nên nhận ra được (user chốt 25/9). */
+  function vanTayAnh(cv){
+    try{
+      var n=16, c2=document.createElement('canvas'); c2.width=n; c2.height=n;
+      var x=c2.getContext('2d'); x.drawImage(cv,0,0,n,n);
+      var p2=x.getImageData(0,0,n,n).data, g=[], tong=0, i;
+      for(i=0;i<n*n;i++){ var v=(p2[i*4]*299+p2[i*4+1]*587+p2[i*4+2]*114)/1000; g.push(v); tong+=v; }
+      var tb=tong/(n*n), bit='';
+      for(i=0;i<g.length;i++) bit += (g[i]>=tb ? '1' : '0');
+      var hex=''; for(i=0;i<bit.length;i+=4) hex += parseInt(bit.substr(i,4),2).toString(16);
+      return hex;
+    }catch(e){ return ''; }
+  }
+  /* SỔ VÂN TAY: vân tay → khóa ảnh chuẩn đang giữ trong kho. Dựng lại từ kho mỗi khi cần,
+     không cất riêng để khỏi lệch nhau. */
+  function soVanTay(){
+    var kho=state.imgStore||{}, so={};
+    for(var k in kho){ var a=kho[k] && kho[k].ah; if(a && !so[a]) so[a]=k; }
+    return so;
+  }
+  /* CẤT MỘT TẤM ẢNH — cửa DUY NHẤT cho cả bước 6 lẫn bước 7, nên hai chỗ luôn cùng một
+     kho, cùng một khóa. Trả về khóa của tấm ảnh (tấm đã có thì trả khóa cũ). */
+  function luuAnh(bytes, ten){
+    state.imgStore = state.imgStore || {};
+    var kh=fnv(bytes);
+    if(state.imgStore[kh]) return Promise.resolve({ key:kh, moi:false });
+    return nenAnh(bytes, ten).then(function(r){
+      if(!r) return null;
+      if(r.ah){
+        var cu=soVanTay()[r.ah];
+        if(cu && state.imgStore[cu]) return { key:cu, moi:false };   // cùng nội dung → dùng lại
+      }
+      state.imgStore[kh]={ d:r.d, w:r.w, h:r.h, ten:String(ten||'').split('/').pop(), ah:r.ah||'' };
+      return { key:kh, moi:true };
+    });
+  }
   function nenAnh(bytes, ten){
     var mime=/\.png$/i.test(ten)?'image/png':(/\.gif$/i.test(ten)?'image/gif':(/\.webp$/i.test(ten)?'image/webp':'image/jpeg'));
     return new Promise(function(ok){
@@ -2015,7 +2205,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             var cv=document.createElement('canvas'); cv.width=Math.max(1,Math.round(w*r)); cv.height=Math.max(1,Math.round(h*r));
             cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);
             var d=cv.toDataURL('image/jpeg', ANH_Q);
-            URL.revokeObjectURL(url); ok({d:d, w:cv.width, h:cv.height});
+            URL.revokeObjectURL(url); ok({d:d, w:cv.width, h:cv.height, ah:vanTayAnh(cv)});
           }catch(e){ URL.revokeObjectURL(url); ok(null); }
         };
         im.onerror=function(){ URL.revokeObjectURL(url); ok(null); };
@@ -2032,18 +2222,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var xong=0;
       return ds.reduce(function(ch, e){
         return ch.then(function(){
-          var kh=fnv(e.bytes);
-          var them=function(){
+          return luuAnh(e.bytes, e.ten).then(function(r){
+            if(!r) return;
             mds.forEach(function(md){
               var arr=state.imgByMadon[md]=state.imgByMadon[md]||[];
-              if(arr.indexOf(kh)<0) arr.push(kh);
+              if(arr.indexOf(r.key)<0) arr.push(r.key);
             });
-          };
-          if(state.imgStore[kh]){ them(); return; }
-          return nenAnh(e.bytes, e.ten).then(function(r){
-            if(!r) return;
-            state.imgStore[kh]={ d:r.d, w:r.w, h:r.h, ten:e.ten.split('/').pop() };
-            them(); xong++;
+            if(r.moi) xong++;
           });
         });
       }, Promise.resolve()).then(function(){
@@ -4113,6 +4298,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     state.origKeo = JSON.parse(JSON.stringify(state.keoRows||[]));
     state.origMix = JSON.parse(JSON.stringify(state.mixSheets||[]));
     renderS7();
+    /* BƯỚC 7 · DỮ LIỆU KHÁCH HÀNG — xử lý xong là gộp luôn các đơn đang có vào bảng theo
+       Mã KH. Chạy lại bao nhiêu lần vẫn đúng một mục cho mỗi đơn (xem khThemMuc). */
+    try{ var _kh=gopDonVaoKH(); if(_kh) logLine('🗂 Dữ liệu khách hàng: gộp '+_kh+' đơn theo Mã KH'); renderKH(); }
+    catch(e){ logErr('gopDonVaoKH', e); }
     setTxt('kpi-time', ((Date.now()-t0)/1000).toFixed(2)+'s');
     // đối chiếu với tổng file khách khai (CLS khay / Lines CLS dây)
     var expKhay=0, expDay=0, hasMeta=false;
@@ -10616,6 +10805,1190 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
 
   // ============ AUTH/RBAC BRIDGE — cầu nối cho auth.web.js (đăng nhập & multi-tenant) ============
   // Cho phép script ngoài (auth.web.js) đọc/ghi dữ liệu app mà không phá closure IIFE.
+  /* =====================================================================
+   * BƯỚC 7 · DỮ LIỆU KHÁCH HÀNG (chốt 23/9)
+   * ---------------------------------------------------------------------
+   * Mấy thứ KHÔNG đổi theo từng đơn mà đổi theo KHÁCH — keo, mix, độ cong, loại hộp,
+   * cách đóng thùng, ghi chú, ảnh tem/label — trước nay nằm rải trong từng file đơn.
+   * Bước này gom lại theo ĐÚNG bố cục tờ "Check list KH" xưởng vẫn dùng:
+   *      Sale · Khách hàng · Mã KH · Mã đơn · Ngày ‖ LINE ‖ CUỐN ‖ BOX ‖ Chú ý
+   * BA NGUỒN, mỗi đơn/mỗi bản ghi là MỘT DÒNG, không đè lên nhau:
+   *   · "Check list KH.xlsx"  — tờ check list xưởng tự soạn (có Sale + tên Khách hàng);
+   *   · file tổng hợp của dự án "Tổng hợp đơn gửi xưởng từ Gmail" (3 sheet);
+   *   · chính các đơn đang có trong app — mỗi lần "▶ Xử lý" là tự gộp thêm.
+   * Bấm vào một dòng → mở bảng SO SÁNH mọi đơn của khách đó theo cột, ô nào lệch tô vàng.
+   * ===================================================================== */
+  /* [khóa, tiêu đề, nhóm, bề rộng px, lớp màu] — nhóm rỗng = cột đứng riêng (gộp 2 dòng tiêu đề).
+     Màu dải tiêu đề lấy theo tờ Check list: KH xanh lơ · LINE xanh lá · CUỐN vàng · BOX cam.
+     Bảng CHỈ hiện 8 thứ cần nhìn nhanh (user chốt 24/9); mấy trường còn lại (Ghi chú độ cong,
+     Mix/Multi color, Laser/Fans, Thùng/hộp, Chú ý) vẫn giữ đủ trong dữ liệu và hiện
+     ở bảng chi tiết khi bấm vào MÃ ĐƠN. Diễn giải · Ghi chú hộp · Nội dung mail đã bỏ hẳn
+     (user chốt 25/9): Diễn giải dồn về Ghi chú độ cong, hai thứ kia trùng với Nội dung. */
+  var KH_COT = [
+    ['maKH',    'Mã KH',        '',     78,  'g-kh'],
+    ['don',     'Mã đơn',       '',     70,  'g-kh'],
+    ['brand',   'Nhãn hiệu',    '',     96,  'g-kh'],
+    ['doDay',   'Độ dày',       'KEO',  150, 'g-line'],
+    ['keo',     'Mã keo',       'KEO',  126, 'g-line'],
+    ['doDai',   'Độ dài',       'KEO',  118, 'g-line'],
+    ['doCong',  'Bảng độ cong', '',     96,  'g-cuon'],
+    ['loaiHop', 'Loại hộp',     '',     160, 'g-box'],
+    ['noiDung', 'Nội dung',     '',     0,   'g-box'],
+  ];
+  /* Cột Hình ảnh bỏ khỏi bảng (user chốt 25/9): mỗi dòng của cùng một khách lại lặp lại
+     đúng mấy tấm ấy, nhìn rối mà chẳng thêm thông tin. Ảnh dồn hết xuống MỘT KHU vực
+     dưới bảng so sánh, sau dòng Chú ý. */
+  /* Trường KHÔNG hiện trên bảng nhưng vẫn giữ — xem/sửa ở bảng chi tiết của mã đơn. */
+  var KH_COT_AN = [
+    ['doCongGhi', 'Ghi chú độ cong'],
+    ['mixMulti',  'Mix / Multi color'],
+    ['laserFans', 'Laser / Fans'],
+    ['thungHop',  'Thùng / hộp'],
+    ['chuY',      'Chú ý'],
+  ];
+  /* Cột chỉ chứa SỐ thì canh phải, còn lại canh trái — đọc cho thẳng hàng như bảng Excel. */
+  var KH_COT_SO = { doDay:1 };
+  /* Brand gắn theo KHÁCH (một khách một brand), không theo từng đơn. */
+  var KH_COT_KH = { maKH:1, brand:1 };
+  /* Các trường đem ra SO SÁNH giữa những đơn của cùng một khách (bỏ Sale/Khách/Mã KH/ngày).
+     Độ dày · Mã keo · Độ dài KHÔNG tách làm 3 hàng rời — xếp rời thì không biết dòng nào
+     ứng dòng nào. Gộp làm MỘT hàng, bên trong là bảng 3 cột đối xứng y như bảng trên
+     (user chốt 25/9). */
+  var KH_SS = [['__keo', 'Thông tin keo', '', 0, '']]
+    .concat(KH_COT.filter(function(c){ return ['maKH','don','brand','doDay','keo','doDai'].indexOf(c[0])<0; }))
+    .concat(KH_COT_AN.map(function(c){ return [c[0], c[1], '', 0, '']; }));
+  /* nhan = SỔ TAY TRA NHÃN HIỆU dựng từ tờ Check list (Mã KH → cột "Khách hàng").
+     Giữ riêng khỏi từng bản ghi để đơn nạp SAU vẫn tra ra được, và đi theo project. */
+  function khRong(){ return { file:'', napLuc:0, kh:{}, thuTu:[], nhan:{} }; }
+  /* ⚠ Chữ Việt từ Excel hay ở dạng TÁCH DẤU (NFD: "Đã" = Đ + a + ◌̃). Nhìn y hệt nhau
+     nhưng mọi biểu thức tìm chữ Việt trong app đều trượt — âm thầm, không lỗi nào bắn ra.
+     Dồn về NFC ngay cửa vào để chỗ nào cũng so đúng (user gặp 25/9: "Đã chọn|" không bỏ được). */
+  function khNFC(v){
+    var t=String(v==null?'':v);
+    try{ return t.normalize ? t.normalize('NFC') : t; }catch(e){ return t; }
+  }
+  function khTxt(v){ return khNFC(v).replace(/\r\n?/g,'\n').replace(/[ \t]+$/gm,'').trim(); }
+  /* Tách dòng mà KHÔNG cắt dòng trống ở đầu/cuối — ba cột Độ dày · Mã keo · Độ dài
+     phải thẳng hàng từng dòng, keo nào không ghi độ dài thì vẫn phải chừa đúng chỗ. */
+  function khDong(v){ return khNFC(v).replace(/\r\n?/g,'\n').replace(/[ \t]+$/gm,'').split('\n'); }
+  function khKhoa(v){ return khTxt(v).toUpperCase().replace(/\s+/g,' '); }
+  /* Tên KH dùng làm KHÓA. File tổng hợp ghi "(Không có mã KH) 215S" cho đơn không có tiền tố
+     KH — app dựng lại ĐÚNG cách đó để đơn nạp sau rơi vào cùng một dòng khách. */
+  function khTenTuMaDon(md){
+    var k = khOf(md), d = donOf(md) || md;
+    return k ? k : ('(Không có mã KH) ' + d);
+  }
+  function khLay(ten){
+    var d = state.khData = state.khData || khRong();
+    var k = khKhoa(ten); if(!k) return null;
+    var r = d.kh[k];
+    if(!r){ r = d.kh[k] = { maKH: khTxt(ten), brand:'', muc:[], anh:[] }; d.thuTu.push(k); }
+    return r;
+  }
+  function khNgay(v){
+    if(v==null || v==='') return '';
+    if(typeof v==='number' && v>20000 && v<80000){                 // số ngày kiểu Excel
+      return new Date(Date.UTC(1899,11,30)+v*86400000).toISOString().slice(0,10);
+    }
+    var s=khTxt(v), m=s.match(/(\d{4})-(\d{2})-(\d{2})/); if(m) return m[0];
+    m=s.match(/(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})/);
+    if(m) return m[3]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2);
+    return s;
+  }
+  /* ===== TÁCH "BẢNG KEO" CỦA NGUỒN GMAIL RA 3 CỘT ĐỘ DÀY · KEO · ĐỘ DÀI =====
+     Cột Keo chỉ được ghi MÃ KEO, còn độ dày / độ dài điền sang hai cột bên cạnh cho thẳng
+     hàng (user chốt 23/9) — y như Bảng Keo của app. File tổng hợp Gmail gộp tất cả vào một
+     ô chữ, dạng hay gặp:
+        "Bảng keo: 7 | Vang80.2; 10 | Vang80.3 | 9-13mm"        → độ dày | mã keo | độ dài
+        "Bảng keo: Keo trắng A250G 2mm | 0.03 | Trong250G.2"    → tên keo | độ dày | mã keo
+        "Vang80.2: Premium Matte 0.07, … | dài: 8-15mm"          → dòng phụ, cho độ dài
+     Không tách được thì GIỮ NGUYÊN ô chữ, thà để thô còn hơn đoán sai. */
+  var KH_RE_MAKEO = /^(?:keo\s+)?[A-Za-zÀ-ỹ][A-Za-z0-9À-ỹ]*\.\d+$/i;
+  function khLaMaKeo(v){ return KH_RE_MAKEO.test(String(v==null?'':v).trim()); }
+  function khDonMaKeo(v){ return String(v==null?'':v).trim().replace(/^keo\s+/i,''); }
+  /* Mã keo nằm LẪN trong câu: "Keo XanhBLu150.3 cho độ dài từ 9mm trở lên".
+     Bắt buộc ≥3 chữ cái trước dấu chấm để KHÔNG nuốt nhầm đuôi "6-13mm.20". */
+  var KH_RE_MAKEO_TRONG = /\b([A-Za-zÀ-ỹ][A-Za-z0-9À-ỹ]{2,}\.\d+)\b/;
+  /* ===== CỘT ĐỘ DÀY CHỈ ĐƯỢC GHI SỐ (user chốt 25/9) =====
+     Nguồn hay ghi thẳng CODE SỢI vào ô độ dày: "130.SKV.7, 4.MK.85". Độ dày là ĐUÔI sau
+     dấu chấm CUỐI của code (.7 → 0.07 · .85 → 0.085), không phải cả cụm — dấu chấm trong
+     code khác hẳn dấu phẩy ngăn cách. Dùng đúng bộ doDayTuCode của engine cho khớp Bảng Keo. */
+  function khChuanDoDay(txt){
+    var t=khTxt(txt); if(!t) return '';
+    var ra=[], co={};
+    t.split(/[;,\/\n]+/).forEach(function(p2){
+      var v=khTxt(p2); if(!v) return;
+      var d='';
+      /* Đã là số thì chuẩn lại cho gọn: "0.10" và "0.1" là MỘT, ghi hai kiểu vừa dài
+         vừa lọt lưới lọc trùng. */
+      if(/^\d+(?:[.,]\d+)?$/.test(v)){ var n2=parseFloat(v.replace(',','.')); d=isFinite(n2)?String(n2):''; }
+      else { try{ d=(E && E.doDayTuCode) ? E.doDayTuCode(v) : ''; }catch(e){ d=''; } }
+      if(!d || co[d]) return;
+      co[d]=1; ra.push(d);
+    });
+    return ra.join(', ');
+  }
+  /* ===== CỘT ĐỘ DÀI CHỈ NHẬN THỨ THẬT SỰ LÀ ĐỘ DÀI =====
+     Nguồn hay nhét chú thích nguyên liệu vào đúng chỗ độ dài ("Gothic Matte Laser is for
+     Laser- Premium Matte" ở đơn CS177-654P) — thứ đó đã có ở cột Nội dung, để đây là lệch cột. */
+  function khLaDoDai(v){
+    var t=khTxt(v); if(!t) return false;
+    return /\d\s*mm/i.test(t) || /(tất\s*cả|mọi)\s*độ\s*dài/i.test(t);
+  }
+  /* Gột câu chữ quanh dải độ dài (user chốt 25/9): mã keo và CODE SỢI đã có cột riêng,
+     nhắc lại ở đây chỉ tổ rối — "5-8mm, 87.MK.Ne.BL.7, 245." phải rút còn "5-8mm".
+     Cách làm: cắt theo dấu phẩy rồi GIỮ LẠI mẩu nào thật sự là độ dài, thay vì cố đoán
+     mẩu nào cần gạch — code sợi khách đặt đủ kiểu, liệt kê không bao giờ hết. */
+  var KH_RE_CODE = /\b[A-Za-zÀ-ỹ0-9][A-Za-z0-9À-ỹ]*(?:\.[A-Za-zÀ-ỹ0-9]+)+\b/g;
+  function khLocDai(v){
+    var t=khTxt(v); if(!t) return '';
+    var ra=[], co={};
+    t.replace(/\([^)]*\)/g,' ').split(/[;,\n]+/).forEach(function(p2){
+      var x=khTxt(p2)
+        .replace(/^\s*keo\s+/i,'')
+        /* Cụm có dấu chấm giữa chữ/số = mã keo hoặc code sợi — trừ khi chính nó là dải mm. */
+        .replace(KH_RE_CODE, function(mm){ return /\d\s*mm/i.test(mm) ? mm : ' '; })
+        .replace(/cho\s*(?:các\s*)?độ\s*dài/gi,' ')
+        .replace(/chiều\s*dài\s*:?/gi,' ')
+        .replace(/\s+/g,' ').trim()
+        .replace(/^[:;,.\-–]+|[:;,.\-–]+$/g,'').trim();
+      if(!x || !khLaDoDai(x) || co[x]) return;
+      co[x]=1; ra.push(x);
+    });
+    return ra.join(', ');
+  }
+  function khTachKeo(txt){
+    var t=khTxt(txt); if(!t) return null;
+    var dong=t.split('\n'), dd=[], mk=[], dl=[], co=false;
+    var d0=dong[0].replace(/^\s*bảng\s*keo\s*:\s*/i,'');
+    if(/\|/.test(d0)){
+      d0.split(';').forEach(function(muc){
+        var p=muc.split('|').map(function(x){ return khTxt(x); });
+        if(p.length<2){
+          /* Đoạn viết thành câu, không có dấu | — vẫn là một loại keo thật, đừng bỏ rơi:
+             "Keo XanhBLu150.3 cho độ dài từ 9mm trở lên" (đơn CS152-744P). */
+          var mt=khTxt(muc).match(KH_RE_MAKEO_TRONG);
+          if(mt && khLaDoDai(muc)){ dd.push(''); mk.push(mt[1]); dl.push(khLocDai(muc)); co=true; }
+          return;
+        }
+        var a,b,c2='';
+        if(p.length>=3 && khLaMaKeo(p[2])){ a=p[1]; b=p[2]; }          // tên keo | độ dày | mã keo
+        else if(khLaMaKeo(p[1])){ a=p[0]; b=p[1]; c2=p.slice(2).join(' | '); }  // độ dày | mã keo | độ dài
+        else return;                                                   // dòng tiêu đề, bỏ
+        dd.push(khChuanDoDay(a)); mk.push(khDonMaKeo(b)); dl.push(khLocDai(c2)); co=true;
+      });
+    }
+    /* Dòng phụ "MãKeo: <nguyên liệu> | dài: <dải>" — nguồn của cột Độ dài. */
+    var dai={};
+    dong.forEach(function(l){
+      var m=l.match(/^\s*([A-Za-zÀ-ỹ][A-Za-z0-9À-ỹ]*\.\d+)\s*:\s*([\s\S]*)$/);
+      if(!m) return;
+      var phan=m[2].split(/\|\s*dài\s*:/i);
+      dai[m[1]]={ dai:khLocDai(phan[1]||''), nl:khTxt(phan[0]) };
+    });
+    if(co){ mk.forEach(function(ma,i){ if(!dl[i] && dai[ma]) dl[i]=dai[ma].dai; }); }
+    else {
+      /* "Làm theo keo trong bảng bên dưới" — dựng thẳng từ mấy dòng phụ, độ dày lấy ở
+         chính tên nguyên liệu ("Premium Matte 0.03" → 0.03). */
+      Object.keys(dai).forEach(function(ma){
+        var ds=dai[ma].nl.match(/\d+[.,]\d+/g)||[], rieng=[];
+        ds.forEach(function(x){ if(rieng.indexOf(x)<0) rieng.push(x); });
+        dd.push(khChuanDoDay(rieng.join(', '))); mk.push(ma); dl.push(dai[ma].dai); co=true;
+      });
+    }
+    if(!co) return null;
+    return { doDay:dd.join('\n'), keo:mk.join('\n'), doDai:dl.join('\n') };
+  }
+  /* MIX / MULTI COLOR chỉ điền khi đơn THẬT SỰ có hàng mix màu / multi color — KHÔNG phải
+     chép bảng mix length vào (user chốt 23/9). Lọc đúng mấy dòng chữ có nhắc tới. */
+  function khLocMixMau(){
+    var ra=[], co={};
+    Array.prototype.forEach.call(arguments, function(txt){
+      khTxt(txt).split('\n').forEach(function(l){
+        if(!/mix\s*colou?r|multi\s*colou?r|trộn\s*màu/i.test(l)) return;
+        var v=khTxt(l); if(v && !co[v]){ co[v]=1; ra.push(v); }
+      });
+    });
+    return ra.join('\n');
+  }
+  /* ===== DỒN ĐỘ DÀI CỦA CÙNG MỘT LOẠI KEO (user chốt 24/9) =====
+     Khách hay liệt kê từng mm một ("5mm, 6mm, 7mm, … , 20mm") — cùng một mã keo thì chỉ cần
+     ghi "5-20mm". Gộp các số mm liền nhau thành dải; mm rời rạc thì tách dải riêng
+     ("4-8mm, 12-15mm"). Câu chữ không phải số ("Cho tất cả độ dài", "9mm trở lên") giữ NGUYÊN
+     VĂN ở cuối, thà để thô còn hơn hiểu sai ý khách. */
+  function khGomDoDai(txt){
+    var t=khTxt(txt); if(!t) return '';
+    var mm={}, chu=[];
+    t.split(/[;,\n]+/).forEach(function(p2){
+      /* Bỏ gạch chéo lạc và ĐUÔI SỐ LINE dính sau mm ("6-13mm.20" = dải 6-13mm, hàng 20 lines)
+         — đuôi đó làm mỗi dải thành một mục riêng nên bảng dài lê thê (đơn C127-783P). */
+      var v=khTxt(p2).replace(/^\\+/,'').replace(/(mm)\s*\.\s*\d+$/i,'$1');
+      if(!v) return;
+      var m=v.match(/^(\d+)\s*(?:mm)?\s*[-–~]\s*(\d+)\s*mm$/i);
+      if(m){ var a=+m[1], b=+m[2]; if(a<=b && b-a<100){ for(var i=a;i<=b;i++) mm[i]=1; return; } }
+      var s1=v.match(/^(\d+)\s*mm$/i);
+      if(s1){ mm[+s1[1]]=1; return; }
+      if(chu.indexOf(v)<0) chu.push(v);
+    });
+    var ds=Object.keys(mm).map(Number).sort(function(a,b){ return a-b; }), dai=[], i2=0;
+    while(i2<ds.length){
+      var a2=ds[i2], b2=a2;
+      while(i2+1<ds.length && ds[i2+1]===b2+1){ b2=ds[++i2]; }
+      dai.push(a2===b2 ? (a2+'mm') : (a2+'-'+b2+'mm'));
+      i2++;
+    }
+    return dai.concat(chu).join(', ');
+  }
+  /* Gộp 3 cột Độ dày · Mã keo · Độ dài thành MỘT dòng cho mỗi (mã keo + độ dày) — y như
+     Bảng Keo của app — rồi dồn độ dài của dòng đó lại. Chạy lại nhiều lần vẫn ra như nhau. */
+  function khChuanKeo(m){
+    if(!khTxt(m.keo)) return;
+    var dd=khDong(m.doDay), mk=khDong(m.keo), dl=khDong(m.doDai);
+    var n=Math.max(dd.length, mk.length, dl.length), ds=[], idx={};
+    for(var i=0;i<n;i++){
+      /* Gột luôn tại đây nên NGUỒN NÀO cũng ra cùng một kiểu: độ dày chỉ còn số,
+         độ dài chỉ còn dải — chạy lại nhiều lần vẫn ra như nhau. */
+      var k=khTxt(mk[i]||''), d=khChuanDoDay(dd[i]||''), l=khLocDai(dl[i]||'');
+      if(!k && !d && !l) continue;
+      var kh2=k+'\u0001'+d;
+      if(idx[kh2]==null){ idx[kh2]=ds.length; ds.push({ keo:k, doDay:d, dai:[] }); }
+      if(l) ds[idx[kh2]].dai.push(l);
+    }
+    if(!ds.length) return;
+    m.doDay = ds.map(function(x){ return x.doDay; }).join('\n');
+    m.keo   = ds.map(function(x){ return x.keo; }).join('\n');
+    m.doDai = ds.map(function(x){ return khGomDoDai(x.dai.join(', ')); }).join('\n');
+    if(!khTxt(m.doDay.replace(/\n/g,''))) m.doDay='';
+    if(!khTxt(m.doDai.replace(/\n/g,''))) m.doDai='';
+  }
+  /* ===== CỘT "BẢNG ĐỘ CONG" CHỈ GIỮ TÊN BẢNG (user chốt 24/9) =====
+     Nguồn hay ghi chung một ô: "B-2023 | * Bảng độ cong B1722023 cho độ cong tròn. Khuôn mới…".
+     Cột trên bảng chỉ cần "B-2023"; phần giải thích dồn sang khoá riêng, xem ở bảng chi tiết
+     của đơn. Tách một lần lúc cất, nên sửa ô nào ra ô nấy, không sợ sửa tên là mất ghi chú. */
+  /* ===== CỘT LOẠI HỘP BỎ DÒNG "Đã chọn|…" (user chốt 25/9) =====
+     Nguồn nào cũng kèm dòng máy sinh "Đã chọn|0" / "Đã chọn|3390" — là số tồn của app,
+     không phải thông tin loại hộp, để trên bảng chỉ tổ rối mắt. */
+  function khChuanHop(m){
+    var t=khTxt(m.loaiHop); if(!t) return;
+    m.loaiHop = t.split('\n').filter(function(l){ return !/^\s*đã\s*chọn\s*\|/i.test(l); })
+                 .join('\n').replace(/\n{2,}/g,'\n').trim();
+  }
+  function khChuanDoCong(m){
+    var t=khTxt(m.doCong), ghi=khTxt(m.doCongGhi);
+    /* Diễn giải là đúng phần ghi chú của bảng độ cong → dồn về một chỗ rồi bỏ cột riêng. */
+    if(khTxt(m.dienGiai)){ ghi=(ghi?ghi+'\n':'')+khTxt(m.dienGiai); m.dienGiai=''; }
+    if(t){
+      var i=t.indexOf('|'), ten='', con='';
+      if(i>=0){ ten=khTxt(t.slice(0,i)); con=khTxt(t.slice(i+1)); }
+      else {
+        var d0=t.split('\n')[0].trim();
+        /* Không có dấu ngăn: tên bảng là mã kiểu A2022 · B-2023 · C112024 nằm đâu đó trong câu */
+        if(d0.length<=18 && /\d/.test(d0) && d0.charAt(0)!=='*'){ ten=d0; con=khTxt(t.slice(d0.length)); }
+        else { var mm2=t.match(/\b[A-Za-z]{1,2}\s*-?\s*\d{4,8}\b/); ten=mm2?mm2[0].replace(/\s+/g,''):''; con=t; }
+      }
+      if(ten){ m.doCong=ten; if(con) ghi=(ghi?ghi+'\n':'')+con; }
+    }
+    m.doCongGhi=ghi;
+  }
+  function khBam(s2){   // băm ngắn cho nội dung một mục — chỉ để nhận ra "vẫn là mục cũ"
+    var h=0x811c9dc5, t=String(s2||'');
+    for(var i=0;i<t.length;i++){ h^=t.charCodeAt(i)&255; h=(h*0x01000193)>>>0; }
+    return h.toString(16);
+  }
+  /* Thêm MỘT bản ghi vào khách. Nạp lại đúng thứ cũ thì THAY, không nhân đôi:
+     · "app": mỗi mã đơn CHỈ một dòng — sửa đơn rồi Xử lý lại là cập nhật dòng đó;
+     · "checklist": mỗi khách CHỈ một dòng — nạp lại tờ check list là thay dòng cũ;
+     · "file" (Gmail): một khách có thể có NHIỀU email cùng ngày cho cùng mã đơn (file mẫu
+       có 18 cặp như thế) ⇒ khóa phải kèm băm nội dung, không thì mất bớt email. */
+  function khThemMuc(ten, m){
+    var r = khLay(ten); if(!r) return null;
+    m.don = khTxt(m.don); m.ngay = khNgay(m.ngay);
+    khChuanKeo(m);                       // gộp theo mã keo + dồn độ dài trước khi cất
+    khChuanDoCong(m);                    // tách tên bảng độ cong khỏi phần ghi chú
+    khChuanHop(m);                       // bỏ dòng "Đã chọn|…" máy sinh ra
+    var id = m.nguon==='checklist' ? 'checklist'
+           : m.nguon+'|'+khKhoa(m.don)+'|'+m.ngay;
+    if(m.nguon==='file') id += '|'+khBam(KH_COT.map(function(c){ return m[c[0]]; }).join('\u0001')+'\u0001'+m.mail);
+    m._id = id;
+    var i=-1; r.muc.forEach(function(x,ix){ if(x._id===id) i=ix; });
+    if(i>=0) r.muc[i]=m; else r.muc.push(m);
+    r.muc.sort(function(a,b){
+      var na=String(a.ngay||''), nb=String(b.ngay||'');
+      return na<nb?1:na>nb?-1:0;                                   // mới nhất lên trước
+    });
+    return r;
+  }
+  function khMoiAnh(r){
+    var ra=(r.anh||[]).slice();
+    (r.muc||[]).forEach(function(m){ (m.anh||[]).forEach(function(k){ if(ra.indexOf(k)<0) ra.push(k); }); });
+    return ra;
+  }
+
+  /* ===== ĐỌC "CHECK LIST KH.xlsx" =====
+     Mỗi khách chiếm một KHỐI dòng liên tiếp; trong khối, từng cột là một danh sách riêng
+     (mỗi độ dày một dòng, mỗi loại hộp một dòng…) nên gộp các ô không rỗng theo cột. */
+  function khLaCheckList(wb){
+    var A = aoa(pickSheet(wb,'Data')), h0=A[0]||[], h1=A[1]||[];
+    return (khKhoa(h0[2])==='MÃ KH' && khKhoa(h1[3])==='ĐỘ DÀY' && khKhoa(h1[4])==='KEO') ? A : null;
+  }
+  function khDocCheckList(A){
+    var C = { sale:0, khach:1, maKH:2, doDay:3, keo:4, doDai:5, mixMulti:6,
+              laserFans:7, doCong:8, dienGiai:9,
+              loaiHop:10, ghiChuHop:11, noiDung:12, _anh:13, thungHop:14, chuY:15 };
+    var khoi=[], hienTai=null;
+    for(var r=2;r<A.length;r++){
+      var rw=A[r]||[], ma=khTxt(rw[C.maKH]);
+      if(!ma){ if(hienTai) hienTai.dong.push(r); continue; }       // dòng nối tiếp của khối trên
+      if(!hienTai || hienTai.ma!==ma){ hienTai={ ma:ma, dong:[] }; khoi.push(hienTai); }
+      hienTai.dong.push(r);
+    }
+    var soKH=0;
+    khoi.forEach(function(k){
+      var m = { nguon:'checklist', don:'', ngay:'', tieuDe:'', mail:'', anh:[], _dong:k.dong.slice() };
+      Object.keys(C).forEach(function(f){
+        if(f==='maKH' || f==='_anh') return;
+        var ds=[], co={};
+        k.dong.forEach(function(r){ var v=khTxt((A[r]||[])[C[f]]); if(v && !co[v]){ co[v]=1; ds.push(v); } });
+        m[f]=ds.join('\n');
+      });
+      var rec = khThemMuc(k.ma, m);
+      /* Cột "Khách hàng" của tờ check list chính là NHÃN HIỆU của khách → gắn theo khách,
+         không theo từng đơn (một khách một nhãn hiệu). Ghi luôn vào sổ tay tra để những
+         đơn nạp SAU (Gmail / app) cũng dò ra, chứ không chỉ mỗi lúc nạp tờ check list. */
+      var nh = khTxt(m.khach).split('\n')[0];
+      if(nh) khGhiNhan(k.ma, nh);
+      if(rec && !rec.brand && nh) rec.brand = nh;
+      soKH++;
+    });
+    return { kh:soKH, ban:soKH, cot:C, khoi:khoi };
+  }
+
+  /* ===== ĐỌC FILE TỔNG HỢP GMAIL (3 sheet) ===== */
+  function khCotIdx(hd, ten){
+    var t=khKhoa(ten);
+    for(var i=0;i<hd.length;i++) if(khKhoa(hd[i])===t) return i;
+    for(var j=0;j<hd.length;j++) if(khKhoa(hd[j]).indexOf(t)===0) return j;
+    return -1;
+  }
+  function khDocGmail(wb){
+    var soKH=0, soDon=0;
+    var A = aoa(pickSheet(wb,'Tổng hợp theo KH'));
+    var gocTheoKH = {};
+    if(A.length){
+      var h=A[0]||[];
+      var c={ ma:khCotIdx(h,'Mã KH'), keo:khCotIdx(h,'Bảng keo'), mix:khCotIdx(h,'Bảng Mix'),
+              dc:khCotIdx(h,'Bảng độ cong'), hop:khCotIdx(h,'Loại hộp'), thung:khCotIdx(h,'Cách đóng thùng'),
+              note:khCotIdx(h,'Ghi chú'), ngay:khCotIdx(h,'Ngày đơn mới nhất') };
+      for(var i=1;i<A.length;i++){
+        var rw=A[i]||[], ten=khTxt(rw[c.ma]); if(!ten) continue;
+        khLay(ten); soKH++;
+        gocTheoKH[khKhoa(ten)] = { thungHop:khTxt(rw[c.thung]), chuY:khTxt(rw[c.note]),
+                                   keo:khTxt(rw[c.keo]), mixMulti:khTxt(rw[c.mix]),
+                                   doCong:khTxt(rw[c.dc]), loaiHop:khTxt(rw[c.hop]), ngay:khNgay(rw[c.ngay]) };
+      }
+    }
+    var B = aoa(pickSheet(wb,'Chi tiết theo đơn'));
+    if(B.length){
+      var hb=B[0]||[];
+      var b={ ma:khCotIdx(hb,'Mã KH'), don:khCotIdx(hb,'Mã đơn'), ngay:khCotIdx(hb,'Ngày email'),
+              tieude:khCotIdx(hb,'Tiêu đề email'), keo:khCotIdx(hb,'Bảng keo'), mix:khCotIdx(hb,'Bảng Mix'),
+              dc:khCotIdx(hb,'Bảng độ cong'), hop:khCotIdx(hb,'Loại hộp'), note:khCotIdx(hb,'Note trong file'),
+              mail:khCotIdx(hb,'Nội dung email') };
+      for(var j=1;j<B.length;j++){
+        var rb=B[j]||[], tenb=khTxt(rb[b.ma]); if(!tenb) continue;
+        var g=gocTheoKH[khKhoa(tenb)]||{};
+        var _keoTxt=khTxt(rb[b.keo]), _k=khTachKeo(_keoTxt);
+        var _note=khTxt(rb[b.note]), _hop=khTxt(rb[b.hop]);
+        khThemMuc(tenb, { nguon:'file', don:khTxt(rb[b.don]), ngay:rb[b.ngay], tieuDe:khTxt(rb[b.tieude]),
+          sale:'', khach:'',
+          doDay:_k?_k.doDay:'', keo:_k?_k.keo:_keoTxt, doDai:_k?_k.doDai:'',
+          /* Bảng mix length KHÔNG thuộc cột này — chỉ lấy dòng nào thật sự nói mix/multi color */
+          mixMulti:khLocMixMau(_keoTxt, _note, _hop, g.chuY||''),
+          laserFans:'', doCong:khTxt(rb[b.dc]), dienGiai:'',
+          loaiHop:_hop, ghiChuHop:'', noiDung:_note,
+          /* Cách đóng thùng + Chú ý chỉ có ở sheet tổng hợp theo KH (không tách theo đơn) */
+          thungHop:g.thungHop||'', chuY:g.chuY||'', mail:khTxt(rb[b.mail]), anh:[] });
+        soDon++;
+      }
+    }
+    return { kh:soKH, don:soDon };
+  }
+  function khBangAnhGmail(wb){
+    var A = aoa(pickSheet(wb,'Hình ảnh')); if(!A.length) return null;
+    return { A:A, cMa:khCotIdx(A[0]||[],'Mã KH') };
+  }
+
+  /* ===== ẢNH NEO THEO DÒNG (đọc drawing của file .xlsx) ===== */
+  function xmlRels(txt, thuMuc){
+    var m={}, re=/<Relationship\b[^>]*>/g, x;
+    while((x=re.exec(txt))){
+      var id=(x[0].match(/\bId="([^"]+)"/)||[])[1], tg=(x[0].match(/\bTarget="([^"]+)"/)||[])[1];
+      if(!id||!tg) continue;
+      var p=tg;
+      if(p.charAt(0)==='/') p=p.slice(1);
+      else { p=thuMuc+p; while(/[^\/]+\/\.\.\//.test(p)) p=p.replace(/[^\/]+\/\.\.\//,''); }
+      m[id]=p.replace(/^\.\//,'');
+    }
+    return m;
+  }
+  /* → { dòng(0-based trong sheet): [đường dẫn ảnh] } */
+  function khAnhTheoDong(files, tenSheet){
+    var lay=function(p){ var e=files[p]; return e ? new TextDecoder().decode(e) : ''; };
+    var wbx=lay('xl/workbook.xml'); if(!wbx) return {};
+    var rels=xmlRels(lay('xl/_rels/workbook.xml.rels'), 'xl/');
+    var chuan=function(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); };
+    var dich=chuan(tenSheet), sheetPath='', re=/<sheet\b[^>]*>/g, x;
+    while((x=re.exec(wbx))){
+      var nm=(x[0].match(/\bname="([^"]*)"/)||[])[1]||'';
+      var rid=(x[0].match(/r:id="([^"]+)"/)||[])[1]||'';
+      if(chuan(nm)===dich || (!sheetPath && chuan(nm).indexOf(dich)>=0)) sheetPath=rels[rid]||'';
+      if(chuan(nm)===dich) break;
+    }
+    if(!sheetPath) return {};
+    var base=sheetPath.replace(/^.*\//,''), thuMuc=sheetPath.replace(/[^\/]*$/,'');
+    var srel=xmlRels(lay(thuMuc+'_rels/'+base+'.rels'), thuMuc), drawPath='';
+    Object.keys(srel).forEach(function(k){ if(/drawings\/[^\/]+\.xml$/i.test(srel[k])) drawPath=srel[k]; });
+    if(!drawPath) return {};
+    var dxml=lay(drawPath); if(!dxml) return {};
+    var drel=xmlRels(lay(drawPath.replace(/[^\/]*$/,'')+'_rels/'+drawPath.replace(/^.*\//,'')+'.rels'),
+                     drawPath.replace(/[^\/]*$/,''));
+    var ra={}, neo=dxml.split(/<(?:\w+:)?(?:one|two)CellAnchor[\s>]/).slice(1);
+    neo.forEach(function(seg){
+      var mFrom=seg.match(/<(?:\w+:)?from>[\s\S]*?<(?:\w+:)?row>(\d+)<\/(?:\w+:)?row>/);
+      var mEmb=seg.match(/r:embed="([^"]+)"/);
+      if(!mFrom || !mEmb) return;
+      var p=drel[mEmb[1]]; if(!p) return;
+      (ra[+mFrom[1]]=ra[+mFrom[1]]||[]).push(p);
+    });
+    return ra;
+  }
+  /* Hút ảnh của file rồi gắn vào khách theo dòng: gan(dòng) trả về bản ghi khách (hoặc null) */
+  function khHutAnh(ab, tenSheet, gan, xongRoi){
+    state.imgStore = state.imgStore || {};
+    return zipDocEntries(ab, function(p){
+      return /^xl\/(workbook\.xml$|_rels\/|worksheets\/|drawings\/)/i.test(p) || /^xl\/media\//i.test(p);
+    }).then(function(ds){
+      var files={}; ds.forEach(function(e){ files[e.ten]=e.bytes; });
+      var theoDong = khAnhTheoDong(files, tenSheet), keys = Object.keys(theoDong);
+      if(!keys.length) return 0;
+      var xong=0;
+      return keys.reduce(function(ch, k){
+        return ch.then(function(){
+          var r = gan(+k); if(!r) return;
+          return theoDong[k].reduce(function(c2, mp){
+            return c2.then(function(){
+              var bytes=files[mp]; if(!bytes) return;
+              return luuAnh(bytes, mp).then(function(res){
+                if(!res) return;
+                if(r.anh.indexOf(res.key)<0) r.anh.push(res.key);
+                if(res.moi) xong++;
+              });
+            });
+          }, Promise.resolve());
+        });
+      }, Promise.resolve()).then(function(){ if(xongRoi) xongRoi(xong); return xong; });
+    });
+  }
+
+  /* ===== NẠP FILE (tự nhận là Check list hay file tổng hợp Gmail) ===== */
+  function khNapFile(ab, ten){
+    if(needXLSX(khNapFile, ab, ten)) return;   // chưa có thư viện Excel → nạp rồi tự đọc lại
+    var wb = XLSX.read(new Uint8Array(ab), {type:'array'});
+    state.khData = state.khData || khRong();
+    var A = khLaCheckList(wb);
+    if(A){
+      var kq = khDocCheckList(A);
+      state.khData.file = ten; state.khData.napLuc = Date.now();
+      logLine('🗂 Nạp Check list KH từ '+ten+': '+kq.kh+' Mã KH');
+      renderKH();
+      /* Ảnh cột "Hình ảnh" neo vào dòng nào thì thuộc khối khách chứa dòng đó */
+      var chuKhoi={}; kq.khoi.forEach(function(k){ k.dong.forEach(function(r){ chuKhoi[r]=k.ma; }); });
+      khHutAnh(ab, 'Data', function(dong){
+        var ma=chuKhoi[dong]; return ma ? khLay(ma) : null;
+      }, function(n){ if(n) logLine('🖼 Check list KH: đọc '+n+' ảnh'); renderKH(); khLuuNgam(); })
+        .catch(function(e){ logErr('khNapAnh.checklist', e); });
+      return;
+    }
+    if(!pickSheet(wb,'Tổng hợp theo KH') && !pickSheet(wb,'Chi tiết theo đơn')){
+      alert('Chưa nhận ra file này.\n\nBước 7 nhận 2 loại:\n' +
+            '· "Check list KH.xlsx" — sheet Data, cột Sale | Khách hàng | Mã KH | Độ dày | Keo…\n' +
+            '· File tổng hợp từ Gmail — sheet "Tổng hợp theo KH" + "Chi tiết theo đơn".\n\n' +
+            'Sheet đang có trong file: '+wb.SheetNames.join(', '));
+      return;
+    }
+    var d = khDocGmail(wb);
+    state.khData.file = ten; state.khData.napLuc = Date.now();
+    logLine('🗂 Nạp dữ liệu khách hàng từ '+ten+': '+d.kh+' Mã KH · '+d.don+' đơn');
+    renderKH();
+    var bang = khBangAnhGmail(wb);
+    if(!bang){ khLuuNgam(); return; }
+    khHutAnh(ab, 'Hình ảnh', function(dong){
+      var ten2=khTxt((bang.A[dong]||[])[bang.cMa]); return ten2 ? khLay(ten2) : null;
+    }, function(n){ if(n) logLine('🖼 Dữ liệu khách hàng: đọc '+n+' ảnh'); renderKH(); khLuuNgam(); })
+      .catch(function(e){ logErr('khNapAnh.gmail', e); });
+  }
+  function khLuuNgam(){ try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('kh.autosave', e); } }
+
+  /* ===== GỘP ĐƠN ĐANG CÓ TRONG APP =====
+     Hai cột Độ dày và Keo phải THẲNG HÀNG với nhau (dòng thứ n của cột này ứng với dòng thứ n
+     của cột kia) — giống hệt cách tờ check list ghi. */
+  /* Cột Keo chỉ ghi MÃ KEO; độ dày và độ dài nằm ở hai cột bên, THẲNG HÀNG từng dòng —
+     đúng như Bảng Keo của app (user chốt 23/9). */
+  function khKeoTheoDon(md){
+    var ds=(state.keoRows||[]).filter(function(k){ return String(k.maDon||'')===md; });
+    var dd=[], mk=[], dl=[];
+    ds.forEach(function(k){
+      /* Ô Độ dày / Độ dài có thể để trống mà nằm trong Ghi chú — Bảng Keo của app cũng
+         đọc qua parseKeoNote, bước 7 phải đọc y hệt thì hai chỗ mới khớp nhau. */
+      var pn=null; try{ pn=parseKeoNote(k.ghiChu); }catch(e){ pn=null; } pn=pn||{};
+      dd.push(khTxt(k.doDay || pn.doDay) || '');
+      mk.push(khTxt(k.loaiKeo));
+      dl.push(khTxt(k.doDai || pn.doDai) || '');
+    });
+    return { doDay:dd.some(Boolean)?dd.join('\n'):'', keo:mk.join('\n'),
+             doDai:dl.some(Boolean)?dl.join('\n'):'' };
+  }
+  /* CHỈ hàng mix màu / multi color mới vào cột này — KHÔNG chép bảng mix length vào
+     (user chốt 23/9). Đơn nào không có hàng loại đó thì để trống. */
+  function khMixTheoDon(md){
+    var ra=[], co={};
+    (state.orders||[]).forEach(function(o){
+      if(String(o.maDon||'')!==md) return;
+      var txt=[o.codeSoi,o.material,o.label,o.loaiHang,o.detail].map(khTxt).join(' ¦ ');
+      var la=(E && E.laMixColor && E.laMixColor(o)) || /multi\s*colou?r/i.test(txt);
+      if(!la) return;
+      var ten=khTxt(o.codeSoi).split('\n').join(' + ') || khTxt(o.material);
+      var v=(/multi\s*colou?r/i.test(txt)?'Multi Color':'Mix Color')+(ten?': '+ten:'');
+      if(!co[v]){ co[v]=1; ra.push(v); }
+    });
+    return ra.join('\n');
+  }
+  function khHopTheoDon(md){
+    var b=(state.boxTableByMadon||{})[md];
+    if(!b||!b.rows) return { loaiHop:'', ghiChuHop:'', noiDung:'' };
+    var ten=[], gc=[];
+    b.rows.forEach(function(x){
+      ten.push(khTxt(x.name) + (khTxt(x.qty) ? ' | '+khTxt(x.qty) : ''));
+      gc.push(khTxt(x.note));
+    });
+    return { loaiHop:ten.join('\n'), ghiChuHop:gc.some(Boolean)?gc.join('\n'):'',
+             noiDung:(b.notes||[]).map(khTxt).filter(Boolean).join('\n') };
+  }
+  function khDoCongTheoDon(md){
+    var d=(state.doCongByMadon||{})[md];
+    if(!d||!d.rows) return { doCong:'', dienGiai:'' };
+    return { doCong:d.rows.map(function(x){ return khTxt(x.name); }).filter(Boolean).join('\n'),
+             dienGiai:d.rows.map(function(x){ return khTxt(x.note); }).filter(Boolean).join('\n') };
+  }
+  function khLaserTheoDon(md){
+    var co={}, ra=[];
+    (state.orders||[]).forEach(function(o){
+      if(String(o.maDon||'')!==md) return;
+      var t=khTxt(o.loaiHang);
+      if(t && t!=='Classic' && !co[t]){ co[t]=1; ra.push(t); }
+    });
+    (state.files||[]).forEach(function(F){
+      if(!F||!F.meta||(F.maDons||[]).indexOf(md)<0) return;
+      (F.meta.specialSym||[]).forEach(function(s){ if(!co[s]){ co[s]=1; ra.push(s); } });
+    });
+    return ra.join('\n');
+  }
+  /* Gộp MỌI đơn đang có trong app. Chạy lại nhiều lần vẫn đúng một dòng cho mỗi mã đơn. */
+  function gopDonVaoKH(){
+    state.khData = state.khData || khRong();
+    var theoMd={};
+    (state.files||[]).forEach(function(F){
+      if(!F || !F.data || F.banCu) return;
+      (F.maDons||[]).forEach(function(md){ if(md && !theoMd[md]) theoMd[md]=F; });
+    });
+    var n=0;
+    Object.keys(theoMd).forEach(function(md){
+      var F=theoMd[md], k=khKeoTheoDon(md), h=khHopTheoDon(md), c=khDoCongTheoDon(md);
+      var m = { nguon:'app', don: donOf(md)||md,
+                ngay: F.addedAt ? new Date(F.addedAt).toISOString().slice(0,10) : '',
+                tieuDe: khTxt(F.name), sale:'', khach:'',
+                doDay:k.doDay, keo:k.keo, doDai:k.doDai, mixMulti:khMixTheoDon(md),
+                brand:'',
+                laserFans:khLaserTheoDon(md), doCong:c.doCong, dienGiai:c.dienGiai,
+                loaiHop:h.loaiHop, ghiChuHop:h.ghiChuHop, noiDung:h.noiDung,
+                thungHop:'', chuY:'', mail:'', anh:((state.imgByMadon||{})[md]||[]).slice() };
+      if(!KH_SS.some(function(c2){ return c2[0]!=='anh' && khTxt(m[c2[0]]); }) && !m.anh.length) return;
+      khThemMuc(khTenTuMaDon(md), m); n++;
+    });
+    return n;
+  }
+
+  /* ===== VẼ BẢNG — MỘT DÒNG cho MỖI ĐƠN ===== */
+  function khDongPhang(){
+    var d=state.khData; if(!d) return [];
+    var ra=[];
+    d.thuTu.slice().sort(function(a,b){ return a<b?-1:a>b?1:0; }).forEach(function(k){
+      var r=d.kh[k]; if(!r) return;
+      (r.muc||[]).forEach(function(m, i){ ra.push({ k:k, r:r, m:m, i:i }); });
+    });
+    return ra;
+  }
+  /* ===== LỌC THEO LOẠI ĐƠN (user chốt 25/9) =====
+     Mã đơn đuôi "P" là đơn Charmlash, đuôi "S" là đơn Liilash. Số càng lớn càng mới
+     (780P cũ hơn 792P) nên khi lọc thì xếp SỐ LỚN LÊN TRƯỚC, mở ra là thấy đơn mới nhất.
+     Không bật nút nào thì giữ nguyên cách xếp theo Mã KH như cũ. */
+  var khLoai = '';
+  function khDuoiDon(don){
+    var m=khTxt(don).toUpperCase().match(/(\d+)\s*([PS])\b/);
+    return m ? { so:+m[1], duoi:m[2] } : null;
+  }
+  function khDsLoc(){
+    var qk=khKhoa(getVal('kh-filter')||''), qd=khKhoa(getVal('kh-filter-don')||'');
+    var ds=khDongPhang().filter(function(x){
+      if(qd && khKhoa(x.m.don).indexOf(qd)<0) return false;
+      if(!qk) return true;
+      if(khKhoa(x.r.maKH).indexOf(qk)>=0 || khKhoa(x.r.brand).indexOf(qk)>=0) return true;
+      /* Bảng không còn cột Sale/Khách hàng (user bỏ 23/9) nhưng dữ liệu vẫn giữ trong mục,
+         nên vẫn tìm được theo tên khách hoặc tên sale. */
+      if(khKhoa(x.m.sale).indexOf(qk)>=0 || khKhoa(x.m.khach).indexOf(qk)>=0) return true;
+      return KH_SS.some(function(c){ return c[0]!=='anh' && khKhoa(x.m[c[0]]).indexOf(qk)>=0; });
+    });
+    if(!khLoai) return ds;
+    ds = ds.filter(function(x){ var d=khDuoiDon(x.m.don); return !!d && d.duoi===khLoai; });
+    return ds.sort(function(a,b){
+      var da=khDuoiDon(a.m.don), db=khDuoiDon(b.m.don);
+      return (db?db.so:0)-(da?da.so:0);                       // số lớn = đơn mới → lên trước
+    });
+  }
+  /* Ảnh mang theo CẢ danh sách của dòng + vị trí, để xem phóng to còn lật tới lật lui được. */
+  function khAnhTag(kh, ds, i){
+    var im=(state.imgStore||{})[kh]; if(!im) return '';
+    return '<img class="kh-thumb" src="'+im.d+'" alt="'+esc(im.ten||'')+'" data-kh-anh="'+esc(kh)+'"'+
+      (ds?(' data-kh-ds="'+esc(ds.join(','))+'" data-kh-i="'+(i||0)+'"'):'')+'>';
+  }
+  /* Chỉ SUPER ADMIN mới sửa được bảng này (user chốt 23/9) — vai trò khác chỉ xem. */
+  function khSuaDuoc(){
+    try{ return vaiTroHienTai()==='super_admin' && canEditStep('s11'); }
+    catch(e){ logErr('khSuaDuoc', e); return false; }
+  }
+  function khOTag(x, c){
+    var f=c[0], sua=khSuaDuoc();
+    /* Ô sửa được mang sẵn khóa: dòng nào (data-khk) · mục thứ mấy (data-khi) · trường nào. */
+    var oSua=function(lop, noiDung){
+      return '<td class="'+lop+(KH_COT_SO[f]?' kh-so':'')+'"'+
+        (sua?(' contenteditable="true" data-khf="'+f+'"'):'')+'>'+noiDung+'</td>';
+    };
+    if(f==='maKH') return '<td class="kh-ma" data-khmo="kh" title="Bấm để so sánh mọi đơn của khách này">'+
+                          esc(x.r.maKH)+'</td>';
+    /* KHÔNG in nhãn nguồn ra bảng (user chốt 23/9) — dòng của tờ check list không có mã đơn
+       nên ghi thẳng "(check list)", còn lại đã có mã đơn là đủ nhận ra. */
+    if(f==='don')  return '<td class="kh-don" data-khmo="don" title="Bấm để xem bảng chi tiết của đơn này">'+
+                          esc(x.m.don || '(check list)')+'</td>';
+    if(f==='brand') return oSua('kh-brand', esc(khTxt(x.r.brand)));
+    if(f==='anh'){
+      var ds=(x.m.anh&&x.m.anh.length)?x.m.anh:khMoiAnh(x.r);
+      return '<td>'+(ds.length ? ('<div class="kh-anho">'+ds.slice(0,4).map(function(k,i2){ return khAnhTag(k, ds, i2); }).join('')+
+        (ds.length>4?('<span class="mini">+'+(ds.length-4)+'</span>'):'')+'</div>') : '<span class="mini">—</span>')+'</td>';
+    }
+    /* Ba cột keo giữ nguyên dòng trống để thẳng hàng nhau; cột khác thì cắt cho gọn. */
+    var v = (f==='doDay'||f==='keo'||f==='doDai') ? khDong(x.m[f]).join('\n') : khTxt(x.m[f]);
+    return oSua('', '<div class="kh-cell">'+esc(v)+'</div>');
+  }
+  function khDatCol(tb, ws){
+    var cg=document.createElement('colgroup');
+    ws.forEach(function(w){ var c=document.createElement('col'); if(w) c.style.width=w+'px'; cg.appendChild(c); });
+    tb.insertBefore(cg, tb.firstChild);
+  }
+  /* ===== GỘT LẠI DỮ LIỆU CŨ ĐÃ CẤT TRONG PROJECT =====
+     Mấy phép gột (độ dày · độ dài · bỏ "Đã chọn|" · tách tên bảng độ cong) chạy lúc NẠP.
+     Project lưu từ bản cũ thì dữ liệu trong đó vẫn thô — mở ra là thấy y như trước, tưởng
+     chưa sửa gì. Gột lại MỘT LẦN khi mở, đánh dấu bằng số hiệu để lần sau khỏi làm lại. */
+  /* ===== SỔ TAY TRA NHÃN HIỆU (user chốt 25/9) ===== */
+  function khGhiNhan(ma, ten){
+    var d=state.khData; if(!d) return;
+    if(!d.nhan) d.nhan={};
+    var k=khKhoa(ma), v=khTxt(ten);
+    if(k && v) d.nhan[k]=v;
+  }
+  /* Dò Mã KH trong sổ tay rồi điền vào cột Nhãn hiệu — chỉ điền chỗ ĐANG TRỐNG, để người
+     sửa tay rồi thì không bị ghi đè mất. */
+  function khApNhan(){
+    var d=state.khData; if(!d || !d.kh) return;
+    if(!d.nhan) d.nhan={};
+    /* DỰNG LẠI SỔ TAY TỪ CHÍNH DỮ LIỆU ĐANG CÓ — project lưu từ bản cũ chưa có sổ tay,
+       nhưng mấy dòng của tờ Check list vẫn nằm trong đó kèm cột "Khách hàng". Đọc ra là
+       điền được ngay, KHÔNG bắt người ta nạp lại tờ check list 50MB (user báo 25/9). */
+    (d.thuTu||[]).forEach(function(k){
+      var r=d.kh[k]; if(!r) return;
+      var kk=khKhoa(r.maKH)||k;
+      if(d.nhan[kk]) return;
+      var ten='';
+      /* Ưu tiên dòng của tờ Check list, không có thì lấy tên khách ở nguồn bất kỳ. */
+      (r.muc||[]).forEach(function(m){
+        if(ten || m.nguon!=='checklist') return;
+        ten = khTxt(m.khach).split('\n')[0];
+      });
+      if(!ten) (r.muc||[]).forEach(function(m){
+        if(ten) return;
+        ten = khTxt(m.khach).split('\n')[0];
+      });
+      if(ten) d.nhan[kk]=ten;
+    });
+    (d.thuTu||[]).forEach(function(k){
+      var r=d.kh[k]; if(!r || khTxt(r.brand)) return;
+      var v=d.nhan[khKhoa(r.maKH)] || d.nhan[k];
+      if(v) r.brand=v;
+    });
+  }
+  /* ===== QUÉT KHO ẢNH, BỎ TẤM TRÙNG (user chốt 25/9) =====
+     Project lưu từ bản cũ có thể giữ cùng một tấm ảnh hai ba lần (đơn gốc một bản, file
+     tổng hợp Gmail một bản). Lấy vân tay từng tấm, tấm nào trùng thì trỏ hết về MỘT khóa
+     rồi xóa bản thừa — mọi chỗ đang nhắc tới khóa cũ đều đổi theo. Chạy MỘT LẦN, có đánh dấu. */
+  function vanTayTuDataURL(d){
+    return new Promise(function(ok){
+      try{
+        var im=new Image();
+        im.onload=function(){
+          try{
+            var cv=document.createElement('canvas');
+            cv.width=im.naturalWidth||im.width||1; cv.height=im.naturalHeight||im.height||1;
+            cv.getContext('2d').drawImage(im,0,0);
+            ok(vanTayAnh(cv));
+          }catch(e){ ok(''); }
+        };
+        im.onerror=function(){ ok(''); };
+        im.src=d;
+      }catch(e){ ok(''); }
+    });
+  }
+  function khDoiKhoaAnh(doi){
+    var thay=function(arr){
+      if(!arr || !arr.length) return arr;
+      var ra=[], co={};
+      arr.forEach(function(k){ var v=doi[k]||k; if(!co[v]){ co[v]=1; ra.push(v); } });
+      return ra;
+    };
+    var m=state.imgByMadon||{};
+    for(var md in m) m[md]=thay(m[md]);
+    var d=state.khData;
+    if(d && d.kh) (d.thuTu||[]).forEach(function(k){
+      var r=d.kh[k]; if(!r) return;
+      r.anh=thay(r.anh||[]);
+      (r.muc||[]).forEach(function(x){ x.anh=thay(x.anh||[]); });
+    });
+  }
+  var khDangQuetAnh=false;
+  function khQuetAnhTrung(xongRoi){
+    var kho=state.imgStore||{};
+    if(khDangQuetAnh || state.imgAHVer===1) return;
+    khDangQuetAnh=true;
+    var ks=Object.keys(kho);
+    ks.reduce(function(ch, k){
+      return ch.then(function(){
+        if(!kho[k] || kho[k].ah) return;                 // đã có vân tay thì thôi
+        return vanTayTuDataURL(kho[k].d).then(function(a){ if(kho[k]) kho[k].ah=a||''; });
+      });
+    }, Promise.resolve()).then(function(){
+      var chuan={}, doi={}, bo=0;
+      Object.keys(kho).forEach(function(k){
+        var a=kho[k] && kho[k].ah; if(!a) return;
+        if(chuan[a]==null){ chuan[a]=k; return; }
+        doi[k]=chuan[a]; delete kho[k]; bo++;
+      });
+      if(bo){ khDoiKhoaAnh(doi); logLine('🖼 Gộp '+bo+' ảnh trùng trong kho (bước 6 và bước 7 dùng chung)'); }
+      state.imgAHVer=1;
+      khDangQuetAnh=false;
+      if(bo){ try{ khLuuNgam(); }catch(e){ logErr('khQuetAnhTrung.luu', e); } }
+      if(xongRoi) xongRoi(bo);
+    }).catch(function(e){ khDangQuetAnh=false; logErr('khQuetAnhTrung', e); });
+  }
+  var KH_CHUAN_VER = 3;
+  function khChuanLai(){
+    var d=state.khData; if(!d || d._chuan===KH_CHUAN_VER) return;
+    try{
+      (d.thuTu||[]).forEach(function(k){
+        ((d.kh[k]||{}).muc||[]).forEach(function(m){ khChuanKeo(m); khChuanDoCong(m); khChuanHop(m); });
+      });
+      d._chuan = KH_CHUAN_VER;
+    }catch(e){ logErr('khChuanLai', e); }
+  }
+  function renderKH(){
+    var tb=document.getElementById('eng-khdata'); if(!tb) return;
+    window.__khRender = renderKH;      // go('s11') gọi qua đây (go nằm ngoài khối này)
+    khChuanLai(); khApNhan();
+    khQuetAnhTrung(function(bo){ if(bo) renderKH(); });   // quét kho ảnh một lần, xong thì vẽ lại
+    var d=state.khData, ds=khDsLoc();
+    setTxt('kh-count', ds.length);
+    var st=document.getElementById('kh-stat');
+    if(st){
+      if(!d || !d.thuTu.length) st.innerHTML='<span class="mini" style="color:var(--text-3)">'+
+        'Chưa có dữ liệu — bấm “📂 Nạp file” (Check list KH hoặc file tổng hợp Gmail), hoặc kéo thả file vào thanh này.</span>';
+      else{
+        var soMuc=0, soAnh=0, soNhan=0;
+        d.thuTu.forEach(function(k){ var r=d.kh[k]; if(!r) return;
+          soMuc+=r.muc.length; soAnh+=khMoiAnh(r).length; if(khTxt(r.brand)) soNhan++; });
+        /* Đếm luôn số Mã KH đã có Nhãn hiệu — nhìn là biết tờ Check list đã nạp chưa,
+           chứ nhìn cột trống thì không phân biệt được "chưa nạp" với "file không có mã đó". */
+        st.innerHTML='<b>'+d.thuTu.length+' Mã KH</b> · '+soMuc+' dòng · '+soAnh+' ảnh · '+
+          soNhan+'/'+d.thuTu.length+' có nhãn hiệu'+
+          (soNhan ? '' : ' <span class="mini" style="color:var(--text-3)">(nạp “Check list KH” để lấy)</span>');
+      }
+    }
+    if(!ds.length){
+      tb.innerHTML='<tbody><tr><td class="mini" style="color:var(--text-3);padding:14px">'+
+        (d&&d.thuTu.length?'Không có dòng nào khớp bộ lọc.':'Chưa có dữ liệu khách hàng.')+'</td></tr></tbody>';
+      return;
+    }
+    /* Tiêu đề 2 dòng: cột đứng riêng gộp 2 dòng, cột trong nhóm nằm dưới tên nhóm */
+    var h1='', h2='', i=0;
+    while(i<KH_COT.length){
+      var c=KH_COT[i];
+      if(!c[2]){ h1+='<th rowspan="2" class="'+c[4]+'">'+esc(c[1])+'</th>'; i++; continue; }
+      var nhom=c[2], j=i;
+      while(j<KH_COT.length && KH_COT[j][2]===nhom) j++;
+      h1+='<th class="kh-nhom '+c[4]+'" colspan="'+(j-i)+'">'+esc(nhom)+'</th>';
+      for(var q=i;q<j;q++) h2+='<th class="'+KH_COT[q][4]+'">'+esc(KH_COT[q][1])+'</th>';
+      i=j;
+    }
+    var tr=ds.map(function(x){
+      return '<tr data-khk="'+esc(x.k)+'" data-khi="'+x.i+'">'+
+        KH_COT.map(function(c){ return khOTag(x, c); }).join('')+'</tr>';
+    }).join('');
+    tb.innerHTML='<thead><tr>'+h1+'</tr><tr>'+h2+'</tr></thead><tbody>'+tr+'</tbody>';
+    /* Bề rộng cột phải đặt bằng <col>: dòng tiêu đề THỨ NHẤT có ô gộp (LINE/CUỐN/BOX) nên
+       table-layout:fixed lấy bề rộng từ dòng đó, mấy cột trong nhóm bị chia đều bằng nhau
+       (đo trên Chrome: 12 cột đều 86px) ⇒ "Mix / Multi color" và "Nội dung" bị bóp còn "Sale"
+       thì thừa chỗ. Dựng <col> bằng DOM cho khỏi phải viết sẵn thẻ vào chuỗi HTML. */
+    /* Cột NÀO để 0 thì không đặt bề rộng → nó ăn hết chỗ dư của khung, bảng không hở bên phải. */
+    khDatCol(tb, KH_COT.map(function(c){ return c[0]==='noiDung' ? 0 : c[3]; }));
+    /* Hai dòng tiêu đề đều DÍNH khi cuộn: dòng 2 phải nằm đúng dưới dòng 1, mà chiều cao
+       dòng 1 đổi theo cỡ chữ nên phải ĐO, không đoán bằng px cứng (đoán sai là chữ tiêu đề
+       chồng lên dòng dữ liệu đầu — đúng cái user chụp được 23/9). */
+    try{
+      var hd=tb.querySelectorAll('thead tr');
+      if(hd.length>1){
+        var cao=Math.round(hd[0].getBoundingClientRect().height)||26;
+        Array.prototype.forEach.call(hd[1].children, function(th){ th.style.top=cao+'px'; });
+      }
+    }catch(e){ logErr('renderKH.stickyHead', e); }
+  }
+  /* ===== KHU ẢNH CHUNG CỦA CẢ KHÁCH (user chốt 25/9) =====
+     Bỏ cột Hình ảnh trên bảng vì mỗi dòng lại lặp lại đúng mấy tấm ấy. Ảnh của MỌI đơn
+     dồn về đây, nằm dưới bảng so sánh sau dòng Chú ý, và LỌC TRÙNG theo vân tay ảnh nên
+     một tấm chỉ hiện một lần dù nhiều đơn cùng đính. */
+  function khKhuAnh(r){
+    var ds=[], co={};
+    khMoiAnh(r).forEach(function(k){
+      var im=(state.imgStore||{})[k]; if(!im) return;
+      var v=im.ah || k;                       // cùng vân tay = cùng một tấm
+      if(co[v]) return;
+      co[v]=1; ds.push(k);
+    });
+    if(!ds.length) return '';
+    return '<div class="kh-khuanh"><h5>🖼 Hình ảnh của khách · '+ds.length+' ảnh'+
+      ' <span class="mini">— bấm để xem to, lật bằng ← →</span></h5>'+
+      '<div class="kh-anhluoi">'+ds.map(function(k,i){ return khAnhTag(k, ds, i); }).join('')+'</div></div>';
+  }
+  /* Bấm 1 dòng → SO SÁNH mọi đơn của khách đó theo cột; hàng nào các đơn ghi khác nhau thì tô vàng */
+  function renderKHTiet(key){
+    var box=document.getElementById('kh-tiet'); if(!box) return;
+    var r=(state.khData&&state.khData.kh)?state.khData.kh[key]:null;
+    if(!r || !r.muc.length){ box.style.display='none'; box.innerHTML=''; return; }
+    var ds=r.muc;
+    var th=ds.map(function(m){
+      return '<th>'+esc(m.don || '(check list)')+
+        (m.ngay?('<span class="kh-ng2">'+esc(m.ngay)+'</span>'):'')+
+        (m.tieuDe?('<span class="kh-ng2">'+esc(m.tieuDe)+'</span>'):'')+'</th>';
+    }).join('');
+    var tr=KH_SS.map(function(c){
+      var gt=ds.map(function(m){
+        if(c[0]==='anh')  return (m.anh||[]).length+' ảnh';
+        if(c[0]==='__keo') return khKeoChuoi(m);
+        return khTxt(m[c[0]]);
+      });
+      if(gt.every(function(v){ return !v || v==='0 ảnh'; })) return '';        // cả hàng trống → bỏ
+      var coGt=gt.filter(function(v){ return v && v!=='0 ảnh'; });
+      var lech=coGt.some(function(v){ return v!==coGt[0]; });
+      var o=ds.map(function(m){
+        if(c[0]==='anh') return '<td>'+((m.anh||[]).map(function(k2,i2){ return khAnhTag(k2, m.anh, i2); }).join('')
+                                        ||'<span class="mini">—</span>')+'</td>';
+        if(c[0]==='__keo') return '<td>'+(khBangKeo(m)||'<span class="mini">—</span>')+'</td>';
+        return '<td><div class="kh-cell">'+esc(khTxt(m[c[0]]))+'</div></td>';
+      }).join('');
+      return '<tr class="'+(lech?'kh-lech':'')+'"><th class="kh-tf">'+esc(c[1])+
+             (lech?'<span class="kh-co">⟳ lệch</span>':'')+'</th>'+o+'</tr>';
+    }).join('');
+    box.innerHTML='<h4>🗂 '+esc(r.maKH)+' — so sánh '+ds.length+' dòng'+
+      '<button class="btn sm" id="kh-dong" style="float:right">✕ Đóng</button></h4>'+
+      '<div style="max-height:52vh;overflow:auto"><table class="sheet kh-ss"><thead><tr><th class="kh-tf"></th>'+
+      th+'</tr></thead><tbody>'+tr+'</tbody></table></div>'+
+      khKhuAnh(r);
+    box.style.display=''; khCuonToi(box);
+    var bss=box.querySelector('table.kh-ss');
+    /* Mỗi cột đơn phải đủ chỗ cho bảng keo 3 cột bên trong, 210px thì bóp nghẹt. */
+    if(bss) khDatCol(bss, [128].concat(ds.map(function(){ return 268; })));
+    var nd=document.getElementById('kh-dong');
+    if(nd) nd.addEventListener('click', function(){ box.style.display='none'; box.innerHTML=''; });
+  }
+  /* ===== BẤM VÀO MÃ ĐƠN → BẢNG CHI TIẾT CỦA ĐƠN ĐÓ =====
+     Dựng đúng mấy khối như bản in Tổng hợp Box: Bảng Keo · Bảng Độ Cong · Loại hộp · Note ·
+     Ảnh, kèm mấy trường không hiện trên bảng chính (Mix/Multi color, Laser/Fans, Chú ý…).
+     Super admin sửa được ngay tại đây — đó là chỗ duy nhất sửa được mấy trường ẩn. */
+  /* BẢNG KEO 3 CỘT ĐỐI XỨNG — dùng chung cho bảng chi tiết đơn VÀ bảng so sánh,
+     nên hai chỗ luôn nhìn giống nhau, không chỗ ngang chỗ dọc (user chốt 25/9). */
+  function khBangKeo(m){
+    if(!khTxt(m.keo)) return '';
+    var dd=khDong(m.doDay), mk=khDong(m.keo), dl=khDong(m.doDai);
+    var tr=mk.map(function(k,i){
+      return '<tr><td class="kh-so">'+esc(khTxt(dd[i]||''))+'</td><td><b>'+esc(khTxt(k))+'</b></td>'+
+             '<td>'+esc(khTxt(dl[i]||''))+'</td></tr>';
+    }).join('');
+    return '<table class="sheet kh-tk"><thead><tr><th class="kh-so">Độ dày</th><th>Mã keo</th>'+
+      '<th>Độ dài</th></tr></thead><tbody>'+tr+'</tbody></table>';
+  }
+  /* Chuỗi để SO khớp hai đơn có giống nhau không (chỉ dùng cho nhãn "⟳ lệch"). */
+  function khKeoChuoi(m){
+    if(!khTxt(m.keo)) return '';
+    var dd=khDong(m.doDay), mk=khDong(m.keo), dl=khDong(m.doDai);
+    return mk.map(function(k,i){
+      return khTxt(dd[i]||'')+'\u0001'+khTxt(k)+'\u0001'+khTxt(dl[i]||'');
+    }).join('\u0002');
+  }
+  function khKhoiKeo(m){
+    var b=khBangKeo(m); if(!b) return '';
+    return '<div class="kh-the"><h5>🧷 Thông tin keo · '+khDong(m.keo).length+' loại</h5>'+b+'</div>';
+  }
+  /* Bấm Mã KH / Mã đơn thì ĐƯA MẮT XUỐNG LUÔN bảng bên dưới (user chốt 25/9) — bảng dữ liệu
+     dài, trước đây bấm xong vẫn đứng nguyên chỗ cũ nên tưởng không có gì xảy ra. */
+  function khCuonToi(box){
+    if(!box) return;
+    try{
+      /* Khung cuộn là .content chứ không phải cả trang — scrollIntoView tự dò hay trượt
+         nhầm khung, nên tính thẳng toạ độ cho chắc. */
+      var sc=(box.closest && box.closest('.content')) || document.scrollingElement || document.body;
+      requestAnimationFrame(function(){
+        try{
+          var r=box.getBoundingClientRect(), rs=sc.getBoundingClientRect();
+          var y=sc.scrollTop + (r.top - rs.top) - 8;
+          if(sc.scrollTo) sc.scrollTo({ top:Math.max(0,y), behavior:'smooth' });
+          else sc.scrollTop=Math.max(0,y);
+        }catch(e){ try{ box.scrollIntoView(true); }catch(e2){ logErr('khCuonToi.tro', e2); } }
+      });
+    }catch(e){ logErr('khCuonToi', e); }
+  }
+  function khKhoiChu(tieuDe, f, m, sua){
+    var v=khTxt(m[f]); if(!v && !sua) return '';
+    return '<div class="kh-the"><h5>'+esc(tieuDe)+'</h5><div class="kh-vb"'+
+      (sua?(' contenteditable="true" data-khf2="'+f+'"'):'')+'>'+esc(v)+'</div></div>';
+  }
+  function renderKHDon(key, i){
+    var box=document.getElementById('kh-tiet'); if(!box) return;
+    var r=(state.khData&&state.khData.kh)?state.khData.kh[key]:null;
+    var m=r?(r.muc||[])[i]:null;
+    if(!m){ box.style.display='none'; box.innerHTML=''; return; }
+    var sua=khSuaDuoc();
+    var anh=(m.anh&&m.anh.length)?m.anh:khMoiAnh(r);
+    var h='<h4>📋 '+esc(r.maKH)+(khTxt(r.brand)?(' · '+esc(r.brand)):'')+
+      ' — đơn '+esc(m.don||'(check list)')+(m.ngay?(' · '+esc(m.ngay)):'')+
+      '<button class="btn sm" id="kh-dong" style="float:right">✕ Đóng</button>'+
+      '<button class="btn sm" id="kh-ss" style="float:right;margin-right:6px">🆚 So sánh cả khách</button></h4>';
+    h+='<div class="kh-luoi">';
+    h+=khKhoiKeo(m);
+    [['📏 Bảng độ cong','doCong'],['📝 Ghi chú độ cong','doCongGhi'],['📦 Loại hộp','loaiHop'],
+     ['📄 Nội dung','noiDung'],['🎨 Mix / Multi color','mixMulti'],['✨ Laser / Fans','laserFans'],
+     ['🚚 Thùng / hộp','thungHop'],['⚠ Chú ý','chuY']
+    ].forEach(function(c){ h+=khKhoiChu(c[0], c[1], m, sua); });
+    h+='</div>';
+    if(anh.length) h+='<div class="kh-the" style="margin-top:8px"><h5>🖼 Hình ảnh · '+anh.length+' ảnh '+
+      '<span class="mini" style="font-weight:400;color:var(--text-3)">— bấm để xem to, lật bằng ← →</span></h5>'+
+      '<div class="kh-anhluoi">'+anh.map(function(k2,i2){ return khAnhTag(k2, anh, i2); }).join('')+'</div></div>';
+    box.innerHTML=h; box.style.display=''; khCuonToi(box);
+    box.setAttribute('data-khk', key); box.setAttribute('data-khi', String(i));
+    var nd=document.getElementById('kh-dong');
+    if(nd) nd.addEventListener('click', function(){ box.style.display='none'; box.innerHTML=''; });
+    var nss=document.getElementById('kh-ss');
+    if(nss) nss.addEventListener('click', function(){ renderKHTiet(key); });
+  }
+  function khTaiXlsx(){
+    if(needXLSX(khTaiXlsx)) return;
+    var ds=khDsLoc();
+    if(!ds.length) return alert('Chưa có dữ liệu khách hàng để tải.');
+    /* File tải về ghi ĐỦ, kể cả Sale và Khách hàng — hai cột này đã bỏ khỏi màn hình cho gọn
+       nhưng dữ liệu vẫn còn (tờ Check list có), xuất ra Excel thì nên có. */
+    var head=['Sale','Khách hàng','Ngày'].concat(KH_COT.map(function(c){ return c[1]; }));
+    var rows=[head];
+    ds.forEach(function(x){
+      rows.push([khTxt(x.m.sale), khTxt(x.m.khach), khTxt(x.m.ngay)].concat(KH_COT.map(function(c){
+        if(c[0]==='maKH')  return x.r.maKH;
+        if(c[0]==='brand') return khTxt(x.r.brand);
+        if(c[0]==='anh')   return (x.m.anh||[]).length;
+        return khTxt(x.m[c[0]]);
+      })));
+    });
+    var wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Data');
+    var ten=tenXuat('DuLieuKhachHang.xlsx');
+    XLSX.writeFile(wb, ten);
+    logLine('Đã tải '+ten+' ('+ds.length+' dòng)');
+  }
+  function khIn(){
+    var ds=khDsLoc();
+    if(!ds.length) return alert('Chưa có dữ liệu khách hàng để in.');
+    var w=window.open('','_blank'); if(!w) return alert('Trình duyệt chặn cửa sổ in.');
+    var cot=KH_COT.filter(function(c){ return c[0]!=='anh'; });
+    var th=cot.map(function(c){ return '<th>'+esc(c[1])+'</th>'; }).join('');
+    var tr=ds.map(function(x){
+      return '<tr>'+cot.map(function(c){
+        var v = c[0]==='maKH' ? x.r.maKH : c[0]==='brand' ? khTxt(x.r.brand) : khTxt(x.m[c[0]]);
+        return '<td'+(c[0]==='maKH'?' class="ma"':'')+'>'+esc(v)+'</td>';
+      }).join('')+'</tr>';
+    }).join('');
+    w.document.write('<!doctype html><meta charset="utf-8"><title>Dữ liệu khách hàng</title>'+
+      '<style>@page{size:A4 landscape;margin:7mm}body{font:9px/1.4 system-ui,sans-serif;margin:0}'+
+      'h1{font-size:14px;margin:0 0 5px}table{border-collapse:collapse;width:100%;table-layout:fixed}'+
+      'th,td{border:1px solid #999;padding:2px 3px;vertical-align:top;white-space:pre-wrap;word-break:break-word}'+
+      'th{background:#eee;font-size:8.5px}td.ma{font-weight:700}</style>'+
+      '<h1>Dữ liệu khách hàng — '+ds.length+' dòng</h1><table>'+th+tr+'</table>');
+    w.document.close();
+    setTimeout(function(){ try{ w.print(); }catch(e){ logErr('khIn.print', e); } }, 400);
+  }
+  /* Xem ảnh phóng to: lật TỚI / LUI trong đúng danh sách ảnh của dòng đang bấm
+     (user chốt 23/9) — bấm mũi tên trên màn hình hoặc phím ← → , Esc để đóng. */
+  var khLB = { ds:[], i:0 };
+  function khVeAnh(){
+    var lb=document.getElementById('kh-lightbox'); if(!lb) return;
+    var kh=khLB.ds[khLB.i], im=(state.imgStore||{})[kh];
+    if(!im){ lb.style.display='none'; return; }
+    lb.querySelector('img').src=im.d;
+    var d=document.getElementById('kh-lb-dem');
+    if(d) d.textContent=(khLB.i+1)+' / '+khLB.ds.length+(im.ten?('  ·  '+im.ten):'');
+    var mot=khLB.ds.length<2;
+    ['kh-lb-truoc','kh-lb-sau'].forEach(function(id){
+      var b=document.getElementById(id); if(b) b.style.visibility=mot?'hidden':'visible';
+    });
+  }
+  function khLatAnh(b){
+    if(!khLB.ds.length) return;
+    khLB.i=(khLB.i+b+khLB.ds.length)%khLB.ds.length;
+    khVeAnh();
+  }
+  function khXemAnh(kh, ds, i){
+    var lb=document.getElementById('kh-lightbox'); if(!lb) return;
+    khLB.ds=(ds&&ds.length)?ds.slice():[kh];
+    khLB.i=Math.max(0, (i!=null?i:khLB.ds.indexOf(kh)));
+    if(!(state.imgStore||{})[khLB.ds[khLB.i]]) return;
+    lb.style.display='flex'; khVeAnh();
+  }
+  /* ===== NỐI DÂY GIAO DIỆN ===== */
+  (function(){
+    if(!document.getElementById('kh-thanh')) return;
+    var dz=document.getElementById('kh-thanh'), fi=document.getElementById('kh-input');
+    var doc=function(file){
+      if(!file) return;
+      if(!/\.(xlsx|xlsm|xls)$/i.test(file.name)) return alert('Cần file Excel (.xlsx).');
+      var rd=new FileReader();
+      rd.onload=function(ev){ try{ khNapFile(ev.target.result, file.name); }
+        catch(e){ logErr('khNapFile', e); alert('Không đọc được file: '+(e&&e.message||e)); } };
+      rd.readAsArrayBuffer(file);
+    };
+    document.getElementById('kh-choose').addEventListener('click', function(){ fi.click(); });
+    fi.addEventListener('change', function(){ var f=(fi.files||[])[0]; fi.value=''; doc(f); });
+    ['dragover','dragenter'].forEach(function(t){ dz.addEventListener(t, function(e){ e.preventDefault(); dz.classList.add('keo'); }); });
+    ['dragleave','drop'].forEach(function(t){ dz.addEventListener(t, function(e){ e.preventDefault(); dz.classList.remove('keo'); }); });
+    dz.addEventListener('drop', function(e){ doc(((e.dataTransfer||{}).files||[])[0]); });
+    ['kh-filter','kh-filter-don'].forEach(function(id){
+      var el=document.getElementById(id); if(el) el.addEventListener('input', function(){ renderKH(); });
+    });
+    /* Hai nút lọc loại đơn: bấm lần nữa vào nút đang bật là tắt lọc, về xem hết. */
+    ['kh-loai-p','kh-loai-s'].forEach(function(id){
+      var el=document.getElementById(id); if(!el) return;
+      el.addEventListener('click', function(){
+        var v=el.getAttribute('data-loai');
+        khLoai = (khLoai===v) ? '' : v;
+        ['kh-loai-p','kh-loai-s'].forEach(function(id2){
+          var e2=document.getElementById(id2); if(!e2) return;
+          e2.classList.toggle('bat', khLoai===e2.getAttribute('data-loai'));
+        });
+        renderKH(); renderKHTiet(null);
+      });
+    });
+    document.getElementById('kh-xlsx').addEventListener('click', khTaiXlsx);
+    document.getElementById('kh-in').addEventListener('click', khIn);
+    document.getElementById('kh-xoa').addEventListener('click', function(){
+      if(!confirm('Xóa toàn bộ dữ liệu khách hàng đang có?\n\nBấm "▶ Xử lý" ở bước 1 là dựng lại được phần lấy từ đơn; '+
+        'phần nạp từ Check list KH và file tổng hợp thì phải nạp lại file.')) return;
+      state.khData=khRong(); renderKH(); renderKHTiet(null);
+      logLine('🗂 Đã xóa dữ liệu khách hàng'); khLuuNgam();
+    });
+    var moAnh=function(im){
+      var ds=(im.getAttribute('data-kh-ds')||'').split(',').filter(Boolean);
+      khXemAnh(im.getAttribute('data-kh-anh'), ds, +(im.getAttribute('data-kh-i')||0));
+    };
+    var tb=document.getElementById('eng-khdata');
+    if(tb) tb.addEventListener('click', function(e){
+      var im=e.target.closest ? e.target.closest('img[data-kh-anh]') : null;
+      if(im){ moAnh(im); return; }
+      /* Đang gõ trong ô sửa thì ĐỪNG mở bảng nào, không thì vừa bấm vào là mất chỗ gõ. */
+      if(e.target.closest && e.target.closest('[contenteditable="true"]')) return;
+      var td=e.target.closest ? e.target.closest('td[data-khmo]') : null;
+      var tr=e.target.closest ? e.target.closest('tr[data-khk]') : null;
+      if(!td || !tr) return;
+      /* Bấm MÃ KH → so sánh mọi đơn của khách; bấm MÃ ĐƠN → bảng chi tiết của riêng đơn đó. */
+      if(td.getAttribute('data-khmo')==='don') renderKHDon(tr.getAttribute('data-khk'), +tr.getAttribute('data-khi'));
+      else renderKHTiet(tr.getAttribute('data-khk'));
+    });
+    /* SỬA Ô (chỉ super admin): gõ xong rời ô là ghi thẳng vào dữ liệu rồi tự lưu. */
+    if(tb) tb.addEventListener('focusout', function(e){
+      var td=e.target.closest ? e.target.closest('td[data-khf]') : null; if(!td) return;
+      var tr=td.closest('tr[data-khk]'); if(!tr) return;
+      var r=(state.khData&&state.khData.kh)?state.khData.kh[tr.getAttribute('data-khk')]:null; if(!r) return;
+      var f=td.getAttribute('data-khf'), moi=khTxt(td.innerText);
+      if(KH_COT_KH[f]){                               // Brand gắn theo KHÁCH, không theo đơn
+        if(khTxt(r.brand)===moi) return;
+        r.brand=moi;
+        /* Brand đổi thì MỌI dòng của khách đó phải đổi theo, không thì nhìn mỗi dòng một kiểu. */
+        Array.prototype.forEach.call(tb.querySelectorAll('tr[data-khk="'+tr.getAttribute('data-khk')+'"]'),
+          function(t2){ var o=t2.querySelector('td[data-khf="'+f+'"]'); if(o && o!==td) o.textContent=moi; });
+      } else {
+        var m=(r.muc||[])[+tr.getAttribute('data-khi')]; if(!m) return;
+        if(khTxt(m[f])===moi) return;
+        m[f]=moi;
+      }
+      logLine('🗂 Sửa dữ liệu khách hàng: '+r.maKH+' · '+f);
+      khLuuNgam();
+    });
+    var tiet=document.getElementById('kh-tiet');
+    if(tiet) tiet.addEventListener('click', function(e){
+      var im=e.target.closest ? e.target.closest('img[data-kh-anh]') : null;
+      if(im) moAnh(im);
+    });
+    /* Sửa mấy trường ẩn ngay trong bảng chi tiết của đơn (chỉ super admin). */
+    if(tiet) tiet.addEventListener('focusout', function(e){
+      var o=e.target.closest ? e.target.closest('[data-khf2]') : null; if(!o) return;
+      var key=tiet.getAttribute('data-khk'), i=+tiet.getAttribute('data-khi');
+      var r=(state.khData&&state.khData.kh)?state.khData.kh[key]:null; if(!r) return;
+      var m=(r.muc||[])[i]; if(!m) return;
+      var f=o.getAttribute('data-khf2'), moi=khTxt(o.innerText);
+      if(khTxt(m[f])===moi) return;
+      m[f]=moi;
+      logLine('🗂 Sửa dữ liệu khách hàng: '+r.maKH+' · đơn '+(m.don||'')+' · '+f);
+      renderKH(); khLuuNgam();
+    });
+    var lb=document.getElementById('kh-lightbox');
+    if(lb){
+      lb.addEventListener('click', function(e){
+        if(e.target.closest && e.target.closest('#kh-lb-truoc,#kh-lb-sau,#kh-lightbox img')) return;
+        lb.style.display='none';
+      });
+      var bt=document.getElementById('kh-lb-truoc'), bs=document.getElementById('kh-lb-sau');
+      if(bt) bt.addEventListener('click', function(){ khLatAnh(-1); });
+      if(bs) bs.addEventListener('click', function(){ khLatAnh(1); });
+      document.addEventListener('keydown', function(e){
+        if(lb.style.display!=='flex') return;
+        if(e.key==='Escape'){ lb.style.display='none'; }
+        else if(e.key==='ArrowLeft'){ khLatAnh(-1); }
+        else if(e.key==='ArrowRight'){ khLatAnh(1); }
+        else return;
+        e.preventDefault();
+      });
+    }
+  })();
+
   window.__CLAPP = {
     version: 1,
     setGridRole: function(r){ state.role = (r==='viewer') ? 'viewer' : 'admin'; try{ render(); }catch(e){ logErr('dlAll', e); } },
@@ -10633,6 +12006,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
                orders:state.orders, mixSheets:state.mixSheets, keoRows:state.keoRows, khachCuon:state.khachCuon||null,
                pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{}, colorMix:state.colorMix||{}, remapApproved:state.remapApproved||{}, lenApproved:state.lenApproved||{}, errAck:state.errAck||{},
                imgStore:state.imgStore||{}, imgByMadon:state.imgByMadon||{},   // ảnh trong đơn khách (đã nén nhỏ, lưu 1 lần/ảnh)
+               imgAHVer:state.imgAHVer||0,                                      // đã quét gộp ảnh trùng chưa
+               khData:state.khData||null,                                       // bước 7 · dữ liệu khách hàng theo Mã KH
                files:state.files, log:state.log, source:state.source, processed:state.processed };
     },
     hasData: function(){ return !!(state.files && state.files.length) || !!(state.orders && state.orders.length); },
@@ -10679,7 +12054,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       state.lenApproved = (p.lenApproved && typeof p.lenApproved==='object') ? p.lenApproved : {};
       state.errAck      = (p.errAck      && typeof p.errAck==='object')      ? p.errAck      : {};
       state.imgStore    = (p.imgStore    && typeof p.imgStore==='object')    ? p.imgStore    : {};
+      state.imgAHVer    = +p.imgAHVer || 0;
       state.imgByMadon  = (p.imgByMadon  && typeof p.imgByMadon==='object')  ? p.imgByMadon  : {};
+      /* Bước 7 · Dữ liệu khách hàng. Bản lưu cũ chưa có khoá này → để rỗng, bấm "▶ Xử lý"
+         là app dựng lại phần lấy từ đơn; phần nạp từ file tổng hợp thì nạp lại file. */
+      state.khData = (p.khData && typeof p.khData==='object' && p.khData.kh) ? p.khData : null;
       state.files     = Array.isArray(p.files)     ? p.files     : [];
       // project đã lưu = file đã xử lý → cột "File đã nhập", và KHÔNG báo lại cảnh báo của chúng
       /* KHÔNG bù "Thời gian nhập" bằng mốc lưu nữa. Đã thử và BỎ: mỗi lần mở bản lưu là
@@ -10699,6 +12078,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       try{ render(); }catch(e){ logErr('dlAll', e); }
       try{ renderS7(); }catch(e){ logErr('dlAll', e); }
       try{ renderS8(); }catch(e){ logErr('dlAll', e); }
+      try{ renderKH(); }catch(e){ logErr('dlAll', e); }
     },
     clearData: function(){
       this.loadData({ orders:[], mixSheets:[], keoRows:[], files:[],
@@ -10714,6 +12094,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   if(!state.origMix) state.origMix = JSON.parse(JSON.stringify(state.mixSheets||[]));
   renderS7();
   renderS8();
+  renderKH();
 })();
 </script>
 <!-- Hệ thống đăng nhập + phân quyền + multi-tenant — chạy OFFLINE trong trình duyệt -->
@@ -10726,14 +12107,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1709470000"></script>
-<script src="cl.sync.js?v=1709470000"></script>
-<script src="auth.store.js?v=1709470000"></script>
-<script src="auth.web.js?v=1709470000"></script>
+<script src="cl.config.js?v=1709660000"></script>
+<script src="cl.sync.js?v=1709660000"></script>
+<script src="auth.store.js?v=1709660000"></script>
+<script src="auth.web.js?v=1709660000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1709470000"></script>
+<script src="cl.project.js?v=1709660000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1709470000" defer></script>
+<script src="firebase-bridge.js?v=1709660000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
