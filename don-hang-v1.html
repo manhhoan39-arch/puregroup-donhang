@@ -665,7 +665,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709660000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709710000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1083,8 +1083,13 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </section>
   <div id="kh-lightbox">
     <button class="kh-lb-nut" id="kh-lb-truoc" title="Ảnh trước (←)">‹</button>
-    <img alt="">
+    <div id="kh-lb-khung"><img alt=""></div>
     <button class="kh-lb-nut" id="kh-lb-sau" title="Ảnh sau (→)">›</button>
+    <div id="kh-lb-zoom">
+      <button class="btn sm" id="kh-lb-ra" title="Thu nhỏ (−)">−</button>
+      <button class="btn sm" id="kh-lb-muc" title="Về cỡ vừa khung (0)">100%</button>
+      <button class="btn sm" id="kh-lb-vao" title="Phóng to (+)">+</button>
+    </div>
     <div id="kh-lb-dem"></div>
   </div>
 
@@ -1209,9 +1214,15 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 /* DẢI TIÊU ĐỀ PHẢI ĐỤC (không trong suốt) và dính đúng chỗ, nếu không chữ tiêu đề chồng
    lên dòng dữ liệu đầu tiên lúc cuộn. Chữ ghim màu tối vì mấy nền pastel này không đổi
    theo chế độ sáng/tối. */
+/* Hai dòng tiêu đề CĂN GIỮA cả ngang lẫn dọc (user chốt 25/9). */
 #eng-khdata thead th{position:sticky;top:0;z-index:3;white-space:normal;word-break:break-word;
-  line-height:1.25;vertical-align:bottom;color:#16202B;font-size:10.5px;letter-spacing:.01em;
-  padding:4px 6px;border-bottom:1px solid rgba(0,0,0,.18)}
+  line-height:1.25;vertical-align:middle;text-align:center;color:#16202B;font-size:10.5px;
+  letter-spacing:.01em;padding:5px 6px;border-bottom:1px solid rgba(0,0,0,.18)}
+/* Mỗi mã đơn là một thẻ bấm được — một dòng có thể mang tới 5 đơn. */
+.kh-chip{display:inline-block;margin:0 3px 3px 0;padding:1px 6px;border-radius:9px;
+  background:var(--bg-2);border:1px solid var(--line);font-weight:700;font-size:10.5px;
+  cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+.kh-chip:hover{background:var(--accent);border-color:var(--accent);color:#fff}
 #eng-khdata th.kh-nhom{text-align:center;letter-spacing:.08em;font-size:11px}
 #eng-khdata th.g-kh  {background:#A9E4F2}
 #eng-khdata th.g-line{background:#BCE9A4}
@@ -1219,7 +1230,7 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 #eng-khdata th.g-box {background:#FBCE97}
 #eng-khdata th.g-chu {background:#E2E2E2}
 #eng-khdata td{vertical-align:top;font-size:11px;line-height:1.45;padding:4px 6px;text-align:left}
-#eng-khdata td.kh-so,#eng-khdata th.kh-so{text-align:right}
+#eng-khdata td.kh-so{text-align:right}
 #eng-khdata td.kh-brand{font-weight:700}
 /* Hai nút lọc theo LOẠI ĐƠN — bật lên thì tô màu cho biết đang lọc. */
 .kh-loai{display:flex;gap:6px}
@@ -1260,7 +1271,7 @@ table.kh-tk th.kh-so,table.kh-tk td.kh-so{text-align:right}
 #eng-khdata tbody tr:hover td{background:var(--bg-2)}
 .kh-cell{max-height:92px;overflow:auto;white-space:pre-wrap;word-break:break-word}
 /* Ba cột keo: mỗi dòng phải nằm TRỌN một dòng, tự ngắt là lệch ngay với cột bên cạnh. */
-#eng-khdata td.kh-so .kh-cell{white-space:pre;word-break:normal}
+#eng-khdata td.kh-keo .kh-cell,#eng-khdata td.kh-so .kh-cell{white-space:pre;word-break:normal}
 .kh-cell:empty::after{content:'—';color:var(--text-3)}
 .kh-ng2{display:block;font-size:9.5px;font-weight:600;color:var(--text-3);margin-top:2px}
 .kh-thumb{width:44px;height:44px;object-fit:cover;border-radius:5px;border:1px solid var(--line);
@@ -1277,7 +1288,15 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 .kh-co{display:block;font-size:9.5px;font-weight:700;color:#8A5A00;margin-top:2px}
 #kh-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9999;display:none;
   align-items:center;justify-content:center;cursor:zoom-out}
-#kh-lightbox img{max-width:76vw;max-height:88vh;border-radius:8px;cursor:default}
+#kh-lb-khung{max-width:76vw;max-height:88vh;overflow:auto;border-radius:8px;cursor:default;
+  display:flex;align-items:center;justify-content:center}
+#kh-lightbox img{display:block;border-radius:8px;cursor:zoom-in;
+  max-width:76vw;max-height:88vh;transform-origin:center center}
+#kh-lightbox img.to{max-width:none;max-height:none;cursor:grab}
+/* Thanh phóng to / thu nhỏ ghim dưới đáy, cạnh số thứ tự ảnh (user chốt 25/9). */
+#kh-lb-zoom{position:fixed;left:50%;transform:translateX(-50%);bottom:42px;z-index:2;
+  display:flex;gap:6px;background:rgba(0,0,0,.45);padding:5px 7px;border-radius:10px}
+#kh-lb-zoom .btn{min-width:42px}
 /* Nút lật ĐỨNG YÊN MỘT CHỖ (user chốt 25/9): trước đây nút nằm cạnh ảnh nên ảnh to nhỏ
    khác nhau là nút nhảy chỗ, bấm liên tiếp không trúng. Ghim vào mép màn hình, kèm một
    vùng bấm rộng suốt chiều cao để đưa chuột tới là bấm được ngay. */
@@ -1292,7 +1311,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1709660000"></script>
+<script src="engine.web.js?v=1709710000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -10830,7 +10849,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     ['brand',   'Nhãn hiệu',    '',     96,  'g-kh'],
     ['doDay',   'Độ dày',       'KEO',  150, 'g-line'],
     ['keo',     'Mã keo',       'KEO',  126, 'g-line'],
-    ['doDai',   'Độ dài',       'KEO',  118, 'g-line'],
+    ['doDai',   'Độ dài',       'KEO',  152, 'g-line'],
     ['doCong',  'Bảng độ cong', '',     96,  'g-cuon'],
     ['loaiHop', 'Loại hộp',     '',     160, 'g-box'],
     ['noiDung', 'Nội dung',     '',     0,   'g-box'],
@@ -10848,6 +10867,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   ];
   /* Cột chỉ chứa SỐ thì canh phải, còn lại canh trái — đọc cho thẳng hàng như bảng Excel. */
   var KH_COT_SO = { doDay:1 };
+  /* Hai cột keo còn lại cũng phải giữ mỗi mục một dòng cho thẳng hàng với Độ dày. */
+  var KH_COT_KEO = { keo:1, doDai:1 };
   /* Brand gắn theo KHÁCH (một khách một brand), không theo từng đơn. */
   var KH_COT_KH = { maKH:1, brand:1 };
   /* Các trường đem ra SO SÁNH giữa những đơn của cùng một khách (bỏ Sale/Khách/Mã KH/ngày).
@@ -10913,19 +10934,46 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      Nguồn hay ghi thẳng CODE SỢI vào ô độ dày: "130.SKV.7, 4.MK.85". Độ dày là ĐUÔI sau
      dấu chấm CUỐI của code (.7 → 0.07 · .85 → 0.085), không phải cả cụm — dấu chấm trong
      code khác hẳn dấu phẩy ngăn cách. Dùng đúng bộ doDayTuCode của engine cho khớp Bảng Keo. */
+  /* Con số CÓ THỂ là độ dày sợi: hoặc số lẻ trong khoảng 0.01–0.3, hoặc số nguyên theo
+     lối viết tắt của xưởng (5 = 0.05 · 85 = 0.085 · 10 = 0.10…). Ngoài khoảng đó thì
+     là số khác lọt vào (450 trong "Keo trong 450G", 1690 số hộp…) — bỏ. */
+  var KH_DAY_TAT = { 2:1, 3:1, 5:1, 6:1, 7:1, 8:1, 10:1, 12:1, 15:1, 18:1, 20:1, 85:1 };
+  function khVotDoDay(v){
+    var ds=String(v||'').match(/\d+(?:[.,]\d+)?/g)||[], ra=[], co={};
+    ds.forEach(function(x){
+      var n=parseFloat(x.replace(',','.')); if(!isFinite(n)) return;
+      var hop = (x.indexOf('.')>=0 || x.indexOf(',')>=0) ? (n>0 && n<=0.3) : !!KH_DAY_TAT[n];
+      if(!hop) return;
+      var k=String(n); if(co[k]) return; co[k]=1; ra.push(k);
+    });
+    return ra.join(', ');
+  }
   function khChuanDoDay(txt){
     var t=khTxt(txt); if(!t) return '';
-    var ra=[], co={};
+    /* Bỏ phần chú thích trong ngoặc và mấy cụm ĐỘ DÀI lọt sang — "0.15 (6-8mm)" thì
+       độ dày là 0.15, mấy số 6 và 8 kia là độ dài, vơ vào là sai. */
+    t = t.replace(/\([^)]*\)/g,' ')
+         .replace(/\d+\s*[-–~]\s*\d+\s*mm/gi,' ')
+         .replace(/\d+\s*mm\b/gi,' ');
+    var ra=[], co={}, con=false;
     t.split(/[;,\/\n]+/).forEach(function(p2){
       var v=khTxt(p2); if(!v) return;
+      con=true;
       var d='';
       /* Đã là số thì chuẩn lại cho gọn: "0.10" và "0.1" là MỘT, ghi hai kiểu vừa dài
          vừa lọt lưới lọc trùng. */
       if(/^\d+(?:[.,]\d+)?$/.test(v)){ var n2=parseFloat(v.replace(',','.')); d=isFinite(n2)?String(n2):''; }
       else { try{ d=(E && E.doDayTuCode) ? E.doDayTuCode(v) : ''; }catch(e){ d=''; } }
-      if(!d || co[d]) return;
+      /* Chưa đọc ra số thì VỚT trong câu chữ lấy con số TRÔNG NHƯ ĐỘ DÀY — thà vớt được
+         còn hơn để trống, ô trống làm dòng keo bên cạnh trông như thiếu độ dày (user báo
+         đơn 581P 25/9). Nhưng "Keo trong 450G" thì 450 không phải độ dày → bỏ hẳn. */
+      if(!d) d=khVotDoDay(v);
+      if(!d) return;
+      if(co[d]) return;
       co[d]=1; ra.push(d);
     });
+    /* Vẫn không ra gì mà trong đó CÓ số thì giữ nguyên câu chữ; toàn chữ thì bỏ hẳn
+       (kiểu "Keo nâu" là tên keo lọt sang, không phải độ dày). */
     return ra.join(', ');
   }
   /* ===== CỘT ĐỘ DÀI CHỈ NHẬN THỨ THẬT SỰ LÀ ĐỘ DÀI =====
@@ -10994,6 +11042,30 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var ds=dai[ma].nl.match(/\d+[.,]\d+/g)||[], rieng=[];
         ds.forEach(function(x){ if(rieng.indexOf(x)<0) rieng.push(x); });
         dd.push(khChuanDoDay(rieng.join(', '))); mk.push(ma); dl.push(dai[ma].dai); co=true;
+      });
+    }
+    /* ===== CÁCH 3: "MãKeo | mô tả bằng lời" (user báo đơn 581P · 25/9) =====
+       Dạng hay gặp:  "Bảng keo: Cam837.2 | 0.06/0.07/0.10 Faux Mink tất cả độ dài;
+                       Nau155C.3 | từ 9mm 0.07/0.085/0.10 Premium Faux Mink; …"
+       Hai cách trên đều trượt, mà trượt thì trước đây ĐỔ NGUYÊN CỤC CHỮ vào cột Mã keo:
+       cột keo thành một đoạn văn, độ dày/độ dài trống trơn, ba cột lệch hẳn nhau.
+       Ở đây nhặt ra từng mã keo rồi rút độ dày (0.xx) và độ dài (dải mm / "từ Nmm" /
+       "tất cả độ dài") ngay trong phần mô tả của chính mã đó. */
+    if(!co){
+      t.replace(/^\s*bảng\s*keo\s*:\s*/i,'').split(';').forEach(function(seg){
+        var q=seg.split('|'); if(q.length<2) return;
+        var ma=khTxt(q[0]).split('\n').pop();          // mã keo nằm cuối phần trước dấu |
+        if(!khLaMaKeo(ma)) return;
+        var mo=khTxt(q.slice(1).join('|'));
+        var day=(mo.match(/\b\d\s*[.,]\s*\d{1,3}\b/g)||[]).map(function(x){ return x.replace(/\s+/g,''); });
+        var dai=[];
+        (mo.match(/\d+\s*[~\-–]\s*\d+\s*mm/gi)||[]).forEach(function(x){ dai.push(x); });
+        (mo.match(/(?:từ|>=|≥)\s*\d+\s*mm/gi)||[]).forEach(function(x){ dai.push(khTxt(x)); });
+        if(/(tất\s*cả|mọi)\s*(?:các\s*)?độ\s*d[àa]i/i.test(mo)) dai.push('Tất cả độ dài');
+        dd.push(khChuanDoDay(day.join(', ')));
+        mk.push(khDonMaKeo(ma));
+        dl.push(khGomDoDai(dai.join(', ')));
+        co=true;
       });
     }
     if(!co) return null;
@@ -11116,7 +11188,38 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var na=String(a.ngay||''), nb=String(b.ngay||'');
       return na<nb?1:na>nb?-1:0;                                   // mới nhất lên trước
     });
+    khTiaMuc(r);
     return r;
+  }
+  /* ===== MỘT KHÁCH CHỈ GIỮ 5 ĐƠN MỚI NHẤT (user chốt 25/9) =====
+     Mã đơn trùng thì chỉ giữ bản mới nhất; quá 5 đơn thì đơn cũ nhất tự rụng, khỏi phình
+     dữ liệu. Dòng của tờ Check list không có mã đơn nên luôn giữ, không tính vào 5. */
+  /* Cùng MỘT mã đơn mà có nhiều bản (đơn thật ở bước 1 · email tổng hợp Gmail · nhiều
+     lần gửi) thì giữ bản nào? Ưu tiên bản từ CHÍNH ĐƠN (nguồn app) vì đó là bản gốc,
+     rồi mới tới ngày mới nhất. */
+  function khHonHan(a, b){
+    var w=function(m){ return m && m.nguon==='app' ? 1 : 0; };
+    if(w(a)!==w(b)) return w(a)>w(b);
+    return String(a.ngay||'') > String(b.ngay||'');
+  }
+  function khTiaMuc(r){
+    if(!r || !r.muc) return 0;
+    var cl=[], theo={}, ten=[];
+    r.muc.forEach(function(m){
+      var d=khKhoa(m.don);
+      if(!d){ cl.push(m); return; }
+      if(!theo[d]){ theo[d]=m; ten.push(d); return; }
+      if(khHonHan(m, theo[d])) theo[d]=m;
+    });
+    ten.sort(function(a,b){
+      var na=String(theo[a].ngay||''), nb=String(theo[b].ngay||'');
+      return khSoSanhDon(theo[a].don, theo[b].don) || (na<nb?1:na>nb?-1:0);
+    });
+    var giu=ten.slice(0, KH_TOI_DA_DON), bo=ten.length-giu.length;
+    var moi=cl.concat(giu.map(function(d){ return theo[d]; }));
+    var rung=r.muc.length-moi.length;
+    r.muc=moi;
+    return rung;
   }
   function khMoiAnh(r){
     var ra=(r.anh||[]).slice();
@@ -11201,7 +11304,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var _note=khTxt(rb[b.note]), _hop=khTxt(rb[b.hop]);
         khThemMuc(tenb, { nguon:'file', don:khTxt(rb[b.don]), ngay:rb[b.ngay], tieuDe:khTxt(rb[b.tieude]),
           sale:'', khach:'',
-          doDay:_k?_k.doDay:'', keo:_k?_k.keo:_keoTxt, doDai:_k?_k.doDai:'',
+          /* Tách không ra thì để cột Mã keo TRỐNG chứ không đổ nguyên cục chữ vào —
+             cục chữ làm ba cột keo lệch hẳn nhau; phần chữ đó đã có ở cột Nội dung. */
+          doDay:_k?_k.doDay:'', keo:_k?_k.keo:'', doDai:_k?_k.doDai:'',
           /* Bảng mix length KHÔNG thuộc cột này — chỉ lấy dòng nào thật sự nói mix/multi color */
           mixMulti:khLocMixMau(_keoTxt, _note, _hop, g.chuY||''),
           laserFans:'', doCong:khTxt(rb[b.dc]), dienGiai:'',
@@ -11419,23 +11524,107 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
 
   /* ===== VẼ BẢNG — MỘT DÒNG cho MỖI ĐƠN ===== */
-  function khDongPhang(){
-    var d=state.khData; if(!d) return [];
-    var ra=[];
-    d.thuTu.slice().sort(function(a,b){ return a<b?-1:a>b?1:0; }).forEach(function(k){
-      var r=d.kh[k]; if(!r) return;
-      (r.muc||[]).forEach(function(m, i){ ra.push({ k:k, r:r, m:m, i:i }); });
-    });
-    return ra;
-  }
-  /* ===== LỌC THEO LOẠI ĐƠN (user chốt 25/9) =====
+  /* ===== LỌC / XẾP THEO LOẠI ĐƠN (user chốt 25/9) =====
      Mã đơn đuôi "P" là đơn Charmlash, đuôi "S" là đơn Liilash. Số càng lớn càng mới
-     (780P cũ hơn 792P) nên khi lọc thì xếp SỐ LỚN LÊN TRƯỚC, mở ra là thấy đơn mới nhất.
-     Không bật nút nào thì giữ nguyên cách xếp theo Mã KH như cũ. */
+     (780P cũ hơn 792P). Mặc định: đơn Charmlash lên trước, trong mỗi loại thì đơn mới
+     đứng đầu. Hai nút lọc chỉ thu hẹp lại một loại, cách xếp giữ nguyên. */
   var khLoai = '';
   function khDuoiDon(don){
     var m=khTxt(don).toUpperCase().match(/(\d+)\s*([PS])\b/);
     return m ? { so:+m[1], duoi:m[2] } : null;
+  }
+  /* Điểm xếp hạng của một mã đơn: P trước S, số lớn (đơn mới) lên đầu. */
+  function khHang(don){
+    var d=khDuoiDon(don);
+    if(!d) return { loai:2, so:-1 };
+    return { loai:(d.duoi==='P'?0:1), so:d.so };
+  }
+  function khSoSanhDon(a, b){
+    var ha=khHang(a), hb=khHang(b);
+    return (ha.loai-hb.loai) || (hb.so-ha.so);
+  }
+  /* ===== MỖI MÃ KH CHỈ MỘT DÒNG (user chốt 25/9) =====
+     Trước đây mỗi đơn một dòng nên một khách chiếm cả chục dòng, nhìn không ra cái gì.
+     Nay gộp làm MỘT dòng: lấy tối đa 5 ĐƠN MỚI NHẤT của khách (mã đơn trùng thì chỉ giữ
+     bản mới nhất, đơn cũ hơn tự rụng ra), rồi gộp nội dung các đơn đó lại, trùng thì
+     không lặp. Muốn xem từng đơn thì bấm Mã KH (so sánh) hoặc bấm thẳng mã đơn. */
+  var KH_TOI_DA_DON = 5;
+  function khDonGanNhat(r){
+    var cl=[], theo={}, ten=[];
+    (r.muc||[]).forEach(function(m){
+      var d=khKhoa(m.don);
+      if(!d){ cl.push(m); return; }                       // dòng check list: không có mã đơn
+      if(!theo[d]){ theo[d]=m; ten.push(d); return; }
+      if(khHonHan(m, theo[d])) theo[d]=m;
+    });
+    ten.sort(function(a,b){
+      var na=String(theo[a].ngay||''), nb=String(theo[b].ngay||'');
+      return khSoSanhDon(theo[a].don, theo[b].don) || (na<nb?1:na>nb?-1:0);
+    });
+    var giu=ten.slice(0, KH_TOI_DA_DON);
+    return { don:giu.map(function(d){ return theo[d]; }), checklist:cl, bo:ten.length-giu.length };
+  }
+  /* Gộp theo DÒNG, trùng thì bỏ — giữ thứ tự gặp trước (đơn mới nhất trước). */
+  function khGopChu(ds, f){
+    var ra=[], co={};
+    ds.forEach(function(m){
+      khDong(m[f]).forEach(function(l){
+        var v=khTxt(l); if(!v || co[v]) return;
+        co[v]=1; ra.push(v);
+      });
+    });
+    return ra.join('\n');
+  }
+  /* Gộp BẢNG KEO của nhiều đơn: một dòng cho mỗi (độ dày + mã keo), độ dài của cùng
+     một cặp đó dồn về MỘT dải (5-15 + 4-14 + 6-18 → 4-18mm — đúng ví dụ user đưa). */
+  function khGopKeo(ds){
+    var idx={}, nhom=[];
+    ds.forEach(function(m){
+      var dd=khDong(m.doDay), mk=khDong(m.keo), dl=khDong(m.doDai);
+      var n=Math.max(dd.length, mk.length, dl.length);
+      for(var i=0;i<n;i++){
+        var k=khTxt(mk[i]||''), d=khTxt(dd[i]||''), l=khTxt(dl[i]||'');
+        if(!k && !d && !l) continue;
+        /* Dòng KHÔNG có mã keo thì bỏ — cột này là "Mã keo", để trống chỉ tổ đẩy hai cột
+           bên cạnh lệch hàng. Muốn xem đủ thì bấm vào mã đơn, bảng chi tiết giữ nguyên. */
+        if(!k) continue;
+        var key=d+'\u0001'+k;
+        if(idx[key]==null){ idx[key]=nhom.length; nhom.push({ keo:k, doDay:d, dai:[] }); }
+        if(l) nhom[idx[key]].dai.push(l);
+      }
+    });
+    return { doDay:nhom.map(function(x){ return x.doDay; }).join('\n'),
+             keo:  nhom.map(function(x){ return x.keo;   }).join('\n'),
+             doDai:nhom.map(function(x){ return khGomDoDai(x.dai.join(', ')); }).join('\n') };
+  }
+  function khGopDon(r){
+    var g=khDonGanNhat(r);
+    var ds=g.don.concat(g.checklist);                    // check list góp thêm, không tính vào 5
+    var m={ nguon:'gop', don:g.don.map(function(x){ return khTxt(x.don); }).join('\n'),
+            ngay:(g.don[0]&&g.don[0].ngay)||'', tieuDe:'', anh:[], _soDon:g.don.length, _bo:g.bo };
+    var keo=khGopKeo(ds);
+    m.doDay=keo.doDay; m.keo=keo.keo; m.doDai=keo.doDai;
+    KH_COT.concat(KH_COT_AN).forEach(function(c){
+      var f=c[0];
+      if(['maKH','don','brand','doDay','keo','doDai'].indexOf(f)>=0) return;
+      m[f]=khGopChu(ds, f);
+    });
+    ['sale','khach','mail'].forEach(function(f){ m[f]=khGopChu(ds, f); });
+    m.anh = khMoiAnh(r);
+    return m;
+  }
+  function khDongPhang(){
+    var d=state.khData; if(!d) return [];
+    var ra=[];
+    (d.thuTu||[]).forEach(function(k){
+      var r=d.kh[k]; if(!r || !(r.muc||[]).length) return;
+      ra.push({ k:k, r:r, m:khGopDon(r), i:0 });
+    });
+    /* Xếp theo ĐƠN MỚI NHẤT của khách: Charmlash (P) lên trước, số lớn đứng đầu. */
+    return ra.sort(function(a,b){
+      return khSoSanhDon(khDong(a.m.don)[0]||'', khDong(b.m.don)[0]||'') ||
+             (a.k<b.k?-1:a.k>b.k?1:0);
+    });
   }
   function khDsLoc(){
     var qk=khKhoa(getVal('kh-filter')||''), qd=khKhoa(getVal('kh-filter-don')||'');
@@ -11449,10 +11638,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       return KH_SS.some(function(c){ return c[0]!=='anh' && khKhoa(x.m[c[0]]).indexOf(qk)>=0; });
     });
     if(!khLoai) return ds;
-    ds = ds.filter(function(x){ var d=khDuoiDon(x.m.don); return !!d && d.duoi===khLoai; });
-    return ds.sort(function(a,b){
-      var da=khDuoiDon(a.m.don), db=khDuoiDon(b.m.don);
-      return (db?db.so:0)-(da?da.so:0);                       // số lớn = đơn mới → lên trước
+    /* Một dòng giờ mang nhiều mã đơn → chỉ cần CÓ một đơn đúng loại là giữ lại. */
+    return ds.filter(function(x){
+      return khDong(x.m.don).some(function(dn){ var d=khDuoiDon(dn); return !!d && d.duoi===khLoai; });
     });
   }
   /* Ảnh mang theo CẢ danh sách của dòng + vị trí, để xem phóng to còn lật tới lật lui được. */
@@ -11470,15 +11658,28 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var f=c[0], sua=khSuaDuoc();
     /* Ô sửa được mang sẵn khóa: dòng nào (data-khk) · mục thứ mấy (data-khi) · trường nào. */
     var oSua=function(lop, noiDung){
-      return '<td class="'+lop+(KH_COT_SO[f]?' kh-so':'')+'"'+
+      return '<td class="'+lop+(KH_COT_SO[f]?' kh-so':'')+(KH_COT_KEO[f]?' kh-keo':'')+'"'+
         (sua?(' contenteditable="true" data-khf="'+f+'"'):'')+'>'+noiDung+'</td>';
     };
     if(f==='maKH') return '<td class="kh-ma" data-khmo="kh" title="Bấm để so sánh mọi đơn của khách này">'+
                           esc(x.r.maKH)+'</td>';
     /* KHÔNG in nhãn nguồn ra bảng (user chốt 23/9) — dòng của tờ check list không có mã đơn
        nên ghi thẳng "(check list)", còn lại đã có mã đơn là đủ nhận ra. */
-    if(f==='don')  return '<td class="kh-don" data-khmo="don" title="Bấm để xem bảng chi tiết của đơn này">'+
-                          esc(x.m.don || '(check list)')+'</td>';
+    if(f==='don'){
+      /* Một dòng gộp nhiều đơn → MỖI mã đơn là một thẻ bấm riêng, bấm vào là ra bảng
+         chi tiết của đúng đơn đó. data-khi = chỗ của đơn đó trong r.muc. */
+      var dsDon=khDong(x.m.don).filter(function(v){ return khTxt(v); });
+      if(!dsDon.length) return '<td class="kh-don" data-khmo="don" data-khi="0" '+
+        'title="Bấm để xem bảng chi tiết">'+esc('(check list)')+'</td>';
+      var viTri=function(dn){
+        var ds2=(x.r.muc||[]); for(var i2=0;i2<ds2.length;i2++) if(khKhoa(ds2[i2].don)===khKhoa(dn)) return i2;
+        return 0;
+      };
+      return '<td class="kh-don">'+dsDon.map(function(dn){
+        return '<span class="kh-chip" data-khmo="don" data-khi="'+viTri(dn)+'" '+
+               'title="Bấm để xem bảng chi tiết của đơn này">'+esc(khTxt(dn))+'</span>';
+      }).join('')+(x.m._bo>0?('<span class="mini" title="Chỉ lấy '+KH_TOI_DA_DON+' đơn mới nhất">+'+x.m._bo+' đơn cũ</span>'):'')+'</td>';
+    }
     if(f==='brand') return oSua('kh-brand', esc(khTxt(x.r.brand)));
     if(f==='anh'){
       var ds=(x.m.anh&&x.m.anh.length)?x.m.anh:khMoiAnh(x.r);
@@ -11597,14 +11798,18 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(xongRoi) xongRoi(bo);
     }).catch(function(e){ khDangQuetAnh=false; logErr('khQuetAnhTrung', e); });
   }
-  var KH_CHUAN_VER = 3;
+  var KH_CHUAN_VER = 4;
   function khChuanLai(){
     var d=state.khData; if(!d || d._chuan===KH_CHUAN_VER) return;
     try{
+      var rung=0;
       (d.thuTu||[]).forEach(function(k){
-        ((d.kh[k]||{}).muc||[]).forEach(function(m){ khChuanKeo(m); khChuanDoCong(m); khChuanHop(m); });
+        var r=d.kh[k]; if(!r) return;
+        (r.muc||[]).forEach(function(m){ khChuanKeo(m); khChuanDoCong(m); khChuanHop(m); });
+        rung += khTiaMuc(r);                    // tỉa còn 5 đơn mới nhất, bỏ mã đơn trùng
       });
       d._chuan = KH_CHUAN_VER;
+      if(rung) logLine('🗂 Bỏ '+rung+' dòng đơn cũ/trùng — mỗi Mã KH giữ '+KH_TOI_DA_DON+' đơn mới nhất');
     }catch(e){ logErr('khChuanLai', e); }
   }
   function renderKH(){
@@ -11849,12 +12054,32 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   /* Xem ảnh phóng to: lật TỚI / LUI trong đúng danh sách ảnh của dòng đang bấm
      (user chốt 23/9) — bấm mũi tên trên màn hình hoặc phím ← → , Esc để đóng. */
-  var khLB = { ds:[], i:0 };
+  var khLB = { ds:[], i:0, z:1 };
+  /* ===== PHÓNG TO / THU NHỎ ẢNH (user chốt 25/9) =====
+     1 = vừa khung. Lớn hơn 1 thì ảnh bung cỡ thật và khung cho cuộn để xem từng góc. */
+  function khZoom(v, tuongDoi){
+    var im=document.querySelector('#kh-lightbox img'); if(!im) return;
+    var z = tuongDoi ? (khLB.z||1)*v : v;
+    khLB.z = Math.min(8, Math.max(0.25, Math.round(z*100)/100));
+    if(khLB.z===1){ im.classList.remove('to'); im.style.width=''; im.style.height=''; }
+    else {
+      im.classList.add('to');
+      /* Lấy cỡ đang vừa khung làm gốc rồi nhân lên, để "100%" luôn là cỡ vừa khung. */
+      var w=khLB._w||im.naturalWidth||im.width, h=khLB._h||im.naturalHeight||im.height;
+      im.style.width=Math.round(w*khLB.z)+'px'; im.style.height=Math.round(h*khLB.z)+'px';
+    }
+    var nm=document.getElementById('kh-lb-muc');
+    if(nm) nm.textContent=Math.round(khLB.z*100)+'%';
+  }
   function khVeAnh(){
     var lb=document.getElementById('kh-lightbox'); if(!lb) return;
     var kh=khLB.ds[khLB.i], im=(state.imgStore||{})[kh];
     if(!im){ lb.style.display='none'; return; }
-    lb.querySelector('img').src=im.d;
+    var el=lb.querySelector('img');
+    el.classList.remove('to'); el.style.width=''; el.style.height='';
+    el.src=im.d;
+    /* Đợi ảnh vào khung mới đo được cỡ "vừa khung" — đó là mốc 100%. */
+    el.onload=function(){ khLB._w=el.clientWidth; khLB._h=el.clientHeight; khZoom(khLB.z||1, false); };
     var d=document.getElementById('kh-lb-dem');
     if(d) d.textContent=(khLB.i+1)+' / '+khLB.ds.length+(im.ten?('  ·  '+im.ten):'');
     var mot=khLB.ds.length<2;
@@ -11865,6 +12090,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function khLatAnh(b){
     if(!khLB.ds.length) return;
     khLB.i=(khLB.i+b+khLB.ds.length)%khLB.ds.length;
+    khLB.z=1;                                   // lật sang ảnh khác thì về cỡ vừa khung
     khVeAnh();
   }
   function khXemAnh(kh, ds, i){
@@ -11872,7 +12098,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     khLB.ds=(ds&&ds.length)?ds.slice():[kh];
     khLB.i=Math.max(0, (i!=null?i:khLB.ds.indexOf(kh)));
     if(!(state.imgStore||{})[khLB.ds[khLB.i]]) return;
-    lb.style.display='flex'; khVeAnh();
+    khLB.z=1; lb.style.display='flex'; khVeAnh();
   }
   /* ===== NỐI DÂY GIAO DIỆN ===== */
   (function(){
@@ -11925,11 +12151,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(im){ moAnh(im); return; }
       /* Đang gõ trong ô sửa thì ĐỪNG mở bảng nào, không thì vừa bấm vào là mất chỗ gõ. */
       if(e.target.closest && e.target.closest('[contenteditable="true"]')) return;
-      var td=e.target.closest ? e.target.closest('td[data-khmo]') : null;
+      /* Mã đơn giờ là THẺ trong ô, nên bắt cả thẻ lẫn ô. */
+      var td=e.target.closest ? (e.target.closest('[data-khmo]')) : null;
       var tr=e.target.closest ? e.target.closest('tr[data-khk]') : null;
       if(!td || !tr) return;
       /* Bấm MÃ KH → so sánh mọi đơn của khách; bấm MÃ ĐƠN → bảng chi tiết của riêng đơn đó. */
-      if(td.getAttribute('data-khmo')==='don') renderKHDon(tr.getAttribute('data-khk'), +tr.getAttribute('data-khi'));
+      if(td.getAttribute('data-khmo')==='don')
+        renderKHDon(tr.getAttribute('data-khk'), +(td.getAttribute('data-khi')||0));
       else renderKHTiet(tr.getAttribute('data-khk'));
     });
     /* SỬA Ô (chỉ super admin): gõ xong rời ô là ghi thẳng vào dữ liệu rồi tự lưu. */
@@ -11972,9 +12200,22 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var lb=document.getElementById('kh-lightbox');
     if(lb){
       lb.addEventListener('click', function(e){
-        if(e.target.closest && e.target.closest('#kh-lb-truoc,#kh-lb-sau,#kh-lightbox img')) return;
+        if(e.target.closest && e.target.closest('#kh-lb-truoc,#kh-lb-sau,#kh-lb-zoom,#kh-lb-khung')) return;
         lb.style.display='none';
       });
+      var nvao=document.getElementById('kh-lb-vao'), nra=document.getElementById('kh-lb-ra'),
+          nmuc=document.getElementById('kh-lb-muc');
+      if(nvao) nvao.addEventListener('click', function(){ khZoom(1.25, true); });
+      if(nra)  nra.addEventListener('click',  function(){ khZoom(1/1.25, true); });
+      if(nmuc) nmuc.addEventListener('click', function(){ khZoom(1, false); });
+      /* Bấm thẳng vào ảnh: to lên gấp đôi, bấm lại về vừa khung — nhanh hơn dò nút. */
+      var img=lb.querySelector('img');
+      if(img) img.addEventListener('click', function(){ khZoom(khLB.z>1?1:2, false); });
+      /* Lăn chuột (giữ Ctrl hoặc không) để phóng to thu nhỏ ngay tại chỗ đang nhìn. */
+      lb.addEventListener('wheel', function(e){
+        if(lb.style.display!=='flex') return;
+        e.preventDefault(); khZoom(e.deltaY<0 ? 1.15 : 1/1.15, true);
+      }, { passive:false });
       var bt=document.getElementById('kh-lb-truoc'), bs=document.getElementById('kh-lb-sau');
       if(bt) bt.addEventListener('click', function(){ khLatAnh(-1); });
       if(bs) bs.addEventListener('click', function(){ khLatAnh(1); });
@@ -11983,6 +12224,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         if(e.key==='Escape'){ lb.style.display='none'; }
         else if(e.key==='ArrowLeft'){ khLatAnh(-1); }
         else if(e.key==='ArrowRight'){ khLatAnh(1); }
+        else if(e.key==='+' || e.key==='='){ khZoom(1.25, true); }
+        else if(e.key==='-' || e.key==='_'){ khZoom(1/1.25, true); }
+        else if(e.key==='0'){ khZoom(1, false); }
         else return;
         e.preventDefault();
       });
@@ -12107,14 +12351,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1709660000"></script>
-<script src="cl.sync.js?v=1709660000"></script>
-<script src="auth.store.js?v=1709660000"></script>
-<script src="auth.web.js?v=1709660000"></script>
+<script src="cl.config.js?v=1709710000"></script>
+<script src="cl.sync.js?v=1709710000"></script>
+<script src="auth.store.js?v=1709710000"></script>
+<script src="auth.web.js?v=1709710000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1709660000"></script>
+<script src="cl.project.js?v=1709710000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1709660000" defer></script>
+<script src="firebase-bridge.js?v=1709710000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
