@@ -665,7 +665,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709930000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709960000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1331,7 +1331,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1709930000"></script>
+<script src="engine.web.js?v=1709960000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -4089,11 +4089,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   function xoaTatCaDuLieu(){
     state.files=[]; state.orders=[]; state.mixSheets=[]; state.keoRows=[]; state.khachCuon=null; state.R=null; resetPack();
-    state.imgStore={}; state.imgByMadon={};                       // xóa luôn ảnh đã hút từ file
+    /* ẢNH: bước 7 (Dữ liệu khách hàng) KHÔNG bị xóa ở đây, nhưng khóa ảnh của nó lại nằm
+       CHUNG một kho với ảnh của đơn. Xóa sạch kho thì bước 7 còn khóa mà không còn ảnh —
+       thanh số liệu vẫn đếm ra mấy nghìn tấm nhưng mở ra trống trơn (user gặp 26/9).
+       Nên chỉ giữ lại đúng mấy tấm bước 7 còn dùng, bỏ phần còn lại. */
+    state.imgStore=khGiuAnhDungDuoc(); state.imgByMadon={};
     state.source='Chưa có dữ liệu'; state.processed=false; state.filters={}; gridQuery='';
     try{ state.origOrders=[]; state.origKeo=[]; state.origMix=[]; }catch(e){ logErr('xoaTatCaDuLieu', e); }
     renderFiles(); render();
+    try{ if(window.__khRender) window.__khRender(); }catch(e){ logErr('xoaTatCaDuLieu.kh', e); }
   }
+  window.__xoaTatCa = xoaTatCaDuLieu;   // bộ kiểm thử gọi thẳng, khỏi qua hộp hỏi mật khẩu
   /* Bảng tổng hợp bước 2: 2 ô lọc RIÊNG (không đụng bộ lọc chung của Bảng Nhập Đơn)
      + nút gấp/mở + xuất Excel. Chỉ vẽ lại đúng cái bảng đó, không tính lại số liệu. */
   ['rpt-makh','rpt-madon','rpt-tim'].forEach(function(id){
@@ -11313,6 +11319,29 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     (r.muc||[]).forEach(function(m){ (m.anh||[]).forEach(function(k){ if(ra.indexOf(k)<0) ra.push(k); }); });
     return ra;
   }
+  /* Mấy tấm ảnh mà bước 7 CÒN DÙNG — dùng khi xóa dữ liệu bước 1..6 để không cắt mất ảnh
+     của bước 7 (hai bên xài chung một kho ảnh). */
+  function khGiuAnhDungDuoc(){
+    var kho=state.imgStore||{}, d=state.khData, giu={};
+    if(!d || !d.kh) return {};
+    (d.thuTu||[]).forEach(function(k){
+      var r=d.kh[k]; if(!r) return;
+      khMoiAnh(r).forEach(function(a){ if(kho[a]) giu[a]=kho[a]; });
+    });
+    return giu;
+  }
+  /* Đếm số khóa ảnh TRỎ VÀO CHỖ TRỐNG — để báo thẳng ra màn hình thay vì im lặng không hiện
+     gì (trước đây khu ảnh cứ biến mất, nhìn tưởng app hỏng). */
+  function khAnhMat(ds){
+    var kho=state.imgStore||{}, n=0;
+    (ds||[]).forEach(function(k){ if(!kho[k]) n++; });
+    return n;
+  }
+  function khNhanMatAnh(n){
+    return '<div class="mini" style="color:var(--red-600)">⚠ '+n+' ảnh chưa có trong kho ảnh. '+
+      'Nếu đang mất mạng (“Không hỏi được máy chủ”) thì chờ có mạng rồi mở lại trang; '+
+      'còn không thì nạp lại file tổng hợp Gmail / Check list KH.</div>';
+  }
   /* ===== LỌC ẢNH TRÙNG KHI HIỆN (user báo 26/9: một tấm hiện đi hiện lại 3-4 lần) =====
      Kho ảnh đã chặn trùng theo vân tay BẰNG NHAU, nhưng cùng một tấm đi qua hai đường nén
      (đơn gốc ở bước 6 · file tổng hợp Gmail ở bước 7 · người gửi chụp lại) thì vân tay lệch
@@ -11991,13 +12020,18 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(!d || !d.thuTu.length) st.innerHTML='<span class="mini" style="color:var(--text-3)">'+
         'Chưa có dữ liệu — bấm “📂 Nạp file” (Check list KH hoặc file tổng hợp Gmail), hoặc kéo thả file vào thanh này.</span>';
       else{
-        var soMuc=0, soAnh=0, soNhan=0;
+        var soMuc=0, soAnh=0, soMat=0, soNhan=0;
         d.thuTu.forEach(function(k){ var r=d.kh[k]; if(!r) return;
-          soMuc+=r.muc.length; soAnh+=khMoiAnh(r).length; if(khTxt(r.brand)) soNhan++; });
+          soMuc+=r.muc.length;
+          /* Đếm ảnh CÓ THẬT trong kho, không đếm khóa suông: trước đây đếm khóa nên khi kho
+             ảnh bị xóa, thanh này vẫn khoe mấy nghìn tấm mà mở ra trống (user gặp 26/9). */
+          var tho=khMoiAnh(r); soAnh+=tho.length-khAnhMat(tho); soMat+=khAnhMat(tho);
+          if(khTxt(r.brand)) soNhan++; });
         /* Đếm luôn số Mã KH đã có Nhãn hiệu — nhìn là biết tờ Check list đã nạp chưa,
            chứ nhìn cột trống thì không phân biệt được "chưa nạp" với "file không có mã đó". */
         st.innerHTML='<b>'+d.thuTu.length+' Mã KH</b> · '+soMuc+' dòng · '+soAnh+' ảnh · '+
-          soNhan+'/'+d.thuTu.length+' có nhãn hiệu';
+          soNhan+'/'+d.thuTu.length+' có nhãn hiệu'+
+          (soMat?('<span style="color:var(--red-600)"> · ⚠ '+soMat+' ảnh chưa tải được — xem mạng hoặc nạp lại file</span>'):'');
       }
     }
     if(!ds.length){
@@ -12043,10 +12077,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      dồn về đây, nằm dưới bảng so sánh sau dòng Chú ý, và LỌC TRÙNG theo vân tay ảnh nên
      một tấm chỉ hiện một lần dù nhiều đơn cùng đính. */
   function khKhuAnh(r){
-    var ds=khLocAnh(khMoiAnh(r));
-    if(!ds.length) return '';
+    var tho=khMoiAnh(r), ds=khLocAnh(tho), mat=khAnhMat(tho);
+    if(!ds.length && !mat) return '';
     return '<div class="kh-khuanh"><h5>🖼 Hình ảnh của khách · '+ds.length+' ảnh'+
       ' <span class="mini">— bấm để xem to, lật bằng ← →</span></h5>'+
+      (mat?khNhanMatAnh(mat):'')+
       '<div class="kh-anhluoi">'+ds.map(function(k,i){ return khAnhTag(k, ds, i); }).join('')+'</div></div>';
   }
   /* Bấm 1 dòng → SO SÁNH mọi đơn của khách đó theo cột; hàng nào các đơn ghi khác nhau thì tô vàng */
@@ -12158,7 +12193,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var m=r?(r.muc||[])[i]:null;
     if(!m){ box.style.display='none'; box.innerHTML=''; return; }
     var sua=khSuaDuoc();
-    var anh=khLocAnh((m.anh&&m.anh.length)?m.anh:khMoiAnh(r));
+    var anhTho=(m.anh&&m.anh.length)?m.anh:khMoiAnh(r);
+    var anh=khLocAnh(anhTho), anhMat=khAnhMat(anhTho);
     var h='<h4>📋 '+esc(r.maKH)+(khTxt(r.brand)?(' · '+esc(r.brand)):'')+
       ' — đơn '+esc(m.don||'(check list)')+(m.ngay?(' · '+esc(m.ngay)):'')+
       '<button class="btn sm" id="kh-dong" style="float:right">✕ Đóng</button>'+
@@ -12173,8 +12209,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     h+=khKhoiChu('✨ Laser / Fans', 'laserFans', m, sua);
     h+=khKhoiGom('📄 Nội dung', [['','noiDung']], m, sua, 1);
     h+='</div>';
-    if(anh.length) h+='<div class="kh-the" style="margin-top:8px"><h5>🖼 Hình ảnh · '+anh.length+' ảnh '+
+    if(anh.length || anhMat) h+='<div class="kh-the" style="margin-top:8px"><h5>🖼 Hình ảnh · '+anh.length+' ảnh '+
       '<span class="mini" style="font-weight:400;color:var(--text-3)">— bấm để xem to, lật bằng ← →</span></h5>'+
+      (anhMat?khNhanMatAnh(anhMat):'')+
       '<div class="kh-anhluoi">'+anh.map(function(k2,i2){ return khAnhTag(k2, anh, i2); }).join('')+'</div></div>';
     box.innerHTML=h; box.style.display=''; khCuonToi(box);
     box.setAttribute('data-khk', key); box.setAttribute('data-khi', String(i));
@@ -12758,14 +12795,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1709930000"></script>
-<script src="cl.sync.js?v=1709930000"></script>
-<script src="auth.store.js?v=1709930000"></script>
-<script src="auth.web.js?v=1709930000"></script>
+<script src="cl.config.js?v=1709960000"></script>
+<script src="cl.sync.js?v=1709960000"></script>
+<script src="auth.store.js?v=1709960000"></script>
+<script src="auth.web.js?v=1709960000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1709930000"></script>
+<script src="cl.project.js?v=1709960000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1709930000" defer></script>
+<script src="firebase-bridge.js?v=1709960000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
