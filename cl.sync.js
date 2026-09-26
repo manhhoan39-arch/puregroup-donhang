@@ -221,6 +221,54 @@
     }).catch(function () { return false; });
   }
   function khoaMoNhanh() { return 'mo-nhanh-' + (fid() || 'none'); }
+  /* ===== KHO GÓI ẢNH TRONG MÁY — IndexedDB (thêm 26/9) =====
+     Gói ảnh của bước 7 nặng cả chục MB, mà cache mảnh thì nằm ở localStorage (~5MB) và `jset`
+     nuốt lỗi im lặng khi tràn ⇒ máy KHÔNG BAO GIỜ giữ được gói ảnh. Lúc có mạng không ai thấy
+     vì tải lại từ máy chủ; mất mạng là mở ra hàng nghìn khóa ảnh mà không có tấm nào
+     (user gặp 26/9: "1669 ảnh" nhưng khu ảnh trống trơn).
+     Nay gói ảnh có kho RIÊNG trong IndexedDB (rộng hàng trăm MB): tải về là cất, mất mạng thì
+     lấy ra dùng. Dữ liệu đơn vẫn đi đường cũ — không đụng tới. */
+  function khoaGoiAnh(id) { return 'goi-anh-' + id; }
+  function ghiGoiAnh(id, row) {
+    if (!id || !row || !row.payload) return Promise.resolve(false);
+    return idbGhi(khoaGoiAnh(id), { __h: row.__h == null ? '' : row.__h,
+                                    payload: row.payload, t: new Date().toISOString() });
+  }
+  /* Đọc dòng gói ảnh: IndexedDB TRƯỚC (đây mới là kho chính của gói ảnh), không có thì mới
+     xem localStorage — gói nhỏ ngày xưa còn lọt vào đó. Lấy nhầm bản nhỏ cũ ở localStorage là
+     lại thiếu ảnh mà không ai biết. */
+  function docGoiAnh(id) {
+    if (!id) return Promise.resolve(null);
+    return idbDoc(khoaGoiAnh(id)).then(function (x) {
+      if (x && x.payload) return x;
+      var r = jget(K.dsItem(id), null);
+      return (r && r.payload) ? r : null;
+    }).catch(function () {
+      var r = jget(K.dsItem(id), null);
+      return (r && r.payload) ? r : null;
+    });
+  }
+  function dongDauGoiAnh(id, h) {
+    if (!id) return Promise.resolve(false);
+    return idbDoc(khoaGoiAnh(id)).then(function (x) {
+      if (!x || !x.payload) return false;
+      x.__h = h == null ? '' : h;
+      return idbGhi(khoaGoiAnh(id), x);
+    }).catch(function () { return false; });
+  }
+  /* Cất một dòng mảnh vào máy. Dòng nào QUÁ TO cho localStorage thì `jset` im lặng bỏ qua —
+     bắt đúng ca đó rồi chuyển sang IndexedDB (gói ảnh luôn rơi vào ca này). */
+  var TO_QUA = 700 * 1024;          // trên ngưỡng này thì coi như localStorage không chứa nổi
+  function catDong(row) {
+    if (!row || !row.id) return;
+    var to = 0;
+    try { to = (row.payload && row.payload.d && row.payload.d.length) || 0; } catch (_) {}
+    jset(K.dsItem(row.id), row);
+    /* `jset` nuốt lỗi im lặng khi localStorage tràn, mà id của gói ảnh thì dùng lại qua nhiều
+       lần lưu ⇒ đọc ra vẫn thấy BẢN CŨ nên tưởng là ghi được. Nên cứ to là cất IndexedDB,
+       khỏi đoán. */
+    if (to > TO_QUA || !jget(K.dsItem(row.id), null)) { try { ghiGoiAnh(row.id, row); } catch (_) {} }
+  }
   /* Ô riêng giữ BẢN CHƯA BẤM ☁ LƯU khi nó bị bản của máy khác thay chỗ (thêm 4/9) — xem
      CLCloud.luuChuaLuu / docChuaLuu. Không dùng chung ô "mở nhanh" kẻo đè mất bản đang dùng. */
   function khoaChuaLuu() { return 'chua-luu-' + (fid() || 'none'); }
@@ -283,12 +331,12 @@
     return lo.reduce(function (chuoi, mot) {
       return chuoi.then(function () {
         return c.from('datasets').select('*').in('id', mot).then(function (r) {
-          if (!r.error) { (r.data || []).forEach(function (row) { jset(K.dsItem(row.id), row); duoc++; soDuoc.push(row.id); }); return; }
+          if (!r.error) { (r.data || []).forEach(function (row) { catDong(row); duoc++; soDuoc.push(row.id); }); return; }
           // cả lô hỏng → thử từng dòng, đừng bỏ cả lô chỉ vì một dòng có vấn đề
           return mot.reduce(function (ch2, mid) {
             return ch2.then(function () {
               return c.from('datasets').select('*').eq('id', mid).maybeSingle().then(function (r2) {
-                if (!r2.error && r2.data) { jset(K.dsItem(r2.data.id), r2.data); duoc++; soDuoc.push(r2.data.id); } else hong++;
+                if (!r2.error && r2.data) { catDong(r2.data); duoc++; soDuoc.push(r2.data.id); } else hong++;
               }).catch(function () { hong++; });
             });
           }, Promise.resolve());
@@ -479,6 +527,41 @@
     // ---------- DATASETS: đọc (cache trước, DB làm tươi) ----------
     // Trả danh sách metadata từ cache ngay; đồng thời gọi refresh() ở nền.
     listCached: function () { return jget(K.dsIndex(profile && profile.factory_id), []); },
+    /* ===== LẤY LẠI GÓI ẢNH TỪ MÁY CHỦ (thêm 26/9) =====
+       Máy nào lỡ mở lúc mất mạng thì kho ảnh trống trơn, mà dữ liệu đơn thì vẫn đủ nên app
+       không có cớ gì để đi tải lại. Đây là đường lấy lại riêng cho gói ảnh: đọc chỉ mục của
+       bản lưu mới nhất, tải đúng MỘT dòng ảnh, trả về { imgStore } cho app trộn vào kho.
+       Trả null nghĩa là máy chủ cũng không có gói ảnh (hoặc không hỏi được). */
+    taiLaiAnh: function (id) {
+      if (!id) {
+        var ds = CLCloud.listCached().filter(function (x) { return !x.kind || x.kind === 'orders'; })
+          .sort(function (a, b) { return String(b.updated_at || '').localeCompare(String(a.updated_at || '')); });
+        id = ds[0] && ds[0].id;
+      }
+      if (!id) return Promise.resolve(null);
+      return Promise.resolve(CLCloud.fetchOne(id)).then(function (d) {
+        var p = d && d.payload;
+        if (!p || !p.__goi || !p.anh || !p.anh.id) return null;
+        var aid = p.anh.id, ah = p.anh.h;
+        return docGoiAnh(aid).then(function (row) {
+          var khop = !!(row && row.payload) && (ah == null || String(row.__h == null ? '' : row.__h) === String(ah));
+          if (khop) return row;
+          if (!configured() || !online()) return row;                 // mất mạng thì dùng bản cũ còn hơn không
+          return ensureClient().then(function (c) {
+            if (!c) return row;
+            return layNhieuDong(c, [aid]).then(function () {
+              return docGoiAnh(aid).then(function (r2) {
+                if (r2 && r2.payload) dongDauGoiAnh(aid, ah);
+                return r2 || row;
+              });
+            });
+          }).catch(function () { return row; });
+        }).then(function (row) {
+          if (!row || !row.payload) return null;
+          return giaiNen({ n: row.payload.n, d: row.payload.d }).catch(function () { return null; });
+        });
+      }).catch(function () { return null; });
+    },
     getCached: function (id) { return jget(K.dsItem(id), null); },
 
     /* ---------- HỎI NHẸ: ô lưu của xưởng đổi lúc nào, ai ghi (thêm 3/9) ----------
@@ -607,7 +690,18 @@
       var viec = (goi.manh || []).map(function (g) {
         return phan(g.md, g, KIND_MANH, tenManh(g.md), cuTheoMd[g.md]);
       });
-      viec.push(phan('__anh', goi.anh || {}, KIND_ANH, '⚙ ảnh trong đơn', cu && cu.anh));
+      /* ⚠ PHANH ẢNH (thêm 26/9): kho ảnh đang TRỐNG mà bản lưu cũ có gói ảnh thì gần như chắc
+         chắn là máy này mở lúc mất mạng nên chưa tải được gói ảnh — lưu đè bằng gói rỗng là
+         xoá sạch ảnh của cả xưởng. Giữ nguyên gói cũ, không gửi gì cả. Cùng một lẽ với phanh
+         "dữ liệu đang TRỐNG mà bản cũ có đơn" ở trên. */
+      var anhCu = cu && cu.anh;
+      var khoAnh = (goi.anh && goi.anh.imgStore) || {};
+      if (!Object.keys(khoAnh).length && anhCu && anhCu.id) {
+        log('giữ nguyên gói ảnh cũ — kho ảnh đang trống, không ghi đè');
+        viec.push(Promise.resolve({ md: '__anh', id: anhCu.id, h: anhCu.h }));
+      } else {
+        viec.push(phan('__anh', goi.anh || {}, KIND_ANH, '⚙ ảnh trong đơn', anhCu));
+      }
       return Promise.all(viec).then(function (ds) {
         var anh = ds.pop(); dsManh = ds;
         return nen(goi.chung || {}).then(function (nc) {
@@ -616,7 +710,7 @@
             created_by: profile.id, updated_at: now };
           // cache: chỉ mục + mọi dòng mảnh (đã nén nên nhẹ hơn hẳn bản cũ)
           jset(K.dsItem(id), row);
-          dongMoi.forEach(function (d) { jset(K.dsItem(d.id), d); });
+          dongMoi.forEach(function (d) { catDong(d); });
           /* Đóng dấu vân tay lên MỌI mảnh của lần lưu này trong cache — kể cả mảnh không đổi nên
              không gửi lại. Thiếu dấu này thì lần đọc sau coi cache là "chưa biết" và tải lại cả
              kho, chậm mà vô ích. */
@@ -683,8 +777,13 @@
            `loadData(payload || {})`, mà loadData rỗng là XOÁ TRẮNG màn hình (sự cố 28/8). */
         if (!d) return Promise.reject(new Error('Không đọc được bản lưu — kiểm tra mạng rồi thử lại. Dữ liệu đang mở KHÔNG bị đụng tới.'));
         if (!p || !p.__goi) return d;                       // bản lưu kiểu cũ — trả nguyên
+        var anhId = (p.anh && p.anh.id) || '', anhH = p.anh ? p.anh.h : null;
+        /* Gói ảnh đọc từ kho riêng TRƯỚC, rồi mới tính xem còn phải tải gì (thêm 26/9). */
+        return docGoiAnh(anhId).then(function (rowAnh) {
+        var anhKhop = !!(rowAnh && rowAnh.payload) &&
+          (anhH == null || String(rowAnh.__h == null ? '' : rowAnh.__h) === String(anhH));
         var ids = (p.manh || []).map(function (m) { return m.id; });
-        if (p.anh && p.anh.id) ids.push(p.anh.id);
+        if (anhId && !anhKhop) ids.push(anhId);      // trong máy chưa có / lệch vân tay mới tải
         /* ⚠⚠⚠ GỐC RỄ "sửa đơn 785P rồi lưu mà máy khác vẫn thấy bản CŨ" (sửa 4/9 lần 3).
            `saveGoi` GIỮ NGUYÊN id của mảnh khi sửa nội dung (`pid = cuMuc.id || idMoi()`), chỉ
            đổi dấu vân tay `h` trong chỉ mục. Còn bên đọc thì chỉ tải mảnh nào CHƯA CÓ trong máy:
@@ -707,6 +806,14 @@
         var doThieu = (!thieu.length || !configured() || !online()) ? Promise.resolve(null)
           : ensureClient().then(function (c) { return c ? layNhieuDong(c, thieu) : null; });
         return doThieu.then(function (kq) {
+          /* Gói ảnh vừa tải về thì đã được catDong() cất sang IndexedDB — đọc lại rồi đóng dấu
+             vân tay để lần sau khỏi tải lại cả chục MB. */
+          var taiAnh = !!(anhId && ((kq && kq.ids) || []).indexOf(anhId) >= 0);
+          var chotAnh = taiAnh ? docGoiAnh(anhId).then(function (rA) {
+            if (rA && rA.payload) { rA.__h = anhH; dongDauGoiAnh(anhId, anhH); }
+            return rA;
+          }) : Promise.resolve(rowAnh);
+          return chotAnh.then(function (anhDung) {
           /* Đóng dấu vân tay của chỉ mục lên mảnh VỪA TẢI VỀ ĐƯỢC — và chỉ những mảnh đó.
              Mảnh đòi tải mà mạng không lấy được thì để nguyên (không dấu / dấu cũ) để lần đọc
              sau còn biết là chưa khớp mà tải lại. */
@@ -720,11 +827,16 @@
           });
           var caiGi = [];
           (p.manh || []).forEach(function (m) { caiGi.push({ loai: 'manh', md: m.md, id: m.id }); });
-          if (p.anh && p.anh.id) caiGi.push({ loai: 'anh', id: p.anh.id });
-          var mat = caiGi.filter(function (x) { var r = jget(K.dsItem(x.id), null); return !r || !r.payload; });
+          if (anhId) caiGi.push({ loai: 'anh', id: anhId });
+          /* Gói ảnh có thể chỉ nằm trong IndexedDB (quá to cho localStorage) — tra bảng này
+             trước rồi mới tới cache localStorage, không thì lại tưởng là mất mảnh. */
+          var dongCoSan = {};
+          if (anhId && anhDung && anhDung.payload) dongCoSan[anhId] = anhDung;
+          var layDong = function (id2) { return dongCoSan[id2] || jget(K.dsItem(id2), null); };
+          var mat = caiGi.filter(function (x) { var r = layDong(x.id); return !r || !r.payload; });
           function ghepRa(ds2, va) {
             return Promise.all(ds2.map(function (x) {
-              var row = jget(K.dsItem(x.id), null);
+              var row = layDong(x.id);
               return giaiNen({ n: row.payload.n, d: row.payload.d }).then(function (v) { return { loai: x.loai, v: v }; });
             })).then(function (ds) {
               return giaiNen({ n: p.nc, d: p.chung }).then(function (chung) {
@@ -747,12 +859,14 @@
              Vẫn giữ nguyên luật cũ: KHÔNG tìm lại được gì thì báo hỏng, tuyệt đối không trả rỗng. */
           return vaManh(mat).then(function (kq) {
             var duoc = caiGi.map(function (x) { return kq.thay[x.id] ? { loai: x.loai, md: x.md, id: kq.thay[x.id] } : x; })
-                            .filter(function (x) { var r = jget(K.dsItem(x.id), null); return r && r.payload; });
+                            .filter(function (x) { var r = layDong(x.id); return r && r.payload; });
             var conManh = duoc.filter(function (x) { return x.loai === 'manh'; }).length;
             if (!conManh) return Promise.reject(new Error('Bản lưu hỏng: thiếu ' + mat.length +
               ' mảnh và không tìm lại được mảnh nào — chưa mở được. Dữ liệu đang mở KHÔNG bị đụng tới; kiểm tra mạng rồi tải lại trang (Ctrl+F5).'));
             return ghepRa(duoc, { vaDuoc: mat.length - kq.hong.length, hong: kq.hong.map(function (x) { return x.md || 'ảnh'; }) });
           });
+          });
+        });
         });
       });
     },
@@ -831,11 +945,16 @@
          có sẵn và nói thẳng còn thiếu mấy đơn. Đổi lại phải có PHANH: bản mở tạm KHÔNG được tự
          lưu đè lên máy chủ (xem _moTam bên auth.web.js) — không thì mở thiếu một lần là ghi đè
          mất mấy đơn kia, đúng cái sự cố 28/8. */
-      var co = caiGi.filter(function (x) { var r = jget(K.dsItem(x.id), null); return r && r.payload; });
+      var anhId2 = (p.anh && p.anh.id) || '';
+      return docGoiAnh(anhId2).then(function (rowAnh) {
+      var dongCoSan = {};
+      if (anhId2 && rowAnh && rowAnh.payload) dongCoSan[anhId2] = rowAnh;
+      var layDong = function (id2) { return dongCoSan[id2] || jget(K.dsItem(id2), null); };
+      var co = caiGi.filter(function (x) { var r = layDong(x.id); return r && r.payload; });
       var thieu = caiGi.length - co.length;
       if (!co.filter(function (x) { return x.loai === 'manh'; }).length) return Promise.resolve(null);
       return Promise.all(co.map(function (x) {
-        var row = jget(K.dsItem(x.id), null);
+        var row = layDong(x.id);
         return giaiNen({ n: row.payload.n, d: row.payload.d }).then(function (v) { return { loai: x.loai, v: v }; }).catch(function () { return null; });
       })).then(function (ds) {
         var hong = ds.filter(function (x) { return !x; }).length;
@@ -847,6 +966,7 @@
           if (!payload || !(payload.orders || []).length) return null;
           return Object.assign({}, d, { payload: payload, __du: !(thieu + hong), __thieu: thieu + hong, __can: caiGi.length });
         }).catch(function () { return null; });
+      }).catch(function () { return null; });
       }).catch(function () { return null; });
     },
     /* ===== SOI LẠI BẢN LƯU TRÊN MÁY CHỦ (thêm 29/8) =====

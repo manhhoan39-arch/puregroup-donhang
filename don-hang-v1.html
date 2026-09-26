@@ -665,7 +665,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709960000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1710110000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1331,7 +1331,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1709960000"></script>
+<script src="engine.web.js?v=1710110000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -2228,9 +2228,18 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var cu=soVanTay()[r.ah];
         if(cu && state.imgStore[cu]) return { key:cu, moi:false };   // cùng nội dung → dùng lại
       }
-      state.imgStore[kh]={ d:r.d, w:r.w, h:r.h, ten:String(ten||'').split('/').pop(), ah:r.ah||'' };
+      /* goc=1 nghĩa là giữ nguyên byte gốc, không nén lại — để soi lại được chất lượng ảnh. */
+      state.imgStore[kh]={ d:r.d, w:r.w, h:r.h, ten:String(ten||'').split('/').pop(), ah:r.ah||'', goc:r.goc?1:0 };
       return { key:kh, moi:true };
     });
+  }
+  /* Byte ảnh → chuỗi base64. Làm theo từng khúc, gọi btoa cho cả chục nghìn byte một lượt
+     là tràn ngăn xếp (ảnh vài trăm KB đủ để văng). */
+  function b64Anh(bytes){
+    var u = (bytes instanceof Uint8Array) ? bytes : new Uint8Array(bytes);
+    var s='', i, n=u.length, KHUC=0x8000;
+    for(i=0;i<n;i+=KHUC) s += String.fromCharCode.apply(null, u.subarray(i, Math.min(i+KHUC, n)));
+    return btoa(s);
   }
   function nenAnh(bytes, ten){
     var mime=/\.png$/i.test(ten)?'image/png':(/\.gif$/i.test(ten)?'image/gif':(/\.webp$/i.test(ten)?'image/webp':'image/jpeg'));
@@ -2243,8 +2252,22 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             var w=im.naturalWidth||im.width, h=im.naturalHeight||im.height, r=Math.min(1, ANH_MAX/Math.max(w,h)||1);
             var cv=document.createElement('canvas'); cv.width=Math.max(1,Math.round(w*r)); cv.height=Math.max(1,Math.round(h*r));
             cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);
-            var d=cv.toDataURL('image/jpeg', ANH_Q);
-            URL.revokeObjectURL(url); ok({d:d, w:cv.width, h:cv.height, ah:vanTayAnh(cv)});
+            /* ===== ẢNH ĐÃ NHỎ SẴN THÌ GIỮ NGUYÊN BYTE GỐC (user chốt 26/9) =====
+               Ảnh trong file tổng hợp Gmail vốn chỉ tối đa 420px (đo cả 933 tấm: lớn nhất 420,
+               trung bình 357). Nén JPEG thêm một lần nữa ở mức 0.62 KHÔNG làm nhẹ đi bao nhiêu
+               (ảnh gốc trung bình 9.9KB, bản nén lại ~9KB) mà chỉ thêm một đời mất nét — đúng
+               cái user thấy "trong Excel nét, vào app mờ và vỡ".
+               Nên: không phải thu nhỏ thì dùng thẳng byte gốc. Vẫn có hàng rào: bản gốc mà to
+               hơn bản nén quá 2 lần (ảnh PNG chụp màn hình chẳng hạn) thì vẫn nén cho nhẹ. */
+            var dNen=cv.toDataURL('image/jpeg', ANH_Q), d=dNen, goc=0;
+            if(r>=1){
+              try{
+                var dGoc='data:'+mime+';base64,'+b64Anh(bytes);
+                if(dGoc.length <= dNen.length*2){ d=dGoc; goc=1; }
+              }catch(e2){ logErr('nenAnh.goc', e2); }
+            }
+            URL.revokeObjectURL(url);
+            ok({d:d, w:cv.width, h:cv.height, ah:vanTayAnh(cv), goc:goc});
           }catch(e){ URL.revokeObjectURL(url); ok(null); }
         };
         im.onerror=function(){ URL.revokeObjectURL(url); ok(null); };
@@ -11338,9 +11361,34 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return n;
   }
   function khNhanMatAnh(n){
-    return '<div class="mini" style="color:var(--red-600)">⚠ '+n+' ảnh chưa có trong kho ảnh. '+
-      'Nếu đang mất mạng (“Không hỏi được máy chủ”) thì chờ có mạng rồi mở lại trang; '+
-      'còn không thì nạp lại file tổng hợp Gmail / Check list KH.</div>';
+    if(khDangLayAnh) return '<div class="mini" style="color:var(--text-3)">⏳ Đang lấy '+n+' ảnh từ máy chủ…</div>';
+    return '<div class="mini" style="color:var(--red-600)">⚠ '+n+' ảnh không còn trên máy chủ '+
+      '— nạp lại file tổng hợp Gmail (hoặc Check list KH) là có lại.</div>';
+  }
+  /* ===== TỰ LẤY GÓI ẢNH, KHÔNG BẮT AI BẤM NÚT (user chốt 26/9) =====
+     Kho ảnh nằm trong MỘT gói riêng trên máy chủ, tách khỏi dữ liệu đơn. Máy nào lỡ mở lúc mất
+     mạng thì gói đó không về, mà dữ liệu đơn vẫn đủ nên app chẳng có cớ gì để đi tải lại —
+     ngồi chờ mãi cũng không có ảnh. Nay vào bước 7 thấy thiếu ảnh là TỰ đi xin gói ảnh, xin
+     xong tự vẽ lại. Mỗi lần mở trang chỉ xin một lần, hỏng thì thôi, không quay vòng. */
+  var khDangLayAnh=false, khDaXinAnh=false;
+  function khTuLayAnh(soMat){
+    if(!soMat || khDangLayAnh || khDaXinAnh) return;
+    if(!(window.CLCloud && window.CLCloud.taiLaiAnh)) return;   // bản cũ chưa có đường này
+    if(typeof navigator!=='undefined' && navigator.onLine===false) return;
+    khDaXinAnh=true; khDangLayAnh=true;
+    window.CLCloud.taiLaiAnh().then(function(goi){
+      var kho=(goi&&goi.imgStore)||null, them=0;
+      if(kho){
+        state.imgStore=state.imgStore||{};
+        Object.keys(kho).forEach(function(k){ if(state.imgStore[k]===undefined){ state.imgStore[k]=kho[k]; them++; } });
+      }
+      khDangLayAnh=false;
+      if(them){ logLine('🖼 Tự lấy '+them+' ảnh từ máy chủ'); khLuuNgam(); }
+      renderKH();
+    }).catch(function(e){
+      khDangLayAnh=false; logErr('khTuLayAnh', e);
+      try{ renderKH(); }catch(e2){ logErr('khTuLayAnh.ve', e2); }
+    });
   }
   /* ===== LỌC ẢNH TRÙNG KHI HIỆN (user báo 26/9: một tấm hiện đi hiện lại 3-4 lần) =====
      Kho ảnh đã chặn trùng theo vân tay BẰNG NHAU, nhưng cùng một tấm đi qua hai đường nén
@@ -12031,7 +12079,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
            chứ nhìn cột trống thì không phân biệt được "chưa nạp" với "file không có mã đó". */
         st.innerHTML='<b>'+d.thuTu.length+' Mã KH</b> · '+soMuc+' dòng · '+soAnh+' ảnh · '+
           soNhan+'/'+d.thuTu.length+' có nhãn hiệu'+
-          (soMat?('<span style="color:var(--red-600)"> · ⚠ '+soMat+' ảnh chưa tải được — xem mạng hoặc nạp lại file</span>'):'');
+          (soMat?(khDangLayAnh
+            ? '<span style="color:var(--text-3)"> · ⏳ đang lấy '+soMat+' ảnh từ máy chủ…</span>'
+            : '<span style="color:var(--red-600)"> · ⚠ '+soMat+' ảnh không còn trên máy chủ, nạp lại file để có</span>'):'');
+        /* Thiếu ảnh thì TỰ đi lấy ngay, không chờ ai bấm gì. */
+        khTuLayAnh(soMat);
       }
     }
     if(!ds.length){
@@ -12795,14 +12847,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1709960000"></script>
-<script src="cl.sync.js?v=1709960000"></script>
-<script src="auth.store.js?v=1709960000"></script>
-<script src="auth.web.js?v=1709960000"></script>
+<script src="cl.config.js?v=1710110000"></script>
+<script src="cl.sync.js?v=1710110000"></script>
+<script src="auth.store.js?v=1710110000"></script>
+<script src="auth.web.js?v=1710110000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1709960000"></script>
+<script src="cl.project.js?v=1710110000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1709960000" defer></script>
+<script src="firebase-bridge.js?v=1710110000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
