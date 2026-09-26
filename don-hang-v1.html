@@ -500,8 +500,11 @@ img.anh-th:hover{border-color:var(--accent);box-shadow:0 2px 10px rgba(0,0,0,.18
 #anh-to.phong img{cursor:grab}
 #anh-to.phong.dang-keo img{cursor:grabbing}
 /* Dòng chữ hướng dẫn: ảnh phóng to sẽ trùm qua nó → cho nền mờ + nổi lên trên để còn đọc được */
-#anh-to .anh-dong{position:relative;z-index:2;color:#fff;font:600 12.5px Inter,system-ui,sans-serif;
-  margin-top:10px;text-align:center;background:rgba(0,0,0,.62);padding:6px 14px;border-radius:20px}
+/* Dòng chú thích TÁCH HẲN khỏi luồng (position:fixed), không thì nó chiếm chỗ trong khung
+   flex và đẩy ảnh lên trên tâm mấy chục px — user muốn ảnh nằm ĐÚNG giữa màn hình. */
+#anh-to .anh-dong{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);max-width:94vw;
+  z-index:2;color:#fff;font:600 12.5px Inter,system-ui,sans-serif;
+  text-align:center;background:rgba(0,0,0,.62);padding:6px 14px;border-radius:20px}
 #anh-to .anh-zoom{color:var(--teal-500)}
 /* Nút LUI / TIẾN — đứng yên hai mép màn hình, không nhảy theo cỡ ảnh, bấm được cả trên
    điện thoại (không ẩn chờ rê chuột). */
@@ -673,7 +676,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1710210000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1710260000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1350,7 +1353,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1710210000"></script>
+<script src="engine.web.js?v=1710260000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -2090,18 +2093,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     ov.classList.toggle('phong', __anhZ>1.01);
     var d=ov.querySelector('.anh-zoom'); if(d) d.textContent=Math.round(__anhZ*100)+'%';
   }
-  /* Phóng quanh ĐIỂM ĐANG TRỎ CHUỘT: transform là translate(...) scale(...) nên phần dịch
-     nằm ngoài, không bị nhân theo tỉ lệ → chỉ cần bù đúng khoảng lệch của điểm đó so với tâm. */
-  function anhZoom(z, cx, cy){
+  /* ===== PHÓNG TO LUÔN GIỮ ẢNH Ở GIỮA MÀN HÌNH (user chốt 26/9) =====
+     Bản trước phóng quanh ĐIỂM ĐANG TRỎ CHUỘT. Nghe thì hay, nhưng trỏ chuột hay nằm lệch
+     một bên nên càng phóng ảnh càng trôi ra mép, phải kéo lại mới thấy — user gặp đúng cảnh
+     ảnh dạt hẳn sang trái. Nay lăn chuột ở BẤT CỨ CHỖ NÀO cũng phóng quanh TÂM màn hình,
+     ảnh đứng yên giữa khung. Muốn xem góc nào thì kéo ảnh, kéo xong lăn tiếp là về giữa. */
+  function anhZoom(z){
     var ov=document.getElementById('anh-to'), im=ov&&ov.querySelector('img'); if(!im) return;
-    z=Math.max(0.3, Math.min(8, z));
-    if(cx!=null && __anhZ>0){
-      var r=im.getBoundingClientRect(), k=z/__anhZ;
-      __anhX -= (cx-(r.left+r.width/2))*(k-1);
-      __anhY -= (cy-(r.top+r.height/2))*(k-1);
-    }
-    __anhZ=z;
-    if(__anhZ<=1.01){ __anhX=0; __anhY=0; }      // về cỡ gốc thì canh giữa lại cho gọn
+    __anhZ=Math.max(0.3, Math.min(8, z));
+    __anhX=0; __anhY=0;                          // canh giữa ở MỌI mức phóng
     anhVe();
   }
   function anhDong(){
@@ -2131,7 +2131,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           '<div class="anh-dong">'+
           (nhieu?('<b class="anh-dem">'+(__anhIdx+1)+'/'+__anhDS.length+'</b> · '):'')+
           '<span class="anh-ten">'+esc(a.ten||'')+'</span> · 🔍 <b class="anh-zoom">100%</b>'+
-          ' · lăn chuột để phóng to / thu nhỏ ẢNH'+
+          ' · lăn chuột để phóng to / thu nhỏ ẢNH (ảnh luôn ở giữa màn hình)'+
           (nhieu?' · lật bằng ← → hoặc hai nút hai bên':'')+
           ' · kéo để di chuyển · bấm đúp ảnh về 100% · ✕ Đóng (bấm ra ngoài hoặc Esc)</div>';
         ov.style.display='flex';
@@ -2151,7 +2151,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     document.addEventListener('wheel', function(ev){
       if(!anhMoRa()) return;
       ev.preventDefault();          // chặn CUỘN TRANG và cả Ctrl+lăn (phóng to cả trang)
-      anhZoom(__anhZ*(ev.deltaY<0?1.18:1/1.18), ev.clientX, ev.clientY);
+      anhZoom(__anhZ*(ev.deltaY<0?1.18:1/1.18));
     }, {passive:false});
     document.addEventListener('mousedown', function(ev){
       if(!anhMoRa() || ev.button!==0) return;
@@ -13029,14 +13029,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1710210000"></script>
-<script src="cl.sync.js?v=1710210000"></script>
-<script src="auth.store.js?v=1710210000"></script>
-<script src="auth.web.js?v=1710210000"></script>
+<script src="cl.config.js?v=1710260000"></script>
+<script src="cl.sync.js?v=1710260000"></script>
+<script src="auth.store.js?v=1710260000"></script>
+<script src="auth.web.js?v=1710260000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1710210000"></script>
+<script src="cl.project.js?v=1710260000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1710210000" defer></script>
+<script src="firebase-bridge.js?v=1710260000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
