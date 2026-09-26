@@ -676,7 +676,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1710260000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1710310000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1094,6 +1094,9 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <div id="kh-tiet" style="display:none"></div>
     </div>
   </section>
+  <!-- Ô chọn file để BỔ SUNG ẢNH cho đơn ở bước 6. Phải nằm NGOÀI mọi <section>: để trong
+       khối của bước 7 thì lúc đang ở bước 6 nó nằm trong vùng display:none, bấm không ăn. -->
+  <input type="file" id="bs-anh-input" accept=".xlsx,.xlsm,.xls" style="display:none">
   <div id="kh-lightbox">
     <button class="kh-lb-nut" id="kh-lb-truoc" title="Ảnh trước (←)">‹</button>
     <div id="kh-lb-khung"><img alt=""></div>
@@ -1353,7 +1356,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1710260000"></script>
+<script src="engine.web.js?v=1710310000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -2113,6 +2116,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   if(document.body){
     document.addEventListener('click', function(ev){
+      var nbs=ev.target && ev.target.closest ? ev.target.closest('[data-bs-md]') : null;
+      if(nbs){ moBoSungAnh(nbs.getAttribute('data-bs-md')); return; }
+      if(!__bsGan){ __bsGan=1; }
       var im=ev.target && ev.target.closest ? ev.target.closest('img.anh-th') : null;
       var ov=document.getElementById('anh-to');
       if(im){
@@ -2190,9 +2196,21 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(md) ks=(map[md]||[]).slice();
     else { var seen={}; Object.keys(map).forEach(function(m){ (map[m]||[]).forEach(function(k){ if(!seen[k]){ seen[k]=1; ks.push(k); } }); }); }
     ks=ks.filter(function(k){ return kho[k] && kho[k].d; });
-    if(!ks.length) return '';
+    /* Đơn KHÔNG có ảnh thì vẫn dựng khung để nói rõ vì sao và cho đường bổ sung — trước đây
+       trả về rỗng nên màn hình trống trơn, nhìn tưởng app hỏng (user gặp 26/9 với đơn 680P). */
+    var suaDuoc=false; try{ suaDuoc=(typeof canUpload==='function') ? canUpload() : false; }catch(e){ logErr('anhDon.quyen', e); }
+    if(!ks.length && !(md && suaDuoc)) return '';
+    var nut = (md && suaDuoc)
+      ? '<button class="btn sm" id="bs-anh" data-bs-md="'+esc(md)+'" style="float:right;margin-left:8px">📷 Bổ sung ảnh từ file đơn</button>'
+      : '';
     return '<div class="bt-general anh-don"><div class="bt-gtitle">🖼 Ảnh trong đơn khách · '+ks.length+' ảnh'+
-      (md?(' · '+esc(md)):' · tất cả đơn')+'<span class="mini" style="float:right;color:var(--text-3);font-weight:600">bấm ảnh để xem to</span></div>'+
+      (md?(' · '+esc(md)):' · tất cả đơn')+nut+
+      '<span class="mini" style="float:right;color:var(--text-3);font-weight:600">bấm ảnh để xem to</span></div>'+
+      (ks.length ? '' :
+        '<div class="mini" style="color:var(--text-3);padding:4px 0 6px">Đơn này chưa có ảnh. '+
+        'App chỉ biết rút ảnh từ file .xlsx từ 18/8 — đơn nạp trước mốc đó không có, và app không giữ lại file gốc nên '+
+        'không tự lấy lại được. Bấm “📷 Bổ sung ảnh từ file đơn” rồi chọn đúng file .xlsx của đơn này là xong; '+
+        'thao tác đó CHỈ lấy ảnh, không đụng tới dữ liệu đơn.</div>')+
       '<div class="anh-ds">'+ks.map(function(k){
         var a=kho[k];
         return '<img class="anh-th" src="'+a.d+'" alt="'+esc(a.ten||'')+'" title="'+esc(a.ten||'')+' — bấm để xem to" data-anh="'+esc(k)+'">';
@@ -2327,29 +2345,70 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   /** Hút ảnh của 1 file vừa nạp rồi gắn cho các mã đơn của file đó. */
   function hutAnhTuFile(ab, mds){
-    if(!ab || !mds || !mds.length) return;
+    if(!ab || !mds || !mds.length) return Promise.resolve({ moi:0, gan:0, co:0 });
     state.imgStore=state.imgStore||{}; state.imgByMadon=state.imgByMadon||{};
-    zipDocMedia(ab).then(function(ds){
-      if(!ds.length) return;
-      var xong=0;
+    return zipDocMedia(ab).then(function(ds){
+      if(!ds.length) return { moi:0, gan:0, co:0 };
+      var xong=0, gan=0;
       return ds.reduce(function(ch, e){
         return ch.then(function(){
           return luuAnh(e.bytes, e.ten).then(function(r){
             if(!r) return;
             mds.forEach(function(md){
               var arr=state.imgByMadon[md]=state.imgByMadon[md]||[];
-              if(arr.indexOf(r.key)<0) arr.push(r.key);
+              if(arr.indexOf(r.key)<0){ arr.push(r.key); gan++; }
             });
             if(r.moi) xong++;
           });
         });
       }, Promise.resolve()).then(function(){
-        if(!xong) return;
-        logLine('🖼 Đọc '+xong+' ảnh trong file cho đơn '+mds.join(', '));
+        /* ⚠ Bản cũ chỉ vẽ lại khi có ảnh MỚI (xong>0). Nhưng bổ sung ảnh cho đơn cũ thì mấy
+           tấm đó thường ĐÃ nằm sẵn trong kho (file khác dùng chung) — lúc ấy xong=0 mà vẫn
+           gắn thêm được cho đơn, vậy mà màn hình đứng im, nhìn như bấm không ăn gì.
+           Nay cứ GẮN được là vẽ lại và tự lưu. */
+        if(!xong && !gan) return { moi:0, gan:0, co:ds.length };
+        logLine('🖼 Lấy '+ds.length+' ảnh trong file cho đơn '+mds.join(', ')+
+                ' — '+gan+' tấm gắn thêm'+(xong?(', '+xong+' tấm mới vào kho'):''));
         try{ if(typeof renderBoxTypes==='function') renderBoxTypes(); }catch(e){ logErr('hutAnh.render', e); }
         try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('hutAnh.autosave', e); }
+        return { moi:xong, gan:gan, co:ds.length };
       });
-    }).catch(function(e){ logErr('hutAnhTuFile', e); });
+    }).catch(function(e){ logErr('hutAnhTuFile', e); return { moi:0, gan:0, co:0, loi:e }; });
+  }
+  /* ===== BỔ SUNG ẢNH CHO ĐƠN CŨ (user chốt 26/9) =====
+     App chỉ biết rút ảnh từ file .xlsx TỪ 18/8. Mọi đơn nạp trước mốc đó không có ảnh, mà app
+     chỉ giữ lại DÒNG đã đọc chứ không giữ file gốc nên không tự lấy lại được.
+     Nút này cho chọn đúng file .xlsx của đơn rồi CHỈ rút ảnh gắn vào đơn đó — không đụng một
+     dòng dữ liệu nào, không chạy lại bước Xử lý. */
+  var __bsMd=null, __bsGan=0;
+  /* ⚠ Ô chọn file phải được gắn sự kiện NGAY LÚC NẠP TRANG. Bản đầu tôi gắn nhờ trong khối
+     khởi tạo của bước 7 — mà khối đó chỉ chạy khi người dùng bước chân vào bước 7, nên ở
+     bước 6 bấm nút xong chọn file là chẳng có gì xảy ra (bắt được lúc chạy thử 26/9). */
+  if(document.body){
+    document.addEventListener('change', function(ev){
+      var o=ev.target; if(!o || o.id!=='bs-anh-input') return;
+      var f=o.files && o.files[0]; o.value='';
+      boSungAnh(f);
+    });
+  }
+  function moBoSungAnh(md){
+    __bsMd=md;
+    var o=document.getElementById('bs-anh-input'); if(!o) return;
+    o.value=''; o.click();
+  }
+  function boSungAnh(f){
+    var md=__bsMd; if(!md || !f) return;
+    if(!/\.xls[xm]?$/i.test(f.name||'')){ alert('Cần chọn đúng file đơn (.xlsx) của mã đơn này.'); return; }
+    var fr=new FileReader();
+    fr.onload=function(ev){
+      hutAnhTuFile(ev.target.result, [md]).then(function(kq){
+        if(!kq || !kq.co){ alert('File "'+f.name+'" không có ảnh nào bên trong.'); return; }
+        if(!kq.gan){ alert('Mấy tấm ảnh trong file này đã gắn cho đơn '+md+' rồi.'); return; }
+        alert('Đã bổ sung '+kq.gan+' ảnh cho đơn '+md+'.');
+      }).catch(function(e){ logErr('boSungAnh', e); alert('Không đọc được ảnh trong file: '+((e&&e.message)||'')); });
+    };
+    fr.onerror=function(){ alert('Không đọc được file.'); };
+    fr.readAsArrayBuffer(f);
   }
   /* SỬA TÊN MÀU ở Bảng Mix Màu → đổi Code Sợi của mọi dòng đơn dùng chung bảng đó.
      Đổi tên là đổi cmKey nên phải DỜI phân bổ đã điền sang khóa mới, không thì bảng vừa
@@ -12200,6 +12259,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     window.__khRender = renderKH;      // go('s11') gọi qua đây (go nằm ngoài khối này)
     window.__khNap    = khNapFile;     // bộ kiểm thử gọi thẳng, khỏi qua bước chờ vẽ màn hình
     window.__khLocAnh = khLocAnh;      // bộ kiểm thử soi số ảnh trước/sau khi lọc trùng
+    /* Bộ kiểm thử gọi thẳng: __boSungAnh(md) mở hộp chọn file như người dùng bấm nút;
+       __boSungAnh(md, file) thì bỏ qua hộp chọn (máy kiểm thử không lái được ô file ẩn). */
+    window.__boSungAnh = function(md, f){ if(f){ __bsMd=md; boSungAnh(f); } else moBoSungAnh(md); };
     khChuanLai(); khApNhan();
     khQuetAnhTrung(function(bo){ if(bo) renderKH(); });   // quét kho ảnh một lần, xong thì vẽ lại
     var d=state.khData, ds=khDsLoc();
@@ -13029,14 +13091,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1710260000"></script>
-<script src="cl.sync.js?v=1710260000"></script>
-<script src="auth.store.js?v=1710260000"></script>
-<script src="auth.web.js?v=1710260000"></script>
+<script src="cl.config.js?v=1710310000"></script>
+<script src="cl.sync.js?v=1710310000"></script>
+<script src="auth.store.js?v=1710310000"></script>
+<script src="auth.web.js?v=1710310000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1710260000"></script>
+<script src="cl.project.js?v=1710310000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1710260000" defer></script>
+<script src="firebase-bridge.js?v=1710310000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
