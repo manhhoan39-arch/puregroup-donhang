@@ -228,6 +228,23 @@
      (user gặp 26/9: "1669 ảnh" nhưng khu ảnh trống trơn).
      Nay gói ảnh có kho RIÊNG trong IndexedDB (rộng hàng trăm MB): tải về là cất, mất mạng thì
      lấy ra dùng. Dữ liệu đơn vẫn đi đường cũ — không đụng tới. */
+  /* ===== CHIA GÓI ẢNH THÀNH NHIỀU LÔ (thêm 26/9) =====
+     User: "mỗi lần nhập đơn mới, lưu lại phải đẩy hết ảnh nên rất lâu và nặng".
+     Đúng vậy: cả kho ảnh nằm trong MỘT gói, thêm một tấm là vân tay đổi ⇒ gửi lại cả 16MB.
+     Nay chia thành 16 lô theo khóa ảnh. Thêm một tấm chỉ đụng vào ĐÚNG MỘT lô (~1MB), 15 lô
+     còn lại vân tay không đổi nên `phan()` bỏ qua, không gửi gì. */
+  var ANH_LO = 16;
+  function loCuaAnh(k) {
+    var t = String(k == null ? '' : k), n = 0, i;
+    for (i = 0; i < t.length; i++) n = (n * 31 + t.charCodeAt(i)) >>> 0;
+    return n % ANH_LO;
+  }
+  /* Danh sách dòng ảnh của một chỉ mục — nhận CẢ kiểu mới (anhLo) lẫn kiểu cũ (anh đơn lẻ). */
+  function dsDongAnh(p) {
+    if (p && Array.isArray(p.anhLo)) return p.anhLo.filter(function (x) { return x && x.id; });
+    if (p && p.anh && p.anh.id) return [{ b: 0, id: p.anh.id, h: p.anh.h }];
+    return [];
+  }
   function khoaGoiAnh(id) { return 'goi-anh-' + id; }
   function ghiGoiAnh(id, row) {
     if (!id || !row || !row.payload) return Promise.resolve(false);
@@ -541,24 +558,36 @@
       if (!id) return Promise.resolve(null);
       return Promise.resolve(CLCloud.fetchOne(id)).then(function (d) {
         var p = d && d.payload;
-        if (!p || !p.__goi || !p.anh || !p.anh.id) return null;
-        var aid = p.anh.id, ah = p.anh.h;
-        return docGoiAnh(aid).then(function (row) {
-          var khop = !!(row && row.payload) && (ah == null || String(row.__h == null ? '' : row.__h) === String(ah));
-          if (khop) return row;
-          if (!configured() || !online()) return row;                 // mất mạng thì dùng bản cũ còn hơn không
-          return ensureClient().then(function (c) {
-            if (!c) return row;
-            return layNhieuDong(c, [aid]).then(function () {
-              return docGoiAnh(aid).then(function (r2) {
-                if (r2 && r2.payload) dongDauGoiAnh(aid, ah);
-                return r2 || row;
+        if (!p || !p.__goi) return null;
+        var ds = dsDongAnh(p);
+        if (!ds.length) return null;
+        return Promise.all(ds.map(function (x) {
+          return docGoiAnh(x.id).then(function (row) {
+            var khop = !!(row && row.payload) &&
+              (x.h == null || String(row.__h == null ? '' : row.__h) === String(x.h));
+            if (khop || !configured() || !online()) return row;       // mất mạng thì bản cũ còn hơn không
+            return ensureClient().then(function (c) {
+              if (!c) return row;
+              return layNhieuDong(c, [x.id]).then(function () {
+                return docGoiAnh(x.id).then(function (r2) {
+                  if (r2 && r2.payload) dongDauGoiAnh(x.id, x.h);
+                  return r2 || row;
+                });
               });
+            }).catch(function () { return row; });
+          });
+        })).then(function (rows) {
+          return Promise.all(rows.map(function (row) {
+            if (!row || !row.payload) return Promise.resolve(null);
+            return giaiNen({ n: row.payload.n, d: row.payload.d }).catch(function () { return null; });
+          })).then(function (gois) {
+            var kho = {}, co = 0;
+            gois.forEach(function (g) {
+              var im = (g && g.imgStore) || {};
+              Object.keys(im).forEach(function (k) { if (kho[k] === undefined) { kho[k] = im[k]; co++; } });
             });
-          }).catch(function () { return row; });
-        }).then(function (row) {
-          if (!row || !row.payload) return null;
-          return giaiNen({ n: row.payload.n, d: row.payload.d }).catch(function () { return null; });
+            return co ? { imgStore: kho } : null;
+          });
         });
       }).catch(function () { return null; });
     },
@@ -694,19 +723,36 @@
          chắn là máy này mở lúc mất mạng nên chưa tải được gói ảnh — lưu đè bằng gói rỗng là
          xoá sạch ảnh của cả xưởng. Giữ nguyên gói cũ, không gửi gì cả. Cùng một lẽ với phanh
          "dữ liệu đang TRỐNG mà bản cũ có đơn" ở trên. */
-      var anhCu = cu && cu.anh;
+      var dsAnhCu = dsDongAnh(cu), cuTheoLo = {};
+      dsAnhCu.forEach(function (x) { cuTheoLo[x.b] = x; });
       var khoAnh = (goi.anh && goi.anh.imgStore) || {};
-      if (!Object.keys(khoAnh).length && anhCu && anhCu.id) {
+      var soAnh = Object.keys(khoAnh).length;
+      var vieAnh = [];
+      if (!soAnh && dsAnhCu.length) {
         log('giữ nguyên gói ảnh cũ — kho ảnh đang trống, không ghi đè');
-        viec.push(Promise.resolve({ md: '__anh', id: anhCu.id, h: anhCu.h }));
+        dsAnhCu.forEach(function (x) { vieAnh.push(Promise.resolve({ b: x.b, id: x.id, h: x.h })); });
       } else {
-        viec.push(phan('__anh', goi.anh || {}, KIND_ANH, '⚙ ảnh trong đơn', anhCu));
+        /* Chia kho ảnh ra từng lô rồi gửi RIÊNG từng lô: lô nào không đổi thì `phan()` thấy
+           vân tay trùng và bỏ qua, nên thêm vài tấm chỉ tốn một lô chứ không phải cả kho. */
+        var lo = [], i2;
+        for (i2 = 0; i2 < ANH_LO; i2++) lo.push(null);
+        Object.keys(khoAnh).forEach(function (k) {
+          var b = loCuaAnh(k); if (!lo[b]) lo[b] = {}; lo[b][k] = khoAnh[k];
+        });
+        for (i2 = 0; i2 < ANH_LO; i2++) {
+          if (!lo[i2]) continue;                       // lô rỗng thì khỏi tạo dòng cho tốn chỗ
+          (function (b) {
+            vieAnh.push(phan('__anh' + b, { imgStore: lo[b] }, KIND_ANH, '⚙ ảnh · lô ' + b, cuTheoLo[b])
+              .then(function (x) { return { b: b, id: x.id, h: x.h }; }));
+          })(i2);
+        }
       }
-      return Promise.all(viec).then(function (ds) {
-        var anh = ds.pop(); dsManh = ds;
+      return Promise.all([Promise.all(viec), Promise.all(vieAnh)]).then(function (hai) {
+        dsManh = hai[0];
+        var dsAnh = hai[1].filter(function (x) { return x && x.id; });
         return nen(goi.chung || {}).then(function (nc) {
           var row = { id: id, factory_id: profile.factory_id, name: rec.name || ('Đơn ' + now), kind: 'orders',
-            payload: { __goi: 1, v: 1, nc: nc.n, chung: nc.d, manh: dsManh, anh: { id: anh.id, h: anh.h } },
+            payload: { __goi: 1, v: 1, nc: nc.n, chung: nc.d, manh: dsManh, anhLo: dsAnh },
             created_by: profile.id, updated_at: now };
           // cache: chỉ mục + mọi dòng mảnh (đã nén nên nhẹ hơn hẳn bản cũ)
           jset(K.dsItem(id), row);
@@ -777,13 +823,20 @@
            `loadData(payload || {})`, mà loadData rỗng là XOÁ TRẮNG màn hình (sự cố 28/8). */
         if (!d) return Promise.reject(new Error('Không đọc được bản lưu — kiểm tra mạng rồi thử lại. Dữ liệu đang mở KHÔNG bị đụng tới.'));
         if (!p || !p.__goi) return d;                       // bản lưu kiểu cũ — trả nguyên
-        var anhId = (p.anh && p.anh.id) || '', anhH = p.anh ? p.anh.h : null;
-        /* Gói ảnh đọc từ kho riêng TRƯỚC, rồi mới tính xem còn phải tải gì (thêm 26/9). */
-        return docGoiAnh(anhId).then(function (rowAnh) {
-        var anhKhop = !!(rowAnh && rowAnh.payload) &&
-          (anhH == null || String(rowAnh.__h == null ? '' : rowAnh.__h) === String(anhH));
+        var dsAnh = dsDongAnh(p);
+        /* Mấy lô ảnh đọc từ kho riêng TRƯỚC, rồi mới tính xem còn phải tải gì (thêm 26/9). */
+        return Promise.all(dsAnh.map(function (x) {
+          return docGoiAnh(x.id).then(function (r2) { return { x: x, r: r2 }; });
+        })).then(function (dsRowAnh) {
+        var rowTheoId = {};
+        dsRowAnh.forEach(function (o) { if (o.r && o.r.payload) rowTheoId[o.x.id] = o.r; });
         var ids = (p.manh || []).map(function (m) { return m.id; });
-        if (anhId && !anhKhop) ids.push(anhId);      // trong máy chưa có / lệch vân tay mới tải
+        dsRowAnh.forEach(function (o) {
+          var r2 = o.r, hM = o.x.h;
+          var khop = !!(r2 && r2.payload) &&
+            (hM == null || String(r2.__h == null ? '' : r2.__h) === String(hM));
+          if (!khop) ids.push(o.x.id);               // lô nào chưa có / lệch vân tay mới tải
+        });
         /* ⚠⚠⚠ GỐC RỄ "sửa đơn 785P rồi lưu mà máy khác vẫn thấy bản CŨ" (sửa 4/9 lần 3).
            `saveGoi` GIỮ NGUYÊN id của mảnh khi sửa nội dung (`pid = cuMuc.id || idMoi()`), chỉ
            đổi dấu vân tay `h` trong chỉ mục. Còn bên đọc thì chỉ tải mảnh nào CHƯA CÓ trong máy:
@@ -806,14 +859,17 @@
         var doThieu = (!thieu.length || !configured() || !online()) ? Promise.resolve(null)
           : ensureClient().then(function (c) { return c ? layNhieuDong(c, thieu) : null; });
         return doThieu.then(function (kq) {
-          /* Gói ảnh vừa tải về thì đã được catDong() cất sang IndexedDB — đọc lại rồi đóng dấu
-             vân tay để lần sau khỏi tải lại cả chục MB. */
-          var taiAnh = !!(anhId && ((kq && kq.ids) || []).indexOf(anhId) >= 0);
-          var chotAnh = taiAnh ? docGoiAnh(anhId).then(function (rA) {
-            if (rA && rA.payload) { rA.__h = anhH; dongDauGoiAnh(anhId, anhH); }
-            return rA;
-          }) : Promise.resolve(rowAnh);
-          return chotAnh.then(function (anhDung) {
+          /* Lô ảnh vừa tải về thì đã được catDong() cất sang IndexedDB — đọc lại rồi đóng dấu
+             vân tay để lần sau khỏi tải lại. */
+          var daTai = (kq && kq.ids) || [];
+          var chotAnh = Promise.all(dsAnh.map(function (x) {
+            if (daTai.indexOf(x.id) < 0) return Promise.resolve(rowTheoId[x.id] || null);
+            return docGoiAnh(x.id).then(function (rA) {
+              if (rA && rA.payload) { rA.__h = x.h; dongDauGoiAnh(x.id, x.h); }
+              return rA;
+            });
+          }));
+          return chotAnh.then(function (dsAnhDung) {
           /* Đóng dấu vân tay của chỉ mục lên mảnh VỪA TẢI VỀ ĐƯỢC — và chỉ những mảnh đó.
              Mảnh đòi tải mà mạng không lấy được thì để nguyên (không dấu / dấu cũ) để lần đọc
              sau còn biết là chưa khớp mà tải lại. */
@@ -827,11 +883,14 @@
           });
           var caiGi = [];
           (p.manh || []).forEach(function (m) { caiGi.push({ loai: 'manh', md: m.md, id: m.id }); });
-          if (anhId) caiGi.push({ loai: 'anh', id: anhId });
-          /* Gói ảnh có thể chỉ nằm trong IndexedDB (quá to cho localStorage) — tra bảng này
+          /* Lô ảnh có thể chỉ nằm trong IndexedDB (quá to cho localStorage) — tra bảng này
              trước rồi mới tới cache localStorage, không thì lại tưởng là mất mảnh. */
           var dongCoSan = {};
-          if (anhId && anhDung && anhDung.payload) dongCoSan[anhId] = anhDung;
+          dsAnh.forEach(function (x, i3) {
+            var rA = dsAnhDung[i3];
+            if (rA && rA.payload) dongCoSan[x.id] = rA;
+            caiGi.push({ loai: 'anh', id: x.id });
+          });
           var layDong = function (id2) { return dongCoSan[id2] || jget(K.dsItem(id2), null); };
           var mat = caiGi.filter(function (x) { var r = layDong(x.id); return !r || !r.payload; });
           function ghepRa(ds2, va) {
@@ -840,8 +899,13 @@
               return giaiNen({ n: row.payload.n, d: row.payload.d }).then(function (v) { return { loai: x.loai, v: v }; });
             })).then(function (ds) {
               return giaiNen({ n: p.nc, d: p.chung }).then(function (chung) {
-                var goi = { chung: chung || {}, manh: [], anh: {} };
-                ds.forEach(function (x) { if (x.loai === 'anh') goi.anh = x.v || {}; else goi.manh.push(x.v); });
+                var goi = { chung: chung || {}, manh: [], anh: { imgStore: {} } };
+                /* Gộp mọi lô ảnh lại thành MỘT kho như app vẫn quen dùng. */
+                ds.forEach(function (x) {
+                  if (x.loai !== 'anh') { goi.manh.push(x.v); return; }
+                  var im = (x.v && x.v.imgStore) || {};
+                  Object.keys(im).forEach(function (k) { if (goi.anh.imgStore[k] === undefined) goi.anh.imgStore[k] = im[k]; });
+                });
                 if (!(root.__CLAPP && root.__CLAPP.gopLuu))
                   return Promise.reject(new Error('Bản app đang chạy quá cũ, chưa biết ghép bản lưu chia mảnh — tải lại trang (Ctrl+F5) rồi thử lại.'));
                 var payload = root.__CLAPP.gopLuu(goi);
@@ -937,7 +1001,8 @@
       if (!p.__goi) return Promise.resolve((p.orders || []).length ? d : null);
       var caiGi = [];
       (p.manh || []).forEach(function (m) { caiGi.push({ loai: 'manh', id: m.id }); });
-      if (p.anh && p.anh.id) caiGi.push({ loai: 'anh', id: p.anh.id });
+      var dsAnhN = dsDongAnh(p);
+      dsAnhN.forEach(function (x) { caiGi.push({ loai: 'anh', id: x.id }); });
       if (!caiGi.length) return Promise.resolve(null);
       /* ⭑ THIẾU MẢNH THÌ VẪN MỞ PHẦN ĐANG CÓ (sửa 29/8 theo yêu cầu "mở link là phải có dữ liệu
          đã lưu trên máy, dù không có mạng").
@@ -945,10 +1010,11 @@
          có sẵn và nói thẳng còn thiếu mấy đơn. Đổi lại phải có PHANH: bản mở tạm KHÔNG được tự
          lưu đè lên máy chủ (xem _moTam bên auth.web.js) — không thì mở thiếu một lần là ghi đè
          mất mấy đơn kia, đúng cái sự cố 28/8. */
-      var anhId2 = (p.anh && p.anh.id) || '';
-      return docGoiAnh(anhId2).then(function (rowAnh) {
+      return Promise.all(dsAnhN.map(function (x) {
+        return docGoiAnh(x.id).then(function (r2) { return { id: x.id, r: r2 }; });
+      })).then(function (dsRow) {
       var dongCoSan = {};
-      if (anhId2 && rowAnh && rowAnh.payload) dongCoSan[anhId2] = rowAnh;
+      dsRow.forEach(function (o) { if (o.r && o.r.payload) dongCoSan[o.id] = o.r; });
       var layDong = function (id2) { return dongCoSan[id2] || jget(K.dsItem(id2), null); };
       var co = caiGi.filter(function (x) { var r = layDong(x.id); return r && r.payload; });
       var thieu = caiGi.length - co.length;
@@ -959,8 +1025,13 @@
       })).then(function (ds) {
         var hong = ds.filter(function (x) { return !x; }).length;
         return giaiNen({ n: p.nc, d: p.chung }).then(function (chung) {
-          var goi = { chung: chung || {}, manh: [], anh: {} };
-          ds.forEach(function (x) { if (!x) return; if (x.loai === 'anh') goi.anh = x.v || {}; else goi.manh.push(x.v); });
+          var goi = { chung: chung || {}, manh: [], anh: { imgStore: {} } };
+          ds.forEach(function (x) {
+            if (!x) return;
+            if (x.loai !== 'anh') { goi.manh.push(x.v); return; }
+            var im = (x.v && x.v.imgStore) || {};
+            Object.keys(im).forEach(function (k) { if (goi.anh.imgStore[k] === undefined) goi.anh.imgStore[k] = im[k]; });
+          });
           if (!goi.manh.length || !(root.__CLAPP && root.__CLAPP.gopLuu)) return null;
           var payload = root.__CLAPP.gopLuu(goi);
           if (!payload || !(payload.orders || []).length) return null;
@@ -982,7 +1053,7 @@
           var p = r.data.payload;
           if (!p || !p.__goi) return { ok: !!(p && (p.orders || []).length), thieu: 0, ids: [id] };
           var ids = (p.manh || []).map(function (m) { return m.id; });
-          if (p.anh && p.anh.id) ids.push(p.anh.id);
+          dsDongAnh(p).forEach(function (x) { ids.push(x.id); });
           var co = {}, lo = [], i;
           for (i = 0; i < ids.length; i += LO) lo.push(ids.slice(i, i + LO));
           return lo.reduce(function (ch, mot) {
