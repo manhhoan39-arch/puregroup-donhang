@@ -665,7 +665,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709860000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1709930000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1331,7 +1331,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1709860000"></script>
+<script src="engine.web.js?v=1709930000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -10864,14 +10864,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      ở bảng chi tiết khi bấm vào MÃ ĐƠN. Diễn giải · Ghi chú hộp · Nội dung mail đã bỏ hẳn
      (user chốt 25/9): Diễn giải dồn về Ghi chú độ cong, hai thứ kia trùng với Nội dung. */
   var KH_COT = [
-    ['maKH',    'Mã KH',        '',     78,  'g-kh'],
+    ['maKH',    'Mã KH',        '',     62,  'g-kh'],
     ['don',     'Mã đơn',       '',     70,  'g-kh'],
     ['brand',   'Nhãn hiệu',    '',     96,  'g-kh'],
     ['doDay',   'Độ dày',       'KEO',  150, 'g-line'],
-    ['keo',     'Mã keo',       'KEO',  126, 'g-line'],
+    ['keo',     'Mã keo',       'KEO',  104, 'g-line'],
     ['doDai',   'Độ dài',       'KEO',  152, 'g-line'],
-    ['doCong',  'Bảng độ cong', '',     96,  'g-cuon'],
-    ['hopThung','Thùng và hộp', '',     180, 'g-box'],
+    ['doCong',  'Bảng độ cong', '',     132, 'g-cuon'],
+    ['hopThung','Thùng và hộp', '',     218, 'g-box'],
     ['noiDung', 'Nội dung',     '',     0,   'g-box'],
   ];
   /* Cột Hình ảnh bỏ khỏi bảng (user chốt 25/9): mỗi dòng của cùng một khách lại lặp lại
@@ -11311,6 +11311,40 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function khMoiAnh(r){
     var ra=(r.anh||[]).slice();
     (r.muc||[]).forEach(function(m){ (m.anh||[]).forEach(function(k){ if(ra.indexOf(k)<0) ra.push(k); }); });
+    return ra;
+  }
+  /* ===== LỌC ẢNH TRÙNG KHI HIỆN (user báo 26/9: một tấm hiện đi hiện lại 3-4 lần) =====
+     Kho ảnh đã chặn trùng theo vân tay BẰNG NHAU, nhưng cùng một tấm đi qua hai đường nén
+     (đơn gốc ở bước 6 · file tổng hợp Gmail ở bước 7 · người gửi chụp lại) thì vân tay lệch
+     vài bit nên vẫn lọt. Nên khi HIỆN ra thì so bằng KHOẢNG CÁCH: lệch tối đa 6/256 bit
+     (≈2%) là coi như một tấm. Chỉ lọc lúc hiện, KHÔNG xoá khỏi kho — lỡ hai tấm khác nhau
+     thật thì dữ liệu vẫn còn nguyên, không mất gì. */
+  var KH_ANH_LECH = 6;
+  function khKhacBit(a, b){
+    var n=0, i, x, d=Math.min(a.length, b.length);
+    for(i=0;i<d;i++){
+      x = (parseInt(a.charAt(i),16) ^ parseInt(b.charAt(i),16)) & 15;
+      while(x){ n += x&1; x >>= 1; }
+      if(n > KH_ANH_LECH) return n;
+    }
+    return n + Math.abs(a.length-b.length)*4;
+  }
+  function khLocAnh(ds){
+    var kho=state.imgStore||{}, ra=[], vt=[], da={};
+    (ds||[]).forEach(function(k){
+      var im=kho[k]; if(!im || da[k]) return;
+      da[k]=1;
+      var a=im.ah||'', w=(im.w||0)*(im.h||0), i;
+      for(i=0;i<vt.length;i++){
+        if(!a || !vt[i].a) continue;
+        if(khKhacBit(vt[i].a, a) > KH_ANH_LECH) continue;
+        /* Cùng một tấm → giữ bản TO hơn cho nét, bỏ bản còn lại. */
+        if(w > vt[i].w){ ra[vt[i].i]=k; vt[i].a=a; vt[i].w=w; }
+        return;
+      }
+      vt.push({ a:a, w:w, i:ra.length });
+      ra.push(k);
+    });
     return ra;
   }
 
@@ -11813,7 +11847,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     }
     if(f==='brand') return oSua('kh-brand', esc(khTxt(x.r.brand)));
     if(f==='anh'){
-      var ds=(x.m.anh&&x.m.anh.length)?x.m.anh:khMoiAnh(x.r);
+      var ds=khLocAnh((x.m.anh&&x.m.anh.length)?x.m.anh:khMoiAnh(x.r));
       return '<td>'+(ds.length ? ('<div class="kh-anho">'+ds.slice(0,4).map(function(k,i2){ return khAnhTag(k, ds, i2); }).join('')+
         (ds.length>4?('<span class="mini">+'+(ds.length-4)+'</span>'):'')+'</div>') : '<span class="mini">—</span>')+'</td>';
     }
@@ -11947,6 +11981,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var tb=document.getElementById('eng-khdata'); if(!tb) return;
     window.__khRender = renderKH;      // go('s11') gọi qua đây (go nằm ngoài khối này)
     window.__khNap    = khNapFile;     // bộ kiểm thử gọi thẳng, khỏi qua bước chờ vẽ màn hình
+    window.__khLocAnh = khLocAnh;      // bộ kiểm thử soi số ảnh trước/sau khi lọc trùng
     khChuanLai(); khApNhan();
     khQuetAnhTrung(function(bo){ if(bo) renderKH(); });   // quét kho ảnh một lần, xong thì vẽ lại
     var d=state.khData, ds=khDsLoc();
@@ -12008,13 +12043,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      dồn về đây, nằm dưới bảng so sánh sau dòng Chú ý, và LỌC TRÙNG theo vân tay ảnh nên
      một tấm chỉ hiện một lần dù nhiều đơn cùng đính. */
   function khKhuAnh(r){
-    var ds=[], co={};
-    khMoiAnh(r).forEach(function(k){
-      var im=(state.imgStore||{})[k]; if(!im) return;
-      var v=im.ah || k;                       // cùng vân tay = cùng một tấm
-      if(co[v]) return;
-      co[v]=1; ds.push(k);
-    });
+    var ds=khLocAnh(khMoiAnh(r));
     if(!ds.length) return '';
     return '<div class="kh-khuanh"><h5>🖼 Hình ảnh của khách · '+ds.length+' ảnh'+
       ' <span class="mini">— bấm để xem to, lật bằng ← →</span></h5>'+
@@ -12129,7 +12158,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var m=r?(r.muc||[])[i]:null;
     if(!m){ box.style.display='none'; box.innerHTML=''; return; }
     var sua=khSuaDuoc();
-    var anh=(m.anh&&m.anh.length)?m.anh:khMoiAnh(r);
+    var anh=khLocAnh((m.anh&&m.anh.length)?m.anh:khMoiAnh(r));
     var h='<h4>📋 '+esc(r.maKH)+(khTxt(r.brand)?(' · '+esc(r.brand)):'')+
       ' — đơn '+esc(m.don||'(check list)')+(m.ngay?(' · '+esc(m.ngay)):'')+
       '<button class="btn sm" id="kh-dong" style="float:right">✕ Đóng</button>'+
@@ -12172,11 +12201,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         return khTxt(x.m[c[0]]);
       }).concat([khTxt(x.m.ngay)]));
       /* Lọc trùng theo vân tay — một tấm chỉ vào file một lần dù nhiều đơn cùng đính. */
-      var co={}, ks=[];
-      khMoiAnh(x.r).forEach(function(k){
-        var im=(state.imgStore||{})[k]; if(!im) return;
-        var v=im.ah || k; if(co[v]) return; co[v]=1; ks.push(k);
-      });
+      var ks=khLocAnh(khMoiAnh(x.r));
       if(!ks.length) return;
       soKH++;
       if(ks.length>KH_ANH_MOI_KH) boBot += ks.length-KH_ANH_MOI_KH;
@@ -12733,14 +12758,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1709860000"></script>
-<script src="cl.sync.js?v=1709860000"></script>
-<script src="auth.store.js?v=1709860000"></script>
-<script src="auth.web.js?v=1709860000"></script>
+<script src="cl.config.js?v=1709930000"></script>
+<script src="cl.sync.js?v=1709930000"></script>
+<script src="auth.store.js?v=1709930000"></script>
+<script src="auth.web.js?v=1709930000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1709860000"></script>
+<script src="cl.project.js?v=1709930000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1709860000" defer></script>
+<script src="firebase-bridge.js?v=1709930000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
