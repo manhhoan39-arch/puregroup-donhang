@@ -676,7 +676,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1710560000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1710610000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1357,7 +1357,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1710560000"></script>
+<script src="engine.web.js?v=1710610000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -2117,8 +2117,6 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   if(document.body){
     document.addEventListener('click', function(ev){
-      var ntr=ev.target && ev.target.closest ? ev.target.closest('[data-anh-trung]') : null;
-      if(ntr){ khDoiHienTrung(); return; }
       var nbs=ev.target && ev.target.closest ? ev.target.closest('[data-bs-md]') : null;
       if(nbs){ moBoSungAnh(nbs.getAttribute('data-bs-md')); return; }
       if(!__bsGan){ __bsGan=1; }
@@ -2206,8 +2204,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
        khác nhau. Trước đây bước 6 hiện thẳng nên user xóa đơn rồi xử lý lại là thấy mỗi tấm hai
        lần (gặp 28/9 với đơn LS403-269S: 4 tấm thành 8). Bước 7 đã có bộ lọc này từ lâu, nay bước 6
        dùng chung — chỉ lọc LÚC HIỆN, không xóa gì khỏi kho. */
-    var soTrung=0;
-    try{ soTrung=khSoTrung(ks); ks=khLocAnh(ks); }catch(e){ logErr('anhDon.loc', e); }
+    try{ ks=khLocAnh(ks); }catch(e){ logErr('anhDon.loc', e); }
     /* Đơn KHÔNG có ảnh thì vẫn dựng khung để nói rõ vì sao và cho đường bổ sung — trước đây
        trả về rỗng nên màn hình trống trơn, nhìn tưởng app hỏng (user gặp 26/9 với đơn 680P). */
     var suaDuoc=false; try{ suaDuoc=(typeof canUpload==='function') ? canUpload() : false; }catch(e){ logErr('anhDon.quyen', e); }
@@ -2215,7 +2212,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var nut = (md && suaDuoc)
       ? '<button class="btn sm" id="bs-anh" data-bs-md="'+esc(md)+'" style="float:right;margin-left:8px">📷 Bổ sung ảnh từ file đơn</button>'
       : '';
-    nut = khNutTrung(soTrung) + nut;
+
     return '<div class="bt-general anh-don"><div class="bt-gtitle">🖼 Ảnh trong đơn khách · '+ks.length+' ảnh'+
       (md?(' · '+esc(md)):' · tất cả đơn')+nut+
       '<span class="mini" style="float:right;color:var(--text-3);font-weight:600">bấm ảnh để xem to</span></div>'+
@@ -11610,35 +11607,65 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function tuGanAnhBuoc6(){
     var kho=state.imgStore||{}, n=Object.keys(kho).length;
     if(!n || n===__ganAnhDau) return 0;
-    var d=state.khData; if(!d || !d.kh || !Object.keys(d.kh).length) return 0;
-    if(!(state.orders||[]).length) return 0;
+    var d=state.khData, coKH=!!(d && d.kh && Object.keys(d.kh).length);
+    if(!coKH && !(state.orders||[]).length) return 0;
     __ganAnhDau=n;
-    var kq=ganAnhTuBuoc7();
-    if(!kq.them) return 0;
-    logLine('🖼 Tự vá '+kq.them+' ảnh cho '+kq.donCoLai+' đơn đang trống (lấy từ Dữ liệu khách hàng) — '+
-            kq.donDuRoi+' đơn đã có ảnh của chính nó nên để nguyên');
-    /* Lưu để lần sau mở không phải gắn lại — nhưng đẩy ra khỏi lượt vẽ, đừng chen ngang. */
+    /* 1) Vá ảnh cho đơn đang trống — việc này nhẹ, làm ngay trong lượt vẽ. */
+    var kq={ them:0, donCoLai:0, donCham:0, donDuRoi:0 };
+    if(coKH && (state.orders||[]).length){
+      try{ kq=ganAnhTuBuoc7(); }catch(e){ logErr('tuGan.gan', e); }
+    }
+    if(kq.them) logLine('🖼 Tự vá '+kq.them+' ảnh cho '+kq.donCoLai+' đơn đang trống (lấy từ Dữ liệu '+
+                        'khách hàng) — '+kq.donDuRoi+' đơn đã có ảnh của chính nó nên để nguyên');
+    /* 2) Gộp bản trùng: nặng hơn nên đẩy ra sau lượt vẽ, xong mới vẽ lại — màn hình không khựng. */
+    tuGopAnhTrung();
+    if(kq.them) luuSauKhiDonAnh();
+    return kq.them;
+  }
+  function luuSauKhiDonAnh(){
     setTimeout(function(){
       try{ khLuuNgam(); }catch(e){ logErr('tuGanAnh.luu', e); }
       try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('tuGanAnh.autosave', e); }
     }, 0);
-    return kq.them;
+  }
+  var __dangGopAnh=false, __daGopKho=-1;
+  function tuGopAnhTrung(){
+    var n=Object.keys(state.imgStore||{}).length;
+    if(__dangGopAnh || !n || n===__daGopKho) return;
+    __dangGopAnh=true;
+    setTimeout(function(){
+      var g={ nhom:0, bo:0 };
+      try{ g=gopAnhTrung(); }catch(e){ logErr('tuGop', e); }
+      __daGopKho=Object.keys(state.imgStore||{}).length;
+      __ganAnhDau=__daGopKho;
+      __dangGopAnh=false;
+      if(!g.bo) return;
+      logLine('🧹 Gộp '+g.bo+' ảnh trùng vào '+g.nhom+' tấm gốc — kho còn '+__daGopKho+' ảnh');
+      try{ renderKH(); }catch(e){ logErr('tuGop.veKH', e); }
+      try{ if(typeof renderBoxTypes==='function') renderBoxTypes(); }catch(e){ logErr('tuGop.veBox', e); }
+      luuSauKhiDonAnh();
+    }, 0);
   }
   /* Nút bấm tay: chạy lại phần gắn ngược (kể cả khi đã chạy tự động) rồi vét thêm lịch sử lưu. */
   function timLaiAnhCu(){
     var kho=state.imgStore||{};
     if(!Object.keys(kho).length){ khBao('hong','Kho ảnh đang trống — chờ app lấy gói ảnh về rồi bấm lại.',6); return; }
-    khBao('dang','🔎 Đang gắn lại ảnh cho các đơn…',0);
+    khBao('dang','🔎 Đang gộp ảnh trùng và gắn lại ảnh cho các đơn…',0);
+    var g={ nhom:0, bo:0 };
+    try{ g=gopAnhTrung(); }catch(e){ logErr('timLai.gop', e); }
+    if(g.bo) logLine('🧹 Gộp '+g.bo+' ảnh trùng vào '+g.nhom+' tấm gốc — kho còn '+
+                     Object.keys(state.imgStore||{}).length+' ảnh');
     var kq=ganAnhTuBuoc7();
     logLine('🔎 Gắn ngược bước 7 → bước 6: '+kq.them+' tấm mới · '+kq.donCham+'/'+kq.tongDon+
             ' đơn khớp được · vá '+kq.donCoLai+' đơn trống · '+kq.donDuRoi+' đơn đã đủ ảnh');
     var xong=function(themCu){
-      if(kq.them||themCu){
+      if(kq.them||themCu||g.bo){
         khLuuNgam();
         try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('timAnh.autosave', e); }
         try{ renderKH(); }catch(e){ logErr('timAnh.veKH', e); }
         try{ if(typeof renderBoxTypes==='function') renderBoxTypes(); }catch(e){ logErr('timAnh.veBox', e); }
-        khBao('xong','🔎 Gắn lại '+(kq.them+themCu)+' tấm ảnh · '+kq.donCham+'/'+kq.tongDon+' đơn có ảnh',6);
+        khBao('xong','🔎 Gộp '+g.bo+' tấm trùng · gắn lại '+(kq.them+themCu)+' tấm · '+
+              kq.donCham+'/'+kq.tongDon+' đơn có ảnh',6);
       }else{
         khBao('xong','Đã rà xong: '+kq.donCham+'/'+kq.tongDon+' đơn khớp được với bước 7 và đều đã có đủ ảnh.',7);
       }
@@ -11728,11 +11755,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(d > KH_ANH_LECH_TY) return false;
     var ra=(A.w&&A.h)?A.w/A.h:0, rb=(B.w&&B.h)?B.w/B.h:0;
     if(!ra || !rb) return false;
-    return Math.abs(ra-rb)/Math.max(ra,rb) <= 0.02;
+    return Math.abs(ra-rb)/Math.max(ra,rb) <= KH_TY_LECH;
   }
-  /* Bấm "Hiện N tấm trùng" thì tắt bộ lọc — lỡ hai tấm khác nhau thật vẫn xem được đủ. */
-  var __hienAnhTrung=false;
-  function khLocAnhThat(ds){
+  function khLocAnh(ds){
     var kho=state.imgStore||{}, ra=[], vt=[], da={};
     (ds||[]).forEach(function(k){
       var im=kho[k]; if(!im || da[k]) return;
@@ -11749,21 +11774,85 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     });
     return ra;
   }
-  function khLocAnh(ds){
-    if(__hienAnhTrung) return (ds||[]).filter(function(k){ return (state.imgStore||{})[k]; });
-    return khLocAnhThat(ds);
-  }
-  /* Bao nhiêu tấm đang bị gộp — nói thẳng ra màn hình, không lặng lẽ giấu bớt ảnh của user. */
-  function khSoTrung(ds){
-    var kho=state.imgStore||{};
-    var co=(ds||[]).filter(function(k){ return kho[k]; });
-    var da={}, n=0; co.forEach(function(k){ if(da[k]) return; da[k]=1; n++; });
-    return n - khLocAnhThat(ds).length;
-  }
-  function khNutTrung(n){
-    if(!n) return '';
-    return '<button class="btn sm" data-anh-trung="1" style="margin-left:8px">'+
-      (__hienAnhTrung ? ('↩ Gộp lại '+n+' tấm trùng') : ('👁 Hiện '+n+' tấm trùng'))+'</button>';
+  /* ===== GỘP ẢNH TRÙNG NGAY TRONG DỮ LIỆU (user chốt 28/9) =====
+     Lọc lúc hiện thì màn hình sạch nhưng kho vẫn è cổ gánh hai bản của cùng một tấm, lưu lên
+     máy chủ cũng nặng gấp đôi. Nay gộp thẳng: mỗi nhóm "cùng một tấm" giữ đúng BẢN TO NHẤT,
+     mọi chỗ đang trỏ tới bản nhỏ (bước 6, bước 7, khóa đang chờ) được trỏ sang bản to, rồi mới
+     bỏ bản nhỏ khỏi kho.
+     ⚠ An toàn ở chỗ: KHÔNG có tham chiếu nào bị mất — mỗi khóa bỏ đi đều được thay bằng khóa
+     giữ lại, nên không đơn nào, không khách nào mất ảnh; chỉ bớt bản trùng. */
+  var KH_TY_LECH = 0.02;          // hai tấm cùng một ảnh thì tỉ lệ khung hình lệch dưới 2%
+  function gopAnhTrung(){
+    var kho=state.imgStore||{}, ks=Object.keys(kho);
+    if(ks.length<2) return { nhom:0, bo:0 };
+    /* ⚠ So tất cả với tất cả là 1,3 triệu phép đo — đo thật trên kho 1616 ảnh của user mất 2,8
+       giây, đứng hình cả trang. Nhưng hai tấm chỉ có thể là một khi TỈ LỆ KHUNG HÌNH lệch dưới
+       2%, nên xếp theo tỉ lệ rồi chỉ so trong cụm sát nhau là đủ — cùng kết quả, nhanh hơn hẳn. */
+    var ds=[];
+    ks.forEach(function(k){
+      var im=kho[k]; if(!im) return;
+      ds.push({ k:k, im:im, a:im.ah||'', r:(im.w && im.h) ? im.w/im.h : 0, w:(im.w||0)*(im.h||0) });
+    });
+    var cha={}; ds.forEach(function(o){ cha[o.k]=o.k; });
+    var tim=function(x){ while(cha[x]!==x){ cha[x]=cha[cha[x]]; x=cha[x]; } return x; };
+    var noi=function(x,y){ var a=tim(x), b=tim(y); if(a!==b) cha[b]=a; };
+    var i, j, b;
+    /* A) CÙNG TỈ LỆ KHUNG HÌNH — cho vân tay lệch tới KH_ANH_LECH_TY.
+       Xếp theo tỉ lệ rồi chỉ dò trong cụm sát nhau: cùng kết quả, nhưng thay vì 1,3 triệu phép
+       đo (đo thật trên kho 1616 ảnh của user: 2,8 giây, đứng hình cả trang) chỉ còn vài chục
+       nghìn. */
+    var theoTy=ds.slice().sort(function(x,y){ return x.r-y.r; });
+    for(i=0;i<theoTy.length;i++){
+      if(!theoTy[i].r) continue;
+      var tran=theoTy[i].r/(1-KH_TY_LECH);
+      for(j=i+1;j<theoTy.length && theoTy[j].r<=tran; j++){
+        if(!theoTy[j].r) continue;
+        if(khCungTam(theoTy[i].im, theoTy[j].im)) noi(theoTy[i].k, theoTy[j].k);
+      }
+    }
+    /* B) VÂN TAY GẦN NHƯ Y HỆT (≤ KH_ANH_LECH) thì là một tấm kể cả khung hình bị cắt cúp lệch
+       tỉ lệ — đo trên dữ liệu user: 130 cặp kiểu này, bỏ đi là ảnh trùng hiện lại.
+       Chia vân tay thành 8 dải 8 ký tự: lệch ≤6 bit chỉ đụng tối đa 6 dải nên chắc chắn còn ít
+       nhất 2 dải trùng khít — chỉ dò trong đám cùng dải là đủ, không sót cặp nào. */
+    var dai={};
+    ds.forEach(function(o){
+      if(o.a.length<64) return;
+      for(var t=0;t<8;t++){ var kk=t+':'+o.a.substr(t*8,8); (dai[kk]=dai[kk]||[]).push(o); }
+    });
+    Object.keys(dai).forEach(function(kk){
+      var g=dai[kk]; if(g.length<2 || g.length>400) return;
+      for(var x=0;x<g.length;x++) for(var y=x+1;y<g.length;y++){
+        if(tim(g[x].k)===tim(g[y].k)) continue;
+        if(khKhacBit(g[x].a, g[y].a) <= KH_ANH_LECH) noi(g[x].k, g[y].k);
+      }
+    });
+    /* Mỗi nhóm giữ BẢN TO NHẤT cho nét. */
+    var to={}, thay={}, nhom=0, bo=0, dem={};
+    ds.forEach(function(o){ var g=tim(o.k); dem[g]=(dem[g]||0)+1;
+      if(!to[g] || o.w > to[g].w) to[g]=o; });
+    ds.forEach(function(o){ var giu=to[tim(o.k)].k; if(giu!==o.k){ thay[o.k]=giu; bo++; } });
+    Object.keys(dem).forEach(function(g){ if(dem[g]>1) nhom++; });
+    if(!bo) return { nhom:0, bo:0 };
+    var doi=function(arr){
+      if(!arr || !arr.length) return arr;
+      var ra=[], da={};
+      arr.forEach(function(k){ var t=thay[k]||k; if(!da[t]){ da[t]=1; ra.push(t); } });
+      return ra;
+    };
+    var m=state.imgByMadon||{};
+    Object.keys(m).forEach(function(md){ m[md]=doi(m[md]); });
+    var d=state.khData;
+    if(d && d.kh) Object.keys(d.kh).forEach(function(K){
+      var r=d.kh[K]; if(!r) return;
+      if(r.anh) r.anh=doi(r.anh);
+      if(r.anhCho) r.anhCho=doi(r.anhCho);
+      (r.muc||[]).forEach(function(x){
+        if(x.anh) x.anh=doi(x.anh);
+        if(x.anhCho) x.anhCho=doi(x.anhCho);
+      });
+    });
+    Object.keys(thay).forEach(function(k){ delete kho[k]; });
+    return { nhom:nhom, bo:bo };
   }
 
   /* ===== ĐỌC "CHECK LIST KH.xlsx" =====
@@ -12309,11 +12398,6 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(window.requestAnimationFrame) requestAnimationFrame(ve);
     setTimeout(ve, 0);
   }
-  function khDoiHienTrung(){
-    __hienAnhTrung = !__hienAnhTrung;
-    try{ renderKH(); }catch(e){ logErr('khDoiTrung.kh', e); }
-    try{ if(typeof renderBoxTypes==='function') renderBoxTypes(); }catch(e){ logErr('khDoiTrung.box', e); }
-  }
   function khNutThemAnh(i){
     if(!khSuaDuoc()) return '';
     return '<button class="btn sm" data-kh-them="'+(i==null?-1:i)+'" style="margin-left:8px">📷 Thêm ảnh</button>';
@@ -12491,6 +12575,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     window.__khAnhTheoMd = khAnhTheoMaDon;
     window.__timAnhCu = timLaiAnhCu;
     window.__ganAnh7  = ganAnhTuBuoc7;
+    window.__gopTrung = gopAnhTrung;
     window.__anhDonHtml = anhDonHtml;   // bộ kiểm thử: mở khung ảnh bước 6 là phải tự gắn lại
     window.__khDemCho = khDemCho;
     window.__khXinXong= function(v){ khDaXinAnh=(v!==false); khDangLayAnh=false; };
@@ -12572,11 +12657,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      dồn về đây, nằm dưới bảng so sánh sau dòng Chú ý, và LỌC TRÙNG theo vân tay ảnh nên
      một tấm chỉ hiện một lần dù nhiều đơn cùng đính. */
   function khKhuAnh(r){
-    var tho=khMoiAnh(r), ds=khLocAnh(tho), mat=khAnhMat(tho), sua=khSuaDuoc(), trung=khSoTrung(tho);
+    try{ tuGanAnhBuoc6(); }catch(e){ logErr('khKhuAnh.tuGan', e); }
+    var tho=khMoiAnh(r), ds=khLocAnh(tho), mat=khAnhMat(tho), sua=khSuaDuoc();
     if(!ds.length && !mat && !sua) return '';
     return '<div class="kh-khuanh" data-kh-tha="-1"><h5>🖼 Hình ảnh của khách · '+ds.length+' ảnh'+
       ' <span class="mini">— bấm để xem to, lật bằng ← →'+(sua?', kéo thả ảnh vào đây cũng được':'')+'</span>'+
-      khNutTrung(trung)+khNutThemAnh(-1)+'</h5>'+
+      khNutThemAnh(-1)+'</h5>'+
       (mat?khNhanMatAnh(mat):'')+
       '<div class="kh-anhluoi">'+ds.map(function(k,i){ return khAnhTag(k, ds, i, sua); }).join('')+'</div></div>';
   }
@@ -12711,7 +12797,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(anh.length || anhMat || sua) h+='<div class="kh-the" style="margin-top:8px" data-kh-tha="'+i+'">'+
       '<h5>🖼 Hình ảnh · '+anh.length+' ảnh '+
       '<span class="mini" style="font-weight:400;color:var(--text-3)">— bấm để xem to, lật bằng ← →'+
-      (sua?', kéo thả ảnh vào đây cũng được':'')+'</span>'+khNutTrung(khSoTrung(anhTho))+khNutThemAnh(i)+'</h5>'+
+      (sua?', kéo thả ảnh vào đây cũng được':'')+'</span>'+khNutThemAnh(i)+'</h5>'+
       (anhMat?khNhanMatAnh(anhMat):'')+
       '<div class="kh-anhluoi">'+anh.map(function(k2,i2){ return khAnhTag(k2, anh, i2, sua); }).join('')+'</div></div>';
     box.innerHTML=h; box.style.display=''; khCuonToi(box);
@@ -13136,8 +13222,6 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(!e.target.closest) return;
       var nThem=e.target.closest('[data-kh-them]');
       if(nThem){ khMoAnh(tiet.getAttribute('data-khk'), +nThem.getAttribute('data-kh-them')); return; }
-      var nTr=e.target.closest('[data-anh-trung]');
-      if(nTr){ khDoiHienTrung(); return; }
       var nBo=e.target.closest('[data-kh-xoa]');
       if(nBo){
         var khungB=nBo.closest('[data-kh-tha]');
@@ -13335,14 +13419,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1710560000"></script>
-<script src="cl.sync.js?v=1710560000"></script>
-<script src="auth.store.js?v=1710560000"></script>
-<script src="auth.web.js?v=1710560000"></script>
+<script src="cl.config.js?v=1710610000"></script>
+<script src="cl.sync.js?v=1710610000"></script>
+<script src="auth.store.js?v=1710610000"></script>
+<script src="auth.web.js?v=1710610000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1710560000"></script>
+<script src="cl.project.js?v=1710610000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1710560000" defer></script>
+<script src="firebase-bridge.js?v=1710610000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
