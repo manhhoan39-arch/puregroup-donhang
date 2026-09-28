@@ -676,7 +676,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1710410000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1710460000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1357,7 +1357,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1710410000"></script>
+<script src="engine.web.js?v=1710460000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -2192,6 +2192,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   /** Khung ảnh của đơn ở bước 6 — bấm ảnh để xem to. */
   function anhDonHtml(md){
+    /* Đơn cũ bị rơi mất khóa ảnh thì tự gắn lại ngay tại đây, không chờ ai bấm gì. */
+    try{ tuGanAnhBuoc6(); }catch(e){ logErr('anhDon.tuGan', e); }
     var kho=state.imgStore||{}, map=state.imgByMadon||{};
     var ks=[];
     if(md) ks=(map[md]||[]).slice();
@@ -2209,9 +2211,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '<span class="mini" style="float:right;color:var(--text-3);font-weight:600">bấm ảnh để xem to</span></div>'+
       (ks.length ? '' :
         '<div class="mini" style="color:var(--text-3);padding:4px 0 6px">Đơn này chưa có ảnh. '+
-        'App chỉ biết rút ảnh từ file .xlsx từ 18/8 — đơn nạp trước mốc đó không có, và app không giữ lại file gốc nên '+
-        'không tự lấy lại được. Bấm “📷 Bổ sung ảnh từ file đơn” rồi chọn đúng file .xlsx của đơn này là xong; '+
-        'thao tác đó CHỈ lấy ảnh, không đụng tới dữ liệu đơn.</div>')+
+        'App đã tự đối chiếu với <b>bước 7 · Dữ liệu khách hàng</b> nhưng không tìm ra Mã KH nào mang mã đơn này. '+
+        'Nạp lại file tổng hợp Gmail ở bước 7 là hết, hoặc bấm “📷 Bổ sung ảnh từ file đơn” rồi chọn đúng file .xlsx '+
+        'của đơn — thao tác đó CHỈ lấy ảnh, không đụng tới dữ liệu đơn.</div>')+
       '<div class="anh-ds">'+ks.map(function(k){
         var a=kho[k];
         return '<img class="anh-th" src="'+a.d+'" alt="'+esc(a.ten||'')+'" title="'+esc(a.ten||'')+' — bấm để xem to" data-anh="'+esc(k)+'">';
@@ -11560,41 +11562,64 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     });
     return ra;
   }
-  /* ===== TÌM LẠI ẢNH CŨ =====
-     Hai đường, chạy lần lượt, đường nào ra thì ra — và CHỈ THÊM, không bao giờ bớt:
-       1. Gắn ngược từ bước 7 sang bước 6 theo mã đơn (đường ăn tiền, dùng khóa đang sống).
-       2. Lục mọi bản lưu cũ trên máy chủ xem còn khóa nào tra được không (vét nốt). */
+  /* ===== GẮN NGƯỢC BƯỚC 7 → BƯỚC 6 =====
+     Chạy TỰ ĐỘNG, không bắt ai bấm nút: hễ mở một đơn ở bước 6 mà kho ảnh đã về thì app tự đối
+     chiếu với dữ liệu khách hàng rồi gắn lại. Chỉ THÊM, không bao giờ bớt. Chạy lại mỗi khi kho
+     ảnh đổi cỡ (gói ảnh vừa về, vừa nạp thêm file…) nên không cần canh đúng thời điểm. */
+  function ganAnhTuBuoc7(){
+    var kho=state.imgStore||{}, theo=khAnhTheoMaDon(), them=0, donCoLai=0, donCham=0;
+    state.imgByMadon=state.imgByMadon||{};
+    var mdCo={}; (state.orders||[]).forEach(function(o){ var m=khTxt(o&&o.maDon); if(m) mdCo[m]=1; });
+    Object.keys(mdCo).forEach(function(md){
+      var ds=theo[khChuanMd(md)]; if(!ds || !ds.length) return;
+      donCham++;
+      var arr=state.imgByMadon[md]=state.imgByMadon[md]||[];
+      var truoc=arr.filter(function(k){ return kho[k] && kho[k].d; }).length, n=0;
+      ds.forEach(function(k){ if(arr.indexOf(k)<0){ arr.push(k); n++; } });
+      if(n){ them+=n; if(!truoc) donCoLai++; }
+    });
+    return { them:them, donCoLai:donCoLai, donCham:donCham, tongDon:Object.keys(mdCo).length };
+  }
+  var __ganAnhDau=-1;
+  function tuGanAnhBuoc6(){
+    var kho=state.imgStore||{}, n=Object.keys(kho).length;
+    if(!n || n===__ganAnhDau) return 0;
+    var d=state.khData; if(!d || !d.kh || !Object.keys(d.kh).length) return 0;
+    if(!(state.orders||[]).length) return 0;
+    __ganAnhDau=n;
+    var kq=ganAnhTuBuoc7();
+    if(!kq.them) return 0;
+    logLine('🖼 Tự gắn lại '+kq.them+' ảnh cho '+kq.donCham+' đơn (lấy từ Dữ liệu khách hàng · '+
+            kq.donCoLai+' đơn trước đó đang trống)');
+    /* Lưu để lần sau mở không phải gắn lại — nhưng đẩy ra khỏi lượt vẽ, đừng chen ngang. */
+    setTimeout(function(){
+      try{ khLuuNgam(); }catch(e){ logErr('tuGanAnh.luu', e); }
+      try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('tuGanAnh.autosave', e); }
+    }, 0);
+    return kq.them;
+  }
+  /* Nút bấm tay: chạy lại phần gắn ngược (kể cả khi đã chạy tự động) rồi vét thêm lịch sử lưu. */
   function timLaiAnhCu(){
     var kho=state.imgStore||{};
     if(!Object.keys(kho).length){ khBao('hong','Kho ảnh đang trống — chờ app lấy gói ảnh về rồi bấm lại.',6); return; }
     khBao('dang','🔎 Đang gắn lại ảnh cho các đơn…',0);
-    state.imgByMadon=state.imgByMadon||{};
-    var mdCo={}; (state.orders||[]).forEach(function(o){ var m=khTxt(o&&o.maDon); if(m) mdCo[m]=1; });
-    var dsMd=Object.keys(mdCo);
-    var theo7=khAnhTheoMaDon(), themDon=0, donCoLai=0;
-    dsMd.forEach(function(md){
-      var ds=theo7[khChuanMd(md)]; if(!ds || !ds.length) return;
-      var arr=state.imgByMadon[md]=state.imgByMadon[md]||[];
-      var truoc=arr.filter(function(k){ return kho[k] && kho[k].d; }).length, them=0;
-      ds.forEach(function(k){ if(arr.indexOf(k)<0){ arr.push(k); them++; } });
-      if(them){ themDon+=them; if(!truoc) donCoLai++; }
-    });
-    logLine('🔎 Gắn ngược bước 7 → bước 6: '+themDon+' tấm cho '+donCoLai+' đơn đang trống ('+
-            dsMd.length+' mã đơn trong bảng)');
-    var xong=function(themCu, bc){
-      if(themDon||themCu){
+    var kq=ganAnhTuBuoc7();
+    logLine('🔎 Gắn ngược bước 7 → bước 6: '+kq.them+' tấm mới · '+kq.donCham+'/'+kq.tongDon+
+            ' đơn khớp được · '+kq.donCoLai+' đơn trước đó đang trống');
+    var xong=function(themCu){
+      if(kq.them||themCu){
         khLuuNgam();
         try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('timAnh.autosave', e); }
         try{ renderKH(); }catch(e){ logErr('timAnh.veKH', e); }
         try{ if(typeof renderBoxTypes==='function') renderBoxTypes(); }catch(e){ logErr('timAnh.veBox', e); }
-        khBao('xong','🔎 Gắn lại '+(themDon+themCu)+' tấm ảnh · '+donCoLai+' đơn có ảnh trở lại',6);
+        khBao('xong','🔎 Gắn lại '+(kq.them+themCu)+' tấm ảnh · '+kq.donCham+'/'+kq.tongDon+' đơn có ảnh',6);
       }else{
-        khBao('hong','Không gắn thêm được tấm nào — mọi đơn khớp được với bước 7 đã có đủ ảnh.',7);
+        khBao('xong','Đã rà xong: '+kq.donCham+'/'+kq.tongDon+' đơn khớp được với bước 7 và đều đã có đủ ảnh.',7);
       }
     };
-    if(!(window.CLCloud && window.CLCloud.timAnhCu)){ xong(0, null); return; }
-    window.CLCloud.timAnhCu().then(function(kq){
-      var theo=(kq&&kq.theoMd)||{}, bc=(kq&&kq.bc)||{}, themCu=0, khoaChet=0;
+    if(!(window.CLCloud && window.CLCloud.timAnhCu)){ xong(0); return; }
+    window.CLCloud.timAnhCu().then(function(r){
+      var theo=(r&&r.theoMd)||{}, bc=(r&&r.bc)||{}, themCu=0, khoaChet=0;
       Object.keys(theo).forEach(function(md){
         var arr=state.imgByMadon[md]=state.imgByMadon[md]||[];
         theo[md].forEach(function(k){
@@ -11605,8 +11630,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       logLine('🔎 Lục lịch sử lưu: '+(bc.manhServer||0)+' mảnh máy chủ + '+(bc.manhMay||0)+
               ' mảnh trong máy + '+(bc.banNguyenKhoi||0)+' bản nguyên khối → thêm '+themCu+' tấm'+
               (khoaChet?(' ('+khoaChet+' khóa cũ đã chết, ảnh không còn trong kho)'):''));
-      xong(themCu, bc);
-    }).catch(function(e){ logErr('timLaiAnhCu.suKien', e); xong(0, null); });
+      xong(themCu);
+    }).catch(function(e){ logErr('timLaiAnhCu.suKien', e); xong(0); });
   }
   /* Đếm số khóa đang nằm chờ — để nói thật với user là "đang thiếu ảnh", chứ không phải "mất". */
   function khDemCho(){
@@ -12385,6 +12410,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     window.__khMoCoi  = khDonAnhMoCoi; // bộ kiểm thử chứng minh KHÔNG khóa nào bị xóa
     window.__khAnhTheoMd = khAnhTheoMaDon;
     window.__timAnhCu = timLaiAnhCu;
+    window.__ganAnh7  = ganAnhTuBuoc7;
+    window.__anhDonHtml = anhDonHtml;   // bộ kiểm thử: mở khung ảnh bước 6 là phải tự gắn lại
     window.__khDemCho = khDemCho;
     window.__khXinXong= function(v){ khDaXinAnh=(v!==false); khDangLayAnh=false; };
     /* Bộ kiểm thử gọi thẳng: __boSungAnh(md) mở hộp chọn file như người dùng bấm nút;
@@ -13226,14 +13253,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1710410000"></script>
-<script src="cl.sync.js?v=1710410000"></script>
-<script src="auth.store.js?v=1710410000"></script>
-<script src="auth.web.js?v=1710410000"></script>
+<script src="cl.config.js?v=1710460000"></script>
+<script src="cl.sync.js?v=1710460000"></script>
+<script src="auth.store.js?v=1710460000"></script>
+<script src="auth.web.js?v=1710460000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1710410000"></script>
+<script src="cl.project.js?v=1710460000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1710410000" defer></script>
+<script src="firebase-bridge.js?v=1710460000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
