@@ -676,7 +676,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1710310000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1710410000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1069,6 +1069,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
           <button class="btn primary sm" id="kh-choose">📂 Nạp file</button>
           <button class="btn sm" id="kh-xlsx">⬇ Tải Excel</button>
           <button class="btn sm" id="kh-in">🖨 In</button>
+          <button class="btn sm" id="kh-timanh" title="Lục lại mọi bản lưu cũ trên máy chủ để gắn lại những tấm ảnh đã rời khỏi đơn">🔎 Tìm lại ảnh cũ</button>
           <button class="btn sm danger" id="kh-xoa">🗑 Xóa dữ liệu KH</button>
           <input type="file" id="kh-input" accept=".xlsx,.xlsm,.xls" style="display:none">
           <input type="file" id="kh-anh-them" accept="image/*" multiple style="display:none">
@@ -1356,7 +1357,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1710310000"></script>
+<script src="engine.web.js?v=1710410000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -11459,6 +11460,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     (d.thuTu||[]).forEach(function(k){
       var r=d.kh[k]; if(!r) return;
       khMoiAnh(r).forEach(function(a){ if(kho[a]) giu[a]=kho[a]; });
+      /* Ảnh của mấy khóa đang nằm chờ cũng phải giữ — không thì "Xóa tất cả" xong là khóa chờ
+         vĩnh viễn không bao giờ tra lại được. */
+      var cho=function(o){ (o&&o.anhCho||[]).forEach(function(a){ if(kho[a]) giu[a]=kho[a]; }); };
+      cho(r); (r.muc||[]).forEach(cho);
     });
     return giu;
   }
@@ -11469,33 +11474,151 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     (ds||[]).forEach(function(k){ if(!kho[k]) n++; });
     return n;
   }
-  /* ===== DỌN KHÓA ẢNH MỒ CÔI (user gặp 26/9: "vẫn báo 203 ảnh dù đã nạp file mới") =====
-     Khóa ảnh dựng từ nội dung file. Nạp lại file (hoặc đổi cách nén) là ra khóa MỚI, còn mấy
-     khóa cũ vẫn nằm trong dữ liệu khách — trỏ vào chỗ trống, đếm mãi không hết.
-     Chỉ dọn khi CHẮC CHẮN kho ảnh đã về (kho không rỗng) và đã đi xin gói ảnh xong — không thì
-     lúc mất mạng sẽ xoá nhầm khóa của ảnh vẫn còn nguyên trên máy chủ. */
+  /* ===== KHÓA ẢNH CHƯA CÓ ẢNH — CẤT CHỜ, TUYỆT ĐỐI KHÔNG XÓA (sửa 26/9, sau sự cố) =====
+     ⚠⚠ BẢN TRƯỚC CỦA HÀM NÀY ĐÃ LÀM MẤT DỮ LIỆU THẬT CỦA USER.
+     Nó XÓA thẳng mấy khóa ảnh không tra được trong kho rồi tự lưu đè. Điều kiện canh chừng
+     ("kho không rỗng" + "đã đi xin gói ảnh") KHÔNG đủ: hôm 26/9 gói ảnh trên máy chủ có lúc
+     trỏ nhầm sang gói gần rỗng, máy vẫn thấy kho "không rỗng" và vẫn coi là đã xin xong, thế là
+     264 khóa ảnh của khách bị xóa sạch khỏi bước 7 và ghi đè luôn lên máy chủ. Khóa ảnh là
+     DỮ LIỆU — mất là không dựng lại được, trong khi cái phải sửa chỉ là con số cảnh báo.
+     Nay: khóa nào chưa tra được thì CẤT sang o.anhCho (nằm im trong dữ liệu, không hiện, không
+     bị đếm là "ảnh mất"), và hễ gói ảnh về đủ là TỰ TRẢ LẠI o.anh. Không có đường nào xóa. */
   function khDonAnhMoCoi(){
     var d=state.khData, kho=state.imgStore||{};
     if(!d || !d.kh) return 0;
-    if(!Object.keys(kho).length) return 0;              // kho chưa về → chưa biết gì mà dọn
-    if(khDangLayAnh || !khDaXinAnh) return 0;           // đang đi xin / chưa xin → đợi
-    var bo=0;
+    var doi=0;
     var loc=function(o){
-      if(!o || !o.anh || !o.anh.length) return;
-      var giu=o.anh.filter(function(k){ return !!kho[k]; });
-      if(giu.length!==o.anh.length){ bo+=o.anh.length-giu.length; o.anh=giu; }
+      if(!o) return;
+      /* a) Ảnh đã về kho → trả khóa về đúng chỗ cũ, đúng thứ tự cũ không quan trọng bằng có lại. */
+      if(o.anhCho && o.anhCho.length){
+        var ve=o.anhCho.filter(function(k){ return !!kho[k]; });
+        if(ve.length){
+          o.anh=o.anh||[];
+          ve.forEach(function(k){ if(o.anh.indexOf(k)<0) o.anh.push(k); });
+          o.anhCho=o.anhCho.filter(function(k){ return !kho[k]; });
+          if(!o.anhCho.length) delete o.anhCho;
+          doi+=ve.length;
+        }
+      }
+      /* b) Khóa chưa tra được → cất chờ. CHỈ cất khi kho đã về và đã xin xong, để lúc mất mạng
+            không cất nhầm cả rổ (cất nhầm không mất gì, nhưng làm màn hình nhấp nháy vô cớ). */
+      if(!Object.keys(kho).length || khDangLayAnh || !khDaXinAnh) return;
+      if(o.anh && o.anh.length){
+        var giu=o.anh.filter(function(k){ return !!kho[k]; });
+        if(giu.length!==o.anh.length){
+          var cho=o.anh.filter(function(k){ return !kho[k]; });
+          o.anhCho=(o.anhCho||[]);
+          cho.forEach(function(k){ if(o.anhCho.indexOf(k)<0) o.anhCho.push(k); });
+          doi+=o.anh.length-giu.length;
+          o.anh=giu;
+        }
+      }
     };
     (d.thuTu||[]).forEach(function(k){
       var r=d.kh[k]; if(!r) return;
       loc(r); (r.muc||[]).forEach(loc);
     });
-    if(bo){ logLine('🖼 Dọn '+bo+' khóa ảnh mồ côi (ảnh không còn trong kho)'); khLuuNgam(); }
-    return bo;
+    if(doi){ logLine('🖼 '+doi+' khóa ảnh đổi chỗ chờ/về (không khóa nào bị xóa)'); khLuuNgam(); }
+    return doi;
+  }
+  /* ===== TÌM LẠI ẢNH CŨ (thêm 26/9 — để lấy lại ảnh của mấy đơn đã xử lý) =====
+     Mỗi lần lưu, mã đơn nào đổi thì máy chủ ghi thêm MỘT dòng mảnh mới, mảnh cũ không bị xoá.
+     Nên đơn nào từng có ảnh thì khóa ảnh của nó vẫn nằm đâu đó trong đống mảnh cũ, kể cả khi
+     bản mới nhất đã trống trơn. Nút này lục hết đống đó rồi GẮN THÊM lại — chỉ thêm, không bao
+     giờ bớt, và chỉ gắn khóa nào thực sự tra được ảnh trong kho. */
+  /* ===== BẰNG CHỨNG ĐO ĐƯỢC TRÊN DỮ LIỆU THẬT (26/9) =====
+     Kho ảnh hiện có 1612 tấm thì 1610 tấm mang cờ goc=1, tức cả kho đã được dựng lại bằng
+     BYTE GỐC sau khi tôi đổi cách nén. Khóa ảnh = vân tay của byte, nên mọi khóa cũ trong
+     state.imgByMadon (bước 6) trỏ vào hư không: 298/308 khóa không tra được. Bước 7 thì lành
+     (1679 khóa tra được hết) vì nó đã nạp lại từ file Gmail sau lần đổi đó.
+     ⇒ Đường cứu ĐÚNG không phải đi moi khóa cũ (khóa cũ chết hết rồi) mà là GẮN NGƯỢC từ bước 7
+     sang bước 6, vì hai bên cùng một mã đơn: khData có Mã KH "CS105" + dòng đơn "795P" ⇒ mã đơn
+     "CS105-795P". Đo thử trên máy user: 79/89 đơn khớp được, 77 đơn đang trống sẽ có lại ảnh,
+     tổng 838 tấm — trong đó CS105-795P được đúng 3 tấm. */
+  function khChuanMd(x){ return String(x==null?'':x).trim().toUpperCase().replace(/\s+/g,''); }
+  /* Mã đơn nào lấy được ảnh từ bước 7 — trả về { MÃ_ĐƠN_ĐÃ_CHUẨN: [khóa ảnh còn sống] } */
+  function khAnhTheoMaDon(){
+    var d=state.khData, kho=state.imgStore||{}, ra={};
+    if(!d || !d.kh) return ra;
+    (d.thuTu||Object.keys(d.kh)).forEach(function(K){
+      var r=d.kh[K]; if(!r) return;
+      var maKH=khTxt(r.maKH||K);
+      var thuc=/KHÔNG CÓ MÃ KH/i.test(maKH) ? '' : maKH;
+      (r.muc||[]).forEach(function(m){
+        var don=khTxt(m.don); if(!don) return;
+        /* Ưu tiên ảnh của CHÍNH dòng đơn; không có thì dùng ảnh chung của khách — đúng y như
+           bước 7 đang hiện, chứ không bịa thêm gì. */
+        var anh=(m.anh&&m.anh.length) ? m.anh : (r.anh||[]);
+        if(!anh.length) return;
+        var ungVien=[don]; if(thuc) ungVien.push(thuc+'-'+don);
+        ungVien.forEach(function(u){
+          var c=khChuanMd(u); if(!c) return;
+          var g=ra[c]=ra[c]||[];
+          anh.forEach(function(x){ if(kho[x] && kho[x].d && g.indexOf(x)<0) g.push(x); });
+        });
+      });
+    });
+    return ra;
+  }
+  /* ===== TÌM LẠI ẢNH CŨ =====
+     Hai đường, chạy lần lượt, đường nào ra thì ra — và CHỈ THÊM, không bao giờ bớt:
+       1. Gắn ngược từ bước 7 sang bước 6 theo mã đơn (đường ăn tiền, dùng khóa đang sống).
+       2. Lục mọi bản lưu cũ trên máy chủ xem còn khóa nào tra được không (vét nốt). */
+  function timLaiAnhCu(){
+    var kho=state.imgStore||{};
+    if(!Object.keys(kho).length){ khBao('hong','Kho ảnh đang trống — chờ app lấy gói ảnh về rồi bấm lại.',6); return; }
+    khBao('dang','🔎 Đang gắn lại ảnh cho các đơn…',0);
+    state.imgByMadon=state.imgByMadon||{};
+    var mdCo={}; (state.orders||[]).forEach(function(o){ var m=khTxt(o&&o.maDon); if(m) mdCo[m]=1; });
+    var dsMd=Object.keys(mdCo);
+    var theo7=khAnhTheoMaDon(), themDon=0, donCoLai=0;
+    dsMd.forEach(function(md){
+      var ds=theo7[khChuanMd(md)]; if(!ds || !ds.length) return;
+      var arr=state.imgByMadon[md]=state.imgByMadon[md]||[];
+      var truoc=arr.filter(function(k){ return kho[k] && kho[k].d; }).length, them=0;
+      ds.forEach(function(k){ if(arr.indexOf(k)<0){ arr.push(k); them++; } });
+      if(them){ themDon+=them; if(!truoc) donCoLai++; }
+    });
+    logLine('🔎 Gắn ngược bước 7 → bước 6: '+themDon+' tấm cho '+donCoLai+' đơn đang trống ('+
+            dsMd.length+' mã đơn trong bảng)');
+    var xong=function(themCu, bc){
+      if(themDon||themCu){
+        khLuuNgam();
+        try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('timAnh.autosave', e); }
+        try{ renderKH(); }catch(e){ logErr('timAnh.veKH', e); }
+        try{ if(typeof renderBoxTypes==='function') renderBoxTypes(); }catch(e){ logErr('timAnh.veBox', e); }
+        khBao('xong','🔎 Gắn lại '+(themDon+themCu)+' tấm ảnh · '+donCoLai+' đơn có ảnh trở lại',6);
+      }else{
+        khBao('hong','Không gắn thêm được tấm nào — mọi đơn khớp được với bước 7 đã có đủ ảnh.',7);
+      }
+    };
+    if(!(window.CLCloud && window.CLCloud.timAnhCu)){ xong(0, null); return; }
+    window.CLCloud.timAnhCu().then(function(kq){
+      var theo=(kq&&kq.theoMd)||{}, bc=(kq&&kq.bc)||{}, themCu=0, khoaChet=0;
+      Object.keys(theo).forEach(function(md){
+        var arr=state.imgByMadon[md]=state.imgByMadon[md]||[];
+        theo[md].forEach(function(k){
+          if(!(kho[k]&&kho[k].d)){ khoaChet++; return; }
+          if(arr.indexOf(k)<0){ arr.push(k); themCu++; }
+        });
+      });
+      logLine('🔎 Lục lịch sử lưu: '+(bc.manhServer||0)+' mảnh máy chủ + '+(bc.manhMay||0)+
+              ' mảnh trong máy + '+(bc.banNguyenKhoi||0)+' bản nguyên khối → thêm '+themCu+' tấm'+
+              (khoaChet?(' ('+khoaChet+' khóa cũ đã chết, ảnh không còn trong kho)'):''));
+      xong(themCu, bc);
+    }).catch(function(e){ logErr('timLaiAnhCu.suKien', e); xong(0, null); });
+  }
+  /* Đếm số khóa đang nằm chờ — để nói thật với user là "đang thiếu ảnh", chứ không phải "mất". */
+  function khDemCho(){
+    var d=state.khData; if(!d || !d.kh) return 0;
+    var n=0, dem=function(o){ if(o && o.anhCho) n+=o.anhCho.length; };
+    (d.thuTu||[]).forEach(function(k){ var r=d.kh[k]; if(!r) return; dem(r); (r.muc||[]).forEach(dem); });
+    return n;
   }
   function khNhanMatAnh(n){
     if(khDangLayAnh) return '<div class="mini" style="color:var(--text-3)">⏳ Đang lấy '+n+' ảnh từ máy chủ…</div>';
-    return '<div class="mini" style="color:var(--red-600)">⚠ '+n+' ảnh không còn trên máy chủ '+
-      '— nạp lại file tổng hợp Gmail (hoặc Check list KH) là có lại.</div>';
+    return '<div class="mini" style="color:var(--red-600)">⚠ '+n+' ảnh chưa tra được trong kho '+
+      '— khóa vẫn được giữ nguyên, nạp lại file tổng hợp Gmail (hoặc Check list KH) là hiện lại.</div>';
   }
   /* ===== TỰ LẤY GÓI ẢNH, KHÔNG BẮT AI BẤM NÚT (user chốt 26/9) =====
      Kho ảnh nằm trong MỘT gói riêng trên máy chủ, tách khỏi dữ liệu đơn. Máy nào lỡ mở lúc mất
@@ -12259,6 +12382,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     window.__khRender = renderKH;      // go('s11') gọi qua đây (go nằm ngoài khối này)
     window.__khNap    = khNapFile;     // bộ kiểm thử gọi thẳng, khỏi qua bước chờ vẽ màn hình
     window.__khLocAnh = khLocAnh;      // bộ kiểm thử soi số ảnh trước/sau khi lọc trùng
+    window.__khMoCoi  = khDonAnhMoCoi; // bộ kiểm thử chứng minh KHÔNG khóa nào bị xóa
+    window.__khAnhTheoMd = khAnhTheoMaDon;
+    window.__timAnhCu = timLaiAnhCu;
+    window.__khDemCho = khDemCho;
+    window.__khXinXong= function(v){ khDaXinAnh=(v!==false); khDangLayAnh=false; };
     /* Bộ kiểm thử gọi thẳng: __boSungAnh(md) mở hộp chọn file như người dùng bấm nút;
        __boSungAnh(md, file) thì bỏ qua hộp chọn (máy kiểm thử không lái được ô file ẩn). */
     window.__boSungAnh = function(md, f){ if(f){ __bsMd=md; boSungAnh(f); } else moBoSungAnh(md); };
@@ -12284,7 +12412,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           soNhan+'/'+d.thuTu.length+' có nhãn hiệu'+
           (soMat?(khDangLayAnh
             ? '<span style="color:var(--text-3)"> · ⏳ đang lấy '+soMat+' ảnh từ máy chủ…</span>'
-            : '<span style="color:var(--red-600)"> · ⚠ '+soMat+' ảnh không còn trên máy chủ, nạp lại file để có</span>'):'');
+            : '<span style="color:var(--red-600)"> · ⚠ '+soMat+' ảnh chưa tra được trong kho, nạp lại file để có</span>'):'')+
+          (function(){ var c=khDemCho(); return c? '<span class="mini" style="color:var(--text-3)"> · 🗂 '+c+' khóa ảnh đang giữ chờ</span>':''; })();
         /* Thiếu ảnh thì TỰ đi lấy ngay, không chờ ai bấm gì. Xin xong mà vẫn thiếu thì mấy
            khóa đó là mồ côi thật — dọn đi cho hết báo động giả rồi vẽ lại. */
         if(soMat){
@@ -12804,6 +12933,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         renderKH(); renderKHTiet(null);
       });
     });
+    var nTim=document.getElementById('kh-timanh');
+    /* Nút này có ghi lại dữ liệu (gắn thêm khóa ảnh) nên chỉ người sửa được mới thấy. */
+    if(nTim){
+      if(!khSuaDuoc()) nTim.style.display='none';
+      nTim.addEventListener('click', function(){ if(khSuaDuoc()) timLaiAnhCu(); });
+    }
     document.getElementById('kh-xlsx').addEventListener('click', khTaiXlsx);
     document.getElementById('kh-in').addEventListener('click', khIn);
     document.getElementById('kh-xoa').addEventListener('click', function(){
@@ -13091,14 +13226,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1710310000"></script>
-<script src="cl.sync.js?v=1710310000"></script>
-<script src="auth.store.js?v=1710310000"></script>
-<script src="auth.web.js?v=1710310000"></script>
+<script src="cl.config.js?v=1710410000"></script>
+<script src="cl.sync.js?v=1710410000"></script>
+<script src="auth.store.js?v=1710410000"></script>
+<script src="auth.web.js?v=1710410000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1710310000"></script>
+<script src="cl.project.js?v=1710410000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1710310000" defer></script>
+<script src="firebase-bridge.js?v=1710410000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){

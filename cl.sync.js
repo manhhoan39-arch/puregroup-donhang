@@ -1330,6 +1330,74 @@
        Quét MỌI dòng mảnh của xưởng — kể cả mảnh MỒ CÔI, tức không còn dòng chỉ mục nào trỏ
        tới (do bản cũ từng ghi đè chỉ mục bằng trạng thái rỗng). Mỗi mã đơn lấy bản MỚI NHẤT.
        Trả về payload chỉ gồm mấy đơn mà kho đang mở CHƯA CÓ — hoặc null nếu không thiếu gì. */
+    /* ===== TÌM LẠI ẢNH CŨ TRONG LỊCH SỬ LƯU (thêm 26/9 sau sự cố mất khóa ảnh) =====
+       Mỗi lần lưu, mã đơn nào đổi thì ghi thành MỘT DÒNG MẢNH MỚI mang mốc thời gian riêng, và
+       mảnh cũ KHÔNG BAO GIỜ bị xoá. Cả kho mảnh vì thế là một cuốn phim: đơn nào từng có ảnh thì
+       dấu vết `imgByMadon` của nó còn nằm ở đâu đó trong phim, kể cả khi bản MỚI NHẤT đã trống.
+       Hàm này xem lại TOÀN BỘ phim và GOM (hợp) mọi khóa ảnh từng gắn cho từng mã đơn.
+       ⚠ CHỈ ĐỌC: không ghi, không xoá, không đụng một dòng đơn nào. Trả về { theoMd, bc }. */
+    timAnhCu: function () {
+      var theoMd = {}, bc = { manhMay: 0, manhServer: 0, banNguyenKhoi: 0, maDon: 0, khoa: 0 };
+      function nhan(map) {
+        if (!map) return;
+        Object.keys(map).forEach(function (md) {
+          var ds = map[md]; if (!Array.isArray(ds) || !ds.length) return;
+          var g = theoMd[md] || (theoMd[md] = []);
+          ds.forEach(function (k) { if (k && g.indexOf(k) < 0) g.push(k); });
+        });
+      }
+      // (1) mảnh còn trong bộ nhớ máy
+      var dsMay = [];
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i); if (!k || k.indexOf('clc_ds_') !== 0) continue;
+          var row = jget(k, null); if (row && row.payload) dsMay.push(row);
+        }
+      } catch (_) {}
+      var b1 = Promise.all(dsMay.map(function (r) {
+        if (r.payload.__manh) {
+          return giaiNen({ n: r.payload.n, d: r.payload.d })
+            .then(function (v) { if (v && v.md != null) { bc.manhMay++; nhan(v.imgByMadon); } })
+            .catch(function () {});
+        }
+        if (r.payload.imgByMadon) { bc.banNguyenKhoi++; nhan(r.payload.imgByMadon); }
+        return null;
+      }));
+      // (2) mọi dòng mảnh + mọi bản nguyên khối trên máy chủ
+      var b2 = (!configured() || !online() || !profile || !profile.factory_id) ? Promise.resolve()
+        : ensureClient().then(function (c) {
+            if (!c) return;
+            function trang(kind, tu, nhanDong) {
+              return c.from('datasets').select('id,kind,updated_at,payload')
+                .eq('factory_id', profile.factory_id).eq('kind', kind)
+                .order('updated_at', { ascending: false }).range(tu, tu + 9)
+                .then(function (r) {
+                  if (r.error || !r.data || !r.data.length) return null;
+                  return Promise.all(r.data.map(nhanDong)).then(function () {
+                    return r.data.length < 10 ? null : trang(kind, tu + 10, nhanDong);
+                  });
+                }).catch(function () { return null; });
+            }
+            return trang(KIND_MANH, 0, function (row) {
+              if (!row.payload || !row.payload.__manh) return null;
+              return giaiNen({ n: row.payload.n, d: row.payload.d })
+                .then(function (v) { if (v && v.md != null) { bc.manhServer++; nhan(v.imgByMadon); } })
+                .catch(function () {});
+            }).then(function () {
+              return trang('orders', 0, function (row) {
+                var pl = row.payload;
+                if (!pl || pl.__goi) return null;
+                if (pl.imgByMadon) { bc.banNguyenKhoi++; nhan(pl.imgByMadon); }
+                return null;
+              });
+            });
+          }).catch(function () {});
+      return Promise.all([b1, b2]).then(function () {
+        bc.maDon = Object.keys(theoMd).length;
+        Object.keys(theoMd).forEach(function (m) { bc.khoa += theoMd[m].length; });
+        return { theoMd: theoMd, bc: bc };
+      });
+    },
     timDonConSot: function (daCo) {
       if (!configured() || !online() || !profile || !profile.factory_id) return Promise.resolve(null);
       return ensureClient().then(function (c) {
