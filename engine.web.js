@@ -124,6 +124,9 @@
       loaiHang: String(raw.loaiHang != null ? raw.loaiHang : (ms === 'Single' ? '' : lenNorm)).trim(),
       ghiChu: String(raw.ghiChu == null ? '' : raw.ghiChu).trim(),
       ghiChuKeo: String(raw.ghiChuKeo == null ? '' : raw.ghiChuKeo).trim(),
+      /* keoMm = keo khách đã fix cho CHÍNH DÒNG ĐƠN NÀY, theo từng mm — đọc ở BẢNG DẢI LINE
+         của mẫu 2026 (cột "Keo Đã Fix" đi cùng cột "No."). Xem ghi chú ở keoMmTai(). */
+      keoMm: (raw.keoMm && typeof raw.keoMm === 'object') ? raw.keoMm : null,
       material: splitMats(raw.material != null ? raw.material : (raw.detail || '')),
       thickness: thN,
       label: raw.label == null ? '' : String(raw.label).trim(),
@@ -410,6 +413,7 @@
     // mỗi dòng data1 MANG THEO material/độ dày/keo khách ghi của CHÍNH DÒNG ĐƠN sinh ra nó
     // (2 dòng đơn cùng code sợi có thể khác material → không được tra keo qua meta gộp)
     var carry = { material: o.material || o.detail || '', thickness: o.thickness || '', ghiChuKeo: o.ghiChuKeo || '',
+                  keoMm: o.keoMm || null,
                   hopLineLech: o.hopLineLech || null,
                   xuongTH: !!o.xuongTH, xuongMa: o.xuongMa || (o.xuongTH ? 'TH' : '') };
     // TÁCH THEO MÀU: dòng Mix có NHIỀU code sợi (mix nhiều màu) → tách MỖI code = 1 component,
@@ -439,7 +443,7 @@
       var r = parseRange(o.length), smm = r ? r.lo : NaN;
       for (curl in curls) {
         sl = strategy(o, { mm: smm, mixQty: o.line, qty: curls[curl] }, { rangeTotal: o.line });
-        if (sl) rows.push({ codeSoi: o.codeSoi, length: o.length, mm: smm, curl: curl, sl: sl, maDon: o.maDon, mixSingle: 'Single', material: carry.material, thickness: carry.thickness, ghiChuKeo: carry.ghiChuKeo, hopLineLech: carry.hopLineLech, xuongTH: carry.xuongTH, xuongMa: carry.xuongMa });
+        if (sl) rows.push({ codeSoi: o.codeSoi, length: o.length, mm: smm, curl: curl, sl: sl, maDon: o.maDon, mixSingle: 'Single', material: carry.material, thickness: carry.thickness, ghiChuKeo: carry.ghiChuKeo, keoMm: carry.keoMm, hopLineLech: carry.hopLineLech, xuongTH: carry.xuongTH, xuongMa: carry.xuongMa });
       }
       return rows;
     }
@@ -448,7 +452,7 @@
     for (curl in curls) {
       for (mm in dist) {
         sl = strategy(o, { mm: +mm, mixQty: dist[mm], qty: curls[curl] }, { rangeTotal: rangeTotal });
-        if (sl) rows.push({ codeSoi: o.codeSoi, length: o.length, mm: +mm, curl: curl, sl: sl, maDon: o.maDon, mixSingle: 'Mix', material: carry.material, thickness: carry.thickness, ghiChuKeo: carry.ghiChuKeo, hopLineLech: carry.hopLineLech, xuongTH: carry.xuongTH, xuongMa: carry.xuongMa });
+        if (sl) rows.push({ codeSoi: o.codeSoi, length: o.length, mm: +mm, curl: curl, sl: sl, maDon: o.maDon, mixSingle: 'Mix', material: carry.material, thickness: carry.thickness, ghiChuKeo: carry.ghiChuKeo, keoMm: carry.keoMm, hopLineLech: carry.hopLineLech, xuongTH: carry.xuongTH, xuongMa: carry.xuongMa });
       }
     }
     return rows;
@@ -1202,6 +1206,29 @@
     return glueFor(rs, Object.assign({}, comp, { curlNhom: true }));
   }
   /** Tất cả mã keo của 1 dòng đơn (duyệt từng mm trong dải) — dùng cho Tổng hợp Box. */
+  /* ===== KEO KHÁCH ĐÃ FIX CHO CHÍNH DÒNG ĐƠN, THEO TỪNG mm (user gặp 28/9 · đơn CS422-817P) =====
+     Mẫu 2026 có BẢNG DẢI LINE ở dưới: mỗi dòng là (No. · Nguyên Liệu · Keo Đã Fix · MM). Đó là
+     chỗ khách chốt keo, và nó chốt theo TỪNG DÒNG ĐƠN chứ không phải theo mm chung của cả đơn.
+     Đơn 817P có nguyên liệu 245.MKPS.7 nằm ở HAI dòng đơn khác nhau:
+        · No.1-8   : mm 6-8 → XanhLX70.2 · mm 9-13 → XanhLX70.3
+        · No.26-32 : mm 6-12 → XanhLX70.2 (cả dải, khách fix vậy)
+     Bảng Keo gom theo nguyên liệu nên ra hai quy tắc CHỒNG NHAU "4-12mm→.2" và "9-13mm→.3";
+     luật "khoảng hẹp hơn thắng" bèn gán .3 cho mm 9-12 của CẢ hai dòng ⇒ dòng No.26-32 sai keo.
+     Không có cách nào tra đúng từ Bảng Keo, vì thông tin phân biệt nằm ở DÒNG ĐƠN NÀO chứ không
+     nằm ở (nguyên liệu · độ dày · mm). Nên: dòng nào có keo fix của chính nó thì dùng thẳng. */
+  function keoMmTai(map, mm) {
+    if (!map) return '';
+    var v = map[mm]; if (v) return PS(v);
+    v = map[String(mm)]; return v ? PS(v) : '';
+  }
+  /** Keo của dải NGẮN NHẤT trong chính dòng đơn — dùng cho "keo 2mm" của LB/LC/LJ/LC+. */
+  function keoMmNgan(map) {
+    if (!map) return '';
+    var ks = Object.keys(map).map(Number).filter(function (x) { return isFinite(x); });
+    if (!ks.length) return '';
+    ks.sort(function (a, b) { return a - b; });
+    return keoMmTai(map, ks[0]);
+  }
   /* KEO NHIỆT của 1 DÒNG ĐƠN (cột ở bảng Tổng hợp Box).
      PHẢI RA ĐÚNG NHƯ BẢNG LINE CUỐN — cùng một đơn mà 2 bảng ghi 2 mã keo khác nhau thì
      xưởng tin bảng nào? Vì vậy chép ĐÚNG 3 luật của buildCuonBoxSheet:
@@ -1224,6 +1251,8 @@
     if (!ks.length) coThuong = true;      // dòng không khai độ cong → tính như độ cong thường
     if (coThuong) {
       for (var mm = rg.lo; mm <= rg.hi; mm++) {
+        var gFix = keoMmTai(o.keoMm, mm);
+        if (gFix) { them(gFix); continue; }
         var _tr = {};
         var g = glueFor(rules, Object.assign({}, ctx, { mm: mm, curlNhom: false }), _tr);
         if (_tr.tranh) g = PS(o.ghiChuKeo) || '';
@@ -1309,7 +1338,12 @@
          Keo không đổi: keo tra theo (nguyên liệu · độ dày · mm) — cả ba vẫn nằm trong khóa.
          TÁCH theo material + độ dày vẫn giữ: cùng code sợi khác material (Premium Faux Mink ≠
          Faux Mink) phải là 2 component riêng với keo riêng. */
-      var key = r.mm + '|' + (r.material || '') + '|' + (r.thickness || '') + '|' + (r.mixSingle || '') + '|' + (r.length || '');
+      /* ⚠ KEO FIX CŨNG LÀ KHOÁ TÁCH DÒNG (sửa 28/9 · đơn 817P): cùng nguyên liệu, cùng mm,
+         cùng dải, nhưng hai DÒNG ĐƠN khác nhau khách fix hai mã keo khác nhau (No.4 mm9 ăn
+         XanhLX70.3, No.28 mm9 ăn XanhLX70.2). Gộp chung thì ô Keo Nhiệt phải ghi hai mã trong
+         một ô — xưởng không biết cuốn theo mã nào. Tách ra là mỗi dòng một mã, số vẫn đủ. */
+      var _kFix = keoMmTai(r.keoMm, r.mm);
+      var key = r.mm + '|' + (r.material || '') + '|' + (r.thickness || '') + '|' + (r.mixSingle || '') + '|' + (r.length || '') + '|' + _kFix;
       var g = c.rows[key];
       if (!g) { g = c.rows[key] = { length: r.length, lengths: [], mm: r.mm, curls: {}, tong: 0, keoSet: {}, keo2mmSet: {}, material: r.material || '', thickness: r.thickness || '', mixSingle: r.mixSingle || '' }; c.order.push(key); }
       if (r.hopLineLech) { g.hlLech = g.hlLech || r.hopLineLech; c.hlLech = c.hlLech || r.hopLineLech; }
@@ -1321,6 +1355,18 @@
       if (keoMalformed[r.maDon]) {
         // BẢNG KEO SAI CẤU TRÚC → TUYỆT ĐỐI KHÔNG điền keo (kể cả fallback), chờ user sửa
         k1 = ''; k2 = '';
+      } else if (keoMmTai(r.keoMm, r.mm)) {
+        /* Dòng đơn này có keo khách fix sẵn cho ĐÚNG mm đang xét → dùng thẳng, khỏi tra
+           Bảng Keo (Bảng Keo gom theo nguyên liệu nên không phân biệt được hai dòng đơn
+           cùng nguyên liệu mà khác keo — đơn 817P). */
+        k1 = keoMmTai(r.keoMm, r.mm);
+        /* "Keo 2mm" (LB/LC/LJ/LC+) vẫn tính Y NHƯ CŨ từ quy tắc — keo fix chỉ sửa keo THƯỜNG,
+           không được đụng tới luật độ cong đặc biệt (nếu không đơn 794P mất dòng "-NC"). */
+        var _c2 = { maDon: r.maDon, material: r.material || '', thickness: r.thickness, mm: r.mm,
+                    codeSoi: r.codeSoi, detail: r.detail, loaiHang: r.loaiHang, label: r.label, ghiChu: r.ghiChu };
+        k2 = (keoRules && keoRules.length)
+          ? (glueForCurlOnly(keoRules, _c2) || glueForShort(keoRules, _c2) || keoMmNgan(r.keoMm) || k1)
+          : (keoMmNgan(r.keoMm) || k1);
       } else {
         if (keoRules && keoRules.length) {
           var _ctx = { maDon: r.maDon, material: r.material || '', thickness: r.thickness, mm: r.mm, codeSoi: r.codeSoi, detail: r.detail, loaiHang: r.loaiHang, label: r.label, ghiChu: r.ghiChu };
@@ -1373,10 +1419,33 @@
       /* Đuôi "-TH" chỉ để HIỆN (bảng bước 5, 2 bảng Σ, bản in, file xuất). Mọi chỗ tra
          cứu — meta đơn, tra keo, đối chiếu số khách — vẫn dùng c.codeSoi GỐC. */
       var codeHien = themXuong(c.codeSoi, c.xuongMa);
+      /* Sau khi TÁCH DÒNG THEO KEO FIX (xem khoá `key`), một nhóm có thể chỉ còn toàn độ cong
+         LB/LC/LJ/LC+. Trước đây mấy độ cong đó nằm chung nhóm rồi được tách ra thành dòng
+         "-NC"; tách sớm thì mất đuôi đó, xưởng đang quen nhìn "-NC" sẽ không nhận ra.
+         Nên: nhóm nào CHỈ có độ cong đặc biệt mà còn nhóm anh em cùng (dải · mm) mang keo
+         khác → vẫn đánh dấu là dòng "-NC" y như cũ. */
+      var _nhomTheoDai = {};
+      c.order.forEach(function (key) {
+        var g = c.rows[key], kk = (g.length || '') + '|' + g.mm;
+        (_nhomTheoDai[kk] = _nhomTheoDai[kk] || []).push(g);
+      });
+      var _chiDacBiet = function (g) {
+        var co = false, ok = true;
+        CURLS.forEach(function (k) { var v = g.curls[k] || 0; if (!v) return; co = true; if (!isOverrideCurl(k)) ok = false; });
+        return co && ok;
+      };
       c.order.forEach(function (key) {
         var g = c.rows[key], m = meta[c.maDon + '|' + c.codeSoi + '|' + g.length] || {};
         var keo = Object.keys(g.keoSet || {}).join(', ');
         var keo2mm = Object.keys(g.keo2mmSet || {}).join(', ');
+        var _laNC = false;
+        if (_chiDacBiet(g)) {
+          var _ae = _nhomTheoDai[(g.length || '') + '|' + g.mm] || [];
+          for (var _i2 = 0; _i2 < _ae.length; _i2++) {
+            if (_ae[_i2] === g) continue;
+            if (Object.keys(_ae[_i2].keoSet || {}).join(', ') !== keo) { _laNC = true; break; }
+          }
+        }
         // tách độ cong THƯỜNG vs ĐẶC BIỆT (LB/LC/LJ/LC+); cộng dồn subtotal/grand toàn bộ trước
         var normC = {}, ovrC = {}, normTot = 0, ovrTot = 0, hasOvr = false;
         CURLS.forEach(function (k) {
@@ -1395,6 +1464,10 @@
              biệt với dòng thường cùng code (chốt 13/8). Đuôi này theo suốt: bảng bước 5,
              2 bảng Σ, bản in và file xuất — đều đọc từ chính dòng này. */
           rows.push(Object.assign({ type: 'row', stt: ++stt, curls: ovrC, tong: ovrTot, keo: keo2mm, keo2mm: keo2mm, ovrRow: true },
+                                  base, { codeSoi: themXuong(themNC(c.codeSoi), c.xuongMa) }));
+        } else if (_laNC) {
+          var curlsNC = {}; CURLS.forEach(function (k) { curlsNC[k] = g.curls[k] || 0; });
+          rows.push(Object.assign({ type: 'row', stt: ++stt, curls: curlsNC, tong: g.tong, keo: keo, keo2mm: keo2mm, ovrRow: true },
                                   base, { codeSoi: themXuong(themNC(c.codeSoi), c.xuongMa) }));
         } else {
           var curls = {}; CURLS.forEach(function (k) { curls[k] = g.curls[k] || 0; });
@@ -2518,7 +2591,7 @@
         var k3 = curlOf(PS(MH[c3]));
         if (k3 && mCurl[k3] < 0) mCurl[k3] = c3;
       }
-      var rows2 = [], tong = 0, mauByNo = {}, mauOrd = {}, keoByNo = {};
+      var rows2 = [], tong = 0, mauByNo = {}, mauOrd = {}, keoByNo = {}, keoMmByNo = {};
       for (var r3 = mr + 1; r3 < aoa.length; r3++) {
         var rw4 = aoa[r3] || [], n4 = num(rw4[cNo]);
         /* DÒNG TRỐNG XEN GIỮA BẢNG — không được dừng vội. Đơn C213-813P chèn 1 dòng trắng
@@ -2545,7 +2618,12 @@
           nl: _nl, keo: _keoD });   // codeSoi gắn sau
         /* Mã keo của bảng dưới, gom KHÔNG TRÙNG theo từng No — để so với ô Keo của Bảng Hộp. */
         if (_keoD) { var _kn = Math.round(n4), _kl = keoByNo[_kn] || (keoByNo[_kn] = []);
-          if (_kl.indexOf(_keoD) < 0) _kl.push(_keoD); }
+          if (_kl.indexOf(_keoD) < 0) _kl.push(_keoD);
+          /* Keo theo TỪNG mm của CHÍNH dòng đơn này — nguồn chuẩn nhất, vì nó phân biệt được
+             hai dòng đơn cùng nguyên liệu mà khách fix keo khác nhau (xem keoMmTai). */
+          var _mm4 = mmOf(rw4[cMM]);
+          if (_mm4 != null) { var _mp = keoMmByNo[_kn] || (keoMmByNo[_kn] = {});
+            if (!_mp[_mm4]) _mp[_mm4] = _keoD; } }
         /* TÊN MÀU (code sợi) của dòng Mix Color: bảng này ghi rõ từng mm dùng màu nào
            (No.45 → 33.MK.Violet.85 · 32.MK.LViolet.85). Chỉ lấy TÊN (không lấy số lượng)
            để bước 3 điền sẵn vào Bảng Mix Màu, khỏi phải gõ tay. */
@@ -2581,8 +2659,11 @@
           var ks = keoByNo[o.seri] || [], ds = mauByNo[o.seri] || [], kh = PS(o.ghiChuKeo);
           var sm = PN(o.soMau) || 0, l = null;
           if (kh && ks.length) {
-            var la = [];
-            ks.forEach(function (k) { if (chuanKeo(k) !== chuanKeo(kh)) la.push(k); });
+            /* Ô "Keo" của Bảng Hộp có khi là CẢ CÂU liệt kê nhiều mã — đơn 817P ghi
+               "XanhLX70.2 7-8mm và XanhLX70.3 9-13mm". So nguyên văn thì mã nào cũng "khác"
+               ⇒ báo oan lệch hộp/line rồi tô đỏ 3 dòng. Mã nào NẰM TRONG câu đó là khớp. */
+            var _kh = chuanKeo(kh), la = [];
+            ks.forEach(function (k) { var _k = chuanKeo(k); if (_k !== _kh && _kh.indexOf(_k) < 0) la.push(k); });
             if (la.length === ks.length) l = { loai: 'keo', keoHop: kh, keoLine: ks.slice() };
           }
           if (!l && laMixColor(o) && sm > 1 && ds.length && sm !== ds.length)
@@ -2590,6 +2671,10 @@
           if (l) { l.no = o.seri; o.hopLineLech = l; }
         });
       })();
+      /* Gắn keo-theo-mm vào đúng dòng đơn (No. ↔ seri). CHỈ gắn khi dòng đó có ít nhất 2 mã
+         keo khác nhau ở đâu đó trong đơn thì mới cần — nhưng gắn luôn cho mọi dòng cũng không
+         hại: keo đó chính là keo khách ghi cho dòng đó. */
+      out.forEach(function (o) { var mp = keoMmByNo[o.seri]; if (mp && Object.keys(mp).length) o.keoMm = mp; });
       bangDuoiRows = rows2;      // để mục F dựng bảng keo (chỉ đọc CHỮ: Nguyên Liệu + Keo Đã Fix)
       if (!rows2.length || !tong) return;
       // QUY VỀ DẢI: so với chính Bảng Hộp (Σ số hộp × số line ÷ 2) — gấp đôi thì là SỢI.
