@@ -676,7 +676,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1710460000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1710560000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1357,7 +1357,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1710460000"></script>
+<script src="engine.web.js?v=1710560000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -2117,6 +2117,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   if(document.body){
     document.addEventListener('click', function(ev){
+      var ntr=ev.target && ev.target.closest ? ev.target.closest('[data-anh-trung]') : null;
+      if(ntr){ khDoiHienTrung(); return; }
       var nbs=ev.target && ev.target.closest ? ev.target.closest('[data-bs-md]') : null;
       if(nbs){ moBoSungAnh(nbs.getAttribute('data-bs-md')); return; }
       if(!__bsGan){ __bsGan=1; }
@@ -2199,6 +2201,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(md) ks=(map[md]||[]).slice();
     else { var seen={}; Object.keys(map).forEach(function(m){ (map[m]||[]).forEach(function(k){ if(!seen[k]){ seen[k]=1; ks.push(k); } }); }); }
     ks=ks.filter(function(k){ return kho[k] && kho[k].d; });
+    /* ⚠ Cùng một tấm ảnh có thể nằm trong kho dưới HAI khóa khác nhau: một bản rút từ file đơn
+       gửi xưởng, một bản rút từ file tổng hợp Gmail — hai file nén ảnh khác nhau nên vân tay byte
+       khác nhau. Trước đây bước 6 hiện thẳng nên user xóa đơn rồi xử lý lại là thấy mỗi tấm hai
+       lần (gặp 28/9 với đơn LS403-269S: 4 tấm thành 8). Bước 7 đã có bộ lọc này từ lâu, nay bước 6
+       dùng chung — chỉ lọc LÚC HIỆN, không xóa gì khỏi kho. */
+    var soTrung=0;
+    try{ soTrung=khSoTrung(ks); ks=khLocAnh(ks); }catch(e){ logErr('anhDon.loc', e); }
     /* Đơn KHÔNG có ảnh thì vẫn dựng khung để nói rõ vì sao và cho đường bổ sung — trước đây
        trả về rỗng nên màn hình trống trơn, nhìn tưởng app hỏng (user gặp 26/9 với đơn 680P). */
     var suaDuoc=false; try{ suaDuoc=(typeof canUpload==='function') ? canUpload() : false; }catch(e){ logErr('anhDon.quyen', e); }
@@ -2206,6 +2215,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var nut = (md && suaDuoc)
       ? '<button class="btn sm" id="bs-anh" data-bs-md="'+esc(md)+'" style="float:right;margin-left:8px">📷 Bổ sung ảnh từ file đơn</button>'
       : '';
+    nut = khNutTrung(soTrung) + nut;
     return '<div class="bt-general anh-don"><div class="bt-gtitle">🖼 Ảnh trong đơn khách · '+ks.length+' ảnh'+
       (md?(' · '+esc(md)):' · tất cả đơn')+nut+
       '<span class="mini" style="float:right;color:var(--text-3);font-weight:600">bấm ảnh để xem to</span></div>'+
@@ -11566,19 +11576,35 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      Chạy TỰ ĐỘNG, không bắt ai bấm nút: hễ mở một đơn ở bước 6 mà kho ảnh đã về thì app tự đối
      chiếu với dữ liệu khách hàng rồi gắn lại. Chỉ THÊM, không bao giờ bớt. Chạy lại mỗi khi kho
      ảnh đổi cỡ (gói ảnh vừa về, vừa nạp thêm file…) nên không cần canh đúng thời điểm. */
+  /* Tấm này đã có mặt trong danh sách chưa — tính cả trường hợp KHÁC KHÓA nhưng CÙNG ảnh. */
+  function khDaCoAnhNay(ds, k){
+    var kho=state.imgStore||{}, im=kho[k]; if(!im) return true;
+    if(ds.indexOf(k)>=0) return true;
+    for(var i=0;i<ds.length;i++){
+      var o=kho[ds[i]]; if(!o) continue;
+      if(khCungTam(o, im)) return true;
+    }
+    return false;
+  }
   function ganAnhTuBuoc7(){
-    var kho=state.imgStore||{}, theo=khAnhTheoMaDon(), them=0, donCoLai=0, donCham=0;
+    var kho=state.imgStore||{}, theo=khAnhTheoMaDon(), them=0, donCoLai=0, donCham=0, donDuRoi=0;
     state.imgByMadon=state.imgByMadon||{};
     var mdCo={}; (state.orders||[]).forEach(function(o){ var m=khTxt(o&&o.maDon); if(m) mdCo[m]=1; });
     Object.keys(mdCo).forEach(function(md){
       var ds=theo[khChuanMd(md)]; if(!ds || !ds.length) return;
       donCham++;
       var arr=state.imgByMadon[md]=state.imgByMadon[md]||[];
-      var truoc=arr.filter(function(k){ return kho[k] && kho[k].d; }).length, n=0;
-      ds.forEach(function(k){ if(arr.indexOf(k)<0){ arr.push(k); n++; } });
-      if(n){ them+=n; if(!truoc) donCoLai++; }
+      var truoc=arr.filter(function(k){ return kho[k] && kho[k].d; }).length;
+      /* ⚠ Đơn NÀO CÒN ẢNH CỦA CHÍNH NÓ thì để yên (sửa 28/9). Ảnh rút thẳng từ file đơn gửi xưởng
+         mới là ảnh của đơn; ảnh bên bước 7 là ảnh chung của khách, chỉ dùng để VÁ đơn đang trống.
+         Nhét chồng vào đơn đã có ảnh chỉ tổ ra hai bản của cùng một tấm. */
+      if(truoc){ donDuRoi++; return; }
+      var n=0;
+      ds.forEach(function(k){ if(!khDaCoAnhNay(arr, k)){ arr.push(k); n++; } });
+      if(n){ them+=n; donCoLai++; }
     });
-    return { them:them, donCoLai:donCoLai, donCham:donCham, tongDon:Object.keys(mdCo).length };
+    return { them:them, donCoLai:donCoLai, donCham:donCham, donDuRoi:donDuRoi,
+             tongDon:Object.keys(mdCo).length };
   }
   var __ganAnhDau=-1;
   function tuGanAnhBuoc6(){
@@ -11589,8 +11615,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     __ganAnhDau=n;
     var kq=ganAnhTuBuoc7();
     if(!kq.them) return 0;
-    logLine('🖼 Tự gắn lại '+kq.them+' ảnh cho '+kq.donCham+' đơn (lấy từ Dữ liệu khách hàng · '+
-            kq.donCoLai+' đơn trước đó đang trống)');
+    logLine('🖼 Tự vá '+kq.them+' ảnh cho '+kq.donCoLai+' đơn đang trống (lấy từ Dữ liệu khách hàng) — '+
+            kq.donDuRoi+' đơn đã có ảnh của chính nó nên để nguyên');
     /* Lưu để lần sau mở không phải gắn lại — nhưng đẩy ra khỏi lượt vẽ, đừng chen ngang. */
     setTimeout(function(){
       try{ khLuuNgam(); }catch(e){ logErr('tuGanAnh.luu', e); }
@@ -11605,7 +11631,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     khBao('dang','🔎 Đang gắn lại ảnh cho các đơn…',0);
     var kq=ganAnhTuBuoc7();
     logLine('🔎 Gắn ngược bước 7 → bước 6: '+kq.them+' tấm mới · '+kq.donCham+'/'+kq.tongDon+
-            ' đơn khớp được · '+kq.donCoLai+' đơn trước đó đang trống');
+            ' đơn khớp được · vá '+kq.donCoLai+' đơn trống · '+kq.donDuRoi+' đơn đã đủ ảnh');
     var xong=function(themCu){
       if(kq.them||themCu){
         khLuuNgam();
@@ -11676,33 +11702,68 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      vài bit nên vẫn lọt. Nên khi HIỆN ra thì so bằng KHOẢNG CÁCH: lệch tối đa 6/256 bit
      (≈2%) là coi như một tấm. Chỉ lọc lúc hiện, KHÔNG xoá khỏi kho — lỡ hai tấm khác nhau
      thật thì dữ liệu vẫn còn nguyên, không mất gì. */
-  var KH_ANH_LECH = 6;
+  var KH_ANH_LECH = 6;      // vân tay lệch tới đây thì chắc chắn là một tấm
+  var KH_ANH_LECH_TY = 20;  // lệch tới đây mà TỈ LỆ KHUNG HÌNH trùng thì cũng là một tấm
   function khKhacBit(a, b){
     var n=0, i, x, d=Math.min(a.length, b.length);
     for(i=0;i<d;i++){
       x = (parseInt(a.charAt(i),16) ^ parseInt(b.charAt(i),16)) & 15;
       while(x){ n += x&1; x >>= 1; }
-      if(n > KH_ANH_LECH) return n;
+      if(n > KH_ANH_LECH_TY) return n;      // ⚠ phải nới mức dừng sớm, không thì đo hụt
     }
     return n + Math.abs(a.length-b.length)*4;
   }
-  function khLocAnh(ds){
+  /* ===== HAI TẤM NÀY CÓ PHẢI MỘT KHÔNG (sửa 28/9, đo trên đơn LS403-269S) =====
+     Cùng một tấm ảnh đi qua hai file khác nhau (file đơn gửi xưởng vs file tổng hợp Gmail) thì
+     bị nén lại khác nhau và bị đổi cỡ, nên vân tay lệch khá xa: đo thật trên 4 cặp của đơn này
+     ra 1, 8, 10 và 18 — ngưỡng 6 chỉ bắt được đúng một cặp, ba cặp kia lọt.
+     Nhưng ĐỔI CỠ thì TỈ LỆ KHUNG HÌNH gần như không đổi (299x273↔299x273, 420x195↔566x263,
+     420x392↔493x460 — lệch dưới 0,3%). Vậy: lệch ≤6 là một tấm; lệch ≤20 mà tỉ lệ khung hình
+     trùng trong 2% cũng là một tấm. Quét cả kho của user: luật mới gộp thêm 17 cặp trên 3810
+     cặp — đủ chặt để không gom nhầm hai tấm khác nhau. */
+  function khCungTam(A, B){
+    var a=(A&&A.ah)||'', b=(B&&B.ah)||''; if(!a || !b) return false;
+    var d=khKhacBit(a, b);
+    if(d <= KH_ANH_LECH) return true;
+    if(d > KH_ANH_LECH_TY) return false;
+    var ra=(A.w&&A.h)?A.w/A.h:0, rb=(B.w&&B.h)?B.w/B.h:0;
+    if(!ra || !rb) return false;
+    return Math.abs(ra-rb)/Math.max(ra,rb) <= 0.02;
+  }
+  /* Bấm "Hiện N tấm trùng" thì tắt bộ lọc — lỡ hai tấm khác nhau thật vẫn xem được đủ. */
+  var __hienAnhTrung=false;
+  function khLocAnhThat(ds){
     var kho=state.imgStore||{}, ra=[], vt=[], da={};
     (ds||[]).forEach(function(k){
       var im=kho[k]; if(!im || da[k]) return;
       da[k]=1;
-      var a=im.ah||'', w=(im.w||0)*(im.h||0), i;
+      var w=(im.w||0)*(im.h||0), i;
       for(i=0;i<vt.length;i++){
-        if(!a || !vt[i].a) continue;
-        if(khKhacBit(vt[i].a, a) > KH_ANH_LECH) continue;
+        if(!khCungTam(vt[i].im, im)) continue;
         /* Cùng một tấm → giữ bản TO hơn cho nét, bỏ bản còn lại. */
-        if(w > vt[i].w){ ra[vt[i].i]=k; vt[i].a=a; vt[i].w=w; }
+        if(w > vt[i].w){ ra[vt[i].i]=k; vt[i].im=im; vt[i].w=w; }
         return;
       }
-      vt.push({ a:a, w:w, i:ra.length });
+      vt.push({ im:im, w:w, i:ra.length });
       ra.push(k);
     });
     return ra;
+  }
+  function khLocAnh(ds){
+    if(__hienAnhTrung) return (ds||[]).filter(function(k){ return (state.imgStore||{})[k]; });
+    return khLocAnhThat(ds);
+  }
+  /* Bao nhiêu tấm đang bị gộp — nói thẳng ra màn hình, không lặng lẽ giấu bớt ảnh của user. */
+  function khSoTrung(ds){
+    var kho=state.imgStore||{};
+    var co=(ds||[]).filter(function(k){ return kho[k]; });
+    var da={}, n=0; co.forEach(function(k){ if(da[k]) return; da[k]=1; n++; });
+    return n - khLocAnhThat(ds).length;
+  }
+  function khNutTrung(n){
+    if(!n) return '';
+    return '<button class="btn sm" data-anh-trung="1" style="margin-left:8px">'+
+      (__hienAnhTrung ? ('↩ Gộp lại '+n+' tấm trùng') : ('👁 Hiện '+n+' tấm trùng'))+'</button>';
   }
 
   /* ===== ĐỌC "CHECK LIST KH.xlsx" =====
@@ -12229,10 +12290,29 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     khLuuNgam(); khVeLaiAnh({ key:key, i:i });
   }
   /* Vẽ lại đúng khung đang mở (bảng chi tiết của đơn hoặc bảng so sánh cả khách). */
+  /* ⚠ renderKHTiet kết thúc bằng khCuonToi() — đưa mắt xuống đầu bảng chi tiết. Hợp lý khi vừa
+     BẤM một Mã KH, nhưng lúc đang xóa ảnh thì cứ xóa một tấm là văng lên đầu, muốn xóa tấm thứ
+     hai phải cuộn xuống lại (user gặp 28/9). Nay vẽ lại tại chỗ: tắt cuộn và trả đúng vị trí cũ. */
+  var __khKhongCuon=false;
   function khVeLaiAnh(d){
-    renderKH();
-    try{ if(d.i>=0) renderKHDon(d.key, d.i); else renderKHTiet(d.key); }
-    catch(e){ logErr('khVeLaiAnh', e); }
+    var box=document.getElementById('kh-tiet');
+    var sc=(box && box.closest && box.closest('.content')) || document.scrollingElement || document.body;
+    var y=sc?sc.scrollTop:0;
+    __khKhongCuon=true;
+    try{
+      renderKH();
+      if(d.i>=0) renderKHDon(d.key, d.i); else renderKHTiet(d.key);
+    }catch(e){ logErr('khVeLaiAnh', e); }
+    __khKhongCuon=false;
+    var ve=function(){ try{ if(sc) sc.scrollTop=y; }catch(e2){ logErr('khVeLaiAnh.cuon', e2); } };
+    ve();
+    if(window.requestAnimationFrame) requestAnimationFrame(ve);
+    setTimeout(ve, 0);
+  }
+  function khDoiHienTrung(){
+    __hienAnhTrung = !__hienAnhTrung;
+    try{ renderKH(); }catch(e){ logErr('khDoiTrung.kh', e); }
+    try{ if(typeof renderBoxTypes==='function') renderBoxTypes(); }catch(e){ logErr('khDoiTrung.box', e); }
   }
   function khNutThemAnh(i){
     if(!khSuaDuoc()) return '';
@@ -12492,11 +12572,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      dồn về đây, nằm dưới bảng so sánh sau dòng Chú ý, và LỌC TRÙNG theo vân tay ảnh nên
      một tấm chỉ hiện một lần dù nhiều đơn cùng đính. */
   function khKhuAnh(r){
-    var tho=khMoiAnh(r), ds=khLocAnh(tho), mat=khAnhMat(tho), sua=khSuaDuoc();
+    var tho=khMoiAnh(r), ds=khLocAnh(tho), mat=khAnhMat(tho), sua=khSuaDuoc(), trung=khSoTrung(tho);
     if(!ds.length && !mat && !sua) return '';
     return '<div class="kh-khuanh" data-kh-tha="-1"><h5>🖼 Hình ảnh của khách · '+ds.length+' ảnh'+
       ' <span class="mini">— bấm để xem to, lật bằng ← →'+(sua?', kéo thả ảnh vào đây cũng được':'')+'</span>'+
-      khNutThemAnh(-1)+'</h5>'+
+      khNutTrung(trung)+khNutThemAnh(-1)+'</h5>'+
       (mat?khNhanMatAnh(mat):'')+
       '<div class="kh-anhluoi">'+ds.map(function(k,i){ return khAnhTag(k, ds, i, sua); }).join('')+'</div></div>';
   }
@@ -12575,7 +12655,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   /* Bấm Mã KH / Mã đơn thì ĐƯA MẮT XUỐNG LUÔN bảng bên dưới (user chốt 25/9) — bảng dữ liệu
      dài, trước đây bấm xong vẫn đứng nguyên chỗ cũ nên tưởng không có gì xảy ra. */
   function khCuonToi(box){
-    if(!box) return;
+    if(!box || __khKhongCuon) return;
     try{
       /* Khung cuộn là .content chứ không phải cả trang — scrollIntoView tự dò hay trượt
          nhầm khung, nên tính thẳng toạ độ cho chắc. */
@@ -12631,7 +12711,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(anh.length || anhMat || sua) h+='<div class="kh-the" style="margin-top:8px" data-kh-tha="'+i+'">'+
       '<h5>🖼 Hình ảnh · '+anh.length+' ảnh '+
       '<span class="mini" style="font-weight:400;color:var(--text-3)">— bấm để xem to, lật bằng ← →'+
-      (sua?', kéo thả ảnh vào đây cũng được':'')+'</span>'+khNutThemAnh(i)+'</h5>'+
+      (sua?', kéo thả ảnh vào đây cũng được':'')+'</span>'+khNutTrung(khSoTrung(anhTho))+khNutThemAnh(i)+'</h5>'+
       (anhMat?khNhanMatAnh(anhMat):'')+
       '<div class="kh-anhluoi">'+anh.map(function(k2,i2){ return khAnhTag(k2, anh, i2, sua); }).join('')+'</div></div>';
     box.innerHTML=h; box.style.display=''; khCuonToi(box);
@@ -13056,6 +13136,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(!e.target.closest) return;
       var nThem=e.target.closest('[data-kh-them]');
       if(nThem){ khMoAnh(tiet.getAttribute('data-khk'), +nThem.getAttribute('data-kh-them')); return; }
+      var nTr=e.target.closest('[data-anh-trung]');
+      if(nTr){ khDoiHienTrung(); return; }
       var nBo=e.target.closest('[data-kh-xoa]');
       if(nBo){
         var khungB=nBo.closest('[data-kh-tha]');
@@ -13253,14 +13335,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1710460000"></script>
-<script src="cl.sync.js?v=1710460000"></script>
-<script src="auth.store.js?v=1710460000"></script>
-<script src="auth.web.js?v=1710460000"></script>
+<script src="cl.config.js?v=1710560000"></script>
+<script src="cl.sync.js?v=1710560000"></script>
+<script src="auth.store.js?v=1710560000"></script>
+<script src="auth.web.js?v=1710560000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1710460000"></script>
+<script src="cl.project.js?v=1710560000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1710460000" defer></script>
+<script src="firebase-bridge.js?v=1710560000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
