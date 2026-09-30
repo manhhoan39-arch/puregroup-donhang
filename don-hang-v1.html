@@ -676,7 +676,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1710860000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1710960000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1273,8 +1273,19 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 #eng-khdata td[data-khmo]:hover{background:var(--bg-1)}
 /* Bảng chi tiết của một đơn — xếp thành thẻ cho dễ đọc, giống bản in Tổng hợp Box */
 /* auto-FIT (không phải auto-fill): mấy thẻ giãn đều hết bề ngang, không bỏ trống bên phải */
-.kh-luoi{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px;align-items:stretch}
+/* auto-fit ĐO SAI bề ngang khi khung nằm trong ô gộp của bảng (table-layout:fixed): đo được
+   989px trong khi khung rộng 1196px ⇒ chỉ dựng 3 cột, thừa một mảng trắng bên phải và ô
+   Nội dung bị bóp (user báo 30/9). Chia CỐ ĐỊNH 4 cột thì không phải đoán:
+   hàng trên  = Thông tin keo (2 cột) | Mix·Multi + Laser·Fans (2 cột)
+   hàng dưới  = Bảng độ cong (1) | Thùng và hộp (1) | Nội dung (2 cột) → hết bề ngang. */
+.kh-luoi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:stretch;width:100%}
 .kh-luoi>.kh-the:first-child{grid-column:span 2}
+.kh-luoi>.kh-the.kh-w2{grid-column:span 2}
+@media(max-width:1100px){ .kh-luoi{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media(max-width:700px){
+  .kh-luoi{grid-template-columns:1fr}
+  .kh-luoi>.kh-the:first-child,.kh-luoi>.kh-the.kh-w2{grid-column:auto}
+}
 .kh-the{border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:var(--bg-1)}
 .kh-the h5{margin:0 0 5px;font-size:11.5px;color:var(--accent);font-weight:800}
 /* KHÔNG giới hạn chiều cao: nội dung của đơn phải hiện ra HẾT, không bắt cuộn trong ô
@@ -1365,7 +1376,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1710860000"></script>
+<script src="engine.web.js?v=1710960000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -5623,7 +5634,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
          'focusout' không tự bắn, ô vừa gõ sẽ không được lưu. */
       var dang=document.querySelector('td.dang-sua');
       if(dang && dang!==tdSua){ try{ dang.blur(); }catch(e){ logErr('blurOSua', e); } dongOSua(dang); }
-      if(tdSua) ev.preventDefault();          // bấm 1 lần: KHÔNG cho con trỏ vào ô, chỉ chọn
+      if(tdSua){
+        /* Hai bảng bước 7 (dữ liệu khách hàng · so sánh đơn) KHÔNG có cột số nào để tính
+           Σ · Đếm · TB, nên luật "bấm đúp mới sửa" ở đây chỉ tổ làm user tưởng bảng không
+           sửa được (báo 3 lần, 28-30/9). Ô nào mang .kh-sua1 thì bấm MỘT LẦN là con trỏ
+           vào ô luôn; kéo chọn cả khối để Ctrl+C / Ctrl+V vẫn y như cũ. */
+        if(tdSua.classList && tdSua.classList.contains('kh-sua1')) moOSua(tdSua);
+        else ev.preventDefault();             // bảng khác: bấm 1 lần vẫn chỉ là CHỌN ô
+      }
     }
     var cc=gsCoord(ev.target);
     if(!cc){ if(gsA||gsLock.length){ gsA=gsH=null; gsClearLock(); gsPaint(); } return; }
@@ -12479,15 +12497,61 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     try{ return vaiTroHienTai()==='super_admin' && canEditStep('s11'); }
     catch(e){ logErr('khSuaDuoc', e); return false; }
   }
+  /* ===== ĐỔI MÃ KH NGAY TRÊN BẢNG (user chốt 30/9) =====
+     Mã KH là KHÓA của cả hồ sơ khách, nên sửa nó không phải chỉ đổi mấy chữ hiện ra mà phải
+     DỜI cả hồ sơ sang khóa mới. Khóa mới đã có khách rồi thì GỘP vào: đơn, ảnh, ảnh đang giữ
+     chờ, nhãn hiệu, bản sửa tay đều được mang theo — không đơn nào, không tấm ảnh nào rơi.
+     Trả về 'doi' · 'gop' · 'giu' (không đổi được thì trả nguyên chữ cũ ra ô). */
+  function khDoiMaKH(cu, tenMoi){
+    var d=state.khData; if(!d||!d.kh) return 'giu';
+    var r=d.kh[cu]; if(!r) return 'giu';
+    tenMoi=khTxt(tenMoi); if(!tenMoi) return 'giu';
+    var kMoi=khKhoa(tenMoi);
+    if(kMoi===cu){                                  // chỉ đổi hoa/thường, khóa không đổi
+      if(r.maKH===tenMoi) return 'giu';
+      r.maKH=tenMoi; return 'doi';
+    }
+    var dich=d.kh[kMoi];
+    var gopKhoa=function(a,b){ var co={}, ra=[];
+      (a||[]).concat(b||[]).forEach(function(k){ if(k && !co[k]){ co[k]=1; ra.push(k); } });
+      return ra; };
+    if(dich){
+      dich.muc=dich.muc||[];
+      (r.muc||[]).forEach(function(m){
+        var co=false;
+        dich.muc.forEach(function(x){
+          if(x._id && m._id && x._id===m._id) co=true;
+          else if(khTxt(m.don) && khKhoa(x.don)===khKhoa(m.don)) co=true;
+        });
+        if(!co) dich.muc.push(m);
+      });
+      var A=gopKhoa(dich.anh, r.anh);       if(A.length) dich.anh=A;
+      var C=gopKhoa(dich.anhCho, r.anhCho); if(C.length) dich.anhCho=C;
+      if(!khTxt(dich.brand) && khTxt(r.brand)) dich.brand=r.brand;
+      if(r.sua){ dich.sua=dich.sua||{};
+        Object.keys(r.sua).forEach(function(k){ if(dich.sua[k]==null) dich.sua[k]=r.sua[k]; }); }
+      try{ khGomAnhKhach(dich); khTiaMuc(dich); }catch(e){ logErr('khDoiMaKH.don', e); }
+      delete d.kh[cu];
+      d.thuTu=(d.thuTu||[]).filter(function(k){ return k!==cu; });
+      return 'gop';
+    }
+    r.maKH=tenMoi; d.kh[kMoi]=r; delete d.kh[cu];
+    d.thuTu=(d.thuTu||[]).map(function(k){ return k===cu?kMoi:k; });
+    return 'doi';
+  }
   function khOTag(x, c){
     var f=c[0], sua=khSuaDuoc();
     /* Ô sửa được mang sẵn khóa: dòng nào (data-khk) · mục thứ mấy (data-khi) · trường nào. */
     var oSua=function(lop, noiDung){
       return '<td class="'+lop+(KH_COT_SO[f]?' kh-so':'')+(KH_COT_KEO[f]?' kh-keo':'')+
-        (KH_COT_KEO3[f]?' kh-keo3':'')+'"'+
+        (KH_COT_KEO3[f]?' kh-keo3':'')+(sua?' kh-sua1':'')+'"'+
         (sua?(' contenteditable="true" data-khf="'+f+'"'):'')+'>'+noiDung+'</td>';
     };
-    if(f==='maKH') return '<td class="kh-ma" data-khmo="kh" title="Bấm để so sánh mọi đơn của khách này">'+
+    /* Mã KH KHÔNG mang .kh-sua1: bấm 1 lần là mở bảng so sánh (việc chính của ô này),
+       bấm ĐÚP mới mở ra sửa — sửa xong là dời cả hồ sơ khách sang mã mới (khDoiMaKH). */
+    if(f==='maKH') return '<td class="kh-ma" data-khmo="kh" title="Bấm để so sánh mọi đơn của khách này'+
+                          (sua?' · bấm ĐÚP để sửa Mã KH':'')+'"'+
+                          (sua?' contenteditable="true" data-khf="maKH"':'')+'>'+
                           esc(x.r.maKH)+'</td>';
     /* KHÔNG in nhãn nguồn ra bảng (user chốt 23/9) — dòng của tờ check list không có mã đơn
        nên ghi thẳng "(check list)", còn lại đã có mã đơn là đủ nhận ra. */
@@ -12685,8 +12749,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           /* Nhắc cách dùng: user 30/9 tưởng bảng "chưa có chức năng chỉnh sửa, copy paste" vì
              bấm một lần vào ô thì chỉ thấy bôi đen — đúng luật chung của mọi bảng trong app
              (bấm 1 lần = chọn để tính Σ · copy; bấm ĐÚP mới mở ô ra gõ). Ghi thẳng ra cho khỏi mò. */
-          (khSuaDuoc()? '<span class="mini" style="color:var(--text-3)"> · ✏ bấm 1 lần = chọn ô '+
-            '(Ctrl+C / Ctrl+V dán cả khối) · bấm ĐÚP = sửa</span>' : '');
+          (khSuaDuoc()? '<span class="mini" style="color:var(--text-3)"> · ✏ bấm 1 lần vào ô là '+
+            'SỬA được luôn · kéo chọn khối rồi Ctrl+C / Ctrl+V · riêng Mã KH bấm ĐÚP mới sửa'+
+            '</span>' : '');
         /* Thiếu ảnh thì TỰ đi lấy ngay, không chờ ai bấm gì. Xin xong mà vẫn thiếu thì mấy
            khóa đó là mồ côi thật — dọn đi cho hết báo động giả rồi vẽ lại. */
         if(soMat){
@@ -12812,7 +12877,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         /* Cột gộp "Thùng và hộp" dựng tại chỗ từ 2 trường nên KHÔNG sửa thẳng ở đây được —
            sửa ở khung chi tiết của đơn, chỗ có đủ hai ô riêng. */
         var suaO = suaSS && c[0]!=='hopThung' && c[0]!=='congGhi';
-        return '<td'+(suaO?(' contenteditable="true" data-khf3="'+c[0]+'" data-khi3="'+im+'"'):'')+
+        return '<td'+(suaO?(' class="kh-sua1" contenteditable="true" data-khf3="'+c[0]+'" data-khi3="'+im+'"'):'')+
                '><div class="kh-cell">'+esc(khTxt(khGiaTri(m, c[0])))+'</div></td>';
       }).join('');
       return '<tr class="'+(lech?'kh-lech':'')+'"><th class="kh-tf">'+esc(c[1])+
@@ -12893,10 +12958,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   /* Nhiều trường CÙNG MỘT CỘT: Bảng độ cong đi với ghi chú của nó, Loại hộp đi với
      cách đóng thùng (user chốt 26/9). Mỗi trường vẫn sửa riêng được, chỉ gom chỗ hiện. */
-  function khKhoiGom(tieuDe, ds, m, sua, rong){
+  function khKhoiGom(tieuDe, ds, m, sua, lop){
     var than=ds.map(function(c){ return khOChu(c[1], m, sua, c[0]); }).filter(Boolean).join('');
     if(!than) return '';
-    return '<div class="kh-the'+(rong?' kh-rong':'')+'"><h5>'+esc(tieuDe)+'</h5>'+than+'</div>';
+    return '<div class="kh-the'+(lop?' '+lop:'')+'"><h5>'+esc(tieuDe)+'</h5>'+than+'</div>';
   }
   function renderKHDon(key, i, tr){
     var box=khDatTiet(tr || khTimDong(key)); if(!box) return;
@@ -12916,12 +12981,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
        lên đúng chỗ cũ của Bảng độ cong); hàng dưới: Bảng độ cong | Thùng và hộp.
        Nội dung vẫn xuống cuối và trải hết bề ngang. */
     h+=khKhoiGom('🎨 Mix / Multi color · Laser / Fans',
-                 [['Mix / Multi color','mixMulti'],['Laser / Fans','laserFans']], m, sua);
+                 [['Mix / Multi color','mixMulti'],['Laser / Fans','laserFans']], m, sua, 'kh-w2');
     h+=khKhoiGom('📏 Bảng độ cong', [['','doCong'],['Ghi chú độ cong','doCongGhi']], m, sua);
     h+=khKhoiGom('📦 Thùng và hộp', [['Loại hộp','loaiHop'],['Cách đóng thùng','thungHop']], m, sua);
     /* Nội dung về ĐÚNG Ô TRỐNG bên phải Thùng và hộp (user chốt 30/9) — trước để trải hết bề
        ngang nên dưới khung hở một mảng to. Không truyền cờ "rộng" nữa là nó lấp đúng ô đó. */
-    h+=khKhoiGom('📄 Nội dung', [['','noiDung']], m, sua);
+    h+=khKhoiGom('📄 Nội dung', [['','noiDung']], m, sua, 'kh-w2');
     h+='</div>';
     if(anh.length || anhMat || sua) h+='<div class="kh-the" style="margin-top:8px" data-kh-tha="'+i+'">'+
       '<h5>🖼 Hình ảnh · '+anh.length+' ảnh '+
@@ -13277,8 +13342,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(tb) tb.addEventListener('click', function(e){
       var im=e.target.closest ? e.target.closest('img[data-kh-anh]') : null;
       if(im){ moAnh(im); return; }
-      /* Đang gõ trong ô sửa thì ĐỪNG mở bảng nào, không thì vừa bấm vào là mất chỗ gõ. */
-      if(e.target.closest && e.target.closest('[contenteditable="true"]')) return;
+      /* Đang gõ DỞ trong một ô thì đừng mở bảng nào, không thì vừa bấm vào là mất chỗ gõ.
+         ⚠ Xét ô ĐANG SỬA (.dang-sua) chứ không xét "có contenteditable": Mã KH nay cũng
+         contenteditable, xét kiểu cũ là bấm Mã KH không còn mở được bảng so sánh nữa. */
+      if(e.target.closest && e.target.closest('td.dang-sua')) return;
+      /* Cú bấm THỨ HAI của một lần bấm ĐÚP: để dành cho việc mở ô ra sửa, không đóng bảng. */
+      if(e.detail>1) return;
       /* Mã đơn giờ là THẺ trong ô, nên bắt cả thẻ lẫn ô. */
       var td=e.target.closest ? (e.target.closest('[data-khmo]')) : null;
       var tr=e.target.closest ? e.target.closest('tr[data-khk]') : null;
@@ -13335,6 +13404,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var tr=td.closest('tr[data-khk]'); if(!tr) return;
       var r=(state.khData&&state.khData.kh)?state.khData.kh[tr.getAttribute('data-khk')]:null; if(!r) return;
       var f=td.getAttribute('data-khf'), moi=khTxt(td.innerText);
+      if(f==='maKH'){
+        var cu=tr.getAttribute('data-khk'), ten=r.maKH;
+        var kq=khDoiMaKH(cu, moi);
+        if(kq==='giu'){ td.textContent=ten; return; }   // bỏ trống / không đổi → trả lại chữ cũ
+        logLine(kq==='gop' ? ('🗂 Gộp Mã KH: '+ten+' → '+moi+' (đơn và ảnh mang theo hết)')
+                           : ('🗂 Đổi Mã KH: '+ten+' → '+moi));
+        khDongTiet(); renderKH(); khLuuNgam();
+        return;
+      }
       if(KH_COT_KH[f]){                               // Brand gắn theo KHÁCH, không theo đơn
         if(khTxt(r.brand)===moi) return;
         r.brand=moi;
@@ -13567,14 +13645,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1710860000"></script>
-<script src="cl.sync.js?v=1710860000"></script>
-<script src="auth.store.js?v=1710860000"></script>
-<script src="auth.web.js?v=1710860000"></script>
+<script src="cl.config.js?v=1710960000"></script>
+<script src="cl.sync.js?v=1710960000"></script>
+<script src="auth.store.js?v=1710960000"></script>
+<script src="auth.web.js?v=1710960000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1710860000"></script>
+<script src="cl.project.js?v=1710960000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1710860000" defer></script>
+<script src="firebase-bridge.js?v=1710960000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
