@@ -676,7 +676,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1711260000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1711860000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1066,12 +1066,12 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
         <h3 style="color:var(--accent);margin:0;font-size:15px">🗂 Dữ liệu khách hàng</h3>
         <div id="kh-stat" class="mini">Chưa có dữ liệu.</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:auto">
-          <button class="btn primary sm" id="kh-choose">📂 Nạp file</button>
+          <button class="btn primary sm" id="kh-choose" title="Nạp Check list KH, file tổng hợp Gmail, hoặc đơn gửi xưởng (.xlsx, chọn nhiều file một lần được) — đơn gửi xưởng chỉ lấy vào bước 7, không đụng bước 1-6">📂 Nạp file</button>
           <button class="btn sm" id="kh-xlsx">⬇ Tải Excel</button>
           <button class="btn sm" id="kh-in">🖨 In</button>
           <button class="btn sm" id="kh-timanh" title="Lục lại mọi bản lưu cũ trên máy chủ để gắn lại những tấm ảnh đã rời khỏi đơn">🔎 Tìm lại ảnh cũ</button>
           <button class="btn sm danger" id="kh-xoa">🗑 Xóa dữ liệu KH</button>
-          <input type="file" id="kh-input" accept=".xlsx,.xlsm,.xls" style="display:none">
+          <input type="file" id="kh-input" accept=".xlsx,.xlsm,.xls" multiple style="display:none">
           <input type="file" id="kh-anh-them" accept="image/*" multiple style="display:none">
         </div>
       </div>
@@ -1079,6 +1079,9 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
     <div class="card" style="padding:10px 12px">
       <div class="card-head" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
         <h3 style="font-size:14px">📋 Dữ liệu khách hàng <span class="chip" id="kh-count">0</span></h3>
+        <!-- Nút Lưu riêng của bước 7 (user chốt 30/9): sửa xong bấm ngay tại đây, khỏi lên thanh trên cùng -->
+        <button class="btn sm" id="kh-luu" style="display:none;margin-left:14px;min-width:120px"
+                title="Lưu các chỗ vừa sửa ở bước 7 lên đám mây cho cả xưởng thấy">💾 Lưu</button>
         <div class="kh-loai" style="margin-left:auto">
           <button class="btn sm" id="kh-loai-p" data-loai="P" title="Đơn có đuôi P — số càng lớn càng mới">Đơn Charmlash</button>
           <button class="btn sm" id="kh-loai-s" data-loai="S" title="Đơn có đuôi S — số càng lớn càng mới">Đơn Liilash</button>
@@ -1236,6 +1239,11 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
   line-height:1.25;vertical-align:middle;text-align:center;color:#16202B;font-size:10.5px;
   letter-spacing:.01em;padding:5px 6px;border-bottom:1px solid rgba(0,0,0,.18)}
 /* Mỗi mã đơn là một thẻ bấm được — một dòng có thể mang tới 5 đơn. */
+/* Thanh chuyển đơn trong khung chi tiết đơn */
+.kh-dsdon{margin:0 0 8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.kh-dsdon .kh-chip{margin:0;cursor:pointer;font:inherit;font-size:11.5px;font-weight:700;padding:3px 9px}
+.kh-dsdon .kh-chip-on{background:var(--accent);color:#fff;border-color:var(--accent);cursor:default}
+.kh-ng3{font-weight:400;opacity:.75;margin-left:5px;font-size:10.5px}
 .kh-chip{display:inline-block;margin:0 3px 3px 0;padding:1px 6px;border-radius:9px;
   background:var(--bg-2);border:1px solid var(--line);font-weight:700;font-size:10.5px;
   cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
@@ -1358,7 +1366,12 @@ table.kh-tk th.kh-so,table.kh-tk td.kh-so{text-align:right}
 /* Tiêu đề cột của bảng so sánh = mã đơn, bấm được để mở bảng chi tiết của đúng đơn đó. */
 #kh-tiet th.kh-th-don{cursor:pointer;text-decoration:underline;text-decoration-style:dotted}
 #kh-tiet th.kh-th-don:hover{background:var(--accent-soft)}
-#kh-tiet h4{margin:0 0 8px;font-size:13px;color:var(--accent)}
+/* flow-root: nút "✕ Đóng" / "So sánh cả khách" nổi (float) bên phải cao 28px mà dòng tiêu đề
+   chỉ cao 19px ⇒ nút thò xuống khối bên dưới. Khối cuộn của bảng so sánh (overflow:auto) và
+   lưới khung chi tiết (grid) đều TRÁNH phần thò đó nên bị hụt đúng bề ngang cái nút, để lại
+   một dải trắng dọc bên phải suốt chiều cao bảng (user khoanh đỏ 30/9, đo trên Chrome: bảng
+   1200px mà khung cuộn chỉ còn 1141px). Cho tiêu đề ôm trọn nút là hết. */
+#kh-tiet h4{margin:0 0 8px;font-size:13px;color:var(--accent);display:flow-root}
 table.kh-ss{table-layout:fixed;width:max-content;min-width:100%;font-size:11px}
 table.kh-ss th{position:sticky;top:0;z-index:2;background:#A9E4F2;color:#16202B;text-align:left;
   vertical-align:top;white-space:normal;word-break:break-word;line-height:1.3;padding:4px 6px}
@@ -1392,7 +1405,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1711260000"></script>
+<script src="engine.web.js?v=1711860000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -3975,21 +3988,51 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
        bảng độ cong (A-2022 · "Độ cong đặc biệt…") bị bỏ qua. Chỉ nhận khi ô đó ĐÚNG CHỮ
        "Curl" / "Độ cong" / "Bảng cong" VÀ bên phải cùng hàng (trong 6 cột) có "Ghi Chú" —
        chữ "curl" nằm lẻ ở chỗ khác trong đơn không bị bắt nhầm. */
+    /* Tiêu đề cột Ghi chú: tiếng Việt hoặc tiếng Anh. */
+    var _laGhiChu=function(v){ var t=_tdc(v); return t==='ghi chu' || t==='note' || t==='notes' || t==='remark' || t==='remarks'; };
+    /* TỪ KHOÁ tiêu đề bảng độ cong — cả tiếng Việt lẫn tiếng Anh (user chốt 30/9). */
+    var _tenCurl={ 'curl':1, 'curls':1, 'curl table':1, 'curl chart':1, 'curl list':1, 'curl type':1,
+                   'curve':1, 'curves':1, 'bang curl':1, 'do cong':1, 'bang cong':1, 'bang do cong':1 };
     if(hr<0){
-      var _tenCurl={ 'curl':1, 'curls':1, 'do cong':1, 'bang cong':1 };
       for(var r7=0;r7<A.length && hr<0;r7++){
         var rw7=A[r7]||[];
         for(var c7=0;c7<rw7.length && hr<0;c7++){
           if(!_tenCurl[_tdc(rw7[c7])]) continue;
-          for(var c6=c7+1;c6<Math.min(rw7.length,c7+7);c6++){ if(low(rw7[c6])==='ghi chu'){ hr=r7; hc=c7; break; } }
+          for(var c6=c7+1;c6<Math.min(rw7.length,c7+7);c6++){ if(_laGhiChu(rw7[c6])){ hr=r7; hc=c7; break; } }
         }
+      }
+    }
+    /* ===== NHỚ VỊ TRÍ (user chốt 30/9) =====
+       Trong mẫu đơn gửi xưởng, bảng độ cong LUÔN nằm cùng hàng tiêu đề với "Bảng Hộp", ở bên
+       phải: Bảng Hộp | Số Lượng | Ghi Chú … <tiêu đề bảng độ cong> | Ghi Chú. Tiêu đề đó đổi
+       chữ thế nào (Curl · Curve · để trống…) cũng không sao — cứ tìm hàng "Bảng Hộp", lấy ô
+       "Ghi Chú" THỨ HAI trên hàng đó, cột ngay bên trái nó chính là cột độ cong. Chỉ nhận khi
+       ngay dưới đó thật sự có chữ, không thì coi như đơn không có bảng độ cong. */
+    if(hr<0){
+      for(var r5=0;r5<A.length && hr<0;r5++){
+        var rw5=A[r5]||[], cHop=-1;
+        for(var c5=0;c5<rw5.length;c5++){ if(_tdc(rw5[c5]).indexOf('bang hop')===0){ cHop=c5; break; } }
+        if(cHop<0) continue;
+        var dsGc=[];
+        for(var c4=cHop+1;c4<rw5.length;c4++){ if(_laGhiChu(rw5[c4])) dsGc.push(c4); }
+        if(dsGc.length<2) continue;
+        var cDc=dsGc[1]-1;
+        while(cDc>dsGc[0] && !String(rw5[cDc]==null?'':rw5[cDc]).trim() &&
+              !String(((A[r5+1]||[])[cDc])==null?'':(A[r5+1]||[])[cDc]).trim()) cDc--;
+        if(cDc<=dsGc[0]) continue;
+        var coChu=false;
+        for(var r4=r5+1;r4<Math.min(A.length,r5+8);r4++){
+          var v4=(A[r4]||[])[cDc], g4=(A[r4]||[])[dsGc[1]];
+          if(String(v4==null?'':v4).trim() || String(g4==null?'':g4).trim()){ coChu=true; break; }
+        }
+        if(coChu){ hr=r5; hc=cDc; }
       }
     }
     if(hr<0) return null;
     /* Cột "Ghi Chú" phải là cột NẰM SAU tiêu đề Bảng Độ Cong — dòng đó còn một "Ghi Chú"
        nữa của Bảng Hộp ở bên trái, lấy nhầm là đọc sang ghi chú của hộp. */
     var gcCol=-1, _hrow=A[hr]||[];
-    for(var _c=hc+1;_c<_hrow.length;_c++){ if(low(_hrow[_c])==='ghi chu'){ gcCol=_c; break; } }
+    for(var _c=hc+1;_c<_hrow.length;_c++){ if(_laGhiChu(_hrow[_c])){ gcCol=_c; break; } }
     if(gcCol<0) gcCol=hc+1;
     var rows=[], _seen=false;
     for(var r2=hr+1;r2<A.length && r2-hr<=12;r2++){
@@ -4005,6 +4048,48 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return rows.length ? { rows:rows } : null;
   }
 
+  /* Bảng Hộp · ghi chú "Note" mẫu 2026 · Bảng Độ Cong của một sheet GỬI XƯỞNG. Dùng CHUNG cho
+     bước 1 (readFiles) và nút nạp đơn gửi xưởng thẳng vào bước 7 — một bộ đọc, hai nơi dùng,
+     không bao giờ lệch nhau. */
+  function lapMetaGX(meta, gxAOA){
+    try{ meta.boxTable=parseBoxTable(gxAOA); }catch(e){ /* bỏ qua nếu không có Bảng Hộp */ }
+    // mẫu 2026: ghi chú nằm ở khối "Note" đầu sheet → ghép vào cho hiện đúng chỗ
+    try{
+      var _n26=parseNote2026(gxAOA);
+      if(_n26 && _n26.notes.length){
+        // chưa có Bảng Hộp mà vẫn có ghi chú → vẫn dựng khung để phần Note hiện ra
+        if(!meta.boxTable) meta.boxTable={ v:3, total:'', rows:[], notes:[], noteCols:[] };
+        if(!(meta.boxTable.noteCols||[]).length){
+          meta.boxTable.notes=_n26.notes; meta.boxTable.noteCols=_n26.cols; meta.boxTable.v=3;
+        }
+      }
+    }catch(e){ logErr('parseNote2026', e); }
+    try{ meta.doCong=parseDoCongTable(gxAOA); }catch(e){ /* bỏ qua nếu không có Bảng Độ Cong */ }
+    return meta;
+  }
+  /* Đọc MỘT file đơn gửi xưởng y như bước 1 (sheet "Nhập Đơn" nội bộ, hoặc bảng GỬI XƯỞNG của
+     khách ở bất kỳ sheet nào) nhưng KHÔNG cất vào bước 1 — chỉ trả kết quả đọc. */
+  function docDonXuong(wb, ten){
+    var data=null, meta={};
+    var nbWs=pickSheet(wb,'Nhập Đơn');
+    if(nbWs){
+      var nb=E.parseWorkbookData({ nhapDon:aoa(nbWs), label:aoa(pickSheet(wb,'Label')), keo:aoa(pickSheet(wb,'Bảng Keo')) });
+      if(nb.rawOrders.length) data=nb;
+    }
+    if(!data){
+      for(var si=0; si<wb.SheetNames.length && !data; si++){
+        var A=aoa(wb.Sheets[wb.SheetNames[si]]);
+        var gx=parseGX(A, ten);
+        if(gx && gx.rawOrders.length){
+          data={rawOrders:gx.rawOrders, mixSheets:gx.mixSheets, keoRows:gx.keoRows};
+          meta=lapMetaGX(gx.meta||{}, A);
+        }
+      }
+    }
+    if(!data) return null;
+    var mas={}; data.rawOrders.forEach(function(o){ var k=String(o.maDon||'').trim(); if(k) mas[k]=1; });
+    return { name:ten, data:data, meta:meta, maDons:Object.keys(mas) };
+  }
   function readFiles(fileList){
     if(needXLSX(readFiles, fileList)) return;   // chưa có thư viện Excel → nạp rồi tự đọc lại đúng các file này
     Array.prototype.forEach.call(fileList, function(f){
@@ -4036,19 +4121,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
               if(gx && gx.rawOrders.length){
                 data={rawOrders:gx.rawOrders, mixSheets:gx.mixSheets, keoRows:gx.keoRows};
                 meta=gx.meta;
-                try{ meta.boxTable=parseBoxTable(gxAOA); }catch(e){ /* bỏ qua nếu không có Bảng Hộp */ }
-                // mẫu 2026: ghi chú nằm ở khối "Note" đầu sheet → ghép vào cho hiện đúng chỗ
-                try{
-                  var _n26=parseNote2026(gxAOA);
-                  if(_n26 && _n26.notes.length){
-                    // chưa có Bảng Hộp mà vẫn có ghi chú → vẫn dựng khung để phần Note hiện ra
-                    if(!meta.boxTable) meta.boxTable={ v:3, total:'', rows:[], notes:[], noteCols:[] };
-                    if(!(meta.boxTable.noteCols||[]).length){
-                      meta.boxTable.notes=_n26.notes; meta.boxTable.noteCols=_n26.cols; meta.boxTable.v=3;
-                    }
-                  }
-                }catch(e){ logErr('parseNote2026', e); }
-                try{ meta.doCong=parseDoCongTable(gxAOA); }catch(e){ /* bỏ qua nếu không có Bảng Độ Cong */ }
+                lapMetaGX(meta, gxAOA);
                 kind='đơn khách '+gx.meta.maDon+(gx.meta.khach?' · KH '+gx.meta.khach:'');
               }
             }
@@ -7259,11 +7332,27 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '<thead><tr><th class="l">Mã Keo</th><th class="l">Loại Sợi</th><th>Độ Dày</th><th>Độ Dài</th><th class="l">Ghi Chú</th></tr></thead>'+
       '<tbody>'+tr+'</tbody></table></div></div>';
   }
+  /* Bộ đọc Bảng Độ Cong hiểu tiêu đề "Curl" / tiếng Anh + nhận theo vị trí từ build này. File
+     nạp TRƯỚC đó mà chưa ra bảng độ cong thì có thể chỉ vì bộ đọc cũ — nói thẳng cách lấy lại,
+     đừng để người dùng tưởng file không có (user gặp đơn K21-841P, 30/9). */
+  var BUILD_DOC_CURL = 1711260000;
+  function fileDocCu(md){
+    var F=(state.files||[]).filter(function(f){ return f && (f.maDons||[]).indexOf(md)>=0; })[0];
+    if(!F) return null;
+    var b=+String(F.docBuild||'0').replace(/\D/g,'');
+    return (b && b<BUILD_DOC_CURL) ? F : null;
+  }
   function boxDoCongHtml(md){
     var dc=(state.doCongByMadon&&state.doCongByMadon[md])||null;
-    if(!dc||!dc.rows||!dc.rows.length)
+    if(!dc||!dc.rows||!dc.rows.length){
+      var Fc=fileDocCu(md);
       return '<div class="bt-general" id="box-docong-card"><div class="bt-gtitle">📏 Bảng Độ Cong</div>'+
-             '<div class="txt mini" style="color:var(--text-3)">Đơn '+esc(md)+' không có bảng độ cong riêng trong file.</div></div>';
+             (Fc ? '<div class="txt mini" style="color:var(--red-600)">⚠ File <b>'+esc(Fc.name)+'</b> được đọc bằng bản app cũ '+
+                   '(chưa hiểu tiêu đề "Curl"). Kéo lại file này vào <b>bước 1</b> rồi bấm <b>▶ Xử lý</b> để lấy Bảng độ cong — '+
+                   'chỗ đã sửa tay ở bước 7 vẫn giữ nguyên.</div>'
+                 : '<div class="txt mini" style="color:var(--text-3)">Đơn '+esc(md)+' không có bảng độ cong riêng trong file.</div>')+
+             '</div>';
+    }
     var tr=dc.rows.map(function(r){
       var n=String(r.note||'').replace(/\r\n?/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
       return '<tr><td class="dc-ten">'+esc(String(r.name||'').trim())+'</td>'+
@@ -11617,8 +11706,20 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      tấm bị cất mấy chỗ và mỗi lần tỉa bớt đơn cũ là ảnh của đơn đó đi theo. Nay dồn hết về
      r.anh: nhẹ dữ liệu, và ảnh còn mãi kể cả khi đơn đã bị tỉa hay đã xóa khỏi bước 1-6.
      KHÔNG tấm nào bị mất — chỉ đổi chỗ cất, khóa nào cũng được giữ lại. */
+  /* ===== NGUỒN CỦA TỪNG TẤM ẢNH (user chốt 30/9) =====
+     Ảnh vẫn cất MỘT bộ cho mỗi Mã KH (r.anh), nhưng xem từng đơn thì chỉ được hiện ảnh của
+     đơn đó. Nên trước khi dồn ảnh của đơn về khách phải GHI LẠI tấm đó đến từ đơn nào:
+     r.anhDon = { khóa ảnh: [mã đơn gốc, …] }. Chỉ ghi thêm, không bao giờ xoá nguồn cũ. */
+  function khGhiNguonAnh(r, k, don){
+    var g=khKhoa(khDonGoc(don)); if(!r || !k || !g) return;
+    r.anhDon=r.anhDon||{};
+    var ds=r.anhDon[k]||(r.anhDon[k]=[]);
+    if(ds.indexOf(g)<0) ds.push(g);
+  }
   function khGomAnhKhach(r){
     if(!r) return 0;
+    khBoAnhDaXoa(r);
+    (r.muc||[]).forEach(function(m){ (m.anh||[]).forEach(function(k){ khGhiNguonAnh(r, k, m.don); }); });
     var co={}, ra=[], doi=0;
     (r.anh||[]).forEach(function(k){ if(k && !co[k]){ co[k]=1; ra.push(k); } });
     var cho={}, rc=[];
@@ -11637,9 +11738,29 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(rc.length) r.anhCho=rc; else if(r.anhCho) delete r.anhCho;
     return doi;
   }
+  /* Ảnh của RIÊNG một đơn: tấm đã ghi nguồn là đơn đó + tấm bước 6 đang gắn cho đơn đó
+     (state.imgByMadon, cùng mã gốc & cùng khách). Chỉ lấy trong bộ ảnh CÒN LẠI của khách —
+     tấm đã xóa (r.anhBo) không hiện lại. Tấm không rõ nguồn chỉ hiện ở phần xem Mã KH. */
+  function khAnhCuaDon(r, m){
+    if(!r || !m) return [];
+    var g=khKhoa(khDonGoc(m.don)); if(!g) return [];
+    var con={}; khMoiAnh(r).forEach(function(k){ con[k]=1; });
+    var ra=[], da={};
+    var them=function(k){ if(k && con[k] && !da[k]){ da[k]=1; ra.push(k); } };
+    (m.anh||[]).forEach(them);
+    Object.keys(r.anhDon||{}).forEach(function(k){ if((r.anhDon[k]||[]).indexOf(g)>=0) them(k); });
+    var kh=khKhoa(r.maKH), bm=state.imgByMadon||{};
+    Object.keys(bm).forEach(function(md){
+      if(khKhoa(khDonGoc(donOf(md)||md))!==g) return;
+      var k6=khOf(md); if(k6 && khKhoa(k6)!==kh) return;          // cùng số đơn nhưng khách khác
+      (bm[md]||[]).forEach(function(k){ if(con[k]){ them(k); khGhiNguonAnh(r, k, m.don); } });
+    });
+    return ra;
+  }
   function khMoiAnh(r){
     var ra=(r.anh||[]).slice();
     (r.muc||[]).forEach(function(m){ (m.anh||[]).forEach(function(k){ if(ra.indexOf(k)<0) ra.push(k); }); });
+    if(r.anhBo && r.anhBo.length) ra=ra.filter(function(k){ return r.anhBo.indexOf(k)<0; });
     return ra;
   }
   /* Mấy tấm ảnh mà bước 7 CÒN DÙNG — dùng khi xóa dữ liệu bước 1..6 để không cắt mất ảnh
@@ -12027,6 +12148,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var r=d.kh[K]; if(!r) return;
       if(r.anh) r.anh=doi(r.anh);
       if(r.anhCho) r.anhCho=doi(r.anhCho);
+      if(r.anhDon){                                   // nguồn ảnh đi theo khóa được giữ lại
+        var nd={};
+        Object.keys(r.anhDon).forEach(function(k){ var t=thay[k]||k, a=nd[t]||(nd[t]=[]);
+          (r.anhDon[k]||[]).forEach(function(g){ if(a.indexOf(g)<0) a.push(g); }); });
+        r.anhDon=nd;
+      }
       (r.muc||[]).forEach(function(x){
         if(x.anh) x.anh=doi(x.anh);
         if(x.anhCho) x.anhCho=doi(x.anhCho);
@@ -12223,7 +12350,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var ma=chuKhoi[dong]; return ma ? khLay(ma) : null;
       }, function(n){
         if(n) logLine('🖼 Check list KH: đọc '+n+' ảnh');
-        renderKH(); khLuuNgam();
+        renderKH(); khDaSua();
         khBao('xong', 'Nạp xong "'+ten+'" — '+kq.kh+' Mã KH · '+khDemAnh()+' ảnh', 8);
       }).catch(function(e){
         logErr('khNapAnh.checklist', e);
@@ -12232,9 +12359,19 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       return;
     }
     if(!pickSheet(wb,'Tổng hợp theo KH') && !pickSheet(wb,'Chi tiết theo đơn')){
-      alert('Chưa nhận ra file này.\n\nBước 7 nhận 2 loại:\n' +
+      /* Không phải Check list / file tổng hợp → thử đọc như ĐƠN GỬI XƯỞNG (user chốt 30/9). */
+      var hua=null;
+      try{ hua=khNapDonXuong(ab, ten, wb); }catch(e){ logErr('khNapDonXuong', e); hua=null; }
+      if(hua) return hua.then(function(kq){
+        renderKH(); khDaSua();
+        khBao('xong', 'Nạp đơn "'+ten+'" vào dữ liệu khách hàng — '+(kq.kh.join(', ')||'không có dòng nào')+
+              ' · đơn '+kq.don.join(', ')+' · '+kq.anh+' ảnh', 8);
+        return kq;
+      });
+      alert('Chưa nhận ra file này.\n\nBước 7 nhận 3 loại:\n' +
             '· "Check list KH.xlsx" — sheet Data, cột Sale | Khách hàng | Mã KH | Độ dày | Keo…\n' +
-            '· File tổng hợp từ Gmail — sheet "Tổng hợp theo KH" + "Chi tiết theo đơn".\n\n' +
+            '· File tổng hợp từ Gmail — sheet "Tổng hợp theo KH" + "Chi tiết theo đơn".\n' +
+            '· Đơn gửi xưởng (.xlsx) — sheet GỬI XƯỞNG / Nhập Đơn như ở bước 1.\n\n' +
             'Sheet đang có trong file: '+wb.SheetNames.join(', '));
       khBao('hong', 'Chưa nhận ra file "'+ten+'" — bước 7 chỉ nhận Check list KH hoặc file tổng hợp Gmail.', 10);
       return;
@@ -12255,7 +12392,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var ten2=khTxt((bang.A[dong]||[])[bang.cMa]); return ten2 ? khLay(ten2) : null;
     }, function(n){
       if(n) logLine('🖼 Dữ liệu khách hàng: đọc '+n+' ảnh');
-      renderKH(); khLuuNgam(); xongGm(' · '+khDemAnh()+' ảnh');
+      renderKH(); khDaSua(); xongGm(' · '+khDemAnh()+' ảnh');
     }).catch(function(e){ logErr('khNapAnh.gmail', e); xongGm(' (không đọc được ảnh)'); });
   }
   /* ===== BÁO TRẠNG THÁI NẠP FILE (user chốt 25/9) =====
@@ -12283,6 +12420,57 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return n;
   }
   function khLuuNgam(){ try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('kh.autosave', e); } }
+  /* ===== NÚT 💾 LƯU CỦA BƯỚC 7 (user chốt 30/9) =====
+     Mỗi lần sửa ở bước 7 (ô bảng, bảng so sánh, khung chi tiết, bảng keo, Mã KH, thêm/xóa ảnh,
+     nạp file) vẫn tự lưu TRONG MÁY như cũ, đồng thời đếm vào khSoSua để nút hiện
+     "💾 Lưu · N thay đổi". Bấm nút = bấm đúng nút ☁ Lưu trên cùng (một đường ghi lên máy chủ
+     duy nhất của app, không thêm lối tắt nào). Lưu xong — bấm ở đây hay ở thanh trên — nút tự
+     về "✓ Đã lưu" nhờ theo dõi nút ☁ Lưu. Mấy việc app TỰ làm (tự gắn ảnh, gộp ảnh trùng…)
+     không tính là "thay đổi" để khỏi báo nhầm. */
+  var khSoSua=0, khDangLuu=false, khDaTheoDoi=false, __khLuuT=null;
+  function khDaSua(){ khSoSua++; khLuuNgam(); veNutLuuKH(); }
+  function khGanTheoDoiLuu(){
+    if(khDaTheoDoi || !window.MutationObserver) return;
+    var top=document.getElementById('cl-nut-luu'); if(!top) return;
+    khDaTheoDoi=true;
+    new MutationObserver(function(){
+      if(top.classList.contains('cl-chualuu')) return;          // vẫn còn chỗ chưa lưu
+      if(khSoSua || khDangLuu){ khSoSua=0; khDangLuu=false; veNutLuuKH(); }
+    }).observe(top, { attributes:true, attributeFilter:['class'] });
+  }
+  function veNutLuuKH(){
+    var b=document.getElementById('kh-luu'); if(!b) return;
+    if(!khSuaDuoc()){ b.style.display='none'; return; }
+    b.style.display='';
+    khGanTheoDoiLuu();
+    if(khDangLuu){ b.textContent='⏳ Đang lưu…'; b.disabled=true; b.className='btn sm'; return; }
+    b.disabled=false;
+    if(khSoSua>0){
+      b.textContent='💾 Lưu · '+khSoSua+' thay đổi'; b.className='btn sm primary';
+      b.title='Còn '+khSoSua+' chỗ sửa ở bước 7 chưa lưu lên đám mây — bấm để lưu cho cả xưởng thấy';
+    } else {
+      b.textContent='✓ Đã lưu'; b.className='btn sm';
+      b.title='Không còn chỗ sửa nào chưa lưu ở bước 7';
+    }
+  }
+  function khBamLuu(){
+    /* Đang gõ dở một ô thì chốt ô đó trước — không thì chữ vừa gõ chưa kịp vào dữ liệu. */
+    try{ var a=document.activeElement;
+      if(a && a.getAttribute && a.getAttribute('contenteditable')==='true') a.blur(); }catch(e){ logErr('khBamLuu.blur', e); }
+    var top=document.getElementById('cl-nut-luu');
+    if(top && !top.disabled){
+      khDangLuu=true; veNutLuuKH();
+      try{ top.click(); }catch(e){ logErr('khBamLuu.click', e); }
+      /* Lưu hỏng / bấm Huỷ ở hộp hỏi → nút ☁ không đổi trạng thái → trả nút về để bấm lại. */
+      if(__khLuuT) clearTimeout(__khLuuT);
+      __khLuuT=setTimeout(function(){ if(khDangLuu){ khDangLuu=false; veNutLuuKH(); } }, 20000);
+      setTimeout(function(){ if(khDangLuu && !top.classList.contains('cl-chualuu')){ khSoSua=0; khDangLuu=false; veNutLuuKH(); } }, 0);
+      return;
+    }
+    /* Không có quyền lưu lên đám mây / chưa đăng nhập → ít nhất cũng lưu trong máy. */
+    khLuuNgam(); khSoSua=0; veNutLuuKH();
+    logLine('💾 Đã lưu dữ liệu khách hàng trong máy (chưa lưu được lên đám mây)');
+  }
 
   /* ===== GỘP ĐƠN ĐANG CÓ TRONG APP =====
      Hai cột Độ dày và Keo phải THẲNG HÀNG với nhau (dòng thứ n của cột này ứng với dòng thứ n
@@ -12369,19 +12557,89 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     });
     var n=0;
     Object.keys(theoMd).forEach(function(md){
-      var F=theoMd[md], k=khKeoTheoDon(md), h=khHopTheoDon(md), c=khDoCongTheoDon(md);
-      var m = { nguon:'app', don: donOf(md)||md,
-                ngay: F.addedAt ? new Date(F.addedAt).toISOString().slice(0,10) : '',
-                tieuDe: khTxt(F.name), sale:'', khach:'',
-                doDay:k.doDay, keo:k.keo, doDai:k.doDai, mixMulti:khMixTheoDon(md),
-                brand:'',
-                laserFans:khLaserTheoDon(md), doCong:c.doCong, dienGiai:c.dienGiai,
-                loaiHop:h.loaiHop, ghiChuHop:h.ghiChuHop, noiDung:h.noiDung,
-                thungHop:'', chuY:'', mail:'', anh:((state.imgByMadon||{})[md]||[]).slice() };
-      if(!KH_SS.some(function(c2){ return c2[0]!=='anh' && khTxt(m[c2[0]]); }) && !m.anh.length) return;
-      khThemMuc(khTenTuMaDon(md), m); n++;
+      var F=theoMd[md];
+      var m=khMucTuMd(md, F, F.addedAt ? new Date(F.addedAt).toISOString().slice(0,10) : '',
+                      ((state.imgByMadon||{})[md]||[]).slice());
+      if(!m) return;
+      /* Mã đơn không mang Mã KH ("499P") thì lấy Mã KH trong tên file — y như nạp thẳng ở bước 7,
+         để hai đường vào cùng một khách chứ không tách ra "(Không có mã KH) 499P". */
+      khThemMuc(khTenChoDon(md, F.name), m); n++;
     });
     return n;
+  }
+  function khMucTuMd(md, F, ngay, anh){
+    var k=khKeoTheoDon(md), h=khHopTheoDon(md), c=khDoCongTheoDon(md);
+    var m = { nguon:'app', don: donOf(md)||md, ngay: ngay||'',
+              tieuDe: khTxt(F.name), sale:'', khach:'',
+              doDay:k.doDay, keo:k.keo, doDai:k.doDai, mixMulti:khMixTheoDon(md),
+              brand:'',
+              laserFans:khLaserTheoDon(md), doCong:c.doCong, dienGiai:c.dienGiai,
+              loaiHop:h.loaiHop, ghiChuHop:h.ghiChuHop, noiDung:h.noiDung,
+              thungHop:'', chuY:'', mail:'', anh:anh||[] };
+    if(!KH_SS.some(function(c2){ return c2[0]!=='anh' && khTxt(m[c2[0]]); }) && !m.anh.length) return null;
+    return m;
+  }
+  /* ===== NẠP THẲNG ĐƠN GỬI XƯỞNG VÀO BƯỚC 7 (user chốt 30/9) =====
+     Chỉ để lấy thông tin khách: đọc file đơn y như bước 1 rồi dựng dòng đơn y như lúc xử lý,
+     nhưng KHÔNG đụng bước 1-6 — không thêm file, không thêm đơn, không gắn ảnh bước 6.
+     Các hàm dựng dòng (khKeoTheoDon, khHopTheoDon…) đọc từ state nên cho chúng "nhìn" tạm
+     riêng file này rồi TRẢ LẠI nguyên trạng ngay (finally), kể cả khi lỗi. */
+  function khMucTuDonXuong(F, ngay, anh){
+    var giu={ files:state.files, orders:state.orders, keoRows:state.keoRows,
+              bt:state.boxTableByMadon, dc:state.doCongByMadon }, ra=[];
+    try{
+      var bt={}, dc={};
+      F.maDons.forEach(function(md){ if(F.meta.boxTable) bt[md]=F.meta.boxTable; if(F.meta.doCong) dc[md]=F.meta.doCong; });
+      /* Bảng keo phải qua ĐÚNG hai bước như lúc Xử lý (xem processFiles): dựng keo từ cột "Keo
+         Nhiệt" khi đơn không có Bảng Keo, rồi bung dòng keo nhiều quy tắc — không thì mã keo
+         còn nguyên kiểu "Nau155C. 2" và mất cột độ dài (đơn 499P, soát 30/9). */
+      var dsDon=F.data.rawOrders||[], keo=(F.data.keoRows||[]).slice(), daCo={};
+      keo.forEach(function(k){ if(k && k.maDon) daCo[k.maDon]=1; });
+      try{ if(E.sinhKeoTuDonHang) keo=keo.concat(E.sinhKeoTuDonHang(dsDon, daCo)||[]); }catch(e){ logErr('khMucTuDonXuong.sinhKeo', e); }
+      try{ if(E.expandKeoRows) keo=E.expandKeoRows(keo); }catch(e){ logErr('khMucTuDonXuong.bungKeo', e); }
+      state.files=[F]; state.orders=dsDon; state.keoRows=keo;
+      state.boxTableByMadon=bt; state.doCongByMadon=dc;
+      F.maDons.forEach(function(md){ var m=khMucTuMd(md, F, ngay, (anh||[]).slice()); if(m) ra.push({ md:md, m:m }); });
+    } finally {
+      state.files=giu.files; state.orders=giu.orders; state.keoRows=giu.keoRows;
+      state.boxTableByMadon=giu.bt; state.doCongByMadon=giu.dc;
+    }
+    return ra;
+  }
+  /* Mã KH của đơn: lấy từ mã đơn (K21-841P); mã đơn không có tiền tố thì lấy trong tên file
+     ("Đơn gửi xưởng 499P - K83 - Vilmy" → K83), không thì theo cách bước 1 vẫn ghi. */
+  var KH_RE_MAKH_TEN = /(?:^|[\s_\-])((?:CS|LS|C|K)\d{1,4})(?=$|[\s_\-.])/i;
+  function khTenChoDon(md, ten){
+    if(khOf(md)) return khTenTuMaDon(md);
+    var t=String(ten||'').replace(/\.(xlsx|xlsm|xls)$/i,''), mt=t.match(KH_RE_MAKH_TEN);
+    return mt ? mt[1].toUpperCase() : khTenTuMaDon(md);
+  }
+  function khNgayFile(wb){
+    var P=(wb && wb.Props) || {}, d=P.ModifiedDate || P.CreatedDate;
+    try{ if(d){ var x=new Date(d); if(!isNaN(x)) return x.toISOString().slice(0,10); } }catch(e){ logErr('khNgayFile', e); }
+    return new Date().toISOString().slice(0,10);
+  }
+  function khNapDonXuong(ab, ten, wb){
+    var F=docDonXuong(wb, ten); if(!F) return null;
+    var ngay=khNgayFile(wb);
+    /* Ảnh trong file: cất vào kho ảnh chung (để bước 7 hiện được) nhưng KHÔNG gắn cho bước 6. */
+    return zipDocMedia(ab).catch(function(e){ logErr('khNapDonXuong.anh', e); return []; }).then(function(ds){
+      var keys=[];
+      return (ds||[]).reduce(function(ch, e){
+        return ch.then(function(){ return luuAnh(e.bytes, e.ten).then(function(r){ if(r && r.key && keys.indexOf(r.key)<0) keys.push(r.key); }); });
+      }, Promise.resolve()).then(function(){
+        var ds2=khMucTuDonXuong(F, ngay, keys), maKH=[];
+        ds2.forEach(function(x){
+          var tenKH=khTenChoDon(x.md, ten);
+          x.m.tieuDe=khTxt(ten);
+          khThemMuc(tenKH, x.m);
+          if(maKH.indexOf(tenKH)<0) maKH.push(tenKH);
+        });
+        logLine('🗂 Nạp đơn gửi xưởng vào bước 7: '+ten+' → '+(maKH.join(', ')||'(không có dòng nào)')+
+                ' · '+keys.length+' ảnh (không đụng bước 1-6)');
+        return { ten:ten, don:ds2.map(function(x){ return donOf(x.md)||x.md; }), kh:maKH, anh:keys.length };
+      });
+    });
   }
 
   /* ===== VẼ BẢNG — MỘT DÒNG cho MỖI ĐƠN ===== */
@@ -12538,12 +12796,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var dich = d.i>=0 ? ((r.muc||[])[d.i]) : r;
     if(!dich) return;
     dich.anh = dich.anh || [];
-    /* Bảng chi tiết của đơn: đơn CHƯA có ảnh riêng thì đang mượn ảnh chung của khách để hiện.
-       Thêm một tấm vào đơn mà không giữ lại mấy tấm đang mượn thì chúng biến mất khỏi màn hình
-       — nhìn như vừa làm mất ảnh. Nên chép sẵn đúng những tấm đang hiện vào đơn trước. */
-    if(d.i>=0 && !dich.anh.length){
-      khMoiAnh(r).forEach(function(k){ if(dich.anh.indexOf(k)<0) dich.anh.push(k); });
-    }
+    /* 30/9: khung chi tiết đơn nay CHỈ hiện ảnh của chính đơn đó (không mượn ảnh chung của
+       khách nữa) — nên KHÔNG chép cả bộ ảnh khách vào đơn như trước, không thì mọi tấm của khách
+       bị ghi nhầm nguồn là đơn này. Tấm thêm vào chỉ gắn đúng đơn đang xem. */
     var ds=Array.prototype.slice.call(fs).filter(function(f){ return /^image\//.test(f.type||''); });
     if(!ds.length){ alert('Chỉ nhận file ảnh (jpg, png, webp…).'); return; }
     khBao('dang', '🖼 Đang thêm '+ds.length+' ảnh…', 0);
@@ -12552,28 +12807,51 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         return f.arrayBuffer().then(function(ab){
           return luuAnh(new Uint8Array(ab), f.name).then(function(kq){
             if(kq && kq.key && dich.anh.indexOf(kq.key)<0) dich.anh.push(kq.key);
+            /* Thêm lại đúng tấm đã xóa trước đó → bỏ nó khỏi danh sách "đã xóa". */
+            if(kq && kq.key && r.anhBo){ var vb=r.anhBo.indexOf(kq.key); if(vb>=0) r.anhBo.splice(vb,1); }
+            if(kq && kq.key && d.i>=0) khGhiNguonAnh(r, kq.key, dich.don);
           });
         });
       });
     }, Promise.resolve()).then(function(){
       logLine('🖼 Thêm '+ds.length+' ảnh cho '+r.maKH+(d.i>=0?(' · đơn '+((r.muc[d.i]||{}).don||'')):''));
       khBao('xong', '🖼 Đã thêm '+ds.length+' ảnh', 2.5);
-      khLuuNgam(); khVeLaiAnh(d);
+      khDaSua(); khVeLaiAnh(d);
     }).catch(function(e){
       logErr('khTepAnh', e); khBao('hong', 'Không thêm được ảnh: '+((e&&e.message)||''), 4);
     });
   }
   /* Gỡ một tấm khỏi khách: bỏ ở r.anh VÀ ở mọi đơn của khách, không thì lần vẽ sau nó lại hiện. */
+  /* ===== XÓA ẢNH Ở BƯỚC 7 (sửa 30/9 — user báo "xóa ảnh không hoạt động") =====
+     Từ khi mỗi Mã KH chỉ giữ MỘT bộ ảnh, ảnh nằm ở r.anh chứ không còn ở từng đơn. Nút ✕ trong
+     khung chi tiết của một đơn lại chỉ xóa trong r.muc[i].anh — nơi không còn tấm nào — nên bấm
+     ✕ chẳng có gì xảy ra. Nay xóa ở MỌI chỗ của khách (r.anh · từng đơn · khóa đang giữ chờ),
+     xóa luôn các bản TRÙNG của tấm đó (không thì bản trùng hiện lên thế chỗ, trông như chưa xóa),
+     và GHI NHỚ vào r.anhBo để xử lý lại đơn ở bước 1-6 không gắn tấm đó trở lại.
+     Kho ảnh (imgStore) KHÔNG đụng — bước 6 vẫn dùng chung. */
   function khXoaAnh(key, i, anhKey){
-    var r=(state.khData&&state.khData.kh)?state.khData.kh[key]:null; if(!r) return;
-    var bo=function(o){ if(!o || !o.anh) return 0;
-      var v=o.anh.indexOf(anhKey); if(v<0) return 0; o.anh.splice(v,1); return 1; };
+    var r=(state.khData&&state.khData.kh)?state.khData.kh[key]:null; if(!r || !anhKey) return;
+    var kho=state.imgStore||{}, goc=kho[anhKey], bo={};
+    bo[anhKey]=1;
+    if(goc) khMoiAnh(r).concat(r.anhCho||[]).forEach(function(k){ if(kho[k] && khCungTam(kho[k], goc)) bo[k]=1; });
     var n=0;
-    if(i>=0) n+=bo((r.muc||[])[i]);
-    else { n+=bo(r); (r.muc||[]).forEach(function(m){ n+=bo(m); }); }
+    var loc=function(o, f){ if(!o || !o[f] || !o[f].length) return;
+      var truoc=o[f].length; o[f]=o[f].filter(function(k){ return !bo[k]; }); n+=truoc-o[f].length; };
+    loc(r,'anh'); loc(r,'anhCho');
+    (r.muc||[]).forEach(function(m){ loc(m,'anh'); loc(m,'anhCho'); });
+    r.anhBo=r.anhBo||[];
+    Object.keys(bo).forEach(function(k){ if(r.anhBo.indexOf(k)<0) r.anhBo.push(k); });
     if(!n) return;
     logLine('🖼 Bỏ 1 ảnh khỏi '+r.maKH+(i>=0?(' · đơn '+(((r.muc||[])[i]||{}).don||'')):''));
-    khLuuNgam(); khVeLaiAnh({ key:key, i:i });
+    khDaSua(); khVeLaiAnh({ key:key, i:i });
+  }
+  /* Ảnh người dùng đã XÓA ở bước 7 thì không được gắn lại vào khách (xử lý lại đơn, gom ảnh…). */
+  function khBoAnhDaXoa(r){
+    if(!r || !r.anhBo || !r.anhBo.length) return;
+    var bo={}; r.anhBo.forEach(function(k){ bo[k]=1; });
+    var loc=function(o, f){ if(o && o[f] && o[f].length) o[f]=o[f].filter(function(k){ return !bo[k]; }); };
+    loc(r,'anh'); loc(r,'anhCho');
+    (r.muc||[]).forEach(function(m){ loc(m,'anh'); loc(m,'anhCho'); });
   }
   /* Vẽ lại đúng khung đang mở (bảng chi tiết của đơn hoặc bảng so sánh cả khách). */
   /* ⚠ renderKHTiet kết thúc bằng khCuonToi() — đưa mắt xuống đầu bảng chi tiết. Hợp lý khi vừa
@@ -12635,6 +12913,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var A=gopKhoa(dich.anh, r.anh);       if(A.length) dich.anh=A;
       var C=gopKhoa(dich.anhCho, r.anhCho); if(C.length) dich.anhCho=C;
       if(!khTxt(dich.brand) && khTxt(r.brand)) dich.brand=r.brand;
+      var Bo=gopKhoa(dich.anhBo, r.anhBo);  if(Bo.length) dich.anhBo=Bo;   // ảnh đã xóa vẫn là đã xóa
       if(r.sua){ dich.sua=dich.sua||{};
         Object.keys(r.sua).forEach(function(k){ if(dich.sua[k]==null) dich.sua[k]=r.sua[k]; }); }
       try{ khGomAnhKhach(dich); khTiaMuc(dich); }catch(e){ logErr('khDoiMaKH.don', e); }
@@ -12831,13 +13110,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     /* ⚠ Sắp ghi đè tbody → dời khung chi tiết về chỗ cũ, không thì nó bị xoá theo. */
     try{ khDatTiet(null); }catch(e){ logErr('renderKH.tiet', e); }
     khChuanLai(); khApNhan();
+    try{ veNutLuuKH(); }catch(e){ logErr('renderKH.nutLuu', e); }
     khQuetAnhTrung(function(bo){ if(bo) renderKH(); });   // quét kho ảnh một lần, xong thì vẽ lại
     var d=state.khData, ds=khDsLoc();
     setTxt('kh-count', ds.length);
     var st=document.getElementById('kh-stat');
     if(st){
       if(!d || !d.thuTu.length) st.innerHTML='<span class="mini" style="color:var(--text-3)">'+
-        'Chưa có dữ liệu — bấm “📂 Nạp file” (Check list KH hoặc file tổng hợp Gmail), hoặc kéo thả file vào thanh này.</span>';
+        'Chưa có dữ liệu — bấm “📂 Nạp file” (Check list KH, file tổng hợp Gmail, hoặc đơn gửi xưởng), hoặc kéo thả file vào thanh này.</span>';
       else{
         var soMuc=0, soAnh=0, soMat=0, soNhan=0;
         d.thuTu.forEach(function(k){ var r=d.kh[k]; if(!r) return;
@@ -13111,12 +13391,21 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var m=r?(r.muc||[])[i]:null;
     if(!m){ khDongTiet(); return; }
     var sua=khSuaDuoc();
-    var anhTho=(m.anh&&m.anh.length)?m.anh:khMoiAnh(r);
+    var anhTho=khAnhCuaDon(r, m);
     var anh=khLocAnh(anhTho), anhMat=khAnhMat(anhTho);
     var h='<h4>📋 '+esc(r.maKH)+(khTxt(r.brand)?(' · '+esc(r.brand)):'')+
       ' — đơn '+esc(m.don||'(check list)')+(m.ngay?(' · '+esc(m.ngay)):'')+
       '<button class="btn sm" id="kh-dong" style="float:right">✕ Đóng</button>'+
       '<button class="btn sm" id="kh-ss" style="float:right;margin-right:6px">🆚 So sánh cả khách</button></h4>';
+    /* THANH CHUYỂN ĐƠN (user chốt 30/9): đang xem một đơn muốn sang đơn khác của cùng khách
+       thì bấm thẳng ở đây, khỏi quay về bấm Mã KH mở bảng so sánh rồi chọn lại. */
+    if((r.muc||[]).length>1){
+      h+='<div class="kh-dsdon">'+(r.muc||[]).map(function(x, ix){
+        return '<button class="kh-chip'+(ix===i?' kh-chip-on':'')+'" data-khmo3="'+ix+'"'+
+          (ix===i?' disabled':'')+' title="Xem đơn này">'+esc(x.don||'(check list)')+
+          (x.ngay?('<span class="kh-ng3">'+esc(x.ngay)+'</span>'):'')+'</button>';
+      }).join('')+'</div>';
+    }
     h+='<div class="kh-luoi">';
     h+=khKhoiKeo(m, sua, i);
     /* Thứ tự user chốt 30/9 (bản sau):
@@ -13137,13 +13426,22 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '<span class="mini" style="font-weight:400;color:var(--text-3)">— bấm để xem to, lật bằng ← →'+
       (sua?', kéo thả ảnh vào đây cũng được':'')+'</span>'+khNutThemAnh(i)+'</h5>'+
       (anhMat?khNhanMatAnh(anhMat):'')+
-      '<div class="kh-anhluoi">'+anh.map(function(k2,i2){ return khAnhTag(k2, anh, i2, sua); }).join('')+'</div></div>';
+      '<div class="kh-anhluoi">'+anh.map(function(k2,i2){ return khAnhTag(k2, anh, i2, sua); }).join('')+'</div>'+
+      /* Đơn cũ (nạp từ file tổng hợp Gmail) không ghi được tấm nào thuộc đơn nào → đơn trống ảnh,
+         nhưng bộ ảnh của khách vẫn còn nguyên — chỉ đường cho khỏi tưởng mất ảnh. */
+      ((!anh.length && khMoiAnh(r).length)
+        ? '<div class="mini" style="color:var(--text-3)">Đơn này chưa ghi nhận ảnh riêng — bộ '+
+          khLocAnh(khMoiAnh(r)).length+' ảnh của khách xem ở 🆚 So sánh cả khách.</div>' : '')+
+      '</div>';
     box.innerHTML=h; box.style.display=''; box.setAttribute('data-khview','don'); khCuonToi(box);
     box.setAttribute('data-khk', key); box.setAttribute('data-khi', String(i));
     var nd=document.getElementById('kh-dong');
     if(nd) nd.addEventListener('click', khDongTiet);
     var nss=document.getElementById('kh-ss');
     if(nss) nss.addEventListener('click', function(){ renderKHTiet(key); });
+    Array.prototype.forEach.call(box.querySelectorAll('[data-khmo3]'), function(b){
+      b.addEventListener('click', function(){ renderKHDon(key, +b.getAttribute('data-khmo3')); });
+    });
   }
   function khTaiXlsx(){
     if(needXLSX(khTaiXlsx)) return;
@@ -13420,10 +13718,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(!document.getElementById('kh-thanh')) return;
     var dz=document.getElementById('kh-thanh'), fi=document.getElementById('kh-input');
     var doc=function(file){
-      if(!file) return;
+      return new Promise(function(xong){
+      if(!file) return xong();
       if(!/\.(xlsx|xlsm|xls)$/i.test(file.name)){
         khBao('hong', 'Cần file Excel (.xlsx) — "'+file.name+'" không phải.', 8);
-        return alert('Cần file Excel (.xlsx).');
+        alert('Cần file Excel (.xlsx).'); return xong();
       }
       khBao('dang', 'Đang đọc "'+file.name+'"… file lớn có thể mất một lúc, đừng đóng trang.');
       var rd=new FileReader();
@@ -13432,26 +13731,36 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         /* Đọc file khóa luồng chính, nên phải để trình duyệt VẼ XONG dòng "đang đọc" rồi
            mới bắt đầu — không thì người ta bấm nạp mà màn hình đứng im, tưởng app treo. */
         requestAnimationFrame(function(){ setTimeout(function(){
-          try{ khNapFile(ab, file.name); }
+          var kq=null;
+          try{ kq=khNapFile(ab, file.name); }
           catch(e){
             logErr('khNapFile', e);
             khBao('hong', 'Không đọc được "'+file.name+'": '+(e&&e.message||e), 12);
             alert('Không đọc được file: '+(e&&e.message||e));
           }
+          Promise.resolve(kq).then(function(){ xong(); }, function(e){ logErr('khNapFile.hua', e); xong(); });
         }, 30); });
       };
-      rd.onerror=function(){ khBao('hong', 'Không mở được "'+file.name+'".', 10); };
+      rd.onerror=function(){ khBao('hong', 'Không mở được "'+file.name+'".', 10); xong(); };
       rd.readAsArrayBuffer(file);
+      });
+    };
+    /* Nhiều file một lần (vd cả chục đơn gửi xưởng) → đọc LẦN LƯỢT, xong file này mới tới file kia. */
+    var docNhieu=function(ds){
+      ds=Array.prototype.slice.call(ds||[]);
+      return ds.reduce(function(ch, f){ return ch.then(function(){ return doc(f); }); }, Promise.resolve());
     };
     document.getElementById('kh-choose').addEventListener('click', function(){ fi.click(); });
-    fi.addEventListener('change', function(){ var f=(fi.files||[])[0]; fi.value=''; doc(f); });
+    fi.addEventListener('change', function(){ var ds=Array.prototype.slice.call(fi.files||[]); fi.value=''; docNhieu(ds); });
     ['dragover','dragenter'].forEach(function(t){ dz.addEventListener(t, function(e){ e.preventDefault(); dz.classList.add('keo'); }); });
     ['dragleave','drop'].forEach(function(t){ dz.addEventListener(t, function(e){ e.preventDefault(); dz.classList.remove('keo'); }); });
-    dz.addEventListener('drop', function(e){ doc(((e.dataTransfer||{}).files||[])[0]); });
+    dz.addEventListener('drop', function(e){ docNhieu((e.dataTransfer||{}).files||[]); });
     ['kh-filter','kh-filter-don'].forEach(function(id){
       var el=document.getElementById(id); if(el) el.addEventListener('input', function(){ renderKH(); });
     });
     /* Hai nút lọc loại đơn: bấm lần nữa vào nút đang bật là tắt lọc, về xem hết. */
+    var nLuuKH=document.getElementById('kh-luu');
+    if(nLuuKH) nLuuKH.addEventListener('click', khBamLuu);
     ['kh-loai-p','kh-loai-s'].forEach(function(id){
       var el=document.getElementById(id); if(!el) return;
       el.addEventListener('click', function(){
@@ -13476,7 +13785,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(!confirm('Xóa toàn bộ dữ liệu khách hàng đang có?\n\nBấm "▶ Xử lý" ở bước 1 là dựng lại được phần lấy từ đơn; '+
         'phần nạp từ Check list KH và file tổng hợp thì phải nạp lại file.')) return;
       state.khData=khRong(); renderKH(); renderKHTiet(null);
-      logLine('🗂 Đã xóa dữ liệu khách hàng'); khLuuNgam();
+      logLine('🗂 Đã xóa dữ liệu khách hàng'); khDaSua();
     });
     var moAnh=function(im){
       var ds=(im.getAttribute('data-kh-ds')||'').split(',').filter(Boolean);
@@ -13554,7 +13863,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         if(kq==='giu'){ td.textContent=ten; return; }   // bỏ trống / không đổi → trả lại chữ cũ
         logLine(kq==='gop' ? ('🗂 Gộp Mã KH: '+ten+' → '+moi+' (đơn và ảnh mang theo hết)')
                            : ('🗂 Đổi Mã KH: '+ten+' → '+moi));
-        khDongTiet(); renderKH(); khLuuNgam();
+        khDongTiet(); renderKH(); khDaSua();
         return;
       }
       if(KH_COT_KH[f]){                               // Brand gắn theo KHÁCH, không theo đơn
@@ -13572,7 +13881,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         r.sua[f]=moi;                              // xoá trắng cũng là một lựa chọn, phải giữ
       }
       logLine('🗂 Sửa dữ liệu khách hàng: '+r.maKH+' · '+f);
-      khLuuNgam();
+      khDaSua();
     });
     var tiet=document.getElementById('kh-tiet');
     if(tiet) tiet.addEventListener('click', function(e){
@@ -13623,7 +13932,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       m3[f3]=moi3;
       m3.suaTay=m3.suaTay||{}; m3.suaTay[f3]=1;
       logLine('🗂 Sửa dữ liệu khách hàng: '+r3.maKH+' · đơn '+(m3.don||'')+' · '+f3);
-      khLuuNgam();
+      khDaSua();
     });
     /* SỬA BẢNG KEO ở bước 7 → chỉ ghi vào đơn đó trong dữ liệu khách hàng. */
     if(tiet) tiet.addEventListener('focusout', function(e){
@@ -13648,7 +13957,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         tb.querySelector('tbody').appendChild(tmp.firstChild);
       }
       logLine('🗂 Sửa bảng keo (bước 7): '+r.maKH+' · đơn '+(m.don||''));
-      khLuuNgam();
+      khDaSua();
     });
     if(tiet) tiet.addEventListener('focusout', function(e){
       var o=e.target.closest ? e.target.closest('[data-khf2]') : null; if(!o) return;
@@ -13660,7 +13969,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       m[f]=moi;
       m.suaTay=m.suaTay||{}; m.suaTay[f]=1;
       logLine('🗂 Sửa dữ liệu khách hàng: '+r.maKH+' · đơn '+(m.don||'')+' · '+f);
-      renderKH(); khLuuNgam();
+      renderKH(); khDaSua();
     });
     var lb=document.getElementById('kh-lightbox');
     if(lb){
@@ -13816,14 +14125,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1711260000"></script>
-<script src="cl.sync.js?v=1711260000"></script>
-<script src="auth.store.js?v=1711260000"></script>
-<script src="auth.web.js?v=1711260000"></script>
+<script src="cl.config.js?v=1711860000"></script>
+<script src="cl.sync.js?v=1711860000"></script>
+<script src="auth.store.js?v=1711860000"></script>
+<script src="auth.web.js?v=1711860000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1711260000"></script>
+<script src="cl.project.js?v=1711860000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1711260000" defer></script>
+<script src="firebase-bridge.js?v=1711860000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
