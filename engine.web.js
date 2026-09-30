@@ -255,6 +255,11 @@
     else curlKeys.forEach(function (k) {
       if (CURLS.indexOf(k) < 0) push('curl', 'E-CURL', 'error', 'Độ cong "' + k + '" không hợp lệ');
     });
+    /* ===== ĐỘ CONG LD MÀ 22 LINE (user chốt 30/9) =====
+       Tiêu chuẩn sản xuất: LD không đi với dải 22 line. Đơn khách vẫn có thể ghi vậy nên chỉ
+       CẢNH BÁO (vàng) để người nhập soi lại, không chặn sinh dữ liệu như lỗi đỏ. */
+    if (curlKeys.indexOf('LD') >= 0 && Number(o.line) === 22)
+      push('curl', 'W-LD22', 'warn', 'Độ cong LD đi với 22 line — kiểm lại tiêu chuẩn sản xuất');
     if (!(o.sl > 0)) push('sl', 'E-SL', 'error', 'Số lượng phải > 0');
     if (!o.label) push('label', 'W-LBL', 'warn', 'Thiếu nội dung nhãn — điền theo quy chuẩn KH');
     return errs;
@@ -1312,6 +1317,23 @@
       .join('\n');
   }
   function themTH(code) { return themXuong(code, 'TH'); }
+  /* ===== ĐUÔI "K2" / "K3" — ĐÁNH DẤU DÒNG ĂN KEO TRÁI LỆ THƯỜNG (user chốt 28/9) =====
+     Cùng một độ dài mà hai dòng dùng hai mã keo khác nhau thì xưởng rất dễ cuốn nhầm: lệ
+     thường 9-13mm là keo 3mm, nhưng đơn 817P khách fix cho dải 6-12mm ăn keo 2mm. Dòng nào
+     khách fix TRÁI với quy tắc trong Bảng Keo thì code sợi mang thêm đuôi "-K" + số đuôi mã
+     keo (XanhLX70.2 → "-K2", Vang80.3 → "-K3"), để nhìn code là biết ngay phải lấy keo nào.
+     Mã keo không có số đuôi thì KHÔNG bịa đuôi ra. */
+  function duoiKeo(glue) {
+    var m = String(glue == null ? '' : glue).trim().match(/\.(\d+)\s*$/);
+    return m ? ('K' + m[1]) : '';
+  }
+  function themDuoi(code, duoi) {
+    if (!duoi) return code;
+    var re = new RegExp('-' + duoi + '$');
+    return String(code == null ? '' : code).split(/\r?\n/)
+      .map(function (x) { x = x.trim(); return x ? (re.test(x) ? x : x + '-' + duoi) : x; })
+      .join('\n');
+  }
   function themNC(code) {
     return String(code == null ? '' : code).split(/\r?\n/)
       .map(function (x) { x = x.trim(); return x ? (/-NC$/.test(x) ? x : x + '-NC') : x; })
@@ -1364,6 +1386,11 @@
            không được đụng tới luật độ cong đặc biệt (nếu không đơn 794P mất dòng "-NC"). */
         var _c2 = { maDon: r.maDon, material: r.material || '', thickness: r.thickness, mm: r.mm,
                     codeSoi: r.codeSoi, detail: r.detail, loaiHang: r.loaiHang, label: r.label, ghiChu: r.ghiChu };
+        /* Keo fix KHÁC với quy tắc trong Bảng Keo → dòng này ăn keo trái lệ thường, đánh dấu. */
+        if (keoRules && keoRules.length) {
+          var _kLuat = glueFor(keoRules, Object.assign({}, _c2, { curlNhom: false }));
+          if (_kLuat && _kLuat !== k1) g.duoiKeo = duoiKeo(k1);
+        }
         k2 = (keoRules && keoRules.length)
           ? (glueForCurlOnly(keoRules, _c2) || glueForShort(keoRules, _c2) || keoMmNgan(r.keoMm) || k1)
           : (keoMmNgan(r.keoMm) || k1);
@@ -1453,7 +1480,11 @@
           if (isOverrideCurl(k)) { ovrC[k] = v; normC[k] = 0; ovrTot += v; if (v) hasOvr = true; }
           else { normC[k] = v; ovrC[k] = 0; normTot += v; }
         });
-        var base = { maDon: c.maDon, codeSoi: codeHien, xuongTH: !!c.xuongTH, xuongMa: c.xuongMa || '', length: g.length,
+        /* Dòng ăn keo trái lệ thường → code sợi mang đuôi "-K2"/"-K3" ngay trước đuôi xưởng. */
+        /* Dòng "-NC" (độ cong LB/LC/LJ/LC+) KHÔNG gắn thêm đuôi keo: đuôi -NC đã nói rõ vì sao
+           dòng đó ăn keo khác rồi, chồng thêm "-K2" chỉ làm mã sợi dài ra mà không thêm gì. */
+        var codeDong = (g.duoiKeo && !_laNC) ? themXuong(themDuoi(c.codeSoi, g.duoiKeo), c.xuongMa) : codeHien;
+        var base = { maDon: c.maDon, codeSoi: codeDong, xuongTH: !!c.xuongTH, xuongMa: c.xuongMa || '', length: g.length,
                      lengths: (g.lengths && g.lengths.length ? g.lengths.slice().sort() : [g.length]),
                      mm: g.mm, box: m.box || '—', mixSingle: g.mixSingle || m.mixSingle || 'Mix',
                      material: g.material || m.material || '', thickness: g.thickness || m.thickness || '', multiMat: multiMat, cmix: !!g.cmix, keoAmb: !!g.keoAmb, hlLech: g.hlLech || null };
