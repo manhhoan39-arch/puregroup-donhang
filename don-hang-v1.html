@@ -676,7 +676,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1711160000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1711260000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1302,9 +1302,21 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 .kh-vb[contenteditable="true"]{outline:1px dashed rgba(232,24,92,.22);outline-offset:2px;
   min-height:16px;cursor:text}
 .kh-vb[contenteditable="true"]:focus{outline:2px solid var(--accent)}
-table.kh-tk{width:100%;font-size:11.5px}
-table.kh-tk th{background:#BCE9A4;color:#16202B;padding:3px 5px;text-align:left}
-table.kh-tk td{padding:3px 5px;vertical-align:top}
+/* Ba cột CỐ ĐỊNH (colgroup trong khBangKeo): trước đây bảng tự co giãn theo chữ, đơn nào
+   có Độ dài dài ("4-18mm, cho hàng nâu từ 8 đến 14mm") là cột Độ dày bị ép còn một vệt,
+   tiêu đề "ĐỘ DÀY" bẻ từng chữ xuống dòng — mỗi đơn một kiểu (user báo 573P · 375P, 30/9). */
+table.kh-tk{width:100%;font-size:11.5px;table-layout:fixed}
+table.kh-tk th{background:#BCE9A4;color:#16202B;padding:3px 5px;text-align:left;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+table.kh-tk td{padding:3px 5px;vertical-align:top;white-space:normal;word-break:break-word}
+/* Bảng keo nằm TRONG bảng so sánh: đừng ăn luật tiêu đề của bảng so sánh (dính khi cuộn,
+   nền xanh dương) — dùng đúng nền xanh lá như bảng keo ở khung chi tiết. */
+table.kh-ss table.kh-tk th{position:static;background:#BCE9A4;z-index:auto}
+/* ⚠ Khung chi tiết/so sánh nằm TRONG bảng #eng-khdata, nên luật "#eng-khdata thead th"
+   (dính khi cuộn · white-space:normal · word-break:break-word) — mạnh hơn mọi luật theo lớp —
+   lan vào cả bảng keo con: chính nó bẻ "ĐỘ DÀY" thành từng chữ. Chặn lại bằng id. */
+#eng-khdata table.kh-tk thead th,#kh-tiet table.kh-tk thead th{position:static;top:auto;z-index:auto;
+  background:#BCE9A4;white-space:nowrap;word-break:normal;overflow:hidden;text-overflow:ellipsis}
 table.kh-tk th.kh-so,table.kh-tk td.kh-so{text-align:right}
 .kh-khuanh{margin-top:10px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--bg-1)}
 .kh-khuanh h5{margin:0 0 6px;font-size:11.5px;color:var(--accent);font-weight:800}
@@ -1380,7 +1392,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1711160000"></script>
+<script src="engine.web.js?v=1711260000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -3955,6 +3967,21 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         for(var c9=0;c9<rw9.length && hr<0;c9++){
           if(_tdc(rw9[c9]).indexOf('bang do cong')!==0) continue;
           for(var c8=c9+1;c8<Math.min(rw9.length,c9+6);c8++){ if(low(rw9[c8])==='ghi chu'){ hr=r9; hc=c9; break; } }
+        }
+      }
+    }
+    /* Mẫu đơn mới (K21-841P, user gửi 30/9) KHÔNG ghi chữ "Bảng Độ Cong" mà chỉ ghi "Curl" ở
+       ô K25, ngay cạnh "Ghi Chú" ở L25 và nằm cùng hàng với "Bảng Hộp". Không nhận ra thì cả
+       bảng độ cong (A-2022 · "Độ cong đặc biệt…") bị bỏ qua. Chỉ nhận khi ô đó ĐÚNG CHỮ
+       "Curl" / "Độ cong" / "Bảng cong" VÀ bên phải cùng hàng (trong 6 cột) có "Ghi Chú" —
+       chữ "curl" nằm lẻ ở chỗ khác trong đơn không bị bắt nhầm. */
+    if(hr<0){
+      var _tenCurl={ 'curl':1, 'curls':1, 'do cong':1, 'bang cong':1 };
+      for(var r7=0;r7<A.length && hr<0;r7++){
+        var rw7=A[r7]||[];
+        for(var c7=0;c7<rw7.length && hr<0;c7++){
+          if(!_tenCurl[_tdc(rw7[c7])]) continue;
+          for(var c6=c7+1;c6<Math.min(rw7.length,c7+7);c6++){ if(low(rw7[c6])==='ghi chu'){ hr=r7; hc=c7; break; } }
         }
       }
     }
@@ -13016,7 +13043,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       return khDongKeoTag(khTxt(dd[i]||''), khTxt(k), khTxt(dl[i]||''), iMuc, i, sua);
     }).join('');
     if(sua) tr+=khDongKeoTag('', '', '', iMuc, mk.length, sua);        // dòng trống để thêm keo
-    return '<table class="sheet kh-tk"><thead><tr><th class="kh-so">Độ dày</th><th>Mã keo</th>'+
+    return '<table class="sheet kh-tk"><colgroup><col style="width:24%"><col style="width:34%"><col></colgroup>'+
+      '<thead><tr><th class="kh-so">Độ dày</th><th>Mã keo</th>'+
       '<th>Độ dài</th></tr></thead><tbody'+(sua?' data-gs="1"':'')+'>'+tr+'</tbody></table>';
   }
   /* Đọc lại cả bảng keo vừa sửa → ba chuỗi thẳng hàng từng dòng. Dòng trống sạch thì bỏ. */
@@ -13788,14 +13816,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1711160000"></script>
-<script src="cl.sync.js?v=1711160000"></script>
-<script src="auth.store.js?v=1711160000"></script>
-<script src="auth.web.js?v=1711160000"></script>
+<script src="cl.config.js?v=1711260000"></script>
+<script src="cl.sync.js?v=1711260000"></script>
+<script src="auth.store.js?v=1711260000"></script>
+<script src="auth.web.js?v=1711260000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1711160000"></script>
+<script src="cl.project.js?v=1711260000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1711160000" defer></script>
+<script src="firebase-bridge.js?v=1711260000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
