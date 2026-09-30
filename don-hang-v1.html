@@ -676,7 +676,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1710760000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1710860000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1365,7 +1365,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1710760000"></script>
+<script src="engine.web.js?v=1710860000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -11027,7 +11027,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     ['doDay',   'Độ dày',       'KEO',  150, 'g-line'],
     ['keo',     'Mã keo',       'KEO',  104, 'g-line'],
     ['doDai',   'Độ dài',       'KEO',  152, 'g-line'],
-    ['doCong',  'Bảng độ cong', '',     150, 'g-cuon'],
+    ['congGhi', 'Bảng độ cong', '',     170, 'g-cuon'],
     ['hopThung','Thùng và hộp', '',     300, 'g-box'],
     ['noiDung', 'Nội dung',     '',     0,   'g-box'],
   ];
@@ -11041,6 +11041,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      dưới bảng so sánh, sau dòng Chú ý. */
   /* Trường KHÔNG hiện trên bảng nhưng vẫn giữ — xem/sửa ở bảng chi tiết của mã đơn. */
   var KH_COT_AN = [
+    /* doCong + doCongGhi vẫn được gộp theo khách như mọi trường khác — cột trên bảng chỉ là
+       chỗ HIỆN hai thứ đó chung một ô (congGhi), còn dữ liệu vẫn nằm riêng để sửa đúng chỗ. */
+    ['doCong',    'Bảng độ cong'],
     ['doCongGhi', 'Ghi chú độ cong'],
     ['mixMulti',  'Mix / Multi color'],
     ['laserFans', 'Laser / Fans'],
@@ -11051,9 +11054,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      "Chú ý" bỏ khỏi mọi bảng (user chốt 26/9) vì Nội dung đã nói đủ — dữ liệu cũ vẫn
      giữ nguyên trong project, chỉ không hiện ra nữa. */
   var KH_HOP_GOM = ['loaiHop', 'thungHop'];
-  function khHopThung(m){
+  /* Tên bảng độ cong đi liền với GHI CHÚ của nó (user chốt 30/9): nhìn mỗi "C-2024" mà không
+     thấy "Check lại bảng cong vs sale" thì thiếu mất nửa câu chuyện. Gộp y như Thùng và hộp —
+     bảng chi tiết của đơn vẫn giữ hai ô riêng để sửa cho đúng chỗ. */
+  var KH_CONG_GOM = ['doCong', 'doCongGhi'];
+  function khGopCot(m, ds){
     var ra=[], co={};
-    KH_HOP_GOM.forEach(function(f){
+    ds.forEach(function(f){
       khDong(m[f]).forEach(function(l){
         var v=khTxt(l); if(!v || co[v]) return;
         co[v]=1; ra.push(v);
@@ -11061,8 +11068,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     });
     return ra.join('\n');
   }
+  function khHopThung(m){ return khGopCot(m, KH_HOP_GOM); }
+  function khCongGhi(m){ return khGopCot(m, KH_CONG_GOM); }
   /* Giá trị đem ra hiển thị: cột gộp thì dựng tại chỗ, cột thường lấy thẳng. */
-  function khGiaTri(m, f){ return f==='hopThung' ? khHopThung(m) : m[f]; }
+  function khGiaTri(m, f){
+    if(f==='hopThung') return khHopThung(m);
+    if(f==='congGhi')  return khCongGhi(m);
+    return m[f];
+  }
   /* Cột chỉ chứa SỐ thì canh phải, còn lại canh trái — đọc cho thẳng hàng như bảng Excel. */
   var KH_COT_SO = { doDay:1 };
   /* Hai cột keo còn lại cũng phải giữ mỗi mục một dòng cho thẳng hàng với Độ dày. */
@@ -11077,7 +11090,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      (user chốt 25/9). */
   var KH_SS = [['__keo', 'Thông tin keo', '', 0, '']]
     .concat(KH_COT_DU.filter(function(c){ return ['maKH','don','brand','doDay','keo','doDai'].indexOf(c[0])<0; }))
-    .concat(KH_COT_AN.map(function(c){ return [c[0], c[1], '', 0, '']; }));
+    /* doCong · doCongGhi đã nằm chung trong hàng "Bảng độ cong" (congGhi) → không xếp thêm
+       hai hàng lẻ nữa, không thì cùng một chữ hiện hai lần. */
+    .concat(KH_COT_AN.filter(function(c){ return ['doCong','doCongGhi'].indexOf(c[0])<0; })
+                     .map(function(c){ return [c[0], c[1], '', 0, '']; }));
   /* nhan = SỔ TAY TRA NHÃN HIỆU dựng từ tờ Check list (Mã KH → cột "Khách hàng").
      Giữ riêng khỏi từng bản ghi để đơn nạp SAU vẫn tra ra được, và đi theo project. */
   function khRong(){ return { file:'', napLuc:0, kh:{}, thuTu:[], nhan:{} }; }
@@ -12332,6 +12348,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     });
     ['sale','khach','mail','loaiHop','thungHop','chuY'].forEach(function(f){ m[f]=khGopChu(ds, f); });
     m.hopThung = khHopThung(m);
+    m.congGhi  = khCongGhi(m);
     m.anh = khMoiAnh(r);
     /* Ô super admin sửa tay trên BẢNG MÃ KH ghi vào r.sua — dòng bảng là dòng GỘP, không
        nằm trong r.muc, nên phải giữ riêng rồi đè lên sau khi gộp, không thì render lại
@@ -12664,7 +12681,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           (soMat?(khDangLayAnh
             ? '<span style="color:var(--text-3)"> · ⏳ đang lấy '+soMat+' ảnh từ máy chủ…</span>'
             : '<span style="color:var(--red-600)"> · ⚠ '+soMat+' ảnh chưa tra được trong kho, nạp lại file để có</span>'):'')+
-          (function(){ var c=khDemCho(); return c? '<span class="mini" style="color:var(--text-3)"> · 🗂 '+c+' khóa ảnh đang giữ chờ</span>':''; })();
+          (function(){ var c=khDemCho(); return c? '<span class="mini" style="color:var(--text-3)"> · 🗂 '+c+' khóa ảnh đang giữ chờ</span>':''; })()+
+          /* Nhắc cách dùng: user 30/9 tưởng bảng "chưa có chức năng chỉnh sửa, copy paste" vì
+             bấm một lần vào ô thì chỉ thấy bôi đen — đúng luật chung của mọi bảng trong app
+             (bấm 1 lần = chọn để tính Σ · copy; bấm ĐÚP mới mở ô ra gõ). Ghi thẳng ra cho khỏi mò. */
+          (khSuaDuoc()? '<span class="mini" style="color:var(--text-3)"> · ✏ bấm 1 lần = chọn ô '+
+            '(Ctrl+C / Ctrl+V dán cả khối) · bấm ĐÚP = sửa</span>' : '');
         /* Thiếu ảnh thì TỰ đi lấy ngay, không chờ ai bấm gì. Xin xong mà vẫn thiếu thì mấy
            khóa đó là mồ côi thật — dọn đi cho hết báo động giả rồi vẽ lại. */
         if(soMat){
@@ -12789,7 +12811,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         if(c[0]==='__keo') return '<td>'+(khBangKeo(m)||'<span class="mini">—</span>')+'</td>';
         /* Cột gộp "Thùng và hộp" dựng tại chỗ từ 2 trường nên KHÔNG sửa thẳng ở đây được —
            sửa ở khung chi tiết của đơn, chỗ có đủ hai ô riêng. */
-        var suaO = suaSS && c[0]!=='hopThung';
+        var suaO = suaSS && c[0]!=='hopThung' && c[0]!=='congGhi';
         return '<td'+(suaO?(' contenteditable="true" data-khf3="'+c[0]+'" data-khi3="'+im+'"'):'')+
                '><div class="kh-cell">'+esc(khTxt(khGiaTri(m, c[0])))+'</div></td>';
       }).join('');
@@ -12897,7 +12919,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
                  [['Mix / Multi color','mixMulti'],['Laser / Fans','laserFans']], m, sua);
     h+=khKhoiGom('📏 Bảng độ cong', [['','doCong'],['Ghi chú độ cong','doCongGhi']], m, sua);
     h+=khKhoiGom('📦 Thùng và hộp', [['Loại hộp','loaiHop'],['Cách đóng thùng','thungHop']], m, sua);
-    h+=khKhoiGom('📄 Nội dung', [['','noiDung']], m, sua, 1);
+    /* Nội dung về ĐÚNG Ô TRỐNG bên phải Thùng và hộp (user chốt 30/9) — trước để trải hết bề
+       ngang nên dưới khung hở một mảng to. Không truyền cờ "rộng" nữa là nó lấp đúng ô đó. */
+    h+=khKhoiGom('📄 Nội dung', [['','noiDung']], m, sua);
     h+='</div>';
     if(anh.length || anhMat || sua) h+='<div class="kh-the" style="margin-top:8px" data-kh-tha="'+i+'">'+
       '<h5>🖼 Hình ảnh · '+anh.length+' ảnh '+
@@ -13543,14 +13567,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1710760000"></script>
-<script src="cl.sync.js?v=1710760000"></script>
-<script src="auth.store.js?v=1710760000"></script>
-<script src="auth.web.js?v=1710760000"></script>
+<script src="cl.config.js?v=1710860000"></script>
+<script src="cl.sync.js?v=1710860000"></script>
+<script src="auth.store.js?v=1710860000"></script>
+<script src="auth.web.js?v=1710860000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1710760000"></script>
+<script src="cl.project.js?v=1710860000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1710760000" defer></script>
+<script src="firebase-bridge.js?v=1710860000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
