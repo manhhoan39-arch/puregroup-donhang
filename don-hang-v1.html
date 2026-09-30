@@ -676,7 +676,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1711060000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1711160000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1281,10 +1281,14 @@ tr.subtotal.cl-throw > td{ background:#FFE9B3; }
 .kh-luoi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:stretch;width:100%}
 .kh-luoi>.kh-the:first-child{grid-column:span 2}
 .kh-luoi>.kh-the.kh-w2{grid-column:span 2}
-@media(max-width:1100px){ .kh-luoi{grid-template-columns:repeat(2,minmax(0,1fr))} }
+/* Nội dung kéo rộng sang tận dưới cột Bảng độ cong (3 cột), Phân loại thu về bằng Thùng và
+   hộp (1 cột) — user chốt 30/9. */
+.kh-luoi>.kh-the.kh-w3{grid-column:span 3}
+@media(max-width:1100px){ .kh-luoi{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kh-luoi>.kh-the.kh-w3{grid-column:1/-1} }
 @media(max-width:700px){
   .kh-luoi{grid-template-columns:1fr}
-  .kh-luoi>.kh-the:first-child,.kh-luoi>.kh-the.kh-w2{grid-column:auto}
+  .kh-luoi>.kh-the:first-child,.kh-luoi>.kh-the.kh-w2,.kh-luoi>.kh-the.kh-w3{grid-column:auto}
 }
 .kh-the{border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:var(--bg-1)}
 .kh-the h5{margin:0 0 5px;font-size:11.5px;color:var(--accent);font-weight:800}
@@ -1376,7 +1380,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1711060000"></script>
+<script src="engine.web.js?v=1711160000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -11486,7 +11490,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       r.muc.forEach(function(x){ if(khKhoa(khDonGoc(x.don))===dk && khHonHan(x, m)) daCo=x; });
       if(daCo){ khBoQua++; return r; }
     }
-    if(i>=0) r.muc[i]=m; else r.muc.push(m);
+    if(i>=0) r.muc[i]=khGiuSuaTay(m, r.muc[i]); else r.muc.push(m);
     r.muc.sort(function(a,b){
       var na=String(a.ngay||''), nb=String(b.ngay||'');
       return na<nb?1:na>nb?-1:0;                                   // mới nhất lên trước
@@ -11525,8 +11529,23 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   var KH_TRUONG_GOP = ['brand','doCong','doCongGhi','dienGiai','mixMulti','laserFans','loaiHop',
                        'ghiChuHop','thungHop','noiDung','chuY','tieuDe','sale','khach','mail','ngay'];
   var KH_GOP_KEO3 = ['doDay','keo','doDai'];
+  /* Chép những ô người dùng đã SỬA TAY ở bước 7 từ bản cũ sang bản mới. Xử lý lại đơn ở
+     bước 1-6 dựng bản mới từ file, nhưng chỗ đã sửa tay ở bước 7 phải giữ nguyên — dữ liệu
+     khách hàng chạy ĐỘC LẬP (user chốt 30/9). */
+  function khGiuSuaTay(moi, cu){
+    if(!moi || !cu || !cu.suaTay) return moi;
+    var daSua=moi.suaTay||{};                      // bản mới cũng đã sửa tay ô đó → giữ bản mới
+    Object.keys(cu.suaTay).forEach(function(f){
+      if(daSua[f]) return;
+      if(f==='__keo'){ moi.doDay=cu.doDay; moi.keo=cu.keo; moi.doDai=cu.doDai; }
+      else moi[f]=cu[f];
+    });
+    moi.suaTay=Object.assign({}, moi.suaTay||{}, cu.suaTay);
+    return moi;
+  }
   function khGopHaiDon(giu, bo){
     if(!giu || !bo) return giu || bo;
+    khGiuSuaTay(giu, bo);
     KH_TRUONG_GOP.forEach(function(f){ if(!khTxt(giu[f]) && khTxt(bo[f])) giu[f]=bo[f]; });
     if(!KH_GOP_KEO3.some(function(f){ return khTxt(giu[f]); }))
       KH_GOP_KEO3.forEach(function(f){ if(khTxt(bo[f])) giu[f]=bo[f]; });
@@ -12777,6 +12796,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     window.__gopTrung = gopAnhTrung;
     window.__anhDonHtml = anhDonHtml;   // bộ kiểm thử: mở khung ảnh bước 6 là phải tự gắn lại
     window.__khDemCho = khDemCho;
+    window.__khThemMucThu = khThemMuc;  // bộ kiểm thử: xử lý lại đơn không đè chỗ sửa tay ở bước 7
     window.__khXinXong= function(v){ khDaXinAnh=(v!==false); khDangLayAnh=false; };
     /* Bộ kiểm thử gọi thẳng: __boSungAnh(md) mở hộp chọn file như người dùng bấm nút;
        __boSungAnh(md, file) thì bỏ qua hộp chọn (máy kiểm thử không lái được ô file ẩn). */
@@ -12806,13 +12826,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           (soMat?(khDangLayAnh
             ? '<span style="color:var(--text-3)"> · ⏳ đang lấy '+soMat+' ảnh từ máy chủ…</span>'
             : '<span style="color:var(--red-600)"> · ⚠ '+soMat+' ảnh chưa tra được trong kho, nạp lại file để có</span>'):'')+
-          (function(){ var c=khDemCho(); return c? '<span class="mini" style="color:var(--text-3)"> · 🗂 '+c+' khóa ảnh đang giữ chờ</span>':''; })()+
-          /* Nhắc cách dùng: user 30/9 tưởng bảng "chưa có chức năng chỉnh sửa, copy paste" vì
-             bấm một lần vào ô thì chỉ thấy bôi đen — đúng luật chung của mọi bảng trong app
-             (bấm 1 lần = chọn để tính Σ · copy; bấm ĐÚP mới mở ô ra gõ). Ghi thẳng ra cho khỏi mò. */
-          (khSuaDuoc()? '<span class="mini" style="color:var(--text-3)"> · ✏ bấm 1 lần vào ô là '+
-            'SỬA được luôn · kéo chọn khối rồi Ctrl+C / Ctrl+V · riêng Mã KH bấm ĐÚP mới sửa'+
-            '</span>' : '');
+          /* Bỏ "🗂 N khóa ảnh đang giữ chờ" và dòng nhắc cách sửa (user chốt 30/9: không cần
+             ghi chú). Dữ liệu ảnh giữ chờ vẫn nguyên, chỉ không in ra nữa. */
+          '';
         /* Thiếu ảnh thì TỰ đi lấy ngay, không chờ ai bấm gì. Xin xong mà vẫn thiếu thì mấy
            khóa đó là mồ côi thật — dọn đi cho hết báo động giả rồi vẽ lại. */
         if(soMat){
@@ -12861,7 +12877,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     /* Đang mở khung của khách nào thì vẽ lại xong đưa nó về đúng dòng đó. */
     try{
       var bx=document.getElementById('kh-tiet');
-      if(bx && bx.style.display!=='none' && bx.innerHTML) khDatTiet(khTimDong(bx.getAttribute('data-khk')));
+      if(bx && bx.style.display!=='none' && bx.innerHTML){
+        khDatTiet(khTimDong(bx.getAttribute('data-khk')));
+        /* Khung đang mở được giữ nguyên chứ không vẽ lại (vẽ lại là mất chỗ con trỏ) — nên nếu
+           người đang xem KHÔNG có quyền sửa thì phải tự gỡ hết ô sửa trong khung đó, không thì
+           bảng keo / ô chữ dựng lúc trước vẫn gõ được. */
+        if(!khSuaDuoc()) Array.prototype.forEach.call(bx.querySelectorAll('[contenteditable="true"]'),
+          function(o){ o.removeAttribute('contenteditable'); o.classList.remove('kh-sua1'); });
+      }
     }catch(e){ logErr('renderKH.moLai', e); }
   }
   /* ===== KHU ẢNH CHUNG CỦA CẢ KHÁCH (user chốt 25/9) =====
@@ -12927,14 +12950,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         if(c[0]==='__keo') return khKeoChuoi(m);
         return khTxt(khGiaTri(m, c[0]));
       });
-      if(gt.every(function(v){ return !v || v==='0 ảnh'; })) return '';        // cả hàng trống → bỏ
+      if(gt.every(function(v){ return !v || v==='0 ảnh'; }) &&
+         !(c[0]==='__keo' && khSuaDuoc())) return '';                         // cả hàng trống → bỏ
       var coGt=gt.filter(function(v){ return v && v!=='0 ảnh'; });
       var lech=coGt.some(function(v){ return v!==coGt[0]; });
       var suaSS=khSuaDuoc();
       var o=ds.map(function(m, im){
         if(c[0]==='anh') return '<td>'+((m.anh||[]).map(function(k2,i2){ return khAnhTag(k2, m.anh, i2); }).join('')
                                         ||'<span class="mini">—</span>')+'</td>';
-        if(c[0]==='__keo') return '<td>'+(khBangKeo(m)||'<span class="mini">—</span>')+'</td>';
+        if(c[0]==='__keo') return '<td>'+(khBangKeo(m, suaSS, im)||'<span class="mini">—</span>')+'</td>';
         /* Ô gộp (Thùng và hộp · Bảng độ cong · Phân loại) TRƯỚC ĐÂY khoá không cho sửa ở
            bảng so sánh, mà đó lại là phần lớn số hàng nhìn thấy ⇒ user báo "bảng so sánh
            chưa sửa được tí nào" (30/9). Nay sửa được hết: chữ gõ vào ghi thẳng lên đơn
@@ -12970,15 +12994,41 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      Super admin sửa được ngay tại đây — đó là chỗ duy nhất sửa được mấy trường ẩn. */
   /* BẢNG KEO 3 CỘT ĐỐI XỨNG — dùng chung cho bảng chi tiết đơn VÀ bảng so sánh,
      nên hai chỗ luôn nhìn giống nhau, không chỗ ngang chỗ dọc (user chốt 25/9). */
-  function khBangKeo(m){
-    if(!khTxt(m.keo)) return '';
-    var dd=khDong(m.doDay), mk=khDong(m.keo), dl=khDong(m.doDai);
+  /* ===== BẢNG KEO CỦA BƯỚC 7 SỬA ĐƯỢC (user chốt 30/9) =====
+     Bảng keo ở đây là bản RIÊNG của dữ liệu khách hàng: sửa chỉ ghi vào đơn đó trong dữ liệu
+     khách (m.doDay · m.keo · m.doDai), KHÔNG đụng Bảng Keo bước 4 hay bất kỳ bước nào khác.
+     Mỗi ô bấm 1 lần là gõ, kéo chọn khối Ctrl+C / Ctrl+V được. Dòng trống cuối để thêm keo mới;
+     xoá trắng cả ba ô của một dòng là bỏ dòng đó. iMuc = đơn thứ mấy trong r.muc. */
+  function khODongKeo(f, v, iMuc, iDong, sua, lop){
+    return '<td class="'+(lop||'')+(sua?' kh-sua1':'')+'"'+
+      (sua?(' contenteditable="true" data-khk3="'+f+'" data-km="'+iMuc+'" data-kr="'+iDong+'"'):'')+'>'+
+      (f==='keo' && v ? '<b>'+esc(v)+'</b>' : esc(v))+'</td>';
+  }
+  function khDongKeoTag(dd, k, dl, iMuc, iDong, sua){
+    return '<tr>'+khODongKeo('doDay', dd, iMuc, iDong, sua, 'kh-so')+
+      khODongKeo('keo', k, iMuc, iDong, sua, '')+khODongKeo('doDai', dl, iMuc, iDong, sua, '')+'</tr>';
+  }
+  function khBangKeo(m, sua, iMuc){
+    sua = !!sua && iMuc!=null;
+    if(!khTxt(m.keo) && !sua) return '';
+    var dd=khDong(m.doDay), mk=khTxt(m.keo)?khDong(m.keo):[], dl=khDong(m.doDai);
     var tr=mk.map(function(k,i){
-      return '<tr><td class="kh-so">'+esc(khTxt(dd[i]||''))+'</td><td><b>'+esc(khTxt(k))+'</b></td>'+
-             '<td>'+esc(khTxt(dl[i]||''))+'</td></tr>';
+      return khDongKeoTag(khTxt(dd[i]||''), khTxt(k), khTxt(dl[i]||''), iMuc, i, sua);
     }).join('');
+    if(sua) tr+=khDongKeoTag('', '', '', iMuc, mk.length, sua);        // dòng trống để thêm keo
     return '<table class="sheet kh-tk"><thead><tr><th class="kh-so">Độ dày</th><th>Mã keo</th>'+
-      '<th>Độ dài</th></tr></thead><tbody>'+tr+'</tbody></table>';
+      '<th>Độ dài</th></tr></thead><tbody'+(sua?' data-gs="1"':'')+'>'+tr+'</tbody></table>';
+  }
+  /* Đọc lại cả bảng keo vừa sửa → ba chuỗi thẳng hàng từng dòng. Dòng trống sạch thì bỏ. */
+  function khDocBangKeo(tb){
+    var dd=[], mk=[], dl=[];
+    Array.prototype.forEach.call(tb.querySelectorAll('tbody tr'), function(tr){
+      var g=function(f){ var td=tr.querySelector('td[data-khk3="'+f+'"]'); return td?khTxt(td.innerText):''; };
+      var a=g('doDay'), b=g('keo'), c=g('doDai');
+      if(!a && !b && !c) return;
+      dd.push(a); mk.push(b); dl.push(c);
+    });
+    return { doDay:dd.some(Boolean)?dd.join('\n'):'', keo:mk.join('\n'), doDai:dl.some(Boolean)?dl.join('\n'):'' };
   }
   /* Chuỗi để SO khớp hai đơn có giống nhau không (chỉ dùng cho nhãn "⟳ lệch"). */
   function khKeoChuoi(m){
@@ -12988,9 +13038,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       return khTxt(dd[i]||'')+'\u0001'+khTxt(k)+'\u0001'+khTxt(dl[i]||'');
     }).join('\u0002');
   }
-  function khKhoiKeo(m){
-    var b=khBangKeo(m); if(!b) return '';
-    return '<div class="kh-the"><h5>🧷 Thông tin keo · '+khDong(m.keo).length+' loại</h5>'+b+'</div>';
+  function khKhoiKeo(m, sua, iMuc){
+    var b=khBangKeo(m, sua, iMuc); if(!b) return '';
+    var n=khTxt(m.keo)?khDong(m.keo).length:0;
+    return '<div class="kh-the"><h5>🧷 Thông tin keo · '+n+' loại</h5>'+b+'</div>';
   }
   /* Bấm Mã KH / Mã đơn thì ĐƯA MẮT XUỐNG LUÔN bảng bên dưới (user chốt 25/9) — bảng dữ liệu
      dài, trước đây bấm xong vẫn đứng nguyên chỗ cũ nên tưởng không có gì xảy ra. */
@@ -13039,19 +13090,19 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '<button class="btn sm" id="kh-dong" style="float:right">✕ Đóng</button>'+
       '<button class="btn sm" id="kh-ss" style="float:right;margin-right:6px">🆚 So sánh cả khách</button></h4>';
     h+='<div class="kh-luoi">';
-    h+=khKhoiKeo(m);
+    h+=khKhoiKeo(m, sua, i);
     /* Thứ tự user chốt 30/9 (bản sau):
        hàng trên  = Thông tin keo (2 cột) | Bảng độ cong | Thùng và hộp
-       hàng dưới  = Nội dung (2 cột) | Phân loại (2 cột) */
+       hàng dưới  = Nội dung (3 cột) | Phân loại (1 cột, bằng Thùng và hộp) */
     h+=khKhoiGom('📏 Bảng độ cong', [['','doCong'],['Ghi chú độ cong','doCongGhi']], m, sua);
     h+=khKhoiGom('📦 Thùng và hộp', [['Loại hộp','loaiHop'],['Cách đóng thùng','thungHop']], m, sua);
     /* Nội dung về ĐÚNG Ô TRỐNG bên phải Thùng và hộp (user chốt 30/9) — trước để trải hết bề
        ngang nên dưới khung hở một mảng to. Không truyền cờ "rộng" nữa là nó lấp đúng ô đó. */
-    h+=khKhoiGom('📄 Nội dung', [['','noiDung']], m, sua, 'kh-w2');
+    h+=khKhoiGom('📄 Nội dung', [['','noiDung']], m, sua, 'kh-w3');
     /* "Phân loại" xuống hàng dưới, nằm BÊN PHẢI Nội dung (user chốt 30/9). Hàng trên còn
        đúng Thông tin keo (2 cột) | Bảng độ cong | Thùng và hộp → kín 4 cột, không hở. */
     h+=khKhoiGom('🎨 Phân loại',
-                 [['Mix / Multi color','mixMulti'],['Laser / Fans','laserFans']], m, sua, 'kh-w2');
+                 [['Mix / Multi color','mixMulti'],['Laser / Fans','laserFans']], m, sua);
     h+='</div>';
     if(anh.length || anhMat || sua) h+='<div class="kh-the" style="margin-top:8px" data-kh-tha="'+i+'">'+
       '<h5>🖼 Hình ảnh · '+anh.length+' ảnh '+
@@ -13542,7 +13593,33 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var f3=o3.getAttribute('data-khf3'), moi3=khTxt(o3.innerText);
       if(khTxt(m3[f3])===moi3) return;
       m3[f3]=moi3;
+      m3.suaTay=m3.suaTay||{}; m3.suaTay[f3]=1;
       logLine('🗂 Sửa dữ liệu khách hàng: '+r3.maKH+' · đơn '+(m3.don||'')+' · '+f3);
+      khLuuNgam();
+    });
+    /* SỬA BẢNG KEO ở bước 7 → chỉ ghi vào đơn đó trong dữ liệu khách hàng. */
+    if(tiet) tiet.addEventListener('focusout', function(e){
+      var o=e.target.closest ? e.target.closest('td[data-khk3]') : null; if(!o) return;
+      var tb=o.closest('table.kh-tk'); if(!tb) return;
+      var key=tiet.getAttribute('data-khk');
+      var r=(state.khData&&state.khData.kh)?state.khData.kh[key]:null; if(!r) return;
+      var m=(r.muc||[])[+o.getAttribute('data-km')]; if(!m) return;
+      var moi=khDocBangKeo(tb);
+      var cu={ doDay:khTxt(m.doDay)?khDong(m.doDay).map(khTxt).join('\n'):'',
+               keo:khTxt(m.keo)?khDong(m.keo).map(khTxt).join('\n'):'',
+               doDai:khTxt(m.doDai)?khDong(m.doDai).map(khTxt).join('\n'):'' };
+      if(cu.doDay===moi.doDay && cu.keo===moi.keo && cu.doDai===moi.doDai) return;
+      m.doDay=moi.doDay; m.keo=moi.keo; m.doDai=moi.doDai;
+      m.suaTay=m.suaTay||{}; m.suaTay.__keo=1;
+      /* Vừa gõ vào dòng trống cuối → mở thêm một dòng trống mới để gõ tiếp, KHÔNG vẽ lại cả
+         khung (vẽ lại là mất chỗ con trỏ đang đứng). */
+      var rows=tb.querySelectorAll('tbody tr'), cuoi=rows[rows.length-1];
+      if(cuoi && cuoi.contains(o) && khTxt(o.innerText)){
+        var tmp=document.createElement('tbody');
+        tmp.innerHTML=khDongKeoTag('', '', '', +o.getAttribute('data-km'), rows.length, true);
+        tb.querySelector('tbody').appendChild(tmp.firstChild);
+      }
+      logLine('🗂 Sửa bảng keo (bước 7): '+r.maKH+' · đơn '+(m.don||''));
       khLuuNgam();
     });
     if(tiet) tiet.addEventListener('focusout', function(e){
@@ -13553,6 +13630,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var f=o.getAttribute('data-khf2'), moi=khTxt(o.innerText);
       if(khTxt(m[f])===moi) return;
       m[f]=moi;
+      m.suaTay=m.suaTay||{}; m.suaTay[f]=1;
       logLine('🗂 Sửa dữ liệu khách hàng: '+r.maKH+' · đơn '+(m.don||'')+' · '+f);
       renderKH(); khLuuNgam();
     });
@@ -13710,14 +13788,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1711060000"></script>
-<script src="cl.sync.js?v=1711060000"></script>
-<script src="auth.store.js?v=1711060000"></script>
-<script src="auth.web.js?v=1711060000"></script>
+<script src="cl.config.js?v=1711160000"></script>
+<script src="cl.sync.js?v=1711160000"></script>
+<script src="auth.store.js?v=1711160000"></script>
+<script src="auth.web.js?v=1711160000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1711060000"></script>
+<script src="cl.project.js?v=1711160000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1711060000" defer></script>
+<script src="firebase-bridge.js?v=1711160000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
