@@ -454,6 +454,7 @@ body.gs-selecting{user-select:none}
 .boxtypes tfoot td.bt-foot{font-weight:800;color:var(--accent)}
 .boxtypes tfoot td.bt-fq{font-weight:800;text-align:center;font-size:12.5px}
 .boxtypes-wrap{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:stretch}
+@media (max-width:700px){ .boxtypes-wrap{grid-template-columns:1fr} }   /* điện thoại: 4 thẻ xếp dọc, không bóp còn 1/2 màn */
 .bt-general{font-size:11px;color:var(--text-2);line-height:1.5;padding:10px 12px;background:var(--surface-3);border:1px solid var(--border);border-radius:9px}
 .bt-general b{color:var(--accent)}
 .bt-gtitle{font-weight:800;color:var(--accent);font-size:12px;margin-bottom:6px}
@@ -676,7 +677,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1712060000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1712260000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1408,7 +1409,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1712060000"></script>
+<script src="engine.web.js?v=1712260000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -3976,7 +3977,20 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
        => Khop DUNG CHU truoc; chi khi khong co moi tim kieu cu, va con phai co o "Ghi Chu" ben phai
        cung dong moi coi la tieu de bang. */
     var _tdc=function(v){ return low(v).replace(/[:.\u00b7|-]+$/,'').trim(); };
-    for(var r=0;r<A.length && hr<0;r++){ var row0=A[r]||[]; for(var c=0;c<row0.length;c++){ if(_tdc(row0[c])==='bang do cong'){ hr=r; hc=c; break; } } }
+    var _laGhiChu=function(v){ var t=_tdc(v); return t==='ghi chu' || t==='note' || t==='notes' || t==='remark' || t==='remarks'; };
+    /* Đơn K56-839P (user báo 6/10): trong danh sách NOTE ở cột B có một dòng ghi đúng chữ
+       "Bảng độ cong" (mục 15), còn bảng thật thì nằm ở K25 với chữ "Curl". Trước đây khớp đúng
+       chữ là nhận luôn → đọc lan xuống cột độ dài (18mm/19mm/20mm/Lines Check).
+       Nay: khớp đúng chữ VÀ cùng hàng bên phải có ô "Ghi Chú" → tiêu đề chắc chắn, nhận ngay.
+       Khớp đúng chữ mà KHÔNG có "Ghi Chú" → chỉ để dành, dùng sau cùng khi mọi cách khác
+       (Curl/Curve, vị trí cạnh Bảng Hộp) đều không ra, và dòng ngay dưới phải là mã độ cong
+       ngắn (A-2022, C-2024…) chứ không phải một câu ghi chú dài. */
+    var _yeu=null;
+    for(var r=0;r<A.length && hr<0;r++){ var row0=A[r]||[]; for(var c=0;c<row0.length;c++){ if(_tdc(row0[c])!=='bang do cong') continue;
+      var _coGc=false; for(var c1=c+1;c1<Math.min(row0.length,c+8);c1++){ if(_laGhiChu(row0[c1])){ _coGc=true; break; } }
+      if(_coGc){ hr=r; hc=c; break; }
+      if(!_yeu) _yeu={r:r,c:c};
+    } }
     if(hr<0){
       for(var r9=0;r9<A.length && hr<0;r9++){
         var rw9=A[r9]||[];
@@ -3991,8 +4005,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
        bảng độ cong (A-2022 · "Độ cong đặc biệt…") bị bỏ qua. Chỉ nhận khi ô đó ĐÚNG CHỮ
        "Curl" / "Độ cong" / "Bảng cong" VÀ bên phải cùng hàng (trong 6 cột) có "Ghi Chú" —
        chữ "curl" nằm lẻ ở chỗ khác trong đơn không bị bắt nhầm. */
-    /* Tiêu đề cột Ghi chú: tiếng Việt hoặc tiếng Anh. */
-    var _laGhiChu=function(v){ var t=_tdc(v); return t==='ghi chu' || t==='note' || t==='notes' || t==='remark' || t==='remarks'; };
+    /* Tiêu đề cột Ghi chú: tiếng Việt hoặc tiếng Anh — hàm _laGhiChu khai báo ở trên. */
     /* TỪ KHOÁ tiêu đề bảng độ cong — cả tiếng Việt lẫn tiếng Anh (user chốt 30/9). */
     var _tenCurl={ 'curl':1, 'curls':1, 'curl table':1, 'curl chart':1, 'curl list':1, 'curl type':1,
                    'curve':1, 'curves':1, 'bang curl':1, 'do cong':1, 'bang cong':1, 'bang do cong':1 };
@@ -4030,6 +4043,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         }
         if(coChu){ hr=r5; hc=cDc; }
       }
+    }
+    /* Cuối cùng mới dùng ô "Bảng độ cong" không có "Ghi Chú" bên cạnh (mẫu cũ C41/K54/CS212…),
+       với điều kiện dòng có chữ đầu tiên ngay dưới là MÃ độ cong ngắn, không phải câu ghi chú. */
+    if(hr<0 && _yeu){
+      var _ok=false;
+      for(var r3=_yeu.r+1;r3<Math.min(A.length,_yeu.r+4);r3++){
+        var v3=cell(r3,_yeu.c); if(!v3) continue;
+        _ok = v3.length<=20 && !/^\d+(\.\d+)?\s*mm$/i.test(v3); break;
+      }
+      if(_ok){ hr=_yeu.r; hc=_yeu.c; }
     }
     if(hr<0) return null;
     /* Cột "Ghi Chú" phải là cột NẰM SAU tiêu đề Bảng Độ Cong — dòng đó còn một "Ghi Chú"
@@ -7339,6 +7362,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      nạp TRƯỚC đó mà chưa ra bảng độ cong thì có thể chỉ vì bộ đọc cũ — nói thẳng cách lấy lại,
      đừng để người dùng tưởng file không có (user gặp đơn K21-841P, 30/9). */
   var BUILD_DOC_CURL = 1711260000;
+  var BUILD_DOC_CURL2 = BUILD_DOC_CURL + 1000000;   /* = build sửa bắt nhầm 'Bảng độ cong' trong Note (K56-839P) */
   function fileDocCu(md){
     var F=(state.files||[]).filter(function(f){ return f && (f.maDons||[]).indexOf(md)>=0; })[0];
     if(!F) return null;
@@ -7361,7 +7385,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       return '<tr><td class="dc-ten">'+esc(String(r.name||'').trim())+'</td>'+
              '<td class="txt dc-note">'+esc(n)+'</td></tr>';
     }).join('');
-    return '<div class="bt-general" id="box-docong-card"><div class="bt-gtitle">📏 Bảng Độ Cong · '+dc.rows.length+' dòng</div>'+
+    /* Bản đọc trước bản sửa này có thể bắt nhầm dòng "Bảng độ cong" trong danh sách Note rồi
+       đọc lan sang cột độ dài (K56-839P: 18mm/19mm/20mm/18-Lines). Nhận ra dấu hiệu đó thì nhắc
+       nạp lại file — không tự sửa dữ liệu đã lưu. */
+    var _nghi=dc.rows.some(function(r){ return /^\d+(\.\d+)?\s*mm$/i.test(String(r.note||'').trim()) || /^\d+\s*-\s*lines?$/i.test(String(r.note||'').trim()); });
+    var Fn=null;
+    if(_nghi){ Fn=(state.files||[]).filter(function(f){ return f && (f.maDons||[]).indexOf(md)>=0; })[0]||null;
+      var bn=Fn ? +String(Fn.docBuild||'0').replace(/\D/g,'') : 0; if(Fn && bn>=BUILD_DOC_CURL2) Fn=null; }
+    var canhBao = (_nghi && Fn) ? '<div class="txt mini" id="box-docong-cu" style="color:var(--red-600);margin:2px 0 6px">⚠ Bảng này đọc bằng bản app cũ nên lấy nhầm chỗ. '+
+        'Kéo lại file <b>'+esc(Fn.name)+'</b> vào <b>bước 1</b> rồi bấm <b>▶ Xử lý</b> để lấy đúng Bảng độ cong.</div>' : '';
+    return '<div class="bt-general" id="box-docong-card"><div class="bt-gtitle">📏 Bảng Độ Cong · '+dc.rows.length+' dòng</div>'+canhBao+
       '<div style="max-height:260px;overflow:auto"><table class="sheet" id="box-docong-tbl" style="width:100%;font-size:11px;table-layout:fixed">'+
       '<thead><tr><th style="width:110px">Độ Cong</th><th>Ghi Chú</th></tr></thead><tbody>'+tr+'</tbody></table></div></div>';
   }
@@ -11744,22 +11777,46 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   /* Ảnh của RIÊNG một đơn: tấm đã ghi nguồn là đơn đó + tấm bước 6 đang gắn cho đơn đó
      (state.imgByMadon, cùng mã gốc & cùng khách). Chỉ lấy trong bộ ảnh CÒN LẠI của khách —
      tấm đã xóa (r.anhBo) không hiện lại. Tấm không rõ nguồn chỉ hiện ở phần xem Mã KH. */
-  function khAnhCuaDon(r, m){
-    if(!r || !m) return [];
-    var g=khKhoa(khDonGoc(m.don)); if(!g) return [];
-    var con={}; khMoiAnh(r).forEach(function(k){ con[k]=1; });
+  /* Khóa ảnh BIẾT CHẮC thuộc đơn có mã gốc g: đã ghi nguồn (r.anhDon) hoặc đang gắn cho đơn đó
+     ở bước 6 (state.imgByMadon — cùng mã gốc, cùng khách). ghiNguon=true thì ghi luôn nguồn. */
+  function khAnhTheoGoc(r, g, con, ghiNguon, donGoc){
     var ra=[], da={};
     var them=function(k){ if(k && con[k] && !da[k]){ da[k]=1; ra.push(k); } };
-    (m.anh||[]).forEach(them);
     Object.keys(r.anhDon||{}).forEach(function(k){ if((r.anhDon[k]||[]).indexOf(g)>=0) them(k); });
     var kh=khKhoa(r.maKH), bm=state.imgByMadon||{};
     Object.keys(bm).forEach(function(md){
       if(khKhoa(khDonGoc(donOf(md)||md))!==g) return;
       var k6=khOf(md); if(k6 && khKhoa(k6)!==kh) return;          // cùng số đơn nhưng khách khác
-      (bm[md]||[]).forEach(function(k){ if(con[k]){ them(k); khGhiNguonAnh(r, k, m.don); } });
+      (bm[md]||[]).forEach(function(k){ if(con[k]){ them(k); if(ghiNguon) khGhiNguonAnh(r, k, donGoc); } });
     });
     return ra;
   }
+  /* ===== ẢNH KHI XEM TỪNG ĐƠN (sửa 2/10 — user: "xem Mã KH có ảnh, vào xem đơn lại không có") =====
+     Ảnh nạp từ file tổng hợp Gmail / Check list gắn theo KHÁCH, không ghi được tấm nào của đơn
+     nào (đo trên dữ liệu thật: 283 khách có ảnh, chỉ 1 khách có nguồn theo đơn) ⇒ lọc "chỉ ảnh
+     của đơn đó" làm gần như mọi đơn trống trơn. Nay: hiện ảnh BIẾT CHẮC của đơn đó + ảnh CHUNG
+     của khách (không rõ nguồn); tấm nào đã biết thuộc ĐƠN KHÁC thì không hiện ở đây.
+     Trả { rieng, chung }. */
+  function khAnhXemDon(r, m){
+    var kq={ rieng:[], chung:[] };
+    if(!r || !m) return kq;
+    var tat=khMoiAnh(r), con={}; tat.forEach(function(k){ con[k]=1; });
+    var g=khKhoa(khDonGoc(m.don)), da={};
+    var rieng=[];
+    var them=function(k){ if(k && con[k] && !da[k]){ da[k]=1; rieng.push(k); } };
+    (m.anh||[]).forEach(them);
+    if(g) khAnhTheoGoc(r, g, con, true, m.don).forEach(them);
+    var khac={};
+    (r.muc||[]).forEach(function(x){
+      var gx=khKhoa(khDonGoc(x.don)); if(!gx || gx===g) return;
+      (x.anh||[]).forEach(function(k){ khac[k]=1; });
+      khAnhTheoGoc(r, gx, con, false).forEach(function(k){ khac[k]=1; });
+    });
+    kq.rieng=rieng;
+    kq.chung=tat.filter(function(k){ return !da[k] && !khac[k]; });
+    return kq;
+  }
+  function khAnhCuaDon(r, m){ var x=khAnhXemDon(r, m); return x.rieng.concat(x.chung); }
   function khMoiAnh(r){
     var ra=(r.anh||[]).slice();
     (r.muc||[]).forEach(function(m){ (m.anh||[]).forEach(function(k){ if(ra.indexOf(k)<0) ra.push(k); }); });
@@ -13550,8 +13607,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var m=r?(r.muc||[])[i]:null;
     if(!m){ khDongTiet(); return; }
     var sua=khSuaDuoc();
-    var anhTho=khAnhCuaDon(r, m);
+    var xd=khAnhXemDon(r, m), anhTho=xd.rieng.concat(xd.chung);
     var anh=khLocAnh(anhTho), anhMat=khAnhMat(anhTho);
+    var soChung=khLocAnh(xd.chung).filter(function(k){ return anh.indexOf(k)>=0; }).length;
     var h='<h4>📋 '+esc(r.maKH)+(khTxt(r.brand)?(' · '+esc(r.brand)):'')+
       ' — đơn '+esc(m.don||'(check list)')+(m.ngay?(' · '+esc(m.ngay)):'')+
       '<button class="btn sm" id="kh-dong" style="float:right">✕ Đóng</button>'+
@@ -13588,11 +13646,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       (sua?', kéo thả ảnh vào đây cũng được':'')+'</span>'+khNutThemAnh(i)+'</h5>'+
       (anhMat?khNhanMatAnh(anhMat):'')+
       '<div class="kh-anhluoi">'+anh.map(function(k2,i2){ return khAnhTag(k2, anh, i2, sua); }).join('')+'</div>'+
-      /* Đơn cũ (nạp từ file tổng hợp Gmail) không ghi được tấm nào thuộc đơn nào → đơn trống ảnh,
-         nhưng bộ ảnh của khách vẫn còn nguyên — chỉ đường cho khỏi tưởng mất ảnh. */
+      /* Nói rõ phần nào là ảnh chung của khách (không rõ thuộc đơn nào) để khỏi hiểu nhầm. */
+      (soChung
+        ? '<div class="mini" style="color:var(--text-3);margin-top:4px">'+
+          (soChung===anh.length ? 'Cả '+soChung+' ảnh là ảnh chung của khách' : soChung+' ảnh là ảnh chung của khách')+
+          ' — nạp từ file tổng hợp / Check list nên không rõ thuộc đơn nào. Ảnh đã biết thuộc đơn khác thì không hiện ở đây.</div>' : '')+
       ((!anh.length && khMoiAnh(r).length)
-        ? '<div class="mini" style="color:var(--text-3)">Đơn này chưa ghi nhận ảnh riêng — bộ '+
-          khLocAnh(khMoiAnh(r)).length+' ảnh của khách xem ở 🆚 So sánh cả khách.</div>' : '')+
+        ? '<div class="mini" style="color:var(--text-3);margin-top:4px">Đơn này chưa có ảnh riêng — '+
+          khLocAnh(khMoiAnh(r)).length+' ảnh của khách đều thuộc các đơn khác, xem ở 🆚 So sánh cả khách.</div>' : '')+
       '</div>';
     box.innerHTML=h; box.style.display=''; box.setAttribute('data-khview','don'); khCuonToi(box);
     box.setAttribute('data-khk', key); box.setAttribute('data-khi', String(i));
@@ -14300,14 +14361,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1712060000"></script>
-<script src="cl.sync.js?v=1712060000"></script>
-<script src="auth.store.js?v=1712060000"></script>
-<script src="auth.web.js?v=1712060000"></script>
+<script src="cl.config.js?v=1712260000"></script>
+<script src="cl.sync.js?v=1712260000"></script>
+<script src="auth.store.js?v=1712260000"></script>
+<script src="auth.web.js?v=1712260000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1712060000"></script>
+<script src="cl.project.js?v=1712260000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1712060000" defer></script>
+<script src="firebase-bridge.js?v=1712260000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
