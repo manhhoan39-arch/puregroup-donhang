@@ -677,7 +677,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1712260000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1712360000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1409,7 +1409,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1712260000"></script>
+<script src="engine.web.js?v=1712360000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -3292,7 +3292,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(!td) return;
       var field = td.getAttribute('data-keoedit'), idx = +td.getAttribute('data-keoidx');
       if(isNaN(idx) || !state.keoRows[idx]) return;
-      var val = String(td.innerText==null?'':td.innerText).replace(/ /g,' ').replace(/\n+$/,'').trim();
+      var _raw = String(td.innerText==null?'':td.innerText);
+      /* Dòng "⚑ độ cong mới đổi keo" app tự gắn vào ô Ghi Chú — không phải chữ người dùng gõ. */
+      var _nc = td.querySelector && td.querySelector('.keo-nc');
+      if(_nc){ var _t=String(_nc.innerText||''), _p=_raw.lastIndexOf(_t); if(_t && _p>=0) _raw=_raw.slice(0,_p)+_raw.slice(_p+_t.length); }
+      var val = _raw.replace(/ /g,' ').replace(/\n+$/,'').trim();
       var oldVal = String(state.keoRows[idx][field]==null?'':state.keoRows[idx][field]);
       if(val===oldVal) return;
       /* Ô app TỰ BÓC từ Ghi Chú: hiện sẵn chữ cho dễ đọc nhưng ô gốc đang TRỐNG. Bấm vào rồi
@@ -6749,7 +6753,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             '<td class="txt keo-der" title="Tự bóc tách từ Ghi Chú — nhân bản theo độ dài">'+esc(seg.keo)+'</td>'+
             '<td></td><td class="txt">'+esc(k.doDay||'')+'</td>'+
             '<td class="txt keo-der">'+esc(seg.doDai)+'</td>'+
-            (si===0?ed('ghiChu',k.ghiChu,'txt'):'<td class="txt"></td>')+'</tr>');
+            (si===0?voiNC(ed('ghiChu',k.ghiChu,'txt'),k):'<td class="txt"></td>')+'</tr>');
         });
         return;
       }
@@ -6768,7 +6772,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         col('loaiSoi',k.loaiSoi,wc)+
         col('doDay',k.doDay,wc)+
         col('doDai',k.doDai,wc)+
-        ed('ghiChu',k.ghiChu,'txt')+'</tr>');
+        voiNC(ed('ghiChu',k.ghiChu,'txt'),k)+'</tr>');
     });
     setRows('eng-keo-full', rows.length?rows.join(''):'<tr data-noflt="1"><td colspan="8" class="txt mini">Chưa có dữ liệu Keo.</td></tr>');
     applyTable('eng-keo-full');
@@ -7338,6 +7342,28 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      Người đóng hộp phải vừa soi keo vừa soi ghi chú độ cong mà trước đây phải nhảy ngược về
      bước 5. Đưa 2 bảng đó xuống ngay dưới Bảng Hộp, CHỈ XEM (sửa vẫn ở bước 4/5) và dùng
      CHUNG thứ tự sắp xếp với bước 5 (keoSapXep) để 2 chỗ nhìn giống hệt nhau. */
+  /* ===== GHI CHÚ "ĐỘ CONG MỚI ĐỔI KEO" (user chốt 7/10 · đơn K6-809P) =====
+     Độ cong LC+ · LC · LB · LJ luôn ăn keo của dải ngắn nhất, nên ở mm mà độ cong thường dùng
+     keo khác (3.MK.7: .3 cho 10-13mm) thì mấy độ cong đó ĐỔI keo — Bảng Keo phải nói rõ.
+     Câu ghi chú tính từ chính Bảng Line Cuốn (E.ghiChuKeoNC), hiện thành một dòng CHỈ XEM
+     dưới Ghi Chú — KHÔNG ghi vào k.ghiChu vì ô đó còn được đọc làm điều kiện keo. */
+  var __ncRows=null, __ncMap={};
+  function keoNCText(k){
+    try{
+      var rows=state.R&&state.R.cuonSheet&&state.R.cuonSheet.rows;
+      if(!rows||!E.ghiChuKeoNC) return '';
+      if(__ncRows!==rows){ __ncRows=rows; __ncMap=E.ghiChuKeoNC(rows)||{}; }
+      return E.ghiChuKeoNCCua(__ncMap, k)||'';
+    }catch(e){ logErr('keoNCText', e); return ''; }
+  }
+  function keoNCHtml(k){
+    var t=keoNCText(k); if(!t) return '';
+    return '<div class="keo-nc" contenteditable="false" title="Độ cong mới LC+ · LC · LB · LJ luôn dùng keo của dải ngắn nhất — app tự ghi, không sửa ở đây" '+
+           'style="margin-top:3px;padding:2px 6px;border-left:3px solid #d97706;background:rgba(217,119,6,.10);color:#92400e;'+
+           'font-size:.92em;font-weight:600;white-space:pre-line;line-height:1.35;overflow-wrap:anywhere">⚑ '+esc(t).replace(/\n/g,'\n⚑ ')+'</div>';
+  }
+  /* Gắn dòng ghi chú độ cong mới vào cuối ô Ghi Chú (ô đó có thể là ô sửa được). */
+  function voiNC(tdHtml, k){ var h=keoNCHtml(k); return h ? tdHtml.replace(/<\/td>$/, h+'</td>') : tdHtml; }
   function boxKeoHtml(md){
     var ks=(state.R&&state.R.keoByOrder&&state.R.keoByOrder[md])||[];
     if(!ks.length) return '<div class="bt-general" id="box-keo-card"><div class="bt-gtitle">🧷 Bảng Keo · 0 dòng</div>'+
@@ -7351,7 +7377,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         '<td class="txt">'+esc(mot(k.loaiSoi||pn.loaiSoi))+'</td>'+
         '<td>'+esc(mot(k.doDay||pn.doDay))+'</td>'+
         '<td>'+esc(mot(k.doDai||pn.doDai))+'</td>'+
-        '<td class="txt">'+esc(mot(k.ghiChu))+'</td></tr>';
+        '<td class="txt">'+esc(mot(k.ghiChu))+keoNCHtml(k)+'</td></tr>';
     }).join('');
     return '<div class="bt-general" id="box-keo-card"><div class="bt-gtitle">🧷 Bảng Keo · '+ks.length+' dòng</div>'+
       '<div style="max-height:260px;overflow:auto"><table class="sheet" id="box-keo-tbl" style="width:100%;font-size:11px">'+
@@ -7909,7 +7935,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             '<td>'+esc(khOf(k.maDon))+'</td><td>'+esc(donOf(k.maDon))+'</td>'+
             '<td class="txt keo-der">'+esc(seg.keo)+'</td><td></td><td class="txt">'+esc(k.doDay||'')+'</td>'+
             '<td class="txt keo-der">'+esc(seg.doDai)+'</td>'+
-            (si===0?ed('ghiChu',k.ghiChu):'<td class="txt"></td>')+'</tr>';
+            (si===0?voiNC(ed('ghiChu',k.ghiChu),k):'<td class="txt"></td>')+'</tr>';
         }).join('');
       }
       var pn=parseKeoNote(k.ghiChu);
@@ -7921,7 +7947,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         return ed(field,val);
       };
       return '<tr class="'+((malformed?'cell-warn':'')+ambCls).trim()+'" data-keoidx="'+idx+'" title="'+(_HK?esc(hlLechTitle(_HK)):amb?esc(keoAmbTitle(amb)):'Chuột phải để thêm/xóa/nhân bản dòng')+'">'+
-        '<td>'+esc(khOf(k.maDon))+'</td><td>'+esc(donOf(k.maDon))+'</td>'+ed('loaiKeo',k.loaiKeo)+col('loaiSoi',k.loaiSoi)+col('doDay',k.doDay)+col('doDai',k.doDai)+ed('ghiChu',k.ghiChu)+
+        '<td>'+esc(khOf(k.maDon))+'</td><td>'+esc(donOf(k.maDon))+'</td>'+ed('loaiKeo',k.loaiKeo)+col('loaiSoi',k.loaiSoi)+col('doDay',k.doDay)+col('doDai',k.doDai)+voiNC(ed('ghiChu',k.ghiChu),k)+
         '</tr>';
     }).join('') : '<tr><td colspan="7" class="txt mini">Đơn '+esc(md)+' không có bảng keo trong file.</td></tr>');
   }
@@ -9870,7 +9896,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
              '<td class="l">'+esc(mot(k.loaiSoi||pn.loaiSoi))+'</td>'+
              '<td>'+esc(mot(k.doDay||pn.doDay))+'</td>'+
              '<td>'+esc(mot(k.doDai||pn.doDai))+'</td>'+
-             '<td class="l dc edit" contenteditable="true">'+esc(mot(k.ghiChu))+'</td></tr>';   // Ghi Chú gốc của khách, sửa được ngay khi in
+             '<td class="l dc edit" contenteditable="true">'+esc(mot(k.ghiChu))+keoNCHtml(k)+'</td></tr>';   // Ghi Chú gốc của khách, sửa được ngay khi in
     }).join('');
     return '<div class="hd-t2">🧷 Bảng Keo</div><table class="hd-t"><thead><tr>'+
       '<th class="l" style="width:14%">Mã Keo</th><th class="l" style="width:18%">Loại Sợi</th>'+
@@ -14361,14 +14387,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1712260000"></script>
-<script src="cl.sync.js?v=1712260000"></script>
-<script src="auth.store.js?v=1712260000"></script>
-<script src="auth.web.js?v=1712260000"></script>
+<script src="cl.config.js?v=1712360000"></script>
+<script src="cl.sync.js?v=1712360000"></script>
+<script src="auth.store.js?v=1712360000"></script>
+<script src="auth.web.js?v=1712360000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1712260000"></script>
+<script src="cl.project.js?v=1712360000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1712260000" defer></script>
+<script src="firebase-bridge.js?v=1712360000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
