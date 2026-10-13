@@ -677,7 +677,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1712760000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1712860000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1409,7 +1409,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1712760000"></script>
+<script src="engine.web.js?v=1712860000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -9993,8 +9993,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
          Xưởng NĐ = code sợi KHÔNG có đuôi · HY = đuôi -HY · TH = đuôi -TH.
        · Chọn "Tất cả":
            - tài khoản/xưởng đang xem là HY → in cả 3 xưởng;
-           - còn lại (NĐ…)  → Tổng hợp Line lấy NĐ + HY, bỏ TH/TK/xưởng khác (user chốt 13/10 —
-             thay luật 30/9 "chỉ NĐ") · Tổng hợp Cuốn lấy tất cả trừ -HY.
+           - còn lại (NĐ…)  → Tổng hợp Line CHỈ NĐ (không đuôi), bỏ HY/TH/TK/xưởng khác (user chốt
+             13/10) · Tổng hợp Cuốn lấy tất cả trừ -HY.
      Mã xưởng do auth.web.js bơm vào window.__CL_XUONG (đọc bảng factories). Không lấy được thì
      coi như KHÔNG phải HY — giữ nguyên cách in cũ, không đổi số liệu ngoài ý muốn. */
   function maXuongDangXem(){
@@ -10009,11 +10009,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(che!=='all') return { giu:function(r){ var x=xuongCuaDong(r); return che==='nd' ? !x : x===che.toUpperCase(); },
                              nhan:' · Xưởng '+(che==='nd'?'NĐ':che.toUpperCase()) };
     if(maXuongDangXem()==='HY') return { giu:function(){ return true; }, nhan:' · mọi xưởng' };
-    /* User chốt 13/10 (thay luật 30/9): tài khoản xưởng NĐ, để "Tất cả":
-         · Tổng hợp Line  → CHỈ NĐ (đuôi trống) + HY — bỏ TH, TK và mọi xưởng khác;
+    /* User chốt 13/10: tài khoản xưởng NĐ, để "Tất cả":
+         · Tổng hợp Line  → CHỈ NĐ (code không đuôi) — bỏ HY, TH, TK và mọi xưởng khác;
          · Tổng hợp Cuốn  → tất cả, chỉ bỏ HY. */
     return loai==='line'
-      ? { giu:function(r){ var x=xuongCuaDong(r); return !x || x==='HY'; }, nhan:'' }
+      ? { giu:function(r){ return !xuongCuaDong(r); }, nhan:'' }
       : { giu:function(r){ return xuongCuaDong(r)!=='HY'; }, nhan:'' };
   }
   /* ===== BẢN IN TỔNG HỢP BOX (user chốt 17/9) =====
@@ -14438,14 +14438,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1712760000"></script>
-<script src="cl.sync.js?v=1712760000"></script>
-<script src="auth.store.js?v=1712760000"></script>
-<script src="auth.web.js?v=1712760000"></script>
+<script src="cl.config.js?v=1712860000"></script>
+<script src="cl.sync.js?v=1712860000"></script>
+<script src="auth.store.js?v=1712860000"></script>
+<script src="auth.web.js?v=1712860000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1712760000"></script>
+<script src="cl.project.js?v=1712860000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1712760000" defer></script>
+<script src="firebase-bridge.js?v=1712860000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
