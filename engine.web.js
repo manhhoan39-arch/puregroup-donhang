@@ -151,6 +151,9 @@
          suot: data1 -> Bang Line Cuon -> ban in Tong hop Line. */
       hopLineLech: (raw.hopLineLech && typeof raw.hopLineLech === 'object') ? raw.hopLineLech : null,
       soMau: Number(raw.soMau) || 0,     // mẫu 2026: cột "Số màu" (Mix Color mấy màu)
+      /* bangLine = số dải THEO TỪNG mm + XƯỞNG của dòng đơn này, đọc ở BẢNG LINE (bảng 2) khi
+         bảng đó có cột xưởng cạnh "Tổng". Có thì bước 5 tính theo đây (xem expandOrder). */
+      bangLine: (Array.isArray(raw.bangLine) && raw.bangLine.length) ? raw.bangLine : null,
       _manual: !!raw._manual,
     };
   }
@@ -421,6 +424,27 @@
                   keoMm: o.keoMm || null,
                   hopLineLech: o.hopLineLech || null,
                   xuongTH: !!o.xuongTH, xuongMa: o.xuongMa || (o.xuongTH ? 'TH' : '') };
+    /* ===== DÒNG ĐƠN CÓ BẢNG LINE (bảng 2) — user chốt 13/10 · đơn CS527-739P.2 =====
+       Bảng 2 ghi sẵn SỐ DẢI theo từng mm và XƯỞNG làm (TK · HY · NĐ…) cho từng mm ⇒ bước 5
+       (Tổng hợp Line · Tổng hợp Cuốn) lấy THẲNG số đó, mỗi mm mang xưởng của nó (code sợi gắn
+       đuôi -HY/-TK… như hàng TH trước đây). Bước 6 Box vẫn dùng bảng 1 (o.curls) — không đổi. */
+    if (o.bangLine && o.bangLine.length) {
+      var codesBL = String(o.codeSoi || '').split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean);
+      var outBL = [];
+      o.bangLine.forEach(function (b) {
+        if (!b || b.mm == null || !b.curls) return;
+        var xm = String(b.xuong || '').toUpperCase();
+        var code = (codesBL.length > 1 && b.code && codesBL.indexOf(b.code) >= 0) ? b.code : o.codeSoi;
+        for (var cb in b.curls) {
+          var vb = +b.curls[cb]; if (!vb) continue;
+          outBL.push({ codeSoi: code, length: o.length, mm: +b.mm, curl: cb, sl: vb, maDon: o.maDon,
+            mixSingle: o.mixSingle === 'Single' ? 'Single' : 'Mix', material: carry.material, thickness: carry.thickness,
+            ghiChuKeo: carry.ghiChuKeo, keoMm: carry.keoMm, hopLineLech: carry.hopLineLech,
+            xuongTH: xm === 'TH', xuongMa: xm, tuBangLine: true });
+        }
+      });
+      return outBL;
+    }
     // TÁCH THEO MÀU: dòng Mix có NHIỀU code sợi (mix nhiều màu) → tách MỖI code = 1 component,
     // dùng phân bổ mm RIÊNG của màu đó (colorBlocks theo THỨ TỰ khớp code sợi). Tổng dây bảo toàn.
     if (o.mixSingle !== 'Single' && !o.mixDist && (colorBlocks || (o._colorBlocks && o._colorBlocks.length))) {
@@ -889,6 +913,13 @@
     if (/^(n[dđ]|nam\s*[dđ][ịi]nh)$/.test(t)) return '';     // xưởng nhà → giữ nguyên code sợi
     return null;
   }
+  /* Ô xưởng của BẢNG LINE (bảng 2): ngoài TH · HY · NĐ còn có tên xưởng khác (đơn CS527-739P.2
+     ghi "TK") — nhận mọi mã chữ ngắn 1-4 ký tự, viết hoa. Trả '' cho NĐ, null nếu không phải mã. */
+  function maXuongTuDo(v) {
+    var m = maXuongCuaO(v); if (m !== null) return m;
+    var t = String(v == null ? '' : v).replace(/\s+/g, '');
+    return /^[A-Za-z]{1,4}$/.test(t) ? t.toUpperCase() : null;
+  }
   /* Ký hiệu hàng đặc biệt nhận từ chữ trong dòng đơn:
      laser/liigos→LZ · easy fan single/1S→1ES · easy fan double/2S→2ES · <số>D-U (vd 3D-U)→DU
 
@@ -1338,6 +1369,106 @@
     return String(code == null ? '' : code).split(/\r?\n/)
       .map(function (x) { x = x.trim(); return x ? (/-NC$/.test(x) ? x : x + '-NC') : x; })
       .join('\n');
+  }
+  /* ===== GHI CHÚ "ĐỘ CONG MỚI ĐỔI KEO" CHO BẢNG KEO (user chốt 7/10 · đơn K6-809P) =====
+     Đơn ghi 3.MK.7 dùng Nau155C.2 cho 6-9mm, Nau155C.3 cho 10-13mm. Nhưng độ cong mới
+     LC+ · LC · LB · LJ luôn ăn "keo 2mm" (keo của dải ngắn nhất) ⇒ 10-13mm của mấy độ cong đó
+     ĐỔI sang Nau155C.2 (dòng "-NC" ở Bảng Line Cuốn). Bảng Keo chỉ ghi ".2 6-13mm · .3 10-13mm"
+     nên người đọc không hiểu vì sao 10-13mm có cả hai keo.
+     Lấy ĐÚNG kết quả Bảng Line Cuốn (cuonSheet.rows) làm căn cứ — dòng thường vs dòng ovrRow —
+     nên ghi chú luôn khớp với thứ xưởng nhìn thấy, mẫu đơn cũ hay mới đều vậy.
+     Trả về map: maDon|nguyên liệu|mã keo → câu ghi chú (chỉ có khi thật sự có đổi keo).
+     KHÔNG ghi vào k.ghiChu: ô Ghi Chú được đọc làm ĐIỀU KIỆN keo (parseKeoCond), chép câu này vào
+     là luật keo bị đổi theo. */
+  var NC_TEN = 'LC+ · LC · LB · LJ';
+  function chuanNL(v) { return PS(v).toLowerCase().replace(/\s*([()\[\]])\s*/g, '$1').replace(/\s+/g, ' ').trim(); }
+  function chuanKeo(v) { return PS(v).replace(/\s+/g, '').toUpperCase(); }
+  function dsMmText(ds) {
+    ds = ds.map(Number).filter(function (x) { return isFinite(x); }).sort(function (a, b) { return a - b; });
+    var out = [], i = 0;
+    while (i < ds.length) {
+      var j = i; while (j + 1 < ds.length && ds[j + 1] === ds[j] + 1) j++;
+      out.push(ds[i] === ds[j] ? (ds[i] + 'mm') : (ds[i] + '-' + ds[j] + 'mm'));
+      i = j + 1;
+    }
+    return out.join(', ');
+  }
+  function ghiChuKeoNC(cuonRows) {
+    var nhom = {};
+    (cuonRows || []).forEach(function (r) {
+      if (!r || r.type !== 'row' || r.mm == null) return;
+      var keo = PS(r.keo); if (!keo || keo.indexOf(',') >= 0) return;   // ô 2 keo (nhập nhằng) → không kết luận
+      var key = r.maDon + '|' + chuanNL(r.material);
+      var g = nhom[key] || (nhom[key] = { maDon: r.maDon, ten: PS(r.material), thuong: {}, moi: {}, ten2: {} });
+      var bang = r.ovrRow ? g.moi : g.thuong, mm = String(r.mm);
+      (bang[mm] = bang[mm] || {})[keo] = 1;
+      g.ten2[chuanKeo(keo)] = keo;
+    });
+    var out = {};
+    Object.keys(nhom).forEach(function (key) {
+      var g = nhom[key], doi = {};
+      Object.keys(g.moi).forEach(function (mm) {
+        var th = g.thuong[mm]; if (!th) return;
+        Object.keys(g.moi[mm]).forEach(function (kMoi) {
+          if (th[kMoi]) return;
+          Object.keys(th).forEach(function (kTh) {
+            var d = doi[kMoi + '|' + kTh] || (doi[kMoi + '|' + kTh] = { moi: kMoi, thuong: kTh, mm: [] });
+            if (d.mm.indexOf(+mm) < 0) d.mm.push(+mm);
+          });
+        });
+      });
+      var ds = Object.keys(doi).map(function (k) { return doi[k]; });
+      if (!ds.length) return;
+      var them = function (keo, cau) {
+        var k2 = g.maDon + '|' + key.slice(key.indexOf('|') + 1) + '|' + chuanKeo(keo);
+        out[k2] = out[k2] ? (out[k2] + '\n' + cau) : cau;
+        var k3 = g.maDon + '||' + chuanKeo(keo);     // dự phòng khi ô Loại Sợi không ghi đúng tên nguyên liệu
+        var cau3 = g.ten + ': ' + cau;
+        out[k3] = out[k3] ? (out[k3] + '\n' + cau3) : cau3;
+      };
+      ds.forEach(function (d) {
+        var mmTh = Object.keys(g.thuong).filter(function (mm) { return g.thuong[mm][d.moi]; });
+        /* Câu NGẮN GỌN (user chốt 8/10): "6-9mm: mọi độ cong · 10-13mm: chỉ độ cong mới LC+ · LC · LB · LJ". */
+        them(d.moi, (mmTh.length ? dsMmText(mmTh) + ': mọi độ cong · ' : '') +
+          dsMmText(d.mm) + ': chỉ độ cong mới ' + NC_TEN);
+        them(d.thuong, dsMmText(d.mm) + ': chỉ độ cong thường');
+      });
+    });
+    return out;
+  }
+  /** Bỏ câu "Keo khách đã fix trong đơn" khỏi ô Ghi Chú (dữ liệu đọc từ bản cũ vẫn còn câu này). */
+  var CAU_KEO_FIX = 'keo khách đã fix trong đơn';
+  function boCauKeoFix(rows) {
+    (rows || []).forEach(function (k) {
+      if (k && PS(k.ghiChu).toLowerCase().replace(/\s+/g, ' ').replace(/[.\s]+$/, '') === CAU_KEO_FIX) k.ghiChu = '';
+    });
+    return rows;
+  }
+  /** Câu ghi chú độ cong mới của 1 dòng Bảng Keo (map lấy từ ghiChuKeoNC) — không có thì ''. */
+  function ghiChuKeoNCCua(map, k) {
+    if (!map || !k) return '';
+    var keo = chuanKeo(cleanKeoName(k.loaiKeo)); if (!keo) return '';
+    var t = chuanNL(k.loaiSoi) ? map[k.maDon + '|' + chuanNL(k.loaiSoi) + '|' + keo] : '';
+    if (t) return t;
+    /* Ô Loại Sợi không trùng tên nguyên liệu nào (mẫu cũ ghi kiểu "0.07 Faux Mink"): chỉ dùng
+       bản dự phòng khi ô đó TRỐNG hoặc chứa đúng tên nguyên liệu trong câu. */
+    var t3 = map[k.maDon + '||' + keo]; if (!t3) return '';
+    var ls = chuanNL(k.loaiSoi);
+    /* Độ dày của dòng keo (cột Độ Dày · Loại Sợi · Ghi Chú — mẫu cũ hay ghi "0.06, 0.07 dưới
+       10mm" trong Ghi Chú): nguyên liệu khác độ dày thì câu đó không nói về dòng keo này. */
+    var tk = [];
+    try { tk = thicksOfKeoRow(k).concat((parseKeoCond(k.ghiChu || '').thicks) || []); } catch (e) { tk = []; }
+    var theoCau = {}, thuTu = [];
+    t3.split('\n').forEach(function (c) {
+      var p = c.indexOf(': '); if (p < 0) return;
+      var ten = c.slice(0, p), cau = c.slice(p + 2), tn = chuanNL(ten);
+      if (ls && !(tn && (ls.indexOf(tn) >= 0 || tn.indexOf(ls) >= 0))) return;
+      if (tk.length) { var th = (ten.match(/0[.,]\d+/) || [])[0]; if (th && tk.indexOf(thickKey(th)) < 0) return; }
+      if (!theoCau[cau]) { theoCau[cau] = []; thuTu.push(cau); }
+      if (theoCau[cau].indexOf(ten) < 0) theoCau[cau].push(ten);
+    });
+    /* Nhiều nguyên liệu cùng một câu → gộp tên lại, khỏi lặp 5 dòng y hệt nhau. */
+    return thuTu.map(function (cau) { return theoCau[cau].join(' · ') + ': ' + cau; }).join('\n');
   }
   function buildCuonBoxSheet(data1, orders, keoRules, keoMalformed, keoHasRules) {
     keoMalformed = keoMalformed || {};
@@ -2078,6 +2209,27 @@
              PS(o.label) + ' ' + PS(o.codeSoi)).toLowerCase().replace(/\s+/g, '');
     return t.indexOf('mixcolor') >= 0 || t.indexOf('mixcolour') >= 0;
   }
+  /* Ô "KH" ở đầu sheet (mẫu đơn CŨ: Mã Đơn | CLS | YW | PF | Lines CLS | Lines WY | KH, giá trị
+     ở dòng dưới — đơn 281S ghi KH = LS309). Chỉ nhận khi đúng dạng MÃ KH (chữ + số: LS309,
+     C213, CS89, K6) — tên khách viết chữ thường ("Zoe") không phải mã. Không có thì trả ''. */
+  function maKHTrongSheet(aoa) {
+    for (var r = 0; r < Math.min((aoa || []).length, 5); r++) {
+      var row = aoa[r] || [];
+      for (var i = 0; i < row.length; i++) {
+        if (PS(row[i]).toUpperCase() !== 'KH') continue;
+        var v = PS((aoa[r + 1] || [])[i]).replace(/-+\s*$/, '').trim();
+        if (/^[A-Za-z]{1,5}\d+$/.test(v)) return v.toUpperCase();
+      }
+    }
+    return '';
+  }
+  /* Mã đơn CHỈ có số đơn ("281S") → ghép mã KH ở ô "KH" thành "LS309-281S" (user chốt 13/10)
+     để Mã KH hiện đúng ở mọi bước (Mã KH của app đọc từ phần đầu mã đơn). */
+  function ghepMaKH(maDon, aoa) {
+    if (!maDon || !/^\d+[A-Za-z]+(?:\.\d+)*$/.test(maDon)) return maDon;
+    var kh = maKHTrongSheet(aoa);
+    return kh ? kh + '-' + maDon : maDon;
+  }
   function ghepMaDonThieu(v, maTen) {
     v = PS(v).trim();
     if (!v) return maTen || '';
@@ -2114,6 +2266,7 @@
       var fk = String(fileName || '').match(/([A-Za-z]{1,5}\d+)-(\d+[A-Za-z]+(?:\.\d+)*)/);
       if (fk && fk[2] === maDon) maDon = fk[1] + '-' + maDon;
     }
+    maDon = ghepMaKH(maDon, aoa);   // còn thiếu mã KH → lấy ở ô "KH" đầu sheet
     // 1. tìm header bảng đơn: dòng có cả "Số Line" và "Single/Mix"
     var hr = -1, H = null;
     for (r = 0; r < aoa.length; r++) {
@@ -2207,10 +2360,57 @@
        cột mà MỌI ô có chữ trong vùng dữ liệu đều là "TH" — cột số (độ cong, số hộp) tự
        loại vì không khớp. Dòng nào có dấu này thì code sợi ở Bảng Line Cuốn gắn đuôi
        "-TH" để bộ phận line biết là KHÔNG làm code đó. Số liệu KHÔNG đổi. */
+    /* ===== BẢNG 2 = "BẢNG LINE" NGAY DƯỚI BẢNG HỘP (user chốt 13/10 · đơn CS527-739P.2) =====
+       Cùng tiêu đề với bảng hộp, mỗi dòng là MỘT mm của một dòng đơn (cùng STT), số ghi là SỐ
+       DẢI, cột cạnh "Tổng Số Hộp" ghi XƯỞNG làm (TK · HY · ND…).
+       · Bảng 2 KHÔNG phải dòng đơn: trước đây đọc lẫn vào nên đơn bị nhân đôi số liệu.
+       · Có cột xưởng → gắn vào từng dòng đơn (o.bangLine) để bước 5 tính theo bảng 2.
+       Chỉ coi là bảng line khi STT của nó lặp lại STT bảng hộp (≥ một nửa) — một khối đơn mới
+       có tiêu đề riêng thì vẫn đọc như dòng đơn như cũ. */
+    var hr2 = -1;
+    for (r = hr + 1; r < aoa.length && hr2 < 0; r++) {
+      row = aoa[r] || [];
+      var coL2 = false, coM2 = false;
+      for (i = 0; i < row.length; i++) {
+        v = PS(row[i]).toLowerCase();
+        if (v.indexOf('số line') >= 0) coL2 = true;
+        if (v.indexOf('single/mix') >= 0 || v.indexOf('mix/single') >= 0) coM2 = true;
+      }
+      if (coL2 && coM2) hr2 = r;
+    }
+    var cuoiBang1 = aoa.length, bangLineTheoStt = null, xuongBangLine = [], soDongBangLine = 0;
+    if (hr2 > 0 && col.stt >= 0) {
+      var sttB1 = {}, dsB2 = [];
+      for (r = hr + 1; r < hr2; r++) { var s1n = Number((aoa[r] || [])[col.stt]); if (isFinite(s1n) && s1n > 0) sttB1[Math.round(s1n)] = 1; }
+      for (r = hr2 + 1; r < aoa.length; r++) { var s2n = Number((aoa[r] || [])[col.stt]); if (isFinite(s2n) && s2n > 0) dsB2.push(r); }
+      var trungStt = dsB2.filter(function (rr) { return sttB1[Math.round(Number(aoa[rr][col.stt]))]; }).length;
+      if (dsB2.length && trungStt * 2 >= dsB2.length) {
+        cuoiBang1 = hr2;
+        var cTong1 = findCol(H, 'Tổng Số Hộp'), cXuong2 = -1;
+        if (cTong1 >= 0) for (var cx = cTong1 + 1; cx <= cTong1 + 2 && cXuong2 < 0; cx++) {
+          var dem2 = 0, sach2 = true;
+          dsB2.forEach(function (rr) { var t2 = PS((aoa[rr] || [])[cx]); if (!t2) return; if (maXuongTuDo(t2) !== null) dem2++; else sach2 = false; });
+          if (sach2 && dem2 > 0) cXuong2 = cx;
+        }
+        if (cXuong2 >= 0) {
+          bangLineTheoStt = {};
+          dsB2.forEach(function (rr) {
+            var rw2 = aoa[rr] || [], st2 = Math.round(Number(rw2[col.stt]));
+            var cs2 = {};
+            CURLS.forEach(function (k) { var ci2 = curlCol[k]; if (ci2 >= 0) { var q5 = PN(rw2[ci2]); if (q5) cs2[k] = q5; } });
+            var mmM = PS(rw2[col.length]).match(/^(\d+)\s*(mm)?$/i);
+            var x2 = maXuongTuDo(PS(rw2[cXuong2])) || '';
+            if (x2 && xuongBangLine.indexOf(x2) < 0) xuongBangLine.push(x2);
+            soDongBangLine++;
+            (bangLineTheoStt[st2] = bangLineTheoStt[st2] || []).push({ mm: mmM ? +mmM[1] : null, curls: cs2, xuong: x2, code: PS(rw2[col.code]) });
+          });
+        }
+      }
+    }
     var colXuongTH = timCotXuongTH(H, aoa, hr, findCol(H, 'Tổng Số Hộp'));
-    // 2. đọc dòng đơn (bỏ dòng #REF!/#N/A/trống)
+    // 2. đọc dòng đơn (bỏ dòng #REF!/#N/A/trống) — CHỈ trong bảng hộp, dừng trước bảng line
     var out = [];
-    for (r = hr + 1; r < aoa.length; r++) {
+    for (r = hr + 1; r < cuoiBang1; r++) {
       row = aoa[r] || [];
       var stt = row[col.stt];
       if (stt == null || PS(stt) === '') continue;
@@ -2249,6 +2449,7 @@
       });
     }
     if (!out.length) return null;
+    if (bangLineTheoStt) out.forEach(function (o) { var bl = bangLineTheoStt[o.seri]; if (bl && bl.length) o.bangLine = bl; });
     // Áp ký hiệu đặc biệt: XUẤT HIỆN Ở MỌI DÒNG → gắn vào MÃ ĐƠN (676P-LZ);
     //                      chỉ MỘT SỐ dòng → gắn vào CODE SỢI dòng đó (3.MK.7-LZ).
     var _ap = apKyHieuDacBiet(out, maDon);
@@ -2303,6 +2504,7 @@
     }
     // 5. meta đối chiếu: KH, tổng khay (CLS), tổng dây (Lines CLS)
     var meta = { maDon: maDon };
+    if (bangLineTheoStt) meta.bangLine = { dong: soDongBangLine, xuong: xuongBangLine };
     for (r = 0; r < Math.min(aoa.length, 5); r++) {
       row = aoa[r] || [];
       for (i = 0; i < row.length; i++) {
@@ -2419,6 +2621,7 @@
       var fk = String(fileName || '').match(/([A-Za-z]{1,5}\d+)-(\d+[A-Za-z]+(?:\.\d+)*)/);
       if (fk && fk[2] === maDon) maDon = fk[1] + '-' + maDon;
     }
+    maDon = ghepMaKH(maDon, aoa);   // còn thiếu mã KH → lấy ở ô "KH" đầu sheet
 
     // ---- B. Bảng Mix Chi Tiết ----
     var dh = -1, DC = null;
@@ -2583,7 +2786,7 @@
          · K21-792P · C213-785P   → DẢI  (Σ 128000 · 5520, khớp thẳng)
        → quy về DẢI bằng cách so với chính Bảng Hộp: Σ(số hộp × số line ÷ 2). Đúng gấp đôi
        thì hiểu là SỢI, chia 2; còn lại giữ nguyên. */
-    var khachCuon = null, tongBangDuoi = null, bangDuoiRows = [];
+    var khachCuon = null, tongBangDuoi = null, bangDuoiRows = [], bangLine26 = null;
     (function () {
       var mr = -1, MH = null;
       for (var r2 = 0; r2 < aoa.length; r2++) {
@@ -2645,7 +2848,7 @@
         CURLS.forEach(function (k) { var ci2 = mCurl[k]; if (ci2 >= 0) { var q3 = PN(rw4[ci2]); if (q3) cs[k] = q3; } });
         var _nl = cNL >= 0 ? PS(rw4[cNL]) : '';
         var _keoD = cKeoFix >= 0 ? PS(rw4[cKeoFix]) : '';
-        rows2.push({ no: Math.round(n4), mm: mmOf(rw4[cMM]), curls: cs,
+        rows2.push({ no: Math.round(n4), mm: mmOf(rw4[cMM]), curls: cs, _r: r3,
           nl: _nl, keo: _keoD });   // codeSoi gắn sau
         /* Mã keo của bảng dưới, gom KHÔNG TRÙNG theo từng No — để so với ô Keo của Bảng Hộp. */
         if (_keoD) { var _kn = Math.round(n4), _kl = keoByNo[_kn] || (keoByNo[_kn] = []);
@@ -2716,6 +2919,40 @@
       });
       expDai = Math.round(expDai);
       tongBangDuoi = (expDai > 0 && Math.round(tong) === expDai * 2) ? Math.round(tong / 2) : Math.round(tong);
+      /* ===== BẢNG LINE CÓ CỘT XƯỞNG cạnh "Tổng" (user chốt 13/10 — chung luật với mẫu cũ) =====
+         Ô ngay sau cột Tổng (1-2 cột) ghi xưởng làm từng mm (TK · HY · ND…) ⇒ gắn bảng này vào
+         từng dòng đơn (o.bangLine, theo No.) để bước 5 tính theo nó. Số quy về DẢI giống trên. */
+      /* Ô tiêu đề cột Tổng nhiều khi chỉ ghi CON SỐ tổng (" 9000,0") chứ không có chữ "Tổng"
+         → lấy cột NGAY SAU cột độ cong cuối cùng. */
+      var cTotX = cTot;
+      if (cTotX < 0) {
+        var maxC = -1; CURLS.forEach(function (k) { if (mCurl[k] > maxC) maxC = mCurl[k]; });
+        /* sau cột độ cong cuối có thể còn cột lạ (Curl2 · Curl3) → lấy cột đầu tiên mà tiêu đề
+           là CON SỐ hoặc chữ "Tổng" */
+        for (var cT2 = maxC + 1; maxC >= 0 && cT2 <= maxC + 5 && cT2 < MH.length; cT2++) {
+          var hT2 = PS(MH[cT2]);
+          if (/^t[ổo]ng/i.test(hT2) || /^[\d\s.,]+$/.test(hT2) && /\d/.test(hT2)) { cTotX = cT2; break; }
+        }
+      }
+      if (cTotX >= 0) {
+        var cX26 = -1;
+        for (var cx26 = cTotX + 1; cx26 <= cTotX + 2 && cX26 < 0; cx26++) {
+          var dem26 = 0, sach26 = true;
+          rows2.forEach(function (d) { var t26 = PS((aoa[d._r] || [])[cx26]); if (!t26) return; if (maXuongTuDo(t26) !== null) dem26++; else sach26 = false; });
+          if (sach26 && dem26 > 0) cX26 = cx26;
+        }
+        if (cX26 >= 0) {
+          var heSo = (expDai > 0 && Math.round(tong) === expDai * 2) ? 0.5 : 1, theoNo = {}, dsX26 = [];
+          rows2.forEach(function (d) {
+            var x26 = maXuongTuDo(PS((aoa[d._r] || [])[cX26])) || '';
+            if (x26 && dsX26.indexOf(x26) < 0) dsX26.push(x26);
+            var cs26 = {}; Object.keys(d.curls).forEach(function (k) { cs26[k] = round2(d.curls[k] * heSo); });
+            (theoNo[d.no] = theoNo[d.no] || []).push({ mm: d.mm, curls: cs26, xuong: x26, code: d.nl || '' });
+          });
+          out.forEach(function (o) { var bl = theoNo[o.seri]; if (bl && bl.length) o.bangLine = bl; });
+          bangLine26 = { dong: rows2.length, xuong: dsX26 };
+        }
+      }
     })();
 
     /* ---- E. Bảng Mix: từ khối "Mix Length" ở đầu sheet — Y NHƯ MẪU CŨ ----
@@ -2768,7 +3005,7 @@
             loaiSoi: f.mat || nl, doDay: f.thick || '',
             // 1 nguyên liệu chỉ 1 keo → không ràng buộc độ dài; nhiều keo → tách theo dải mm
             doDai: (one || !mms.length) ? '' : (mms[0] === mms[mms.length - 1] ? (mms[0] + 'mm') : (mms[0] + '-' + mms[mms.length - 1] + 'mm')),
-            ghiChu: 'Keo khách đã fix trong đơn',
+            ghiChu: '',   // bỏ câu "Keo khách đã fix trong đơn" (user chốt 8/10 — thừa, che mất ghi chú thật)
           };
           /* Nhiều code sợi có thể cùng 1 nguyên liệu (dòng Mix Color: 2 màu đều là
              "Mix Colour 0.07") → quy tắc y hệt nhau, chỉ giữ 1 dòng cho khỏi trùng. */
@@ -2817,7 +3054,15 @@
              trong số đó thì KHÔNG phải lệch — chỉ là bảng line chi tiết hơn. */
           var boLine = {};
           cu.forEach(function (k) { boLine[PS(k.loaiKeo)] = 1; });
-          var lech = hop.order.some(function (g2) { return !boLine[g2]; });
+          /* Ô Keo của Bảng Hộp có khi là CẢ CÂU ("Nau155C.2 cho 6-9mm và Nau155C.3 cho
+             10-13mm" · đơn K6-809P) — câu đó CHỨA mã keo của bảng line thì là khớp, không phải
+             lệch (y như luật đối chiếu từng dòng ở mục D). */
+          var _ck = function (v) { return String(v == null ? '' : v).replace(/\s+/g, '').toUpperCase(); };
+          var lech = hop.order.some(function (g2) {
+            if (boLine[g2]) return false;
+            var c2 = _ck(g2);
+            return !Object.keys(boLine).some(function (kl) { var c1 = _ck(kl); return c1 && c2.indexOf(c1) >= 0; });
+          });
           if (lech) cu.forEach(function (k) {
             k.ghiChu = 'Keo ở bảng hộp và bảng line khác nhau';
             k.lechHopLine = true;
@@ -2836,6 +3081,7 @@
 
     // ---- G. meta ----
     var meta = { maDon: maDon, template: 2026 };
+    if (bangLine26) meta.bangLine = bangLine26;
     for (r = 0; r < Math.min(aoa.length, 5); r++) {
       row = aoa[r] || [];
       for (i = 0; i < row.length; i++) {
@@ -3011,7 +3257,7 @@
     runStep1: runStep1, editCell: editCell,
     buildMix: buildMix, MixLabel: MixLabel, mixOfRange: mixOfRange, totalOfRange: totalOfRange,
     sheetRangeInfo: sheetRangeInfo, resolveMixDist: resolveMixDist,
-    buildKeoRules: buildKeoRules, expandKeoRows: expandKeoRows, glueFor: glueFor, glueForShort: glueForShort, orderGlues: orderGlues,
+    buildKeoRules: buildKeoRules, expandKeoRows: expandKeoRows, maKHTrongSheet: maKHTrongSheet, ghepMaKH: ghepMaKH, ghiChuKeoNC: ghiChuKeoNC, ghiChuKeoNCCua: ghiChuKeoNCCua, boCauKeoFix: boCauKeoFix, glueFor: glueFor, glueForShort: glueForShort, orderGlues: orderGlues,
     OVERRIDE_2MM_CURLS: OVERRIDE_2MM_CURLS, isOverrideCurl: isOverrideCurl,
     parseKeoCond: parseKeoCond, thickKey: thickKey, doDayTuCode: doDayTuCode, laMixColor: laMixColor,
     thicksOfDoDay: thicksOfDoDay, tachDoDay: tachDoDay, timKeoNhapNhang: timKeoNhapNhang, keoNhapNhangCuaDong: keoNhapNhangCuaDong,

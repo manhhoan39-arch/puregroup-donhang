@@ -677,7 +677,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1712360000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1712760000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1409,7 +1409,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1712360000"></script>
+<script src="engine.web.js?v=1712760000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -3162,12 +3162,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var cb = document.getElementById('eng-cuonbox');
     if(cb && R.cuonSheet && __wantDraw('s6')){ var UC=state.usedCurls; var OVR=(E.OVERRIDE_2MM_CURLS||['LB','LC','LJ','LC+']);
       var _cbCap={ rows:R.cuonSheet.rows, hidden:0, key:'cb' };   // chia trang lo phần nặng
+      try{ themXuongVaoO(R.cuonSheet.rows); }catch(e){ logErr('themXuongVaoO', e); }
       setRows('eng-cuonbox', _cbCap.rows.map(function(r){
       var curlTds = function(cur){ return UC.map(function(k){ return '<td class="cw">'+(cur&&cur[k]?cur[k]:'')+'</td>'; }).join(''); };
       if(r.type==='row'){
         var mc=r.multiMat?' cl-multimat':'';
         var ovr=r.ovrRow?' cl-ovrrow':'';   // dòng độ cong ĐẶC BIỆT (LB/LC/LJ/LC+) đã tách → chữ hồng đỏ
-        var th=laHangTH(r)?' cl-throw':'';  // hàng xưởng Thanh Hóa (kể cả đuôi -TH gõ tay) → nền vàng nhạt
+        var th=(laHangTH(r)||laXuongKhac(r))?' cl-throw':'';  // hàng xưởng Thanh Hóa / xưởng khác (TK…) → nền vàng nhạt
         var cmx=r.cmix?' cl-cmixrow':'';    // dòng tách từ Mix nhiều màu → tô hồng cột Code Sợi + Tên gọi NL
         var cell2=(r.multiMat?' cl-matcell':'')+(r.cmix?' cl-cmixcell':'');
         /* Độ dày NHẬP NHẰNG (2 keo, không cột nào phân biệt) → keo lấy theo BẢNG CHI TIẾT của
@@ -3186,7 +3187,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           '<td class="qty">'+r.tong+'</td></tr>';
       }
       if(r.type==='subtotal'){
-        return '<tr class="subtotal'+(laHangTH(r)?' cl-throw':'')+(r.cmix?' cl-cmixrow':'')+'" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td></td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+(r.cmix?' cl-cmixcell':'')+'">Tổng '+r.codeSoi+'</td><td></td><td></td><td></td><td></td>'+
+        return '<tr class="subtotal'+((laHangTH(r)||laXuongKhac(r))?' cl-throw':'')+(r.cmix?' cl-cmixrow':'')+'" data-xuong="'+esc(xuongCuaDong(r))+'" data-madon="'+esc(r.maDon)+'" data-makh="'+esc(khOf(r.maDon))+'"><td></td><td>'+esc(khOf(r.maDon))+'</td><td>'+esc(donOf(r.maDon))+'</td><td class="txt'+(r.cmix?' cl-cmixcell':'')+'">Tổng '+r.codeSoi+'</td><td></td><td></td><td></td><td></td>'+
           curlTds(r.curls)+'<td>'+fmtN(r.tong)+'</td></tr>';
       }
       // nhãn TỔNG TẤT CẢ nằm SÁT LỀ TRÁI (gộp 8 ô đầu) như dòng Σ của các bảng khác
@@ -3296,7 +3297,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       /* Dòng "⚑ độ cong mới đổi keo" app tự gắn vào ô Ghi Chú — không phải chữ người dùng gõ. */
       var _nc = td.querySelector && td.querySelector('.keo-nc');
       if(_nc){ var _t=String(_nc.innerText||''), _p=_raw.lastIndexOf(_t); if(_t && _p>=0) _raw=_raw.slice(0,_p)+_raw.slice(_p+_t.length); }
-      var val = _raw.replace(/ /g,' ').replace(/\n+$/,'').trim();
+      var val = _raw.replace(/ /g,' ').replace(/\u200B/g,'').replace(/\n+$/,'').trim();
       var oldVal = String(state.keoRows[idx][field]==null?'':state.keoRows[idx][field]);
       if(val===oldVal) return;
       /* Ô app TỰ BÓC từ Ghi Chú: hiện sẵn chữ cho dễ đọc nhưng ô gốc đang TRỐNG. Bấm vào rồi
@@ -4611,6 +4612,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       logLine('🧪 Dựng bảng keo từ cột "Keo Nhiệt" của đơn: '+_keoSinh.length+' dòng · '+Object.keys(_mds).join(', '));
     }
     state.keoRows=(E.expandKeoRows?E.expandKeoRows(keoRows.concat(_keoSinh)):keoRows.concat(_keoSinh)).concat(keepManKeo);
+    try{ if(E.boCauKeoFix) E.boCauKeoFix(state.keoRows); }catch(e){ logErr('boCauKeoFix', e); }   // bỏ "Keo khách đã fix trong đơn" (8/10)
     state.source='💾 '+okFiles.length+' file · '+orders.length+' dòng'+(keepMan.length?' + ✍ '+keepMan.length+' tay':'');
     resetPack();   // nguồn đổi → reset lớp packing
     state.processed=true;
@@ -5307,7 +5309,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(op==='above')      state.orders.splice(idx, 0, blankRowLike(o));
     else if(op==='below') state.orders.splice(idx+1, 0, blankRowLike(o));
     else if(op==='dup'){
-      var cp = Object.assign({}, o, { curls: Object.assign({}, o.curls||{}) });
+      /* bản nhân bản KHÔNG mang bảng line (bảng 2) — mang theo là bước 5 đếm số dải 2 lần */
+      var cp = Object.assign({}, o, { curls: Object.assign({}, o.curls||{}), bangLine: null });
       state.orders.splice(idx+1, 0, cp);
     }
     else if(op==='del')   state.orders.splice(idx, 1);
@@ -5738,15 +5741,39 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function oDangSua(td){ return !!(td && td.classList && td.classList.contains('dang-sua')); }
   function timOSua(t){ return (t && t.closest) ? t.closest('td[contenteditable="true"]') : null; }
   function dongOSua(td){ if(td && td.classList) td.classList.remove('dang-sua'); }
-  function moOSua(td, x, y){
+  /* Con trỏ rơi vào phần CHỈ XEM trong ô (dòng ⚑ độ cong mới ở Ghi Chú keo — contenteditable
+     =false) thì gõ không ăn: đưa con trỏ về CUỐI phần chữ sửa được. */
+  function trongChiXem(node, td){
+    for(var n=node; n && n!==td; n=n.parentNode){ if(n.nodeType===1 && n.getAttribute('contenteditable')==='false') return true; }
+    return false;
+  }
+  function conTroCuoi(td){
+    var rg=document.createRange(), cuoi=null;
+    for(var i=0;i<td.childNodes.length;i++){ var c=td.childNodes[i]; if(c.nodeType===1 && c.getAttribute('contenteditable')==='false') break; cuoi=c; }
+    if(cuoi){ if(cuoi.nodeType===3) rg.setStart(cuoi, cuoi.length); else rg.setStartAfter(cuoi); }
+    else{
+      /* Ô Ghi Chú TRỐNG, chỉ có dòng ⚑: trình duyệt không cho gõ vào chỗ trước một khối chỉ
+         xem → chèn 1 ký tự rỗng (U+200B) làm chỗ đặt con trỏ; lúc lưu sẽ bỏ ký tự này đi. */
+      var neo=document.createTextNode('\u200B'); td.insertBefore(neo, td.firstChild); rg.setStart(neo, 1);
+    }
+    rg.collapse(true);
+    var s=window.getSelection(); s.removeAllRanges(); s.addRange(rg);
+  }
+  function moOSua(td, x, y, veCuoi){
     if(!td) return;
     td.classList.add('dang-sua');
     try{
       td.focus({preventScroll:true});
-      // đặt con trỏ ĐÚNG chỗ vừa bấm đúp (không có thì trình duyệt tự lo)
+      // đặt con trỏ ĐÚNG chỗ vừa bấm (không có thì trình duyệt tự lo)
+      var datDuoc=false;
       if(x!=null && document.caretRangeFromPoint){
         var rg=document.caretRangeFromPoint(x,y);
-        if(rg && td.contains(rg.startContainer)){ var s=window.getSelection(); s.removeAllRanges(); s.addRange(rg); }
+        if(rg && td.contains(rg.startContainer) && !trongChiXem(rg.startContainer, td)){ var s=window.getSelection(); s.removeAllRanges(); s.addRange(rg); datDuoc=true; }
+      }
+      if(veCuoi){ conTroCuoi(td); }
+      else if(!datDuoc){
+        var s2=window.getSelection(), a2=s2&&s2.rangeCount?s2.getRangeAt(0).startContainer:null;
+        if(!a2 || !td.contains(a2) || trongChiXem(a2, td)) conTroCuoi(td);
       }
     }catch(e){ logErr('moOSua', e); }
   }
@@ -5763,6 +5790,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(ev.button!==0) return;
     if(ev.target.closest&&ev.target.closest('input,button,select,a,.fbtn,#sel-stats')) return;
     var tdSua=timOSua(ev.target);
+    // ô đang sửa mà bấm trúng dòng ⚑ chỉ xem → giữ con trỏ ở cuối chữ sửa được
+    if(oDangSua(tdSua) && trongChiXem(ev.target, tdSua)){ ev.preventDefault(); try{ conTroCuoi(tdSua); }catch(e){ logErr('conTroCuoi', e); } }
     if(!oDangSua(tdSua)){
       /* Đang mở 1 ô khác → phải BLUR tay: preventDefault chặn luôn việc đổi focus nên
          'focusout' không tự bắn, ô vừa gõ sẽ không được lưu. */
@@ -5773,7 +5802,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
            Σ · Đếm · TB, nên luật "bấm đúp mới sửa" ở đây chỉ tổ làm user tưởng bảng không
            sửa được (báo 3 lần, 28-30/9). Ô nào mang .kh-sua1 thì bấm MỘT LẦN là con trỏ
            vào ô luôn; kéo chọn cả khối để Ctrl+C / Ctrl+V vẫn y như cũ. */
-        if(tdSua.classList && tdSua.classList.contains('kh-sua1')) moOSua(tdSua);
+        if(tdSua.classList && tdSua.classList.contains('kh-sua1')){
+          /* Bấm trúng dòng ⚑ chỉ xem → chặn trình duyệt đặt con trỏ vào đó, tự đưa về cuối chữ. */
+          if(trongChiXem(ev.target, tdSua)){ ev.preventDefault(); moOSua(tdSua, null, null, true); }
+          else moOSua(tdSua);
+        }
         else ev.preventDefault();             // bảng khác: bấm 1 lần vẫn chỉ là CHỌN ô
       }
     }
@@ -7358,8 +7391,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   function keoNCHtml(k){
     var t=keoNCText(k); if(!t) return '';
+    var coChu=!!String((k&&k.ghiChu)||'').trim();
     return '<div class="keo-nc" contenteditable="false" title="Độ cong mới LC+ · LC · LB · LJ luôn dùng keo của dải ngắn nhất — app tự ghi, không sửa ở đây" '+
-           'style="margin-top:3px;padding:2px 6px;border-left:3px solid #d97706;background:rgba(217,119,6,.10);color:#92400e;'+
+           'style="margin-top:'+(coChu?'3px':'0')+';padding:2px 6px;border-left:3px solid #d97706;background:rgba(217,119,6,.10);color:#92400e;'+
            'font-size:.92em;font-weight:600;white-space:pre-line;line-height:1.35;overflow-wrap:anywhere">⚑ '+esc(t).replace(/\n/g,'\n⚑ ')+'</div>';
   }
   /* Gắn dòng ghi chú độ cong mới vào cuối ô Ghi Chú (ô đó có thể là ô sửa được). */
@@ -7546,7 +7580,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var okX=true;
       if(laCuon && tr.hasAttribute('data-xuong')){
         var _che=String(getVal('s6-th-mode')||'all'), _x=tr.getAttribute('data-xuong')||'';
-        if(_che==='nd') okX=!_x; else if(_che==='th') okX=(_x==='TH'); else if(_che==='hy') okX=(_x==='HY');
+        okX=xuongKhopChe(_x, _che);
       }
       var hien=(okM&&okKH&&okQ&&okC&&okX);
       tr.style.display=hien?'':'none';
@@ -7586,9 +7620,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       for(var ci in cf){ if(+ci===+boQuaCol) continue; var set=cf[ci]; if(set && !set[cellText(tr,+ci)]) return; }
       if(laCuon && tr.hasAttribute('data-xuong')){
         var _che=String(getVal('s6-th-mode')||'all'), _x=tr.getAttribute('data-xuong')||'';
-        if(_che==='nd' && _x) return;
-        if(_che==='th' && _x!=='TH') return;
-        if(_che==='hy' && _x!=='HY') return;
+        if(!xuongKhopChe(_x, _che)) return;
       }
       out.push(tr);
     });
@@ -7630,6 +7662,24 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   /* ===== LỌC BẢNG LINE CUỐN THEO XƯỞNG LÀM (chốt 19/8) =====
      Ô xổ cạnh nút in: Tất cả (mặc định) · Xưởng NĐ (bỏ -TH/-HY) · Xưởng TH · Xưởng HY.
      Lọc ở DỮ LIỆU nên 2 bảng Σ và thanh Tổng Dây tự nhảy theo. KHÔNG dính tới bản in. */
+  /* Ô xổ xưởng: 'all' · 'nd' (không đuôi) · hoặc MÃ xưởng bất kỳ (th · hy · tk…) — so đúng mã. */
+  function xuongKhopChe(x, che){
+    che=String(che||'all').toLowerCase(); x=String(x||'').toUpperCase();
+    if(che==='all') return true;
+    if(che==='nd') return !x;
+    return x===che.toUpperCase();
+  }
+  /* Xưởng KHÁC ngoài NĐ · TH · HY (bảng line ghi "TK"…) — tô như hàng TH. */
+  function laXuongKhac(r){ var x=xuongCuaDong(r); return !!x && x!=='TH' && x!=='HY'; }
+  /* Thêm vào ô xổ những xưởng có trong dữ liệu mà ô xổ chưa có (vd TK từ bảng line). */
+  function themXuongVaoO(rows){
+    var sel=document.getElementById('s6-th-mode'); if(!sel) return;
+    var co={}; [].forEach.call(sel.options, function(o){ co[o.value]=1; });
+    (rows||[]).forEach(function(r){
+      var x=xuongCuaDong(r); if(!x) return; var v=x.toLowerCase(); if(co[v]) return;
+      co[v]=1; var op=document.createElement('option'); op.value=v; op.textContent='Xưởng '+x; op.title='Chỉ hàng xưởng '+x+' — code sợi đuôi -'+x; sel.appendChild(op);
+    });
+  }
   function xuongCuaDong(r){
     var m=String((r&&r.xuongMa)||'').toUpperCase();
     if(m) return m;
@@ -7733,11 +7783,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function hopXuongLoc(r){
     var che=String(getVal('s6-th-mode')||'all');
     if(che==='all') return true;
-    var x=xuongCuaDong(r);
-    if(che==='nd') return !x;
-    if(che==='th') return x==='TH';
-    if(che==='hy') return x==='HY';
-    return true;
+    return xuongKhopChe(xuongCuaDong(r), che);
   }
   /* ===== DẢI (BẢNG MIX) CỦA 1 DÒNG LINE CUỐN =====
      Mỗi dải Mix là 1 DÒNG riêng (engine không gộp mấy dải cùng phủ 1 mm nữa — chốt 21/8), nên
@@ -9947,8 +9993,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
          Xưởng NĐ = code sợi KHÔNG có đuôi · HY = đuôi -HY · TH = đuôi -TH.
        · Chọn "Tất cả":
            - tài khoản/xưởng đang xem là HY → in cả 3 xưởng;
-           - còn lại (NĐ…)  → Tổng hợp Line CHỈ lấy NĐ (bỏ cả -TH lẫn -HY — user chốt 30/9, trước
-             đây chỉ bỏ -TH nên hàng -HY lọt vào bản in) · Tổng hợp Cuốn lấy NĐ+TH (bỏ -HY).
+           - còn lại (NĐ…)  → Tổng hợp Line lấy NĐ + HY, bỏ TH/TK/xưởng khác (user chốt 13/10 —
+             thay luật 30/9 "chỉ NĐ") · Tổng hợp Cuốn lấy tất cả trừ -HY.
      Mã xưởng do auth.web.js bơm vào window.__CL_XUONG (đọc bảng factories). Không lấy được thì
      coi như KHÔNG phải HY — giữ nguyên cách in cũ, không đổi số liệu ngoài ý muốn. */
   function maXuongDangXem(){
@@ -9960,12 +10006,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   function locXuongIn(loai){
     var che=String(getVal('s6-th-mode')||'all');
-    if(che==='nd') return { giu:function(r){ return !xuongCuaDong(r); },        nhan:' · Xưởng NĐ' };
-    if(che==='th') return { giu:function(r){ return xuongCuaDong(r)==='TH'; },  nhan:' · Xưởng TH' };
-    if(che==='hy') return { giu:function(r){ return xuongCuaDong(r)==='HY'; },  nhan:' · Xưởng HY' };
-    if(maXuongDangXem()==='HY') return { giu:function(){ return true; }, nhan:' · cả 3 xưởng' };
+    if(che!=='all') return { giu:function(r){ var x=xuongCuaDong(r); return che==='nd' ? !x : x===che.toUpperCase(); },
+                             nhan:' · Xưởng '+(che==='nd'?'NĐ':che.toUpperCase()) };
+    if(maXuongDangXem()==='HY') return { giu:function(){ return true; }, nhan:' · mọi xưởng' };
+    /* User chốt 13/10 (thay luật 30/9): tài khoản xưởng NĐ, để "Tất cả":
+         · Tổng hợp Line  → CHỈ NĐ (đuôi trống) + HY — bỏ TH, TK và mọi xưởng khác;
+         · Tổng hợp Cuốn  → tất cả, chỉ bỏ HY. */
     return loai==='line'
-      ? { giu:function(r){ var x=xuongCuaDong(r); return x!=='TH' && x!=='HY'; }, nhan:'' }
+      ? { giu:function(r){ var x=xuongCuaDong(r); return !x || x==='HY'; }, nhan:'' }
       : { giu:function(r){ return xuongCuaDong(r)!=='HY'; }, nhan:'' };
   }
   /* ===== BẢN IN TỔNG HỢP BOX (user chốt 17/9) =====
@@ -14308,7 +14356,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     datNhan: function(){
       try{
         state.source = '💾 ' + (state.files||[]).length + ' file · ' + (state.orders||[]).length + ' dòng';
-        try{ render(); }catch(e){ logErr('datNhan.render', e); }
+        /* Vẽ lại kiểu HOÃN nếu đang gõ trong ô: việc chốt nhãn chạy NGẦM (vừa nhận bản lưu từ máy
+           chủ) — vẽ lại ngay là xoá mất ô đang sửa, chữ vừa gõ rơi đi (soát 8/10, Bảng Keo). */
+        try{ veLaiHoacCho(); }catch(e){ logErr('datNhan.render', e); }
         return state.source;
       }catch(e){ logErr('datNhan', e); return ''; }
     },
@@ -14324,6 +14374,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       state.orders    = Array.isArray(p.orders)    ? p.orders    : [];
       state.mixSheets = Array.isArray(p.mixSheets) ? p.mixSheets : [];
       state.keoRows   = Array.isArray(p.keoRows)   ? p.keoRows   : [];
+      try{ if(E.boCauKeoFix) E.boCauKeoFix(state.keoRows); }catch(e){ logErr('loadData.boCauKeoFix', e); }   // bản lưu cũ còn câu "Keo khách đã fix trong đơn"
       state.khachCuon = (p.khachCuon && p.khachCuon.rows) ? p.khachCuon : null;   // số khách tự tính (template 2026) — để đối chiếu
       state.pack      = Array.isArray(p.pack)      ? p.pack      : null;   // lớp packing (nếu đã lưu)
       state._packR    = null;
@@ -14387,14 +14438,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1712360000"></script>
-<script src="cl.sync.js?v=1712360000"></script>
-<script src="auth.store.js?v=1712360000"></script>
-<script src="auth.web.js?v=1712360000"></script>
+<script src="cl.config.js?v=1712760000"></script>
+<script src="cl.sync.js?v=1712760000"></script>
+<script src="auth.store.js?v=1712760000"></script>
+<script src="auth.web.js?v=1712760000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1712360000"></script>
+<script src="cl.project.js?v=1712760000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1712360000" defer></script>
+<script src="firebase-bridge.js?v=1712760000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
