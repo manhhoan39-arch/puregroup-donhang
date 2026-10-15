@@ -677,7 +677,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1712860000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1712960000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1409,7 +1409,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1712860000"></script>
+<script src="engine.web.js?v=1712960000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -1588,7 +1588,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   ];
   // Length hiển thị đúng format sheet: Single "6mm"→"6", Mix "6-13mm"→"6~13" (giữ dấu * nếu có)
   var fmtLength = function(o){
-    var s = String(o.length==null?'':o.length).replace(/mm$/i,'');
+    var s = String(o.length==null?'':o.length).replace(/mm(#\d+)?$/i,'$1');   // "6-11mm#2" (bảng mix trùng dải) → "6~11#2"
     return s.replace('-','~');
   };
   var getFVal = function(o, key){
@@ -3085,7 +3085,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         for(var i=0;i<maxN;i++){
           var added = i<ranges.length && i>=origRC;
           var addMark = added ? ('<br><span class="mix-delcol" data-mixdmadon="'+esc(s.maDon)+'" data-mixdcol="'+i+'" title="Xóa cột đã thêm này" style="display:inline-block;margin-top:2px;color:#fff;background:var(--red-500);border-radius:10px;padding:0 7px;cursor:pointer;font-weight:700;font-size:11px">✕ xóa cột</span>') : '';
-          var dLbl = i<ranges.length ? (esc(ranges[i]) + (rInfo&&rInfo.lines[i]?'<br><span class="mini" style="font-weight:600">('+rInfo.lines[i]+' Lines)</span>':'') + addMark) : '';
+          var nhanBT = ''; if(i<ranges.length && s.bienThe){ for(var kbt in s.bienThe){ if(s.bienThe[kbt]===ranges[i]) nhanBT=kbt; } }
+          var dLbl = i<ranges.length ? (esc(ranges[i]) + (nhanBT?'<br><span class="mini" style="font-weight:600;color:var(--red-600)" title="Bảng mix này trùng dải với bảng khác — dòng đơn ghi Label Type '+esc(nhanBT)+' dùng cột này">Label '+esc(nhanBT)+'</span>':'') + (rInfo&&rInfo.lines[i]?'<br><span class="mini" style="font-weight:600">('+rInfo.lines[i]+' Lines)</span>':'') + addMark) : '';
           defTds += '<td style="font-weight:700;color:var(--accent)'+(added?';background:rgba(0,207,200,.08)':'')+'">'+dLbl+'</td>';
         }
         mixRows += '<tr data-madon="'+esc(s.maDon)+'" data-makh="'+esc(khOf(s.maDon))+'"><td class="freeze" style="font-weight:800">'+esc(khOf(s.maDon))+'</td>'+
@@ -6897,7 +6898,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function boxGopKhoa(o){
     var cs = Object.keys(o.curls || {}).filter(function(k){ return +o.curls[k] > 0; }).sort().join(',');
     return [o.maDon, o.lineRaw || o.line || '', o.codeSoi || '', o.thickness || '', o.loaiHang || '',
-            o.label || '', o.material || '', boxKeo(o), o.ghiChu || '', o.length || '',
+            o.label || '', o.material || '', boxKeo(o), o.ghiChu || '', String(o.length || '').replace(/#\d+$/,''),   // "6-11mm#2" → bảng Box vẫn là 6-11mm
             o.mixSingle || '', cs].join('\u0000');
   }
   function boxSapKhoa(o){
@@ -6907,7 +6908,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
        lại rồi mới xếp theo thứ tự cũ bên trong đơn đó. */
     return { don: String(o.maDon || '').toLowerCase(),
              code: String(o.codeSoi || '').toLowerCase(), keo: String(boxKeo(o) || '').toLowerCase(),
-             mm: mm, sm: /single/i.test(String(o.mixSingle || '')) ? 0 : 1, dai: String(o.length || '') };
+             mm: mm, sm: /single/i.test(String(o.mixSingle || '')) ? 0 : 1, dai: String(o.length || '').replace(/#\d+$/,'') };
   }
   function gopBoxRows(ds){
     var map = {}, thuTu = [];
@@ -7216,7 +7217,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         '<td class="l" data-r="'+(no-1)+'" data-c="-4">'+esc(donOf(o.maDon))+'</td>'+
         '<td class="txt ps-mat'+mlc+'"'+(sua?' contenteditable="true" data-matcell="1"':'')+' data-r="'+(no-1)+'" data-c="-3" data-boxkey="'+esc(key)+'" '+
         'title="'+(sua?'Bấm đúp để sửa tên nguyên liệu':'Chỉ xem')+'">'+nl2br(o.material||o.codeSoi||'')+'</td>'+
-        '<td data-r="'+(no-1)+'" data-c="-2">'+esc(o.length||'')+'</td>'+
+        '<td data-r="'+(no-1)+'" data-c="-2">'+esc(String(o.length||'').replace(/#\d+$/,''))+'</td>'+
         '<td data-r="'+(no-1)+'" data-c="-1">'+esc(o.mixSingle||'')+'</td>'+
         curlTds+'<td class="qty" data-r="'+(no-1)+'" data-c="'+UC.length+'"'+totStyle+totTitle+'>'+hp+(warnSum?' ⚠':'')+'</td>'+
         '<td class="qty rem-cell" data-r="'+(no-1)+'" data-c="'+(UC.length+1)+'"'+(remRed?' data-remlock="1" style="background:#ffdede;color:#b1102e;font-weight:800"':(remGreen?' style="background:#d7f5df;color:#1a7a3f;font-weight:800"':''))+remTitle+'>'+remVal+(remRed?' ⚠':'')+'</td>'+
@@ -7322,7 +7323,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         '<td class="txt'+mlc+'">'+nl2br(o.material||'')+'</td>'+
         '<td class="txt">'+esc(keoTxt)+'</td>'+
         '<td class="txt">'+esc(o.ghiChu||'')+'</td>'+
-        '<td>'+esc(o.length||'')+'</td><td>'+esc(o.mixSingle)+'</td>'+
+        '<td>'+esc(String(o.length||'').replace(/#\d+$/,''))+'</td><td>'+esc(o.mixSingle)+'</td>'+
         curlTds+
         '<td class="qty">'+hop+'</td></tr>';
     }).join('') || '<tr data-noflt="1"><td colspan="'+(14+(state.usedCurls||CURLS).length)+'" class="txt mini">Chưa có dữ liệu Box.</td></tr>');
@@ -14438,14 +14439,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1712860000"></script>
-<script src="cl.sync.js?v=1712860000"></script>
-<script src="auth.store.js?v=1712860000"></script>
-<script src="auth.web.js?v=1712860000"></script>
+<script src="cl.config.js?v=1712960000"></script>
+<script src="cl.sync.js?v=1712960000"></script>
+<script src="auth.store.js?v=1712960000"></script>
+<script src="auth.web.js?v=1712960000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1712860000"></script>
+<script src="cl.project.js?v=1712960000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1712860000" defer></script>
+<script src="firebase-bridge.js?v=1712960000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){

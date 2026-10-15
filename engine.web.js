@@ -28,6 +28,10 @@
   function normalizeLength(len) {
     if (len == null) return '';
     var s = String(len).trim().toLowerCase().replace(/\s|mm/g, '').replace('~', '-');
+    /* DẤU PHÂN BIỆT "#n" (user chốt 15/10 · đơn C153-829P): một đơn có NHIỀU bảng Mix CÙNG dải
+       (3 bảng 6-11mm, nhãn 6-11mm.1 · 6-11mm.2 · 6-11mmm.1) → dải mang thêm "#1/#2/#3" để mỗi
+       dòng đơn tra đúng bảng của nó. Giữ nguyên dấu này qua mọi lần chuẩn hoá. */
+    var bt = s.match(/#(\d+)$/); if (bt) s = s.slice(0, -bt[0].length);
     /* CHÚ THÍCH DÍNH SAU DẢI: khách ghi Độ Dài "7-14mm.DB" (đơn CS89-794P) — chữ ".DB" chỉ là
        ghi chú của khách, dải vẫn là 7-14mm và vẫn 16 lines. Trước đây khoá thành "7-14.dbmm"
        nên tra bảng Mix KHÔNG RA ⇒ app báo "không có bảng Mix cho dải này" và thiếu 160 dây.
@@ -36,11 +40,11 @@
        "4-5-6" (liệt kê nhiều mm) và "*5-13" vẫn giữ nguyên. */
     var m = s.match(/^(\*?\d+(?:-\d+)?)([._a-z].*)$/);
     if (m) s = m[1];
-    return s === '' ? '' : s + 'mm';
+    return s === '' ? '' : s + 'mm' + (bt ? '#' + bt[1] : '');
   }
   function parseRange(lenNorm) {
-    // chấp nhận biến thể có dấu * đầu (vd *5-13mm — dải Mix riêng trong đơn khách)
-    var s = String(lenNorm).replace(/mm$/i, '');
+    // chấp nhận biến thể có dấu * đầu (vd *5-13mm — dải Mix riêng trong đơn khách) và dấu "#n" cuối
+    var s = String(lenNorm).replace(/#\d+$/, '').replace(/mm$/i, '');
     var m = s.match(/^\*?(\d+)-(\d+)$/); if (m) return { lo: +m[1], hi: +m[2] };
     var o = s.match(/^\*?(\d+)$/); if (o) return { lo: +o[1], hi: +o[1] };
     return null;
@@ -1354,6 +1358,8 @@
      khách fix TRÁI với quy tắc trong Bảng Keo thì code sợi mang thêm đuôi "-K" + số đuôi mã
      keo (XanhLX70.2 → "-K2", Vang80.3 → "-K3"), để nhìn code là biết ngay phải lấy keo nào.
      Mã keo không có số đuôi thì KHÔNG bịa đuôi ra. */
+  // "6-11mm#2" (bảng mix trùng dải thứ 2) → "6-11mm"
+  function daiGoc(len) { return String(len == null ? '' : len).replace(/#\d+$/, ''); }
   function duoiKeo(glue) {
     var m = String(glue == null ? '' : glue).trim().match(/\.(\d+)\s*$/);
     return m ? ('K' + m[1]) : '';
@@ -1475,7 +1481,7 @@
     keoHasRules = keoHasRules || {};
     // nhóm theo MÃ ĐƠN + Code Sợi (cùng code ở 2 đơn khác nhau không gộp lẫn)
     orders = orders || []; var meta = {};
-    orders.forEach(function (o) { meta[o.maDon + '|' + o.codeSoi + '|' + o.length] = o; });
+    orders.forEach(function (o) { meta[o.maDon + '|' + o.codeSoi + '|' + o.length] = o; meta[o.maDon + '|' + o.codeSoi + '|' + daiGoc(o.length)] = meta[o.maDon + '|' + o.codeSoi + '|' + daiGoc(o.length)] || o; });
     var tree = {};
     data1.forEach(function (r) {
       /* Hàng của xưởng NGOÀI (TH · HY) tách nhóm riêng: cùng code sợi mà nơi làm khác nhau
@@ -1496,12 +1502,15 @@
          XanhLX70.3, No.28 mm9 ăn XanhLX70.2). Gộp chung thì ô Keo Nhiệt phải ghi hai mã trong
          một ô — xưởng không biết cuốn theo mã nào. Tách ra là mỗi dòng một mã, số vẫn đủ. */
       var _kFix = keoMmTai(r.keoMm, r.mm);
-      var key = r.mm + '|' + (r.material || '') + '|' + (r.thickness || '') + '|' + (r.mixSingle || '') + '|' + (r.length || '') + '|' + _kFix;
+      /* Bảng mix TRÙNG DẢI "6-11mm#1/#2/#3" (đơn 829P) chỉ khác ở bảng phân bổ (bước 3) —
+         sang Bảng Line Cuốn vẫn là MỘT dải 6-11mm, gộp lại như trước (số đã đúng theo từng bảng). */
+      var _lenG = daiGoc(r.length);
+      var key = r.mm + '|' + (r.material || '') + '|' + (r.thickness || '') + '|' + (r.mixSingle || '') + '|' + _lenG + '|' + _kFix;
       var g = c.rows[key];
-      if (!g) { g = c.rows[key] = { length: r.length, lengths: [], mm: r.mm, curls: {}, tong: 0, keoSet: {}, keo2mmSet: {}, material: r.material || '', thickness: r.thickness || '', mixSingle: r.mixSingle || '' }; c.order.push(key); }
+      if (!g) { g = c.rows[key] = { length: _lenG, lengths: [], mm: r.mm, curls: {}, tong: 0, keoSet: {}, keo2mmSet: {}, material: r.material || '', thickness: r.thickness || '', mixSingle: r.mixSingle || '' }; c.order.push(key); }
       if (r.hopLineLech) { g.hlLech = g.hlLech || r.hopLineLech; c.hlLech = c.hlLech || r.hopLineLech; }
       if (r.cmix) { g.cmix = true; c.cmix = true; }   // dòng tách từ Mix nhiều màu → tô màu ở bước 5
-      if (g.lengths.indexOf(r.length) < 0) g.lengths.push(r.length);   // các dải đã gộp (để tra nguồn)
+      if (g.lengths.indexOf(_lenG) < 0) g.lengths.push(_lenG);   // các dải đã gộp (để tra nguồn)
       g.curls[r.curl] = (g.curls[r.curl] || 0) + r.sl; g.tong += r.sl; c.total += r.sl;
       // KEO TRA THEO TỪNG DÒNG data1 (material + độ dày + mm CỦA CHÍNH DÒNG) — không qua meta gộp
       var k1 = '', k2 = '', ambRow = false;
@@ -2072,6 +2081,20 @@
     }
     return blocks.length ? { cols: cols, blocks: blocks } : null;
   }
+  /* Dòng đơn ghi Độ Dài đúng NHÃN của một bảng Mix có dấu phân biệt ("6-11mm.2") → đổi sang dải
+     có dấu ("6-11mm#2") để tra đúng bảng. Dòng không khớp nhãn nào giữ nguyên. */
+  function apBienTheDai(out, mixSheets) {
+    // khoá "nhãn|số line": cùng nhãn "7-14mm" có thể là bảng 8 Lines (không trùng) lẫn bảng 16 Lines (trùng)
+    var map = {}, co = false;
+    (mixSheets || []).forEach(function (sh) { if (sh && sh.bienTheKey) { for (var k in sh.bienTheKey) { map[k] = sh.bienTheKey[k]; co = true; } } });
+    if (!co) return;
+    out.forEach(function (o) {
+      var nh = (o._lenNhan != null && o._lenNhan !== '') ? o._lenNhan : o.length;
+      var k = String(nh == null ? '' : nh).toLowerCase().replace(/\s+/g, '').replace(/~/g, '-');
+      var vt = map[k + '|' + (Number(o.line) || 0)];
+      if (vt) o.length = vt;
+    });
+  }
   function parseMixLengthBlocks(aoa, hrSkip, maDon, colEnd) {
     var r, row, i, v, q, rw;
     /* colEnd = cột BẮT ĐẦU của bảng khác nằm cùng dòng bên phải (mẫu 2026: cột "Mã BR" của
@@ -2136,6 +2159,46 @@
             break;
           }
         })();
+        /* ===== NHIỀU BẢNG MIX CÙNG DẢI (user chốt 15/10 · đơn C153-829P) =====
+           Đơn có 3 cột "6-11mm" (20 Lines) khác số liệu, phân biệt bằng dòng "Label Type" ngay
+           trên: 6-11mm.1 · 6-11mm.2 · 6-11mmm.1 — dòng đơn ghi ĐÚNG nhãn đó ở cột Độ Dài.
+           Trước đây cả 3 cùng khoá "6-11mm|20" nên bảng sau ĐÈ bảng trước, mọi dòng đơn 6-11mm
+           ăn chung một phân bổ. Nay mỗi bảng thành dải có dấu "#1/#2/#3" và nhớ nhãn → dải để
+           gắn lại cho dòng đơn (bienThe). Chỉ làm khi nhãn của các cột trùng dải KHÁC nhau. */
+        var bienThe = {}, bienTheKey = {};
+        (function () {
+          /* Số line THỰC của cột: header ghi thì lấy, không ghi thì cộng cột (giống pipeline).
+             Nhóm theo dải + số line thực — 2 bảng cùng dải KHÁC số line (20/18/16 Lines) đã
+             phân biệt được bằng khoá "dải|line" nên KHÔNG đánh dấu #. */
+          var tongCot = function (j) {
+            var sum = 0;
+            for (var q5 = r + 1; q5 < aoa.length && q5 <= r + 40; q5++) {
+              var lb = PS((aoa[q5] || [])[mi]);
+              if (!/^\d+\s*mm$/i.test(lb)) { if (sum) break; continue; }
+              sum += Number((aoa[q5] || [])[rangeCols[j]]) || 0;
+            }
+            return sum;
+          };
+          var lineThuc = ranges.map(function (_x, j) { return lineCounts[j] != null ? lineCounts[j] : tongCot(j); });
+          var nhom = {};
+          ranges.forEach(function (rg0, j) { var k = rg0 + '|' + lineThuc[j]; (nhom[k] = nhom[k] || []).push(j); });
+          var trung = Object.keys(nhom).filter(function (k) { return nhom[k].length > 1; });
+          if (!trung.length) return;
+          var lt = -1;
+          for (var q4 = r - 1; q4 >= Math.max(0, r - 4); q4--) {
+            if (PS((aoa[q4] || [])[mi]).toLowerCase().replace(/\s+/g, ' ') === 'label type') { lt = q4; break; }
+          }
+          if (lt < 0) return;
+          trung.forEach(function (k) {
+            var cols = nhom[k];
+            var nhan = cols.map(function (j) { return PS((aoa[lt] || [])[rangeCols[j]]).toLowerCase().replace(/\s+/g, '').replace(/~/g, '-'); });
+            var khac = {}, dau = ranges[cols[0]].replace(/mm$/, '');
+            // nhãn phải là TÊN DẢI (bắt đầu bằng "6-11"…) — dòng "20 Lines"/"Mix 1" không phải nhãn
+            nhan.forEach(function (x) { if (x && x.indexOf(dau) === 0) khac[x] = 1; });
+            if (Object.keys(khac).length !== cols.length) return;    // nhãn trống / trùng / sai dạng → không phân biệt được
+            cols.forEach(function (j, t) { var vt = ranges[j] + '#' + (t + 1); bienThe[nhan[t]] = vt; bienTheKey[nhan[t] + '|' + lineThuc[j]] = vt; ranges[j] = vt; });
+          });
+        })();
         // CỘT MIX MÀU: dưới header không phải số mà là CẶP "9mm | Tên màu" (mỗi cặp = 1 sợi,
         // 1 Mix chứa nhiều màu/code sợi — vd 8~12mm 18 Lines = Pink×4 + H.Pink×5 + L.Violet×4 + Violet×5).
         // Nhận diện: ô đầu tiên dưới header khớp "<n>mm" và ô bên phải có chữ → đếm cặp theo mm.
@@ -2182,7 +2245,9 @@
         }
         var allZero = function (arr) { for (var z = 0; z < arr.length; z++) if (arr[z]) return false; return true; };
         while (mmList.length && allZero(matrix[matrix.length - 1])) { mmList.pop(); matrix.pop(); }
-        if (mmList.length) mixSheets.push({ maDon: maDon, mmList: mmList, matrix: matrix, ranges: ranges, lineCounts: lineCounts, colorBlocks: colorBlocksByRange });
+        if (mmList.length) mixSheets.push({ maDon: maDon, mmList: mmList, matrix: matrix, ranges: ranges, lineCounts: lineCounts, colorBlocks: colorBlocksByRange,
+                                            bienThe: Object.keys(bienThe).length ? bienThe : null,
+                                            bienTheKey: Object.keys(bienTheKey).length ? bienTheKey : null });
         i = ci - 1;   // tiếp tục quét từ vị trí dừng (bảng kế bên nếu có)
       }
     }
@@ -2456,6 +2521,7 @@
     var specialApplied = _ap.dsMoTa; maDon = _ap.maDon;
     // 3. bảng Mix của khách: khối "Mix Length" — xem parseMixLengthBlocks (dùng chung 2 mẫu)
     var mixSheets = parseMixLengthBlocks(aoa, hr, maDon);
+    apBienTheDai(out, mixSheets);
     // 4. bảng keo: header có "Mã Keo"/"Loại Keo" (+ tuỳ chọn: Loại Sợi/Nguyên Liệu, Độ Dày, Độ Dài).
     //    Đọc ĐỦ CỘT để dựng QUY TẮC keo: 1 Material có thể nhiều keo theo khoảng chiều dài.
     //    Ô GỘP (merged): dòng phụ chỉ có Độ Dài + Mã Keo → kế thừa Loại Sợi/Độ Dày dòng trên.
@@ -2732,7 +2798,7 @@
       });
       var soLineRaw = PS(col.soLine >= 0 ? row[col.soLine] : '');
       out.push({
-        seri: stt, seriGoc: stt, maDon: maDon, codeSoi: code,
+        seri: stt, seriGoc: stt, maDon: maDon, codeSoi: code, _lenNhan: lenRaw,   // nhãn Độ Dài nguyên văn (6-11mm.2) — chỉ để tra bảng Mix có dấu, xoá ngay sau
         detail: PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''),
         xuongMa: colTH26 >= 0 ? (maXuongCuaO(row[colTH26]) || '') : '',
         xuongTH: colTH26 >= 0 && LA_TH.test(PS(row[colTH26])),
@@ -2963,6 +3029,8 @@
        Mix nhiều màu: colorBlocks chỉ có khi khách ghi cặp "mm | tên màu" (mẫu cũ);
        mẫu 2026 không ghi vậy → colorBlocks rỗng → admin ĐIỀN TAY ở bước 3. */
     var mixSheets = parseMixLengthBlocks(aoa, hr, maDon, DC.br);
+    apBienTheDai(out, mixSheets);
+    out.forEach(function (o) { delete o._lenNhan; });
     var mixWarnings = [];
 
     /* ---- F. Bảng keo: SINH RA từ "Keo Đã Fix" của BẢNG CHI TIẾT ----
