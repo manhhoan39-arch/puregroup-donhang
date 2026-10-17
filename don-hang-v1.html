@@ -681,7 +681,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1713460000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1713560000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1413,7 +1413,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1713460000"></script>
+<script src="engine.web.js?v=1713560000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -3105,6 +3105,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var origMm={}; if(origSheet){ (origSheet.mmList||[]).forEach(function(x){ origMm[x]=1; }); }
         var colAdded=function(j){ return canEditMix && j>=origRC; };
         var rowAdded=function(mv){ return canEditMix && !!origSheet && !origMm[mv]; };
+        /* SUPER ADMIN sửa được CẢ ô gốc (từ đơn) — user chốt 17/10, giống Bảng Nhập Đơn/Bảng Keo:
+           bấm đúp mới mở ô, sửa xong mọi bước sau (Keo · Line Cuốn · Box…) tính lại ngay. */
+        var saMix = canEditMix && vaiTroHienTai()==='super_admin';
         var defTds = '';
         for(var i=0;i<maxN;i++){
           var added = i<ranges.length && i>=origRC;
@@ -3125,10 +3128,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             if(i2<ranges.length){
               var rg = ranges[i2], v = (mixTbl[mm]||{})[colKey(i2)]||0; rowSum += v;
               var pr = E.parseRange(rg), bad = v && pr && (mm<pr.lo || mm>pr.hi); if(bad) mixErrTotal++;
-              // CHỈ ô thuộc DÒNG THÊM hoặc CỘT THÊM mới sửa được; ô gốc (từ đơn) bị khóa.
-              var editable = colAdded(i2) || rowAdded(mm);
-              var me = editable ? ' contenteditable="true" data-mixmadon="'+esc(s.maDon)+'" data-mixmm="'+mm+'" data-mixcol="'+i2+'" style="background:rgba(0,207,200,.08)"' : '';
-              tds += '<td class="'+(bad?'err':(v?'qty':''))+'"'+(bad?' title="MM '+mm+' ngoài dải '+esc(rg)+'"':(editable?' title="Ô có thể sửa"':''))+me+'>'+(v||'')+'</td>';
+              // Ô gốc (từ đơn): chỉ SUPER ADMIN sửa được (bấm đúp). Vai trò khác chỉ sửa DÒNG/CỘT THÊM.
+              var themMoi = colAdded(i2) || rowAdded(mm), editable = themMoi || saMix;
+              var me = editable ? ' contenteditable="true" data-mixmadon="'+esc(s.maDon)+'" data-mixmm="'+mm+'" data-mixcol="'+i2+'"'+(themMoi?' style="background:rgba(0,207,200,.08)"':'') : '';
+              tds += '<td class="'+(bad?'err':(v?'qty':''))+'"'+(bad?' title="MM '+mm+' ngoài dải '+esc(rg)+(editable?' · bấm đúp để sửa':'')+'"':(editable?' title="Bấm đúp để sửa"':''))+me+'>'+(v||'')+'</td>';
             } else { tds += '<td></td>'; }
           }
           // ẩn dòng độ dài trống — NHƯNG giữ dòng mm đã có trong mmList (để admin thêm/sửa)
@@ -14632,14 +14635,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1713460000"></script>
-<script src="cl.sync.js?v=1713460000"></script>
-<script src="auth.store.js?v=1713460000"></script>
-<script src="auth.web.js?v=1713460000"></script>
+<script src="cl.config.js?v=1713560000"></script>
+<script src="cl.sync.js?v=1713560000"></script>
+<script src="auth.store.js?v=1713560000"></script>
+<script src="auth.web.js?v=1713560000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1713460000"></script>
+<script src="cl.project.js?v=1713560000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1713460000" defer></script>
+<script src="firebase-bridge.js?v=1713560000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
