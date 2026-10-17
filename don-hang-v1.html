@@ -652,6 +652,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   .cl-modal .box{padding:14px}
   .cl-card,.cl-overlay .cl-card{width:94vw}
 }
+  @media (max-width:600px){ .err-goiy{display:none} }   /* điện thoại: nhường chỗ cho ô "N mục cần duyệt" */
 </style>
 </head>
 <body>
@@ -677,7 +678,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1713160000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1713360000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -764,7 +765,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
     <!-- Error list inline (kết quả kiểm tra ngay sau upload) -->
     <div class="card" style="margin-top:14px">
       <div class="card-head" style="background:var(--red-500);color:#fff"><h3 style="color:#fff">⚠️ Danh sách lỗi / cảnh báo</h3>
-        <div class="spacer"></div><span class="mini" style="color:#fff">các ô này sẽ tô đỏ trong Bảng Nhập Đơn (Bước 2)</span></div>
+        <div class="spacer"></div><span id="err-list-tools" class="mini" style="color:#fff;margin-right:10px"></span><span class="mini err-goiy" style="color:#fff">bấm 1 dòng để tới đúng ô trong Bảng Nhập Đơn (Bước 2)</span></div>
       <div class="tbl-wrap" style="max-height:200px;border:none;border-radius:0">
         <table>
           <thead><tr><th>File <span class="fbtn" data-coltbl="eng-errlist" data-col="0" title="Lọc cột File">▼</span></th><th>Dòng <span class="fbtn" data-coltbl="eng-errlist" data-col="1" title="Lọc cột Dòng">▼</span></th><th>Cột <span class="fbtn" data-coltbl="eng-errlist" data-col="2" title="Lọc cột Cột">▼</span></th><th>Mã lỗi <span class="fbtn" data-coltbl="eng-errlist" data-col="3" title="Lọc cột Mã lỗi">▼</span></th><th>Mô tả <span class="fbtn" data-coltbl="eng-errlist" data-col="4" title="Lọc cột Mô tả">▼</span> <span id="err-approve-slot" style="float:right"></span></th></tr></thead>
@@ -1409,7 +1410,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1713160000"></script>
+<script src="engine.web.js?v=1713360000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -2850,6 +2851,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(el){
       // (a) DÒNG QUY ĐỔI header độ cong lộn xộn → để admin KIỂM TRA máy quy đổi đúng chưa
       state.remapApproved=state.remapApproved||{};
+      /* CHỈ HIỆN MỤC CẦN DUYỆT (user chốt 17/10): 134 file thì danh sách dài cả nghìn dòng,
+         lẫn cả mục đã duyệt/đã kiểm → phải dò lại từng dòng. Nay mặc định ẩn mục đã xong
+         (quy đổi đã duyệt · ô đã bấm "Đã kiểm" · độ dài đã "Cho phép sai chuẩn"); nút trên
+         thanh đỏ bật lại khi cần xem. Mỗi dòng có nút "✓ Đã kiểm" để duyệt ngay tại đây. */
+      var _errDaDuyet=0;
       var remapRows='', remapPending=0;
       (state.files||[]).forEach(function(F){
         var rm=F && F.meta && F.meta.curlRemap; if(!rm||!rm.length) return;
@@ -2857,6 +2863,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         rm.forEach(function(x){
           var key=md+'|'+x.curl+'|'+x.header, appr=!!state.remapApproved[key];
           if(!appr) remapPending++;
+          if(appr){ _errDaDuyet++; if(!errXemHet) return; }   // đã duyệt → ẩn (trừ khi bấm "Hiện cả mục đã duyệt")
           remapRows += '<tr title="Header cột độ cong ghi lộn xộn — máy đã tự quy đổi, hãy KIỂM TRA rồi bấm Duyệt">'+
             '<td>'+esc(md)+'</td><td>header</td><td><b>'+esc(x.curl)+'</b></td>'+
             '<td><span class="badge '+(appr?'pass':'warn')+'">'+(appr?'✓ ĐÃ DUYỆT':'QUY ĐỔI')+'</span></td>'+
@@ -2889,17 +2896,31 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
          lỗi mã keo (E-KEO · E-KEO2) thuộc BẢNG KEO, seri = 0, nên app sang bước 2 tìm dòng
          seri 0 → không thấy gì, bấm như không có phản ứng. Thẻ KPI "ô sai chuẩn" đã đi đúng
          từ 21/8 (errIsKeo → jumpToKeo), chỉ danh sách này còn sót. */
-      var errRows = R.errors.map(function(e){
+      var errRows = R.errors.filter(function(e){
+        var xong = isErrAcked(e) || e.code==='W-LEN-OK';     // W-LEN-OK = độ dài đã "Cho phép sai chuẩn"
+        if(xong) _errDaDuyet++;
+        return errXemHet || !xong;
+      }).map(function(e){
         var lv = e.level==='warn'?'warn':'fail';
         var keo = errIsKeo(e);
+        var daKiem = isErrAcked(e), nutKiem = e.code==='W-LEN-OK' ? ' <span style="color:var(--green-600);font-weight:700;margin-left:6px">✓ đã cho phép</span>'
+          : (daKiem ? ' <span style="color:var(--green-600);font-weight:700;margin-left:6px">✓ đã kiểm</span> <button class="btn sm err-unack1" data-ackkey="'+esc(errAckKey(e))+'" style="margin-left:4px" title="Bỏ xác nhận — ô này lại vào danh sách cần duyệt">↺</button>'
+                    : ' <button class="btn sm err-ack1" data-ackkey="'+esc(errAckKey(e))+'" style="color:var(--green-600);border-color:var(--green-600);font-weight:700;margin-left:6px" title="Đã xem ô này, đúng như đơn khách → bỏ khỏi danh sách cần duyệt">✓ Đã kiểm</button>');
         return '<tr data-seri="'+esc(e.seri)+'" data-madon="'+esc(e.maDon||'')+'" data-col="'+esc(e.col)+'"'+
           ' data-code="'+esc(e.code||'')+'"'+(e.keoIdx!=null?(' data-keoidx="'+esc(e.keoIdx)+'"'):'')+
           ' style="cursor:pointer" title="Bấm để sang '+(keo?'Bảng Keo':'Bảng Nhập Đơn')+' và sửa ô này">'+
           // lỗi mã keo không thuộc dòng đơn nào (seri = 0) → cột DÒNG để dấu "—" cho khỏi hiểu nhầm
           '<td>'+(e.maDon||'—')+'</td><td>'+(keo?'—':e.seri)+'</td><td>'+e.col+'</td>'+
-          '<td><span class="badge '+lv+'">'+e.code+'</span></td><td class="txt">'+esc(e.msg)+'</td></tr>';
+          '<td><span class="badge '+lv+'">'+e.code+'</span></td><td class="txt">'+esc(e.msg)+nutKiem+'</td></tr>';
       }).join('');
-      el.innerHTML = (unmapRows + remapRows + errRows) || '<tr><td colspan="5" class="txt" style="color:var(--green-600);font-weight:600">✓ Không còn lỗi — dữ liệu sạch</td></tr>';
+      var _canDuyet = el.__soCan = (unmapRows.match(/<tr/g)||[]).length + remapPending +
+        R.errors.filter(function(e){ return !(isErrAcked(e) || e.code==='W-LEN-OK'); }).length;
+      el.innerHTML = (unmapRows + remapRows + errRows) || ('<tr data-noflt="1"><td colspan="5" class="txt" style="color:var(--green-600);font-weight:600">✓ Không còn mục cần duyệt'+
+        (_errDaDuyet ? ' · '+fmtN(_errDaDuyet)+' mục đã duyệt/đã kiểm đang ẩn' : ' — dữ liệu sạch')+'</td></tr>');
+      var _tl=document.getElementById('err-list-tools');
+      if(_tl) _tl.innerHTML = '<b>'+fmtN(_canDuyet)+'</b> mục cần duyệt'+
+        (_errDaDuyet ? ' · <button class="btn sm err-xemhet" style="background:#fff;color:var(--red-600);font-weight:700;margin-left:6px">'+
+          (errXemHet ? 'Ẩn '+fmtN(_errDaDuyet)+' mục đã duyệt' : 'Hiện cả '+fmtN(_errDaDuyet)+' mục đã duyệt')+'</button>' : '');
     }
 
     // --- Bảng Nhập Đơn: header động (18 độ cong + cột xóa khi admin) ---
@@ -3788,6 +3809,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var md=tr.getAttribute('data-madon')||'';
     var mo=(rptMdChon!==md);
     rptMdChon = mo ? md : '';                                          // bấm lại chính dòng đó thì đóng
+    /* MỞ 1 đơn = CHỌN XEM đơn đó ở mọi bước (3 Mix · 4 Keo · 5 Line Cuốn · 6 Box…), user chốt 17/10.
+       Đóng lại thì các bước về theo ô lọc Mã Đơn của bảng tổng hợp (trống = tất cả các đơn). */
+    try{
+      if(mo && typeof gridMakh!=='undefined' && gridMakh && khOf(md)!==gridMakh) setGlobalMakh('');
+      setGlobalMadon(mo ? md : (dayDonHopLe(getVal('rpt-madon')) || ''), true);
+    }catch(e){ logErr('rpt.chonDon', e); }
     // chỉ đụng đúng 2 dòng liên quan — không vẽ lại cả bảng (giữ nguyên chỗ đang cuộn)
     var body=document.getElementById('rpt-body'); if(!body) return;
     Array.prototype.forEach.call(body.querySelectorAll('tr.rpt-row'), function(x){
@@ -6242,7 +6269,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   });
   function jumpToError(seri, mdon, col){
     if(typeof go==='function') go('s3');   // sang Bảng Nhập Đơn
-    state.filters={}; gridQuery=''; try{ applyGridFilter(); }catch(e){ logErr('jumpToError', e); }   // bỏ lọc để chắc chắn thấy dòng
+    /* Đang chọn 1 mã đơn / mã KH KHÁC ở bước 2 thì dòng lỗi bị lọc mất → bấm như không phản ứng
+       (user báo 17/10). Đổi sang đúng đơn chứa ô lỗi (đơn đó xổ hết, khỏi lật trang). */
+    try{
+      if(mdon && typeof gridMakh!=='undefined' && gridMakh && khOf(mdon)!==gridMakh) setGlobalMakh('');
+      if(mdon && typeof gridMadon!=='undefined' && gridMadon && gridMadon!==mdon) setGlobalMadon(mdon);
+    }catch(e){ logErr('jumpToError', e); }
+    state.filters={}; gridQuery=''; try{ var _gs=document.getElementById('grid-search'); if(_gs) _gs.value=''; applyGridFilter(); }catch(e){ logErr('jumpToError', e); }   // bỏ lọc để chắc chắn thấy dòng
     if(!grid || !grid.querySelector) return;
     var find=function(){ return grid.querySelector('tr[data-seri="'+seri+'"][data-madon="'+(mdon||'')+'"]')
                              || grid.querySelector('tr[data-seri="'+seri+'"]'); };
@@ -6268,7 +6301,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
        app tới đúng dòng mà chẳng tô ô nào, nhìn như nhảy hụt (sửa 28/8):
          · E-CURL ghi col "curl"  → 16 cột độ cong mang data-col "curl:C" · "curl:D"…
          · E-DUP  ghi col "seri"  → ô Seri là cột khoá, không có data-col */
-    if(!td && col==='curl') td = tr.querySelector('td[data-col^="curl:"]');
+    if(!td && (col==='curl' || col==='sl')){   // E-SL ghi col "sl" → tô ô độ cong có số
+      td = Array.prototype.filter.call(tr.querySelectorAll('td[data-col^="curl:"]'), function(c){ return String(c.textContent||'').trim()!==''; })[0]
+        || tr.querySelector('td[data-col^="curl:"]');
+    }
     if(!td && col==='seri') td = tr.querySelector('td.freeze');
     // BỎ highlight ô cũ, tô đậm đúng ô đang xem (kể cả khi nhiều lỗi cùng 1 dòng)
     Array.prototype.forEach.call(grid.querySelectorAll('td.jump-hit'), function(e){ e.classList.remove('jump-hit'); });
@@ -6387,6 +6423,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   }
   // Bấm nhiều lần → lần lượt nhảy qua TỪNG ô cảnh báo / sai chuẩn (xoay vòng)
   var _errI=0,_warnI=0,_errN=-1,_warnN=-1;
+  var errXemHet=false;   // Danh sách lỗi bước 1: false = chỉ mục cần duyệt
   function jumpCycle(level){
     var isErr=(level==='error');
     var list=filteredErrors().filter(function(x){ return isErr?x.level==='error':x.level==='warn'; });
@@ -6424,12 +6461,25 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     state.remapApproved=state.remapApproved||{};
     (state.files||[]).forEach(function(F){ var rm=F&&F.meta&&F.meta.curlRemap; if(!rm) return; var md=(F.maDons&&F.maDons[0])||F.name||'—'; rm.forEach(function(x){ state.remapApproved[md+'|'+x.curl+'|'+x.header]=true; }); });
     try{render();}catch(e){ logErr('jumpCycle', e); } });
+  // Nút "Hiện cả / Ẩn mục đã duyệt" trên thanh đỏ của Danh sách lỗi (chỉ đổi cách xem, không lưu)
+  document.addEventListener('click', function(ev){ var bx=ev.target&&ev.target.closest?ev.target.closest('.err-xemhet'):null; if(!bx) return;
+    ev.preventDefault(); ev.stopPropagation(); errXemHet=!errXemHet; try{ render({reuseR:true}); }catch(e){ logErr('errXemHet', e); } });
   // Step 1: bấm 1 dòng trong "Danh sách lỗi/cảnh báo" → sang ĐÚNG BẢNG chứa ô đó, nhảy tới ô đỏ để sửa
   var elErr=document.getElementById('eng-errlist');
   if(elErr && elErr.addEventListener) elErr.addEventListener('click', function(ev){
     // Duyệt 1 dòng quy đổi
     var b=ev.target&&ev.target.closest?ev.target.closest('.rm-approve'):null;
     if(b){ ev.stopPropagation(); state.remapApproved=state.remapApproved||{}; state.remapApproved[b.getAttribute('data-remapkey')]=true; try{render();}catch(e){ logErr('jumpCycle', e); } return; }
+    // "✓ Đã kiểm" / "↺" ngay trên 1 dòng lỗi — cùng kho state.errAck với nút "Đã kiểm" ở bước 2
+    var bk=ev.target&&ev.target.closest?ev.target.closest('.err-ack1,.err-unack1'):null;
+    if(bk){ ev.stopPropagation(); ev.preventDefault();
+      var kk=bk.getAttribute('data-ackkey'); if(!kk) return;
+      state.errAck=state.errAck||{};
+      try{ pushUndo(); }catch(e){ logErr('errAck1', e); }
+      if(bk.classList.contains('err-ack1')){ state.errAck[kk]=1; logLine('Xác nhận đã kiểm 1 ô · '+kk); }
+      else { delete state.errAck[kk]; logLine('Bỏ xác nhận 1 ô · '+kk); }
+      try{ render({reuseR:true}); }catch(e){ logErr('errAck1', e); }
+      return; }
     // Duyệt tất cả
     var ba=ev.target&&ev.target.closest?ev.target.closest('.rm-approve-all'):null;
     if(ba){ ev.stopPropagation(); state.remapApproved=state.remapApproved||{};
@@ -6568,10 +6618,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      MỘT đơn, không bao giờ lệch nhau.
      🔴 Đây là danh sách DUY NHẤT cần sửa khi thêm ô chọn đơn mới ở bước nào đó. */
   var MADON_IDS=['s3-madon','s4-madon','s5-madon','s6-madon','s10-madon','s7-madon','rpt-madon'];
-  function setGlobalMadon(md){
+  /* giuRpt = true: KHÔNG đụng ô lọc của bảng Tổng hợp đơn (bước 2) — dùng khi bấm XỔ 1 dòng
+     đơn ở bảng đó: các bước 3·4·5·6 theo đơn vừa mở, còn bảng tổng hợp vẫn hiện đủ các đơn
+     để bấm sang đơn khác (user chốt 17/10). */
+  function setGlobalMadon(md, giuRpt){
     md=String(md||'').trim(); if(md==='Tất cả các đơn') md='';
     var doi=false;
-    MADON_IDS.forEach(function(id){ var el=document.getElementById(id); if(el && el.value!==md){ el.value=md; if(id==='rpt-madon') doi=true; } });
+    MADON_IDS.forEach(function(id){ if(giuRpt && id==='rpt-madon') return; var el=document.getElementById(id); if(el && el.value!==md){ el.value=md; if(id==='rpt-madon') doi=true; } });
     gridMadon=md;
     __capReflow();
     if(typeof applyGridFilter==='function') applyGridFilter();
@@ -6597,6 +6650,11 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
                  for(var i=0;i<os.length;i++) if(String(os[i].value||'')===v) return true; } }
     catch(e){ logErr('coTrongDs.dl', e); }
     try{ return (layDs()||[]).indexOf(v)>=0; }catch(e){ logErr('coTrongDs.ds', e); return false; }
+  }
+  // ô lọc Mã Đơn của bảng tổng hợp đang ghi ĐÚNG 1 mã có thật → trả mã đó, gõ dở/trống → ''
+  function dayDonHopLe(v){
+    v=String(v||'').trim(); if(v==='Tất cả các đơn') v='';
+    return (v && coTrongDs(v,'dl-madon',function(){ return allMaDons(state.R); })) ? v : '';
   }
   function dayDonSangMoiBuoc(v){
     v=String(v||'').trim();
@@ -14441,14 +14499,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1713160000"></script>
-<script src="cl.sync.js?v=1713160000"></script>
-<script src="auth.store.js?v=1713160000"></script>
-<script src="auth.web.js?v=1713160000"></script>
+<script src="cl.config.js?v=1713360000"></script>
+<script src="cl.sync.js?v=1713360000"></script>
+<script src="auth.store.js?v=1713360000"></script>
+<script src="auth.web.js?v=1713360000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1713160000"></script>
+<script src="cl.project.js?v=1713360000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1713160000" defer></script>
+<script src="firebase-bridge.js?v=1713360000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
