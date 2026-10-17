@@ -504,7 +504,9 @@
          rồi sinh dải khống (C213-785P: +320 dải). Số hộp vẫn cộng bình thường ở bước 6. */
       if (o.premade) return;
       if (o.khongLine) return;   // xuong khac lam — khong cuon dai (xem runStep1)
-      expandOrder(o, getMix(o) || {}, strategy, cb).forEach(function (r) { out.push(r); });
+      /* _seri: dòng data1 sinh ra từ DÒNG ĐƠN nào — để bước 5 bấm "thừa/thiếu N" mở được bảng
+         chi tiết TỪNG DÒNG ĐƠN (dây theo hộp ↔ dây app), user chốt 17/10. Chỉ để tra, không tính gì. */
+      expandOrder(o, getMix(o) || {}, strategy, cb).forEach(function (r) { r._seri = o.seri; out.push(r); });
     });
     return out;
   }

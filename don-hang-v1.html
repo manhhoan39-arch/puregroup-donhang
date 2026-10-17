@@ -289,6 +289,9 @@ td.cellsel-anchor,th.cellsel-anchor{box-shadow:inset 0 0 0 2px var(--accent)}
 .khop-t td{padding:4px 9px}
 .khop-t td.ok{color:var(--green-600);font-weight:800}
 .khop-t td.bad{color:var(--accent);font-weight:800}
+.khop-ct{font:inherit;background:none;border:1px dashed var(--accent);border-radius:6px;color:var(--accent);font-weight:800;cursor:pointer;padding:1px 8px}
+.khop-ct:hover{background:var(--accent);color:#fff}
+.khop-ct-i{font-size:10px}
 .khop-n{margin-top:6px;font-size:11px;color:var(--text-3)}
 .khop-ul{margin:4px 0 0;padding-left:20px;font-size:12px;line-height:1.65}
 /* Bước 2 — 2 TAB: Bảng Nhập Đơn ↔ Tổng hợp đơn (cùng kiểu với 2 tab của bước 6).
@@ -678,7 +681,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1713360000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1713460000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1410,7 +1413,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1713360000"></script>
+<script src="engine.web.js?v=1713460000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -3605,13 +3608,143 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var trs=bad.map(function(r){
       return '<tr><td class="txt"><b>'+esc(r.md)+'</b></td><td class="qty">'+fmtN(r.khay)+'</td>'+
         '<td class="qty">'+fmtN(r.app)+'</td><td class="qty">'+fmtN(r.tuTinh)+'</td>'+
-        '<td class="qty bad">'+(r.thieu>0?'thiếu ':'thừa ')+fmtN(Math.abs(r.thieu))+'</td></tr>';
+        '<td class="qty bad"><button class="khop-ct" data-khopmd="'+esc(r.md)+'" title="Mở cửa sổ chi tiết từng dòng đơn — chỉ rõ dòng nào lệch">'+(r.thieu>0?'thiếu ':'thừa ')+fmtN(Math.abs(r.thieu))+' <span class="khop-ct-i">🔍</span></button></td></tr>';
     }).join('');
     box.innerHTML='<div class="khop bad"><div class="khop-h">⛔ SỐ DÂY SAI — '+bad.length+' đơn</div>'+
       '<table class="sheet khop-t"><thead><tr><th class="txt">Mã Đơn</th><th>Số hộp</th>'+
       '<th>Dây (app)</th><th>Dây (hộp × line ÷ 2)</th><th>Chênh</th></tr></thead><tbody>'+trs+'</tbody></table>'+
       missHtml+cmHtml+'</div>';
   }
+
+  /* ===== BẤM "thừa/thiếu N" ở bảng SỐ DÂY SAI (bước 5) → CỬA SỔ MỚI chi tiết TỪNG DÒNG ĐƠN
+     (user chốt 17/10 · đơn C17-820P "thừa 10"). Đối chiếu kiểu bảng So sánh:
+       Dây theo hộp = số hộp × số line ÷ 2 (Mix: chia theo bảng Mix của dải đó)
+       Dây app      = số dây app thực sinh cho đúng dòng đó (data1 mang _seri của dòng đơn)
+     Dòng lệch xếp lên đầu, ô lệch tô đỏ, kèm NGUYÊN NHÂN đoán được + bảng lệch theo từng mm.
+     CHỈ ĐỌC — không đổi số liệu nào. */
+  function khopChiTietData(md){
+    var R=state.R; if(!R) return null;
+    var so=function(n){ return Math.round((+n||0)*10)/10; };
+    var app1={}, appMm={}, tuBL={}, cmix={};
+    (R.data1||[]).forEach(function(d){
+      if(d.maDon!==md) return;
+      var k=String(d._seri);
+      app1[k]=(app1[k]||0)+(+d.sl||0);
+      var m=(appMm[k]||(appMm[k]={})); m[d.mm]=(m[d.mm]||0)+(+d.sl||0);
+      if(d.tuBangLine) tuBL[k]=1;
+      if(d.cmix) cmix[k]=1;
+    });
+    var mix=null; try{ mix=R.mixLabel&&R.mixLabel.get?R.mixLabel.get(md):null; }catch(e){ logErr('khopCT.mix', e); }
+    var dong=[], tHop=0, tTheoHop=0, tApp=0;
+    (R.orders||[]).forEach(function(o){
+      if(o.maDon!==md) return;
+      var k=String(o.seri), hop=+o.sl||0, line=+o.line||0;
+      var r={ o:o, seri:o.seri, code:o.codeSoi||'', nl:o.material||o.detail||'', len:String(o.length||'').replace(/#\d+$/,''), ms:o.mixSingle||'',
+              line:line, lineTxt:(o.lineRaw!=null&&o.lineRaw!=='')?o.lineRaw:line, hop:hop, theoHop:0, app:so(app1[k]||0), lyDo:[], mm:[] };
+      if(o.premade){ r.boQua='Premade — chỉ tính hộp, không cuốn dây'; }
+      else if(o.khongLine){ r.boQua='Không có số Line — xưởng khác làm, không tính dây'; }
+      if(r.boQua){ dong.push(r); return; }
+      r.theoHop=so(hop*line/2);
+      tHop+=hop; tTheoHop+=hop*line/2; tApp+=r.app;
+      // dây theo hộp chia theo mm: Single → 1 mm; Mix → theo bảng Mix của dải
+      var exp={}, pr=E.parseRange?E.parseRange(o.length):null;
+      if(o.mixSingle==='Single'){ if(pr) exp[pr.lo]=hop*line/2; }
+      else {
+        var dist=null; try{ dist=E.resolveMixDist?E.resolveMixDist(mix||{}, o):null; }catch(e){ logErr('khopCT.dist', e); }
+        var sumL=0; if(dist) Object.keys(dist).forEach(function(mm){ sumL+=(+dist[mm]||0); });
+        if(dist && sumL){
+          Object.keys(dist).forEach(function(mm){ exp[mm]=hop*(+dist[mm]||0)/2; });
+          if(line && sumL!==line) r.lyDo.push('Bảng Mix dải '+r.len+' có '+sumL+' lines, dòng đơn ghi '+line+' lines');
+        } else if(!tuBL[k] && !cmix[k]) r.lyDo.push('Không có bảng Mix cho dải '+r.len+' ('+line+' lines) → app không sinh dây');
+      }
+      if(cmix[k]) r.lyDo.push('Mix nhiều màu — số dây theo Bảng Mix Màu (bước 3)');
+      try{ if(isMixColorRow(o) && cmCodes(o).length>1 && !colorMixComplete(o)) r.lyDo.push('Bảng Mix Màu của dòng này CHƯA điền đủ (bước 3)'); }catch(e){ logErr('khopCT.cm', e); }
+      var am=appMm[k]||{}, mms={};
+      Object.keys(exp).concat(Object.keys(am)).forEach(function(mm){ mms[mm]=1; });
+      Object.keys(mms).map(Number).sort(function(a,b){ return a-b; }).forEach(function(mm){
+        var e1=so(exp[mm]||0), a1=so(am[mm]||0);
+        r.mm.push({ mm:mm, theoHop:e1, app:a1, lech:Math.abs(e1-a1)>0.05 });
+      });
+      r.chenh=so(r.app-r.theoHop);
+      r.lech=Math.abs(r.chenh)>0.05;
+      if(tuBL[k]){
+        var mmL=r.mm.filter(function(x){ return x.lech; }).map(function(x){ return x.mm+'mm'; });
+        r.lyDo.unshift(r.lech ? ('Số dây lấy từ BẢNG LINE (bảng 2) — bảng 2 ghi khác bảng hộp'+(mmL.length?' ở '+mmL.join(', '):''))
+                              : 'Số dây theo Bảng Line (bảng 2)');
+      }
+      if(r.lech && !r.lyDo.length){
+        if(Math.abs(r.chenh)<1) r.lyDo.push('Lệch do làm tròn (số hộp × số line lẻ)');
+        else if(r.mm.some(function(x){ return x.lech; })) r.lyDo.push('Phân bổ theo mm khác số hộp — xem bảng mm bên dưới');
+      }
+      dong.push(r);
+    });
+    var appCuon=0;
+    ((R.cuonSheet&&R.cuonSheet.rows)||[]).forEach(function(c){ if(c.type==='row' && c.maDon===md) appCuon+=(+c.tong||0); });
+    return { md:md, dong:dong, tHop:tHop, tTheoHop:Math.round(tTheoHop), tApp:so(tApp), appCuon:appCuon };
+  }
+  function moKhopChiTiet(md){
+    var d=khopChiTietData(md); if(!d) return;
+    var so=function(n){ n=Math.round((+n||0)*10)/10; try{ return n.toLocaleString('vi-VN'); }catch(e){ return ''+n; } };
+    var chenhTxt=function(c){ return c>0?('thừa '+so(c)):(c<0?('thiếu '+so(-c)):'0'); };
+    var tinh=d.dong.filter(function(r){ return !r.boQua; });
+    var lech=tinh.filter(function(r){ return r.lech; }), khop=tinh.filter(function(r){ return !r.lech; }), bo=d.dong.filter(function(r){ return r.boQua; });
+    var tong=d.appCuon-d.tTheoHop;
+    var hang=function(r){
+      var bad=r.lech;
+      return '<tr class="'+(bad?'lech':'')+'"><td>'+esc(r.seri)+'</td><td class="l">'+esc(r.code)+'</td><td class="l">'+esc(r.nl)+'</td>'+
+        '<td>'+esc(r.len)+'</td><td>'+esc(r.ms)+'</td><td>'+esc(r.lineTxt)+'</td><td>'+so(r.hop)+'</td>'+
+        '<td>'+so(r.theoHop)+'</td><td class="'+(bad?'err':'')+'">'+so(r.app)+'</td><td class="'+(bad?'err b':'')+'">'+(bad?chenhTxt(r.chenh):'✓')+'</td>'+
+        '<td><span class="bd '+(bad?'warn':'pass')+'">'+(bad?'Lệch':'Khớp')+'</span></td><td class="l ly">'+esc(r.lyDo.join(' · '))+'</td></tr>';
+    };
+    var HD='<tr><th>Seri</th><th>Code sợi</th><th>Tên gọi NL</th><th>Độ dài</th><th>S/M</th><th>Lines</th><th>Số hộp</th><th>Dây theo hộp<br><span class="mi">hộp × line ÷ 2</span></th><th>Dây app</th><th>Chênh</th><th>TT</th><th>Nguyên nhân</th></tr>';
+    // bảng theo mm chỉ cho dòng có mm lệch thật (Bảng Mix sai tổng line thì mm nào cũng khớp — câu nguyên nhân đã nói rõ)
+    var mmHtml=lech.filter(function(r){ return r.mm.some(function(x){ return x.lech; }); }).map(function(r){
+      return '<div class="mmk"><div class="mmt">Seri '+esc(r.seri)+' · '+esc(r.code)+' · '+esc(r.len)+' · '+esc(/line/i.test(String(r.lineTxt))?r.lineTxt:(r.lineTxt+' lines'))+' · '+so(r.hop)+' hộp</div>'+
+        '<table><thead><tr><th>MM</th><th>Dây theo hộp</th><th>Dây app</th><th>Chênh</th></tr></thead><tbody>'+
+        r.mm.map(function(x){ var c=Math.round((x.app-x.theoHop)*10)/10; return '<tr class="'+(x.lech?'lech':'')+'"><td>'+x.mm+'</td><td>'+so(x.theoHop)+'</td><td class="'+(x.lech?'err':'')+'">'+so(x.app)+'</td><td class="'+(x.lech?'err b':'')+'">'+(x.lech?chenhTxt(c):'✓')+'</td></tr>'; }).join('')+
+        '</tbody></table></div>';
+    }).join('');
+    var ghiChuGop = Math.abs(d.appCuon-d.tApp)>0.05
+      ? '<div class="note">⚠ Tổng dây ở Bảng Line Cuốn ('+so(d.appCuon)+') khác tổng cộng từng dòng đơn ('+so(d.tApp)+') — chênh '+chenhTxt(d.appCuon-d.tApp)+' phát sinh lúc gộp Bảng Line Cuốn.</div>' : '';
+    var title='Chi tiết số dây — '+donOf(md)+' ('+khOf(md)+')';
+    var html='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(title)+'</title><style>'+
+      'body{font-family:"Be Vietnam Pro",Calibri,Arial,sans-serif;margin:0;padding:14px 18px 24px;color:#1b1b1f;background:#fff;font-size:13px}'+
+      'h2{margin:0 0 4px;color:#e0195a;font-size:18px}.sub{color:#666;font-size:12px;margin-bottom:12px}'+
+      '.kpi{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.kpi div{border:1px solid #f3c6d4;border-radius:10px;padding:8px 14px;background:#fff7fa;min-width:120px}'+
+      '.kpi b{display:block;font-size:18px;margin-top:2px}.kpi .bad b{color:#e0195a}'+
+      'h3{font-size:14px;margin:18px 0 6px;color:#e0195a}.wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}'+
+      'table{border-collapse:collapse;width:100%;font-size:12px}th{background:#22c55e;color:#fff;padding:6px 8px;font-weight:700;white-space:nowrap}'+
+      'td{border:1px solid #eadde2;padding:5px 8px;text-align:center;white-space:nowrap}td.l{text-align:left}td.ly{white-space:normal;min-width:220px;color:#8a1538}'+
+      'tr.lech td{background:#fff5f7}td.err{background:#ffe1e8!important;box-shadow:inset 0 0 0 1.5px #ef4444;font-weight:700}td.b{color:#e0195a}'+
+      '.bd{display:inline-block;padding:1px 8px;border-radius:9px;font-size:11px;font-weight:700}.bd.warn{background:#fff1d6;color:#b45309}.bd.pass{background:#dcfce7;color:#15803d}'+
+      '.mi{font-weight:400;font-size:10px;opacity:.9}.note{margin:10px 0;padding:8px 12px;border-radius:8px;background:#fff7e6;border:1px solid #f5c26b;color:#8a5300}'+
+      '.mmk{display:inline-block;vertical-align:top;margin:0 12px 12px 0;min-width:260px}.mmt{font-weight:700;margin:4px 0;font-size:12px}'+
+      'details{margin-top:14px}summary{cursor:pointer;font-weight:700;color:#15803d}.ok{color:#15803d;font-weight:700}'+
+      '@media (max-width:600px){body{padding:10px}.kpi div{min-width:0;flex:1 1 40%}.mmk{display:block;margin-right:0}}'+
+      '</style></head><body>'+
+      '<h2>'+esc(title)+'</h2><div class="sub">Đối chiếu từng dòng đơn: dây theo hộp (số hộp × số line ÷ 2) ↔ dây app tính. Dòng lệch xếp lên đầu, ô lệch tô đỏ.</div>'+
+      '<div class="kpi"><div>Số hộp<b>'+so(d.tHop)+'</b></div><div>Dây theo hộp<b>'+so(d.tTheoHop)+'</b></div><div>Dây app<b>'+so(d.appCuon)+'</b></div>'+
+        '<div class="'+(Math.abs(tong)>0.05?'bad':'')+'">Chênh<b>'+chenhTxt(tong)+'</b></div><div>Dòng lệch<b>'+lech.length+' / '+tinh.length+'</b></div></div>'+
+      ghiChuGop+
+      '<h3>⚠ Dòng lệch ('+lech.length+')</h3>'+
+      (lech.length ? '<div class="wrap"><table><thead>'+HD+'</thead><tbody>'+lech.map(hang).join('')+'</tbody></table></div>'
+                   : '<div class="ok">Không có dòng nào lệch — chênh nằm ở bước gộp Bảng Line Cuốn (xem ghi chú phía trên).</div>')+
+      (mmHtml ? '<h3>Lệch theo từng mm</h3><div class="wrap">'+mmHtml+'</div>' : '')+
+      (khop.length ? '<details><summary>✓ '+khop.length+' dòng khớp</summary><div class="wrap"><table><thead>'+HD+'</thead><tbody>'+khop.map(hang).join('')+'</tbody></table></div></details>' : '')+
+      (bo.length ? '<details><summary style="color:#666">'+bo.length+' dòng không tính dây</summary><div class="wrap"><table><thead><tr><th>Seri</th><th>Code sợi</th><th>Độ dài</th><th>Số hộp</th><th>Lý do</th></tr></thead><tbody>'+
+          bo.map(function(r){ return '<tr><td>'+esc(r.seri)+'</td><td class="l">'+esc(r.code)+'</td><td>'+esc(r.len)+'</td><td>'+so(r.hop)+'</td><td class="l">'+esc(r.boQua)+'</td></tr>'; }).join('')+'</tbody></table></div></details>' : '')+
+      '</body></html>';
+    var w=null; try{ w=window.open('','_blank'); }catch(e){ logErr('moKhopChiTiet', e); }
+    if(!w) return alert('Trình duyệt chặn cửa sổ mới — cho phép popup rồi bấm lại.');
+    w.document.write(html); w.document.close();
+  }
+  window.__moKhopChiTiet = moKhopChiTiet;   // bộ kiểm thử gọi thẳng
+  window.__khopChiTietData = khopChiTietData;
+  document.addEventListener('click', function(ev){
+    var b=ev.target&&ev.target.closest?ev.target.closest('.khop-ct'):null; if(!b) return;
+    ev.preventDefault(); ev.stopPropagation();
+    try{ moKhopChiTiet(b.getAttribute('data-khopmd')); }catch(e){ logErr('khop-ct', e); }
+  });
 
   /* ===== BƯỚC 2 — BÁO CÁO TỔNG HỢP ĐƠN ĐÃ NHẬP =====
      Thời gian nhập | Mã KH | Mã Đơn | Số lượng hộp | Số lượng dải.
@@ -14499,14 +14632,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1713360000"></script>
-<script src="cl.sync.js?v=1713360000"></script>
-<script src="auth.store.js?v=1713360000"></script>
-<script src="auth.web.js?v=1713360000"></script>
+<script src="cl.config.js?v=1713460000"></script>
+<script src="cl.sync.js?v=1713460000"></script>
+<script src="auth.store.js?v=1713460000"></script>
+<script src="auth.web.js?v=1713460000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1713360000"></script>
+<script src="cl.project.js?v=1713460000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1713360000" defer></script>
+<script src="firebase-bridge.js?v=1713460000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
