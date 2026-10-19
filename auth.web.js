@@ -479,7 +479,10 @@
         try { localStorage.setItem('cl_ds_updated', JSON.stringify({ fid: (S.factory && S.factory.id), t: Date.now() })); } catch (_) {}
         var st = window.__CLAPP.getState();
         if (!_moTam) datMucTieu(st);                // mục tiêu mới = đúng số vừa lưu
-        ghiMoNhanh(st, { id: id, nguon: 'lưu tay' });
+        /* Bản mở nhanh trong máy (nén NGUYÊN kho ~170ms với 24 đơn) để lúc máy rảnh mới làm —
+           sửa 19/10 "ấn lưu đỡ đơ máy": báo ✓ Đã lưu xong là người dùng thao tác tiếp được ngay. */
+        (function (ghi) { try { if (window.requestIdleCallback) window.requestIdleCallback(ghi, { timeout: 4000 }); else setTimeout(ghi, 300); } catch (_) { ghi(); } })(
+          function () { ghiMoNhanh(window.__CLAPP.getState(), { id: id, nguon: 'lưu tay' }); });
         _choLuu = false; veNutLuu(); _luuLucNao = Date.now(); anBangBanMoi(); ghiNhoMocVuaLuu(id);
         /* Con số + giờ vẫn được ghi vào Nhật ký (bangKetQua tự ghi), chỉ không đọc ra màn hình. */
         try { window.__CLAPP.ghiNhatKy('Đã lưu lên đám mây lúc ' + new Date().toLocaleTimeString('vi-VN') +

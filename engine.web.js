@@ -2140,7 +2140,7 @@
       if (n < 2 || code.indexOf('\n') >= 0 || !/mix\s*colou?r/i.test(code)) return;
       var rk = String(o.length || '').toLowerCase().replace(/\s+/g, '').replace(/~/g, '-');
       (mixSheets || []).some(function (sh) {
-        var cb = sh && sh.colorBlocks; if (!cb) return false;
+        var cb = sh && sh.mauCanh; if (!cb) return false;
         return Object.keys(cb).some(function (k) {
           if (String(k).replace(/#\d+$/, '') !== rk.replace(/#\d+$/, '')) return false;
           var bl = cb[k] || [];
@@ -2331,6 +2331,7 @@
            SỢI: mm | tên màu | code sợi (11mm Yellow 24.MK.Yellow.85 · 12mm Yellow … · 11mm Orange…).
            Trước đây tiêu đề không bắt đầu bằng số nên bị bỏ qua → bước 3 chỉ có "Mix Color 1…8"
            trống trơn. Nay đọc khối đó thành bảng màu của dải 11-12mm, mỗi màu 1 khối kèm CODE. */
+        var mauCanh = {};
         (function () {
           var laCot = {}; rangeCols.forEach(function (c0) { laCot[c0] = 1; });
           for (var c8 = mi + 1; c8 < row.length && c8 < CE; c8++) {
@@ -2339,7 +2340,7 @@
             var m8 = hd8.match(/(\d+)\s*[-~]\s*(\d+)\s*mm/i); if (!m8 || /^\s*\d/.test(hd8)) continue;
             var rg8 = (m8[1] + '-' + m8[2] + 'mm').toLowerCase();
             var j8 = ranges.map(function (x) { return String(x).replace(/#\d+$/, ''); }).indexOf(rg8);
-            if (j8 < 0 || colorBlocksByRange[ranges[j8]]) continue;
+            if (j8 < 0 || colorBlocksByRange[ranges[j8]] || mauCanh[ranges[j8]]) continue;
             var blocks8 = [], cur8 = null, bd = false;
             for (var q8 = r + 1; q8 < aoa.length && q8 <= r + 80; q8++) {
               var rw8 = aoa[q8] || [], mm8 = PS(rw8[c8]).match(/^(\d+)\s*mm$/i), mau8 = PS(rw8[c8 + 1]).trim();
@@ -2350,7 +2351,8 @@
               if (!cur8 || cur8.color !== ten8) { cur8 = { color: ten8, ten: mau8, code: code8, dist: {}, lines: 0 }; blocks8.push(cur8); }
               cur8.dist[+mm8[1]] = (cur8.dist[+mm8[1]] || 0) + 1; cur8.lines++;
             }
-            if (blocks8.length >= 2) { colorBlocksByRange[ranges[j8]] = blocks8; c8 += 2; }
+            // chỉ lấy CODE sợi (điền sẵn tên màu) — số line từng màu theo mm vẫn để người dùng điền tay ở bước 3
+            if (blocks8.length >= 2) { mauCanh[ranges[j8]] = blocks8.map(function (b) { return { code: b.code, ten: b.ten, lines: b.lines }; }); c8 += 2; }
           }
         })();
         var mmList = [], matrix = [];
@@ -2369,7 +2371,8 @@
         if (mmList.length) mixSheets.push({ maDon: maDon, mmList: mmList, matrix: matrix, ranges: ranges, lineCounts: lineCounts, colorBlocks: colorBlocksByRange,
                                             bienThe: Object.keys(bienThe).length ? bienThe : null,
                                             bienTheKey: Object.keys(bienTheKey).length ? bienTheKey : null,
-                                            curlTach: curlTach.length ? curlTach : null });
+                                            curlTach: curlTach.length ? curlTach : null,
+                                            mauCanh: Object.keys(mauCanh).length ? mauCanh : null });
         i = ci - 1;   // tiếp tục quét từ vị trí dừng (bảng kế bên nếu có)
       }
     }

@@ -381,8 +381,21 @@
   }
   /* Đếm số mã đơn của bản lưu ĐANG NẰM TRÊN MÁY CHỦ (không phải bản trong máy — bản trong máy
      có thể đã cũ hoặc thiếu). Dùng cho phanh chống ghi đè làm co nhỏ. */
+  /* CHỈ XIN PHẦN CẦN (sửa 19/10 — "ấn lưu đỡ lâu"): bản cũ select('payload') / select('*') tải
+     về NGUYÊN dòng chỉ mục (nhật ký + bảng thứ tự dòng của mọi đơn, nén) chỉ để đếm số mảnh —
+     mỗi lần ☁ Lưu tải 3 lượt như thế. Nay chỉ xin danh sách mảnh (payload->manh). Máy chủ không
+     hiểu kiểu xin này thì quay về cách cũ, không hỏng lần lưu. */
+  var COT_CHI_MUC = 'id,goi:payload->__goi,manh:payload->manh,anhLo:payload->anhLo,anh:payload->anh';
+  function docChiMucNhe(c, id) {
+    return c.from('datasets').select(COT_CHI_MUC).eq('id', id).maybeSingle().then(function (r) {
+      if (r && !r.error && r.data && r.data.goi)
+        return { data: { id: r.data.id, payload: { __goi: r.data.goi, manh: r.data.manh || [], anhLo: r.data.anhLo, anh: r.data.anh } } };
+      if (r && !r.error && !r.data) return r;                               // không có dòng nào
+      return c.from('datasets').select('*').eq('id', id).maybeSingle();     // kiểu cũ / không hỗ trợ
+    });
+  }
   function demManhTrenMayChu(c, id) {
-    return c.from('datasets').select('payload').eq('id', id).maybeSingle()
+    return docChiMucNhe(c, id)
       .then(function (r) {
         var p = r && r.data && r.data.payload;
         if (!p || !p.__goi) return -1;
@@ -804,7 +817,7 @@
             var b1 = ghiNhieuDong(c, dongMoi);
             return b1.then(function (r) {
               if (r && r.error) throw new Error('Lưu đám mây thất bại (mảnh): ' + r.error.message);
-              return c.from('datasets').upsert(row).select();
+              return c.from('datasets').upsert(row).select('id');   // chỉ cần biết đã ghi — khỏi tải lại cả dòng
             }).then(function (r) {
               if (r && r.error) throw new Error('Lưu đám mây thất bại: ' + r.error.message);
               danhDauLen([row.id]);
@@ -1048,7 +1061,7 @@
       if (!configured() || !online()) return Promise.resolve({ ok: false, thieu: -1, ids: [] });
       return ensureClient().then(function (c) {
         if (!c) return { ok: false, thieu: -1, ids: [] };
-        return c.from('datasets').select('*').eq('id', id).maybeSingle().then(function (r) {
+        return docChiMucNhe(c, id).then(function (r) {
           if (r.error || !r.data) return { ok: false, thieu: -1, ids: [] };
           var p = r.data.payload;
           if (!p || !p.__goi) return { ok: !!(p && (p.orders || []).length), thieu: 0, ids: [id] };
