@@ -478,11 +478,13 @@ body.gs-selecting{user-select:none}
 .fcol .file-list{margin:0;max-height:280px;overflow:auto}
 /* Step 5 Bảng Line Cuốn: cột Mã Đơn không tràn đè cột khác */
 #cb-head th:nth-child(3),#eng-cuonbox td:nth-child(3){white-space:nowrap;overflow:hidden}
-/* Bước 5: cột độ cong chia đều nên hẹp → "CC ▼" bị cắt mất nút lọc (user báo 19/10).
-   Mỗi cột độ cong có BỀ RỘNG TỐI THIỂU đủ cho "tên + ▼" trên MỘT dòng (user chốt 19/10:
-   không để tiêu đề thành 2 dòng). Màn hẹp thì bảng dài ra, cuộn ngang trong khung. */
-#cb-head th.curl{white-space:nowrap;overflow:visible;padding-left:2px;padding-right:2px;text-align:center}
-#cb-head th.curl .fbtn{padding:0 2px}
+/* CỘT ĐỘ CONG ĐỒNG BỘ 3 BẢNG — Bước 2 (Bảng Nhập Đơn) · Bước 5 (Line Cuốn) · Bước 6 (Box)
+   (user chốt 19/10): cùng bề rộng 44px, tiêu đề nền VÀNG như Bước 6, tên + ▼ trên MỘT dòng.
+   Riêng "Curl 1" rộng 64px để thấy nút lọc. Màn hẹp thì bảng dài ra, cuộn ngang trong khung. */
+.tcong thead th.cw{width:44px;min-width:44px;max-width:44px;background:var(--grp-spec)!important;white-space:nowrap;overflow:visible;padding-left:2px;padding-right:2px;text-align:center}
+.tcong thead th.cw.cw1{width:64px;min-width:64px;max-width:64px}
+.tcong thead th.cw .fbtn{padding:0 2px}
+.tcong tbody td.cw{min-width:44px;max-width:none}
 /* Step 5/6: dữ liệu dài hơn cột → ẨN phần thừa (…), KHÔNG đè sang cột khác, KHÔNG wrap */
 #eng-cuonbox td{overflow:hidden}
 #eng-cuonbox td:nth-child(4){white-space:nowrap;overflow:hidden}                       /* Code Sợi: cột tự giãn đủ 1 dòng */
@@ -686,7 +688,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1714060000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1714160000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -868,7 +870,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
     </div>
     <!-- TAB 1: bảng nhập đơn chi tiết -->
     <div class="tbl-wrap" id="s3-grid-view">
-      <table class="prev-table has-chk">
+      <table class="prev-table has-chk tcong">
         <thead><tr id="nd-head">
           <th class="freeze">Seri</th><th>Mã Đơn</th><th>Code Sợi</th><th class="grp-qty">Loại Hàng</th><th>Ghi Chú (Keo)</th><th>Lines</th><th>Detail</th><th>Material</th><th>Thickness</th><th>Length (mm)</th><th>Mix/Single</th>
         </tr></thead>
@@ -987,7 +989,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       </div>
       <div class="tbl-wrap">
         <!-- table-layout:fixed — cột chữ cố định, các cột độ cong tự chia ĐỀU phần còn lại → bảng vừa màn hình -->
-        <table class="sheet" style="table-layout:fixed;width:100%;min-width:1200px">
+        <table class="sheet tcong" id="cb-table" style="table-layout:fixed;width:100%;min-width:1200px">
           <thead>
             <tr id="cb-head"><th style="width:40px">STT</th><th style="width:135px">Mã Đơn</th><th style="width:150px">Code Sợi</th><th style="width:52px">S/M</th><th style="width:40px">MM</th>
               <th class="curl">J</th><th class="curl">B</th><th class="curl">C</th><th class="curl">CC</th><th class="curl">D</th><th class="curl">DD</th>
@@ -1052,7 +1054,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <div class="it">Tổng hộp<b id="box-total">—</b></div>
     </div>
     <div class="tbl-wrap">
-      <table class="sheet">
+      <table class="sheet tcong">
         <thead><tr id="box-head">
           <th>No.</th><th>Mã Đơn</th><th>Lines</th><th>Material</th><th>Thickness</th><th>Length (mm)</th><th>Mix/Single</th>
           <th class="curl cw">J</th><th class="curl cw">B</th><th class="curl cw">C</th><th class="curl cw">CC</th><th class="curl cw">D</th>
@@ -1418,7 +1420,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1714060000"></script>
+<script src="engine.web.js?v=1714160000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -2949,7 +2951,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       }).join('')+
         CURLS.map(function(k){
           var lbl=esc(k.replace('Curl-CT','CT'));
-          return '<th class="grp-spec cw">'+lbl+' <span class="fbtn'+(state.filters['_cur:'+k]?' on':'')+'" data-fcol="_cur:'+esc(k)+'" title="Lọc cột độ cong '+lbl+'">▼</span></th>';
+          return '<th class="grp-spec cw'+(k==='Curl 1'?' cw1':'')+'">'+lbl+' <span class="fbtn'+(state.filters['_cur:'+k]?' on':'')+'" data-fcol="_cur:'+esc(k)+'" title="Lọc cột độ cong '+lbl+'">▼</span></th>';
         }).join('');
     }
     // --- Bảng Nhập Đơn: lưới + ô đỏ contenteditable (data-seri/data-col) ---
@@ -3195,14 +3197,21 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         String(r.codeSoi||'').split(/\r?\n/).forEach(function(ln){ var w2=ln.length*6.6+18; if(w2>csW) csW=w2; });
       }); }catch(e){ logErr('buildColorTableOne', e); }
       mdW=Math.min(Math.round(mdW),150); csW=Math.min(Math.round(csW),200); khW=Math.min(Math.round(khW),90);
-      cbHead.innerHTML = '<th style="width:40px">STT</th><th style="width:'+khW+'px">Mã KH'+fb(1)+'</th><th style="width:'+mdW+'px">Mã Đơn'+fb(2)+'</th><th style="width:'+csW+'px">Code Sợi'+fb(3)+'</th><th style="width:135px">Tên Gọi Nguyên Liệu'+fb(4)+'</th><th style="width:66px" title="Single hoặc DẢI của bảng Mix — điền chi tiết như cột LENGTH (MM) ở bước 2. Mỗi dải Mix là 1 dòng riêng, số lượng của đúng bảng Mix đó.">S/M'+fb(5)+'</th><th style="width:40px">MM'+fb(6)+'</th><th style="width:92px">Keo nhiệt'+fb(7)+'</th>'+
+      cbHead.innerHTML = '<th style="width:40px">STT</th><th style="width:'+khW+'px">Mã KH'+fb(1)+'</th><th style="width:'+mdW+'px">Mã Đơn'+fb(2)+'</th><th style="width:'+csW+'px">Code Sợi'+fb(3)+'</th><th>Tên Gọi Nguyên Liệu'+fb(4)+'</th><th style="width:66px" title="Single hoặc DẢI của bảng Mix — điền chi tiết như cột LENGTH (MM) ở bước 2. Mỗi dải Mix là 1 dòng riêng, số lượng của đúng bảng Mix đó.">S/M'+fb(5)+'</th><th style="width:40px">MM'+fb(6)+'</th><th style="width:92px">Keo nhiệt'+fb(7)+'</th>'+
         /* MỌI cột đều có nút lọc ▼ (user chốt 21/8) — kể cả 16 độ cong và cột Tổng.
            cbCellText() vốn đã trả đúng giá trị của mấy cột này nên lọc chạy ngay. */
         state.usedCurls.map(function(k,i){
-          var lb=k.replace('Curl-CT','CT');
-          var w=Math.max(46, Math.round(lb.length*8+26));   // "CC ▼" 46px · "LC+ ▼" 50px · "Curl 1 ▼" 74px
-          return '<th class="curl" style="width:'+w+'px">'+esc(lb)+fb(8+i)+'</th>'; }).join('')+
+          return '<th class="curl cw'+(k==='Curl 1'?' cw1':'')+'">'+esc(k.replace('Curl-CT','CT'))+fb(8+i)+'</th>'; }).join('')+
         '<th style="width:64px">Tổng'+fb(8+state.usedCurls.length)+'</th>';
+      /* Bảng table-layout:fixed — nếu MỌI cột đều có bề rộng thì phần dư chia đều cho cả cột độ cong
+         (cột lại phình ra). Để cột "Tên Gọi NL" tự giãn ăn phần dư, còn bề rộng tối thiểu của bảng =
+         tổng các cột cố định + ~160px cho tên NL → màn hẹp thì cuộn ngang, cột độ cong vẫn đúng 44px. */
+      try{
+        var tbC=document.getElementById('cb-table');
+        if(tbC){ var sumW=40+khW+mdW+csW+66+40+92+64+160;
+          state.usedCurls.forEach(function(k){ sumW+=(k==='Curl 1'?64:44); });
+          tbC.style.minWidth=Math.max(1200,sumW)+'px'; }
+      }catch(e){ logErr('cbTableW', e); }
     }
     // --- Bảng Cuốn·Box (per-MM) + subtotal/grand có tổng theo độ cong (cột động theo file) ---
     var cb = document.getElementById('eng-cuonbox');
@@ -7533,7 +7542,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var UC = state.usedCurls || CURLS;
       head.innerHTML='<th>STT</th><th>Mã KH'+fb(1)+'</th><th>Mã Đơn'+fb(2)+'</th><th>Số Line'+fb(3)+'</th><th>Nguyên liệu'+fb(4)+'</th><th>Độ Dày'+fb(5)+'</th><th>Nhóm'+fb(6)+'</th><th>Phân Loại'+fb(7)+'</th><th>Tên Gọi Nguyên Liệu'+fb(8)+'</th><th>Keo Nhiệt'+fb(9)+'</th><th>Ghi Chú'+fb(10)+'</th><th>Độ Dài (mm)'+fb(11)+'</th><th>Single/Mix'+fb(12)+'</th>'+
         // MỌI cột đều có ▼ (user chốt 21/8) — thêm cho các cột độ cong và Tổng Số Hộp
-        UC.map(function(k,i){ return '<th class="curl cw" data-curl="'+esc(k)+'">'+esc(k.replace('Curl-CT','CT'))+fb(13+i)+'<div class="curl-note" style="display:none;font-size:9px;font-weight:600;color:var(--accent);line-height:1.15;margin-top:1px"></div></th>'; }).join('')+
+        UC.map(function(k,i){ return '<th class="curl cw'+(k==='Curl 1'?' cw1':'')+'" data-curl="'+esc(k)+'">'+esc(k.replace('Curl-CT','CT'))+fb(13+i)+'<div class="curl-note" style="display:none;font-size:9px;font-weight:600;color:var(--accent);line-height:1.15;margin-top:1px"></div></th>'; }).join('')+
         '<th>Tổng Số Hộp'+fb(13+UC.length)+'</th>';
     }
     // datalist gợi ý số Box (chọn hoặc gõ tay)
@@ -14686,14 +14695,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1714060000"></script>
-<script src="cl.sync.js?v=1714060000"></script>
-<script src="auth.store.js?v=1714060000"></script>
-<script src="auth.web.js?v=1714060000"></script>
+<script src="cl.config.js?v=1714160000"></script>
+<script src="cl.sync.js?v=1714160000"></script>
+<script src="auth.store.js?v=1714160000"></script>
+<script src="auth.web.js?v=1714160000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1714060000"></script>
+<script src="cl.project.js?v=1714160000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1714060000" defer></script>
+<script src="firebase-bridge.js?v=1714160000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
