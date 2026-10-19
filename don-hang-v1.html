@@ -479,9 +479,10 @@ body.gs-selecting{user-select:none}
 /* Step 5 Bảng Line Cuốn: cột Mã Đơn không tràn đè cột khác */
 #cb-head th:nth-child(3),#eng-cuonbox td:nth-child(3){white-space:nowrap;overflow:hidden}
 /* Bước 5: cột độ cong chia đều nên hẹp → "CC ▼" bị cắt mất nút lọc (user báo 19/10).
-   Tên độ cong ở trên, ▼ xuống dòng dưới — hẹp mấy cũng thấy đủ cả hai. */
-#cb-head th.curl{white-space:normal;overflow:visible;padding-left:1px;padding-right:1px;line-height:1.15;text-align:center;vertical-align:middle;word-break:break-word}
-#cb-head th.curl .fbtn{display:block;width:max-content;margin:2px auto 0;padding:0 3px}
+   Mỗi cột độ cong có BỀ RỘNG TỐI THIỂU đủ cho "tên + ▼" trên MỘT dòng (user chốt 19/10:
+   không để tiêu đề thành 2 dòng). Màn hẹp thì bảng dài ra, cuộn ngang trong khung. */
+#cb-head th.curl{white-space:nowrap;overflow:visible;padding-left:2px;padding-right:2px;text-align:center}
+#cb-head th.curl .fbtn{padding:0 2px}
 /* Step 5/6: dữ liệu dài hơn cột → ẨN phần thừa (…), KHÔNG đè sang cột khác, KHÔNG wrap */
 #eng-cuonbox td{overflow:hidden}
 #eng-cuonbox td:nth-child(4){white-space:nowrap;overflow:hidden}                       /* Code Sợi: cột tự giãn đủ 1 dòng */
@@ -685,7 +686,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1713660000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1713860000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1417,7 +1418,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1713660000"></script>
+<script src="engine.web.js?v=1713860000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -3191,7 +3192,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       cbHead.innerHTML = '<th style="width:40px">STT</th><th style="width:'+khW+'px">Mã KH'+fb(1)+'</th><th style="width:'+mdW+'px">Mã Đơn'+fb(2)+'</th><th style="width:'+csW+'px">Code Sợi'+fb(3)+'</th><th style="width:135px">Tên Gọi Nguyên Liệu'+fb(4)+'</th><th style="width:66px" title="Single hoặc DẢI của bảng Mix — điền chi tiết như cột LENGTH (MM) ở bước 2. Mỗi dải Mix là 1 dòng riêng, số lượng của đúng bảng Mix đó.">S/M'+fb(5)+'</th><th style="width:40px">MM'+fb(6)+'</th><th style="width:92px">Keo nhiệt'+fb(7)+'</th>'+
         /* MỌI cột đều có nút lọc ▼ (user chốt 21/8) — kể cả 16 độ cong và cột Tổng.
            cbCellText() vốn đã trả đúng giá trị của mấy cột này nên lọc chạy ngay. */
-        state.usedCurls.map(function(k,i){ return '<th class="curl">'+esc(k.replace('Curl-CT','CT'))+fb(8+i)+'</th>'; }).join('')+
+        state.usedCurls.map(function(k,i){
+          var lb=k.replace('Curl-CT','CT');
+          var w=Math.max(46, Math.round(lb.length*8+26));   // "CC ▼" 46px · "LC+ ▼" 50px · "Curl 1 ▼" 74px
+          return '<th class="curl" style="width:'+w+'px">'+esc(lb)+fb(8+i)+'</th>'; }).join('')+
         '<th style="width:64px">Tổng'+fb(8+state.usedCurls.length)+'</th>';
     }
     // --- Bảng Cuốn·Box (per-MM) + subtotal/grand có tổng theo độ cong (cột động theo file) ---
@@ -7693,6 +7697,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '<thead><tr><th style="width:110px">Độ Cong</th><th>Ghi Chú</th></tr></thead><tbody>'+tr+'</tbody></table></div></div>';
   }
   function renderBoxTypes(tot, md){
+    /* Gọi TRẦN renderBoxTypes() (sau khi hút ảnh / gộp KH / tìm ảnh) trước đây vẽ với md rỗng
+       → Bảng Hộp bị thay bằng câu "Chọn 1 mã đơn…" dù ô lọc đang chọn đúng đơn (user báo 19/10).
+       Không truyền gì thì tính lại theo đúng ô lọc Mã Đơn của bước 6. */
+    if(arguments.length===0){ try{ updateBoxTotals(); }catch(e){ logErr('renderBoxTypes.tuLoc', e); } return; }
     var pb=document.getElementById('box-perbox'); if(!pb) return;
     if(!md){ pb.innerHTML='<div class="bt-hint">📦 Chọn 1 mã đơn ở ô "Tất cả các đơn" để xem <b>Bảng Hộp</b> của đơn đó.</div>'; return; }
     state.boxTypes=state.boxTypes||{};
@@ -14672,14 +14680,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1713660000"></script>
-<script src="cl.sync.js?v=1713660000"></script>
-<script src="auth.store.js?v=1713660000"></script>
-<script src="auth.web.js?v=1713660000"></script>
+<script src="cl.config.js?v=1713860000"></script>
+<script src="cl.sync.js?v=1713860000"></script>
+<script src="auth.store.js?v=1713860000"></script>
+<script src="auth.web.js?v=1713860000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1713660000"></script>
+<script src="cl.project.js?v=1713860000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1713660000" defer></script>
+<script src="firebase-bridge.js?v=1713860000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
