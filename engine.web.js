@@ -1360,6 +1360,16 @@
      khách fix TRÁI với quy tắc trong Bảng Keo thì code sợi mang thêm đuôi "-K" + số đuôi mã
      keo (XanhLX70.2 → "-K2", Vang80.3 → "-K3"), để nhìn code là biết ngay phải lấy keo nào.
      Mã keo không có số đuôi thì KHÔNG bịa đuôi ra. */
+  /* HỌ "CURL" (user chốt 19/10 · đơn C37-856P): Curl · Curl1 · Curl 2 · Curl-3… đều là MỘT loại
+     "KHÔNG CẦN CUỐN ĐỘ CONG" → gộp vào cột chuẩn "Curl 1". Trước đây chỉ nhận đúng "Curl 1",
+     đơn ghi "Curl2" có số liệu thì báo MẤT ĐỘ CONG và chặn luôn bước sau. Nhiều cột họ Curl cùng
+     có số trên một dòng thì CỘNG lại (cột thêm nằm trong curlThem). */
+  function laHoCurl(core) { return /^curl\s*[-_.]?\s*\d*$/i.test(String(core == null ? '' : core).trim()); }
+  function soCurl(row, k, curlCol, curlThem) {
+    var cs = [curlCol[k]].concat((curlThem && curlThem[k]) || []), t = 0;
+    cs.forEach(function (ci) { if (ci >= 0) t += PN(row[ci]) || 0; });
+    return t;
+  }
   // "6-11mm#2" (bảng mix trùng dải thứ 2) → "6-11mm"
   function daiGoc(len) { return String(len == null ? '' : len).replace(/#\d+$/, ''); }
   function duoiKeo(glue) {
@@ -2370,12 +2380,13 @@
     //   vd "L+ ( tem LC)" → "L+" · "B curl Label J" → "B" · "CC Curl Label C" → "CC" (header khách ghi lộn xộn).
     function curlOf(raw) {
       var core = PS(raw).replace(/\(.*?\)/g, '').trim(); if (!core) return null;
+      if (laHoCurl(core)) return 'Curl 1';   // Curl · Curl1 · Curl2 · Curl 3… = cùng loại "không cuốn độ cong"
       for (var j = 0; j < CURLS.length; j++) if (CURLS[j].toLowerCase() === core.toLowerCase()) return CURLS[j];
       var first = core.split(/\s+/)[0];
       for (var j2 = 0; j2 < CURLS.length; j2++) if (CURLS[j2].toLowerCase() === first.toLowerCase()) return CURLS[j2];
       return null;
     }
-    var curlCol = {}, curlNote = {}, curlRemap = [], curlHeaders = {};
+    var curlCol = {}, curlNote = {}, curlRemap = [], curlHeaders = {}, curlThem = {};
     CURLS.forEach(function (k) { curlCol[k] = -1; });
     (function () {
       var endIdx = findCol(H, 'Tổng Số Hộp');
@@ -2383,13 +2394,14 @@
       for (var i = (col.mix >= 0 ? col.mix + 1 : 0); i < end; i++) {
         var raw = PS(H[i]); if (!raw) continue;
         var k = curlOf(raw);
+        var hoCurl = laHoCurl(raw.replace(/\(.*?\)/g, '').trim());
         if (k && curlCol[k] < 0) {
           curlCol[k] = i;
           curlHeaders[k] = raw;   // GIỮ tiêu đề GỐC của cột độ cong (để so sánh tiêu đề giữa 2 đơn)
           var coreExact = raw.replace(/\(.*?\)/g, '').trim();
-          if (coreExact.toLowerCase() === k.toLowerCase()) { var note = raw.replace(coreExact, '').trim(); if (note) curlNote[k] = note; }
+          if (coreExact.toLowerCase() === k.toLowerCase() || hoCurl) { var note = raw.replace(coreExact, '').trim(); if (note) curlNote[k] = note; }
           else curlRemap.push({ col: i, header: raw, curl: k });   // header ghi lộn xộn → GHI LẠI để kiểm tra
-        }
+        } else if (k && hoCurl) (curlThem[k] = curlThem[k] || []).push(i);   // Curl2 sau Curl1 → cộng vào Curl 1
       }
     })();
     // tương thích file cũ: cột nào chưa map thì thử khớp chính xác nguyên header
@@ -2401,7 +2413,7 @@
       var endIdx = findCol(H, 'Tổng Số Hộp'); if (endIdx <= 0 || col.mix < 0) return;
       var region = endIdx - (col.mix + 1), mapped = 0;
       CURLS.forEach(function (k) { if (curlCol[k] >= 0) mapped++; });
-      if (region === CURLS.length && mapped < CURLS.length) {
+      if (region === CURLS.length && mapped < CURLS.length && !Object.keys(curlThem).length) {
         CURLS.forEach(function (k, j) { curlCol[k] = col.mix + 1 + j; });
       }
     })();
@@ -2415,7 +2427,7 @@
         hdr.push(curlOf(v2) || v2.replace(/\(.*?\)/g, '').trim());   // quy về tên độ cong chuẩn nếu nhận diện được
       }
       var extras = hdr.filter(function (v) { return CURLS.indexOf(v) < 0; });
-      var inStruct = hdr.filter(function (v) { return CURLS.indexOf(v) >= 0; });
+      var inStruct = hdr.filter(function (v, ix) { return CURLS.indexOf(v) >= 0 && hdr.indexOf(v) === ix; });   // Curl1+Curl2 = 1 cột
       var expected = CURLS.filter(function (k) { return inStruct.indexOf(k) >= 0; });
       if (extras.length) curlWarnings.push('Cột độ cong LẠ ngoài cấu trúc: ' + extras.join(', '));
       if (inStruct.join('|') !== expected.join('|')) curlWarnings.push('Thứ tự cột độ cong LỆCH cấu trúc chuẩn (đúng: ' + expected.join(' ') + ')');
@@ -2464,7 +2476,7 @@
           dsB2.forEach(function (rr) {
             var rw2 = aoa[rr] || [], st2 = Math.round(Number(rw2[col.stt]));
             var cs2 = {};
-            CURLS.forEach(function (k) { var ci2 = curlCol[k]; if (ci2 >= 0) { var q5 = PN(rw2[ci2]); if (q5) cs2[k] = q5; } });
+            CURLS.forEach(function (k) { var q5 = soCurl(rw2, k, curlCol, curlThem); if (q5) cs2[k] = q5; });
             var mmM = PS(rw2[col.length]).match(/^(\d+)\s*(mm)?$/i);
             var x2 = maXuongTuDo(PS(rw2[cXuong2])) || '';
             if (x2 && xuongBangLine.indexOf(x2) < 0) xuongBangLine.push(x2);
@@ -2489,8 +2501,8 @@
       SPECIAL_SYM.forEach(function (p) { if (khopKyHieu(p[1], _rowTxt)) _kw[p[0]] = 1; });
       var curls = {};
       CURLS.forEach(function (k) {
-        var ci = curlCol[k];
-        if (ci >= 0) { var q2 = PN(row[ci]); if (q2) curls[k] = q2; }
+        var q2 = soCurl(row, k, curlCol, curlThem);
+        if (q2) curls[k] = q2;
       });
       // KHÔNG bỏ dòng có Mã + Độ dài dù chưa dò được ô độ cong (đơn lệch cấu trúc) → GIỮ để hiện & sửa.
       // Chỉ bỏ dòng RỖNG thật (không có cả mã lẫn độ dài).
@@ -2602,7 +2614,7 @@
     })();
     // CỘT trong vùng độ cong CÓ SỐ LIỆU nhưng KHÔNG nhận diện được độ cong → NGUY CƠ MẤT DỮ LIỆU (sẽ chặn bước sau)
     meta.curlUnmapped = (function () {
-      var mappedSet = {}; CURLS.forEach(function (k) { if (curlCol[k] >= 0) mappedSet[curlCol[k]] = 1; });
+      var mappedSet = {}; CURLS.forEach(function (k) { if (curlCol[k] >= 0) mappedSet[curlCol[k]] = 1; (curlThem[k] || []).forEach(function (c0) { mappedSet[c0] = 1; }); });
       var endU = findCol(H, 'Tổng Số Hộp'); endU = endU > 0 ? endU : H.length;
       var res = [];
       for (var ci = (col.mix >= 0 ? col.mix + 1 : 0); ci < endU; ci++) {
@@ -2749,12 +2761,13 @@
     // KHÔNG đoán bừa — nếu có số liệu sẽ báo ở meta.curlUnmapped để chặn bước sau.
     function curlOf(raw) {
       var core = PS(raw).replace(/\(.*?\)/g, '').trim(); if (!core) return null;
+      if (laHoCurl(core)) return 'Curl 1';   // Curl · Curl1 · Curl2 · Curl 3… = cùng loại "không cuốn độ cong"
       for (var j = 0; j < CURLS.length; j++) if (CURLS[j].toLowerCase() === core.toLowerCase()) return CURLS[j];
       var first = core.split(/\s+/)[0];
       for (var j2 = 0; j2 < CURLS.length; j2++) if (CURLS[j2].toLowerCase() === first.toLowerCase()) return CURLS[j2];
       return null;
     }
-    var curlCol = {}, curlHeaders = {}, curlWarnings = [];
+    var curlCol = {}, curlHeaders = {}, curlWarnings = [], curlThem = {};
     CURLS.forEach(function (k) { curlCol[k] = -1; });
     var cStart = (col.length >= 0 ? col.length : col.stt) + 1;
     var cEnd = col.tong > 0 ? col.tong : H.length;
@@ -2762,6 +2775,7 @@
       var raw = PS(H[i]); if (!raw) continue;
       var k = curlOf(raw);
       if (k && curlCol[k] < 0) { curlCol[k] = i; curlHeaders[k] = raw; }
+      else if (k === 'Curl 1' && laHoCurl(raw.replace(/\(.*?\)/g, '').trim())) (curlThem[k] = curlThem[k] || []).push(i);   // Curl2/Curl3 → cộng vào Curl 1
     }
     /* KHÔNG cảnh báo cột lạ chỉ vì có tên lạ: template 2026 luôn chừa sẵn 2 cột trống
        Curl2/Curl3, báo mỗi đơn thì thành nhiễu. Cột lạ mà CÓ SỐ LIỆU vẫn bị bắt ở
@@ -2795,8 +2809,8 @@
       if (/multi\s*colou?r/i.test(gcX + ' ' + code + ' ' + PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''))) thick = '0.085';
       var curls = {};
       CURLS.forEach(function (k) {
-        var ci = curlCol[k];
-        if (ci >= 0) { var q2 = PN(row[ci]); if (q2) curls[k] = q2; }
+        var q2 = soCurl(row, k, curlCol, curlThem);
+        if (q2) curls[k] = q2;
       });
       var soLineRaw = PS(col.soLine >= 0 ? row[col.soLine] : '');
       out.push({
@@ -3179,7 +3193,7 @@
     meta.tongDay = (tongBangDuoi != null) ? tongBangDuoi : meta.tongSoiKhai;
     meta.curlWarnings = curlWarnings.concat(mixWarnings);
     meta.curlUnmapped = (function () {
-      var mapped = {}; CURLS.forEach(function (k) { if (curlCol[k] >= 0) mapped[curlCol[k]] = 1; });
+      var mapped = {}; CURLS.forEach(function (k) { if (curlCol[k] >= 0) mapped[curlCol[k]] = 1; (curlThem[k] || []).forEach(function (c0) { mapped[c0] = 1; }); });
       var res = [];
       for (var c4 = cStart; c4 < cEnd; c4++) {
         if (mapped[c4]) continue;

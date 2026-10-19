@@ -478,6 +478,10 @@ body.gs-selecting{user-select:none}
 .fcol .file-list{margin:0;max-height:280px;overflow:auto}
 /* Step 5 Bảng Line Cuốn: cột Mã Đơn không tràn đè cột khác */
 #cb-head th:nth-child(3),#eng-cuonbox td:nth-child(3){white-space:nowrap;overflow:hidden}
+/* Bước 5: cột độ cong chia đều nên hẹp → "CC ▼" bị cắt mất nút lọc (user báo 19/10).
+   Tên độ cong ở trên, ▼ xuống dòng dưới — hẹp mấy cũng thấy đủ cả hai. */
+#cb-head th.curl{white-space:normal;overflow:visible;padding-left:1px;padding-right:1px;line-height:1.15;text-align:center;vertical-align:middle;word-break:break-word}
+#cb-head th.curl .fbtn{display:block;width:max-content;margin:2px auto 0;padding:0 3px}
 /* Step 5/6: dữ liệu dài hơn cột → ẨN phần thừa (…), KHÔNG đè sang cột khác, KHÔNG wrap */
 #eng-cuonbox td{overflow:hidden}
 #eng-cuonbox td:nth-child(4){white-space:nowrap;overflow:hidden}                       /* Code Sợi: cột tự giãn đủ 1 dòng */
@@ -681,7 +685,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1713560000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1713660000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -769,7 +773,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
     <div class="card" style="margin-top:14px">
       <div class="card-head" style="background:var(--red-500);color:#fff"><h3 style="color:#fff">⚠️ Danh sách lỗi / cảnh báo</h3>
         <div class="spacer"></div><span id="err-list-tools" class="mini" style="color:#fff;margin-right:10px"></span><span class="mini err-goiy" style="color:#fff">bấm 1 dòng để tới đúng ô trong Bảng Nhập Đơn (Bước 2)</span></div>
-      <div class="tbl-wrap" style="max-height:200px;border:none;border-radius:0">
+      <div class="tbl-wrap" id="errlist-wrap" style="max-height:340px;border:none;border-radius:0">
         <table>
           <thead><tr><th>File <span class="fbtn" data-coltbl="eng-errlist" data-col="0" title="Lọc cột File">▼</span></th><th>Dòng <span class="fbtn" data-coltbl="eng-errlist" data-col="1" title="Lọc cột Dòng">▼</span></th><th>Cột <span class="fbtn" data-coltbl="eng-errlist" data-col="2" title="Lọc cột Cột">▼</span></th><th>Mã lỗi <span class="fbtn" data-coltbl="eng-errlist" data-col="3" title="Lọc cột Mã lỗi">▼</span></th><th>Mô tả <span class="fbtn" data-coltbl="eng-errlist" data-col="4" title="Lọc cột Mô tả">▼</span> <span id="err-approve-slot" style="float:right"></span></th></tr></thead>
           <tbody id="eng-errlist">
@@ -1413,7 +1417,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1713560000"></script>
+<script src="engine.web.js?v=1713660000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -2867,7 +2871,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           var key=md+'|'+x.curl+'|'+x.header, appr=!!state.remapApproved[key];
           if(!appr) remapPending++;
           if(appr){ _errDaDuyet++; if(!errXemHet) return; }   // đã duyệt → ẩn (trừ khi bấm "Hiện cả mục đã duyệt")
-          remapRows += '<tr title="Header cột độ cong ghi lộn xộn — máy đã tự quy đổi, hãy KIỂM TRA rồi bấm Duyệt">'+
+          remapRows += '<tr'+(appr?'':' data-canduyet="1"')+' title="Header cột độ cong ghi lộn xộn — máy đã tự quy đổi, hãy KIỂM TRA rồi bấm Duyệt">'+
             '<td>'+esc(md)+'</td><td>header</td><td><b>'+esc(x.curl)+'</b></td>'+
             '<td><span class="badge '+(appr?'pass':'warn')+'">'+(appr?'✓ ĐÃ DUYỆT':'QUY ĐỔI')+'</span></td>'+
             '<td class="txt">Cột "'+esc(x.header)+'" → nhận là độ cong <b style="color:var(--accent)">'+esc(x.curl)+'</b>'+
@@ -2887,7 +2891,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var um=F && F.meta && F.meta.curlUnmapped; if(!um||!um.length) return;
         var md=(F.maDons&&F.maDons[0])||F.name||'—';
         um.forEach(function(x){
-          unmapRows += '<tr title="Cột độ cong có số liệu nhưng KHÔNG nhận diện được — sửa header trong file gốc rồi đọc lại">'+
+          unmapRows += '<tr data-canduyet="1" title="Cột độ cong có số liệu nhưng KHÔNG nhận diện được — sửa header trong file gốc rồi đọc lại">'+
             '<td>'+esc(md)+'</td><td>header</td><td>cột '+(x.col+1)+'</td>'+
             '<td><span class="badge fail">MẤT ĐỘ CONG</span></td>'+
             '<td class="txt">Cột "'+esc(x.header||'(trống)')+'" có <b>'+x.count+'</b> ô số nhưng KHÔNG nhận ra độ cong → sửa tên header trong file gốc cho đúng chuẩn (J B C CC D DD L M V L+ LD LC+ LC LB LJ Curl 1) rồi đọc lại.</td></tr>';
@@ -2903,13 +2907,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var xong = isErrAcked(e) || e.code==='W-LEN-OK';     // W-LEN-OK = độ dài đã "Cho phép sai chuẩn"
         if(xong) _errDaDuyet++;
         return errXemHet || !xong;
-      }).map(function(e){
+      }).map(function(e,ix){ return {e:e,ix:ix}; }).sort(function(a,b){   // ô ĐỎ (lỗi) lên trước ô VÀNG (cảnh báo), giữ thứ tự gốc trong từng nhóm
+        var la=(a.e.level==='warn'?1:0), lb=(b.e.level==='warn'?1:0); return la-lb || a.ix-b.ix;
+      }).map(function(x){ return x.e; }).map(function(e){
         var lv = e.level==='warn'?'warn':'fail';
         var keo = errIsKeo(e);
         var daKiem = isErrAcked(e), nutKiem = e.code==='W-LEN-OK' ? ' <span style="color:var(--green-600);font-weight:700;margin-left:6px">✓ đã cho phép</span>'
           : (daKiem ? ' <span style="color:var(--green-600);font-weight:700;margin-left:6px">✓ đã kiểm</span> <button class="btn sm err-unack1" data-ackkey="'+esc(errAckKey(e))+'" style="margin-left:4px" title="Bỏ xác nhận — ô này lại vào danh sách cần duyệt">↺</button>'
                     : ' <button class="btn sm err-ack1" data-ackkey="'+esc(errAckKey(e))+'" style="color:var(--green-600);border-color:var(--green-600);font-weight:700;margin-left:6px" title="Đã xem ô này, đúng như đơn khách → bỏ khỏi danh sách cần duyệt">✓ Đã kiểm</button>');
-        return '<tr data-seri="'+esc(e.seri)+'" data-madon="'+esc(e.maDon||'')+'" data-col="'+esc(e.col)+'"'+
+        return '<tr'+(daKiem||e.code==='W-LEN-OK'?'':' data-canduyet="1"')+' data-seri="'+esc(e.seri)+'" data-madon="'+esc(e.maDon||'')+'" data-col="'+esc(e.col)+'"'+
           ' data-code="'+esc(e.code||'')+'"'+(e.keoIdx!=null?(' data-keoidx="'+esc(e.keoIdx)+'"'):'')+
           ' style="cursor:pointer" title="Bấm để sang '+(keo?'Bảng Keo':'Bảng Nhập Đơn')+' và sửa ô này">'+
           // lỗi mã keo không thuộc dòng đơn nào (seri = 0) → cột DÒNG để dấu "—" cho khỏi hiểu nhầm
@@ -2921,7 +2927,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       el.innerHTML = (unmapRows + remapRows + errRows) || ('<tr data-noflt="1"><td colspan="5" class="txt" style="color:var(--green-600);font-weight:600">✓ Không còn mục cần duyệt'+
         (_errDaDuyet ? ' · '+fmtN(_errDaDuyet)+' mục đã duyệt/đã kiểm đang ẩn' : ' — dữ liệu sạch')+'</td></tr>');
       var _tl=document.getElementById('err-list-tools');
-      if(_tl) _tl.innerHTML = '<b>'+fmtN(_canDuyet)+'</b> mục cần duyệt'+
+      if(_tl) _tl.innerHTML = (_canDuyet ? '<button class="btn sm err-toi" style="background:#fff;color:var(--red-600);font-weight:800" title="Bấm để tới lần lượt từng mục cần duyệt (bấm tiếp = mục kế)">▶ <b>'+fmtN(_canDuyet)+'</b> mục cần duyệt</button>' : '<b>0</b> mục cần duyệt')+
         (_errDaDuyet ? ' · <button class="btn sm err-xemhet" style="background:#fff;color:var(--red-600);font-weight:700;margin-left:6px">'+
           (errXemHet ? 'Ẩn '+fmtN(_errDaDuyet)+' mục đã duyệt' : 'Hiện cả '+fmtN(_errDaDuyet)+' mục đã duyệt')+'</button>' : '');
     }
@@ -6597,6 +6603,37 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     state.remapApproved=state.remapApproved||{};
     (state.files||[]).forEach(function(F){ var rm=F&&F.meta&&F.meta.curlRemap; if(!rm) return; var md=(F.maDons&&F.maDons[0])||F.name||'—'; rm.forEach(function(x){ state.remapApproved[md+'|'+x.curl+'|'+x.header]=true; }); });
     try{render();}catch(e){ logErr('jumpCycle', e); } });
+  /* "▶ N mục cần duyệt" (user chốt 19/10): bấm lần lượt tới TỪNG mục chưa duyệt.
+     Mục của bước 1 (MẤT ĐỘ CONG · QUY ĐỔI) → cuộn danh sách tới dòng đó và tô sáng;
+     mục là ô của 1 dòng đơn → sang đúng ô đó ở Bảng Nhập Đơn / Bảng Keo (như bấm vào dòng).
+     Lần đầu luôn bắt đầu từ ĐẦU danh sách (khỏi phải tự kéo lên tìm mục trên cùng). */
+  var _errToiI=0;
+  function errToiKe(){
+    var wrap=document.getElementById('errlist-wrap'), tb=document.getElementById('eng-errlist'); if(!tb) return;
+    var ds=Array.prototype.filter.call(tb.querySelectorAll('tr[data-canduyet]'), function(tr){ return tr.style.display!=='none'; });
+    if(!ds.length) return;
+    if(_errToiI>=ds.length) _errToiI=0;
+    var tr=ds[_errToiI], i=_errToiI; _errToiI=(_errToiI+1)%ds.length;
+    try{
+      if(i===0 && wrap) wrap.scrollTop=0;
+      if(wrap){
+        var th=(wrap.querySelector('thead')||{offsetHeight:0}).offsetHeight;
+        var top=tr.getBoundingClientRect().top - wrap.getBoundingClientRect().top + wrap.scrollTop - th;
+        wrap.scrollTop=Math.max(0, top-6);
+        if(wrap.scrollIntoView) wrap.scrollIntoView({block:'nearest'});
+      }
+      tr.classList.add('flash'); setTimeout(function(){ tr.classList.remove('flash'); }, 1500);
+    }catch(e){ logErr('errToiKe', e); }
+    var bt=document.querySelector('#err-list-tools .err-toi');
+    if(bt) bt.innerHTML='▶ <b>'+fmtN(ds.length)+'</b> mục cần duyệt <span style="font-weight:600">('+(i+1)+'/'+ds.length+')</span>';
+    if(tr.hasAttribute('data-seri')){
+      var _e={ seri:tr.getAttribute('data-seri'), maDon:tr.getAttribute('data-madon'), col:tr.getAttribute('data-col'), code:tr.getAttribute('data-code') };
+      var _ki=tr.getAttribute('data-keoidx'); if(_ki!=null && _ki!=='') _e.keoIdx=_ki;
+      setTimeout(function(){ if(errIsKeo(_e)) jumpToKeo(_e); else jumpToError(_e.seri, _e.maDon, _e.col); }, 350);   // kịp thấy dòng sáng rồi mới sang bảng
+    }
+  }
+  document.addEventListener('click', function(ev){ var bt=ev.target&&ev.target.closest?ev.target.closest('.err-toi'):null; if(!bt) return;
+    ev.preventDefault(); ev.stopPropagation(); errToiKe(); });
   // Nút "Hiện cả / Ẩn mục đã duyệt" trên thanh đỏ của Danh sách lỗi (chỉ đổi cách xem, không lưu)
   document.addEventListener('click', function(ev){ var bx=ev.target&&ev.target.closest?ev.target.closest('.err-xemhet'):null; if(!bx) return;
     ev.preventDefault(); ev.stopPropagation(); errXemHet=!errXemHet; try{ render({reuseR:true}); }catch(e){ logErr('errXemHet', e); } });
@@ -14635,14 +14672,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1713560000"></script>
-<script src="cl.sync.js?v=1713560000"></script>
-<script src="auth.store.js?v=1713560000"></script>
-<script src="auth.web.js?v=1713560000"></script>
+<script src="cl.config.js?v=1713660000"></script>
+<script src="cl.sync.js?v=1713660000"></script>
+<script src="auth.store.js?v=1713660000"></script>
+<script src="auth.web.js?v=1713660000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1713560000"></script>
+<script src="cl.project.js?v=1713660000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1713560000" defer></script>
+<script src="firebase-bridge.js?v=1713660000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
