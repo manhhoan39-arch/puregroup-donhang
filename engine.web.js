@@ -2134,6 +2134,23 @@
   }
   /* Dòng đơn ghi Độ Dài đúng NHÃN của một bảng Mix có dấu phân biệt ("6-11mm.2") → đổi sang dải
      có dấu ("6-11mm#2") để tra đúng bảng. Dòng không khớp nhãn nào giữ nguyên. */
+  function dienCodeMixMau(out, mixSheets) {
+    (out || []).forEach(function (o) {
+      var code = PS(o.codeSoi), n = Number(o.soMau) || 0;
+      if (n < 2 || code.indexOf('\n') >= 0 || !/mix\s*colou?r/i.test(code)) return;
+      var rk = String(o.length || '').toLowerCase().replace(/\s+/g, '').replace(/~/g, '-');
+      (mixSheets || []).some(function (sh) {
+        var cb = sh && sh.colorBlocks; if (!cb) return false;
+        return Object.keys(cb).some(function (k) {
+          if (String(k).replace(/#\d+$/, '') !== rk.replace(/#\d+$/, '')) return false;
+          var bl = cb[k] || [];
+          if (bl.length !== n || !bl.every(function (b) { return b && b.code; })) return false;
+          o.codeSoi = bl.map(function (b) { return b.code; }).join('\n');
+          return true;
+        });
+      });
+    });
+  }
   function apBienTheDai(out, mixSheets) {
     // khoá "nhãn|số line": cùng nhãn "7-14mm" có thể là bảng 8 Lines (không trùng) lẫn bảng 16 Lines (trùng)
     var map = {}, co = false;
@@ -2309,6 +2326,33 @@
         Object.keys(mauNgang).forEach(function (k) {
           if (!colorBlocksByRange[k]) colorBlocksByRange[k] = mauNgang[k];
         });
+        /* BẢNG MÀU ĐẶT CẠNH (user chốt 19/10 · đơn K83-859P.2 ND, mẫu 2026): cột dải "11-12mm"
+           vẫn ghi SỐ (8 · 8 = 16 Lines), còn bên phải có cột tiêu đề "Hàng 11-12mm Mix" ghi từng
+           SỢI: mm | tên màu | code sợi (11mm Yellow 24.MK.Yellow.85 · 12mm Yellow … · 11mm Orange…).
+           Trước đây tiêu đề không bắt đầu bằng số nên bị bỏ qua → bước 3 chỉ có "Mix Color 1…8"
+           trống trơn. Nay đọc khối đó thành bảng màu của dải 11-12mm, mỗi màu 1 khối kèm CODE. */
+        (function () {
+          var laCot = {}; rangeCols.forEach(function (c0) { laCot[c0] = 1; });
+          for (var c8 = mi + 1; c8 < row.length && c8 < CE; c8++) {
+            if (laCot[c8]) continue;
+            var hd8 = PS(row[c8]).replace(/\s+/g, ' ');
+            var m8 = hd8.match(/(\d+)\s*[-~]\s*(\d+)\s*mm/i); if (!m8 || /^\s*\d/.test(hd8)) continue;
+            var rg8 = (m8[1] + '-' + m8[2] + 'mm').toLowerCase();
+            var j8 = ranges.map(function (x) { return String(x).replace(/#\d+$/, ''); }).indexOf(rg8);
+            if (j8 < 0 || colorBlocksByRange[ranges[j8]]) continue;
+            var blocks8 = [], cur8 = null, bd = false;
+            for (var q8 = r + 1; q8 < aoa.length && q8 <= r + 80; q8++) {
+              var rw8 = aoa[q8] || [], mm8 = PS(rw8[c8]).match(/^(\d+)\s*mm$/i), mau8 = PS(rw8[c8 + 1]).trim();
+              if (!mm8 || !mau8) { if (bd) break; continue; }
+              bd = true;
+              var code8 = PS(rw8[c8 + 2]).trim(); if (!/^\d+[.\-]\S+/.test(code8)) code8 = '';
+              var ten8 = code8 || mau8;
+              if (!cur8 || cur8.color !== ten8) { cur8 = { color: ten8, ten: mau8, code: code8, dist: {}, lines: 0 }; blocks8.push(cur8); }
+              cur8.dist[+mm8[1]] = (cur8.dist[+mm8[1]] || 0) + 1; cur8.lines++;
+            }
+            if (blocks8.length >= 2) { colorBlocksByRange[ranges[j8]] = blocks8; c8 += 2; }
+          }
+        })();
         var mmList = [], matrix = [];
         for (q = r + 1; q < aoa.length; q++) {
           rw = aoa[q] || [];
@@ -2602,6 +2646,7 @@
     // 3. bảng Mix của khách: khối "Mix Length" — xem parseMixLengthBlocks (dùng chung 2 mẫu)
     var mixSheets = parseMixLengthBlocks(aoa, hr, maDon);
     apBienTheDai(out, mixSheets);
+    dienCodeMixMau(out, mixSheets);
     // 4. bảng keo: header có "Mã Keo"/"Loại Keo" (+ tuỳ chọn: Loại Sợi/Nguyên Liệu, Độ Dày, Độ Dài).
     //    Đọc ĐỦ CỘT để dựng QUY TẮC keo: 1 Material có thể nhiều keo theo khoảng chiều dài.
     //    Ô GỘP (merged): dòng phụ chỉ có Độ Dài + Mã Keo → kế thừa Loại Sợi/Độ Dày dòng trên.
@@ -3112,6 +3157,7 @@
        mẫu 2026 không ghi vậy → colorBlocks rỗng → admin ĐIỀN TAY ở bước 3. */
     var mixSheets = parseMixLengthBlocks(aoa, hr, maDon, DC.br);
     apBienTheDai(out, mixSheets);
+    dienCodeMixMau(out, mixSheets);   // "Mix Color" × N màu → N code sợi lấy ở bảng màu cạnh bảng Mix
     out.forEach(function (o) { delete o._lenNhan; });
     var mixWarnings = [];
 
