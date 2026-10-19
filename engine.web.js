@@ -397,6 +397,15 @@
    *   2. đúng dải, chỉ có 1 biến thể số line → dùng biến thể đó
    *   3. khóa trần "6-13mm" (tương thích mix cũ không key theo line)
    */
+  // khoá bảng Mix mà resolveMixDist chọn cho dòng o (để tra bảng tách độ cong cùng khoá)
+  function resolveMixKey(mix, o) {
+    var norm = o.length, k0 = norm + '|' + o.line;
+    if (Object.keys(mixOfRange(mix, k0)).length) return k0;
+    var pref = norm + '|', hits = {}, mm, k;
+    for (mm in mix) for (k in mix[mm]) if (k.indexOf(pref) === 0) hits[k] = 1;
+    var hk = Object.keys(hits);
+    return hk.length === 1 ? hk[0] : norm;
+  }
   function resolveMixDist(mix, o) {
     var norm = o.length;
     var d = mixOfRange(mix, norm + '|' + o.line);
@@ -482,10 +491,13 @@
     }
     // o.mixDist = phân bổ mm RIÊNG (dùng cho dòng đã TÁCH THEO MÀU); nếu không có → tra bảng mix chung
     var dist = (o.mixDist && Object.keys(o.mixDist).length) ? o.mixDist : resolveMixDist(mix, o), rangeTotal = 0; for (mm in dist) rangeTotal += dist[mm];
+    var tach = (!o.mixDist && mix && mix._curlTach) ? mix._curlTach[resolveMixKey(mix, o)] : null;
     for (curl in curls) {
       for (mm in dist) {
         sl = strategy(o, { mm: +mm, mixQty: dist[mm], qty: curls[curl] }, { rangeTotal: rangeTotal });
-        if (sl) rows.push({ codeSoi: o.codeSoi, length: o.length, mm: +mm, curl: curl, sl: sl, maDon: o.maDon, mixSingle: 'Mix', material: carry.material, thickness: carry.thickness, ghiChuKeo: carry.ghiChuKeo, keoMm: carry.keoMm, hopLineLech: carry.hopLineLech, xuongTH: carry.xuongTH, xuongMa: carry.xuongMa });
+        // label "Curl2: Mix C+CC" → dây mm đó cuốn theo độ cong ghi ở mm đó (C / CC…)
+        var curlCuon = (tach && curl === tach.curl && tach.theoMm[mm]) ? tach.theoMm[mm] : curl;
+        if (sl) rows.push({ codeSoi: o.codeSoi, length: o.length, mm: +mm, curl: curlCuon, curlGoc: (curlCuon !== curl ? curl : undefined), sl: sl, maDon: o.maDon, mixSingle: 'Mix', material: carry.material, thickness: carry.thickness, ghiChuKeo: carry.ghiChuKeo, keoMm: carry.keoMm, hopLineLech: carry.hopLineLech, xuongTH: carry.xuongTH, xuongMa: carry.xuongMa });
       }
     }
     return rows;
@@ -1364,7 +1376,29 @@
      "KHÔNG CẦN CUỐN ĐỘ CONG" → gộp vào cột chuẩn "Curl 1". Trước đây chỉ nhận đúng "Curl 1",
      đơn ghi "Curl2" có số liệu thì báo MẤT ĐỘ CONG và chặn luôn bước sau. Nhiều cột họ Curl cùng
      có số trên một dòng thì CỘNG lại (cột thêm nằm trong curlThem). */
-  function laHoCurl(core) { return /^curl\s*[-_.]?\s*\d*$/i.test(String(core == null ? '' : core).trim()); }
+  /* "Mix C+CC" / "Mix C + CC" / "Mix: CC, D"… = 1 LABEL trộn nhiều độ cong (user chốt 19/10 · đơn
+     C37-856P đổi tiêu đề Curl2 → "Mix C+CC"). Cùng họ với Curl: hộp vào cột "Curl 1", khi CUỐN
+     thì chia theo cột độ cong-theo-mm cạnh bảng Mix (curlTach). Trước đây báo MẤT ĐỘ CONG mà
+     không có nút duyệt → kẹt luôn ở bước 1. */
+  function laMixCong(core) {
+    var t = String(core == null ? '' : core).replace(/\s+/g, ' ').trim().match(/^mix\s*[:\-]?\s*(.+)$/i);
+    if (!t) return null;
+    var rest = t[1].toUpperCase().replace(/\s+/g, ''), ds = [], cs = CURLS.slice().sort(function (a, b) { return b.length - a.length; });
+    while (rest) {
+      var hit = null;
+      for (var i = 0; i < cs.length; i++) { var c = cs[i].toUpperCase().replace(/\s+/g, ''); if (rest.indexOf(c) === 0) { hit = cs[i]; rest = rest.slice(c.length); break; } }
+      if (!hit) return null;
+      ds.push(hit);
+      if (!rest) break;
+      if (!/^[+,&\/]/.test(rest)) return null;
+      rest = rest.slice(1);
+    }
+    return ds.length >= 2 ? ds : null;
+  }
+  function laHoCurl(core) {
+    var c = String(core == null ? '' : core).replace(/\s+/g, ' ').trim();
+    return /^curl\s*[-_.]?\s*\d*$/i.test(c) || !!laMixCong(c);
+  }
   function soCurl(row, k, curlCol, curlThem) {
     var cs = [curlCol[k]].concat((curlThem && curlThem[k]) || []), t = 0;
     cs.forEach(function (ci) { if (ci >= 0) t += PN(row[ci]) || 0; });
@@ -1677,6 +1711,11 @@
       var acc = mixLabel.byOrder[s.maDon];
       if (!acc) mixLabel.set(s.maDon, keyed);
       else for (var mm in keyed) { acc[mm] = acc[mm] || {}; for (var k in keyed[mm]) acc[mm][k] = keyed[mm][k]; }
+      if (s.curlTach && s.curlTach.length) {
+        var mx = mixLabel.byOrder[s.maDon];
+        if (!mx._curlTach) Object.defineProperty(mx, '_curlTach', { value: {}, enumerable: false, writable: true });
+        s.curlTach.forEach(function (t) { var kk = info.keys[t.j]; if (kk) mx._curlTach[kk] = { curl: t.curl, theoMm: t.theoMm, nhan: t.nhan || '' }; });
+      }
       var ri = rangeInfo[s.maDon] || (rangeInfo[s.maDon] = { keys: [], labels: {} });
       info.keys.forEach(function (kk) { if (ri.keys.indexOf(kk) < 0) ri.keys.push(kk); ri.labels[kk] = info.labels[kk]; });
     });
@@ -2211,6 +2250,32 @@
             cols.forEach(function (j, t) { var vt = ranges[j] + '#' + (t + 1); bienThe[nhan[t]] = vt; bienTheKey[nhan[t] + '|' + lineThuc[j]] = vt; ranges[j] = vt; });
           });
         })();
+        /* ===== MIX ĐỘ CONG TRONG 1 LABEL (user chốt 19/10 · đơn C37-856P) =====
+           Cột ngay bên phải cột dải ghi "Curl2: Mix C+CC" và mỗi dòng mm ghi ĐỘ CONG của mm đó
+           (6-8mm → C · 9-12mm → CC). Nghĩa: hộp "Curl2" là 1 label trộn 2 độ cong — số LINE
+           theo mm vẫn lấy ở cột dải, còn khi CUỐN thì dây của mm nào thuộc độ cong ghi ở mm đó.
+           Lưu curlTach = [{j, curl:'Curl 1', theoMm:{6:'C',…,12:'CC'}}] cho cột dải j. */
+        var curlTach = [];
+        (function () {
+          var laCot = {}; rangeCols.forEach(function (c0) { laCot[c0] = 1; });
+          rangeCols.forEach(function (cj, j) {
+            var cc = cj + 1; if (laCot[cc] || cc >= CE) return;
+            var hd = PS(row[cc]), theoMm = {}, coChu = 0, thieu = 0, sai = 0;
+            for (var q6 = r + 1; q6 < aoa.length && q6 <= r + 40; q6++) {
+              var lb6 = PS((aoa[q6] || [])[mi]), mm6 = lb6.match(/^(\d+)\s*mm$/i);
+              if (!mm6) { if (coChu || thieu) break; continue; }
+              var sl6 = Number((aoa[q6] || [])[cj]) || 0, v6 = PS((aoa[q6] || [])[cc]).replace(/\s+/g, '').toUpperCase();
+              if (!v6) { if (sl6) thieu++; continue; }
+              var kc = null; for (var z6 = 0; z6 < CURLS.length; z6++) if (CURLS[z6].toUpperCase() === v6) kc = CURLS[z6];
+              if (!kc) { sai++; continue; }
+              theoMm[+mm6[1]] = kc; coChu++;
+            }
+            if (!coChu || sai || thieu) return;                 // phải ghi ĐỦ và ĐÚNG tên độ cong cho mọi mm có số
+            if (hd && !/curl|mix/i.test(hd)) return;            // tiêu đề lạ → không phải cột tách độ cong
+            // áp cho cột độ cong họ "Curl" của dòng đơn (Curl2/Curl3… đã gộp vào "Curl 1")
+            curlTach.push({ j: j, curl: 'Curl 1', theoMm: theoMm, nhan: hd });
+          });
+        })();
         // CỘT MIX MÀU: dưới header không phải số mà là CẶP "9mm | Tên màu" (mỗi cặp = 1 sợi,
         // 1 Mix chứa nhiều màu/code sợi — vd 8~12mm 18 Lines = Pink×4 + H.Pink×5 + L.Violet×4 + Violet×5).
         // Nhận diện: ô đầu tiên dưới header khớp "<n>mm" và ô bên phải có chữ → đếm cặp theo mm.
@@ -2259,7 +2324,8 @@
         while (mmList.length && allZero(matrix[matrix.length - 1])) { mmList.pop(); matrix.pop(); }
         if (mmList.length) mixSheets.push({ maDon: maDon, mmList: mmList, matrix: matrix, ranges: ranges, lineCounts: lineCounts, colorBlocks: colorBlocksByRange,
                                             bienThe: Object.keys(bienThe).length ? bienThe : null,
-                                            bienTheKey: Object.keys(bienTheKey).length ? bienTheKey : null });
+                                            bienTheKey: Object.keys(bienTheKey).length ? bienTheKey : null,
+                                            curlTach: curlTach.length ? curlTach : null });
         i = ci - 1;   // tiếp tục quét từ vị trí dừng (bảng kế bên nếu có)
       }
     }
@@ -3192,6 +3258,12 @@
     if (tongBangDuoi != null) meta.tongDaiKhai = tongBangDuoi;
     meta.tongDay = (tongBangDuoi != null) ? tongBangDuoi : meta.tongSoiKhai;
     meta.curlWarnings = curlWarnings.concat(mixWarnings);
+    (function () {
+      var hdMix = []; for (var c7 = cStart; c7 < cEnd; c7++) { var h7 = PS(H[c7]); if (laMixCong(h7)) hdMix.push(h7.replace(/\s+/g, ' ')); }
+      if (!hdMix.length) return;
+      var coTach = (mixSheets || []).some(function (m) { return m && m.curlTach && m.curlTach.length; });
+      if (!coTach) meta.curlWarnings.push('Cột "' + hdMix.join('", "') + '" là label trộn độ cong nhưng bảng Mix KHÔNG ghi độ cong theo từng mm → dây tạm để ở cột Curl, xưởng xem lại khi cuốn');
+    })();
     meta.curlUnmapped = (function () {
       var mapped = {}; CURLS.forEach(function (k) { if (curlCol[k] >= 0) mapped[curlCol[k]] = 1; (curlThem[k] || []).forEach(function (c0) { mapped[c0] = 1; }); });
       var res = [];
@@ -3341,7 +3413,7 @@
     runStep1: runStep1, editCell: editCell,
     buildMix: buildMix, MixLabel: MixLabel, mixOfRange: mixOfRange, totalOfRange: totalOfRange,
     sheetRangeInfo: sheetRangeInfo, resolveMixDist: resolveMixDist,
-    buildKeoRules: buildKeoRules, expandKeoRows: expandKeoRows, maKHTrongSheet: maKHTrongSheet, ghepMaKH: ghepMaKH, ghiChuKeoNC: ghiChuKeoNC, ghiChuKeoNCCua: ghiChuKeoNCCua, boCauKeoFix: boCauKeoFix, glueFor: glueFor, glueForShort: glueForShort, orderGlues: orderGlues,
+    buildKeoRules: buildKeoRules, expandKeoRows: expandKeoRows, maKHTrongSheet: maKHTrongSheet, ghepMaKH: ghepMaKH, laMixCong: laMixCong, laHoCurl: laHoCurl, ghiChuKeoNC: ghiChuKeoNC, ghiChuKeoNCCua: ghiChuKeoNCCua, boCauKeoFix: boCauKeoFix, glueFor: glueFor, glueForShort: glueForShort, orderGlues: orderGlues,
     OVERRIDE_2MM_CURLS: OVERRIDE_2MM_CURLS, isOverrideCurl: isOverrideCurl,
     parseKeoCond: parseKeoCond, thickKey: thickKey, doDayTuCode: doDayTuCode, laMixColor: laMixColor,
     thicksOfDoDay: thicksOfDoDay, tachDoDay: tachDoDay, timKeoNhapNhang: timKeoNhapNhang, keoNhapNhangCuaDong: keoNhapNhangCuaDong,
