@@ -309,6 +309,8 @@ td.cellsel-anchor,th.cellsel-anchor{box-shadow:inset 0 0 0 2px var(--accent)}
 .rpt-x{width:22px;height:22px;border:1px solid var(--red-500);border-radius:6px;background:var(--red-50);color:var(--red-600);
   cursor:pointer;font-size:12px;font-weight:800;line-height:1;display:inline-flex;align-items:center;justify-content:center}
 .rpt-x:hover{background:var(--red-500);color:#fff}
+.cm-xoaso{margin-left:6px;padding:1px 8px;border:1px solid var(--red-500);border-radius:6px;background:var(--red-50);color:var(--red-600);font-size:11px;font-weight:700;cursor:pointer}
+.cm-xoaso:hover{background:var(--red-500);color:#fff}
 .rpt-t tbody tr.rpt-row{cursor:pointer}
 .rpt-t tbody tr.rpt-row:hover{background:var(--surface-2)}
 .rpt-t tbody tr.rpt-on td{background:var(--accent-soft)!important;font-weight:700}
@@ -688,7 +690,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1714360000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1714560000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1420,7 +1422,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1714360000"></script>
+<script src="engine.web.js?v=1714560000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -1811,6 +1813,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function cmTenChuan(s){ return String(s==null?'':s).toLowerCase().replace(/\s+/g,''); }   // so tên màu: bỏ hoa/thường + khoảng trắng
   // nếu FILE đã có bảng mix màu (colorBlocks) khớp đơn+dải+số màu → lấy làm dữ liệu ban đầu (admin sửa được)
   function cmSeedFromFile(o,key){
+    /* ⛔ TẮT (user chốt 19/10): "có bảng mix màu thì phải để tôi điền số lượng" — Bảng Mix Màu
+       BẮT BUỘC điền TAY, kể cả khi file khách có sẵn bảng màu. App chỉ điền sẵn TÊN/CODE màu. */
+    return;
     state.colorMix=state.colorMix||{}; if(state.colorMix[key]) return;
     var codes=cmCodes(o);
     (state.mixSheets||[]).forEach(function(s){
@@ -1895,7 +1900,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var need=+o.line||0;
       html+='<div class="cmix-tbl" data-cmkey="'+esc(key)+'" data-madon="'+esc(o.maDon)+'" data-cmneed="'+need+'" style="border:1px solid '+(done?'var(--border)':'var(--red-500)')+';border-radius:9px;padding:8px;max-width:100%;overflow:auto;flex:0 0 auto">'+
         '<div class="mini" style="font-weight:700;margin-bottom:5px">'+esc(o.maDon)+' · dải '+esc(o.length||'')+' · '+codes.length+' màu'+(it.cnt>1?' · dùng cho '+it.cnt+' dòng':'')+' — <span class="cm-st" style="color:'+(done?'var(--green-600)':'var(--red-600)')+'">'+(done?'✓ đã điền':'⚠ chưa hoàn thiện')+'</span>'+
-        (need?' · '+cmTotHtml(tongMau,need):'')+'</div>'+
+        (need?' · '+cmTotHtml(tongMau,need):'')+
+        /* nút XÓA SỐ ĐÃ ĐIỀN của riêng bảng này (thêm 19/10) — làm lại từ đầu khỏi xóa từng ô */
+        ((canEdit&&tongMau>0)?' <button type="button" class="cm-xoaso" data-cmkey="'+esc(key)+'" title="Xóa hết số sợi đã điền ở bảng này để điền lại">↺ Xóa số đã điền</button>':'')+'</div>'+
         '<table class="sheet" style="width:auto;white-space:nowrap"><thead><tr><th>Màu \\ MM</th>'+th+'<th>Tổng</th></tr></thead><tbody>'+body+'</tbody></table>'+
       '</div>';
       });
@@ -4446,18 +4453,39 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     setTxt('imported-count', imported.length);
   }
   // Xóa 1 file khỏi danh sách → dựng lại dữ liệu từ các file còn lại
+  /* XÓA ĐƠN = XÓA SẠCH dữ liệu cũ của đơn đó (user chốt 19/10): bảng Mix Màu đã điền, ô đã kiểm,
+     cho phép sai chuẩn, đổi tên/độ dài đã duyệt, chọn hộp, loại hộp, ảnh gắn đơn… Lưu xong là
+     mất hẳn; nạp lại file thì lấy mới hoàn toàn theo file. */
+  function xoaDuLieuDon(md){
+    md=String(md||''); if(!md) return;
+    _MAP_LUU.forEach(function(p){
+      var ten=p[0], sep=p[1];
+      var m=(ten==='boxSel') ? (typeof boxSel!=='undefined'?boxSel:null) : state[ten];
+      if(!m || typeof m!=='object') return;
+      Object.keys(m).forEach(function(k){ if(_mdKhoa(k,sep)===md) delete m[k]; });
+    });
+  }
   function removeFile(idx){
     if(idx<0 || idx>=state.files.length) return;
     var nm=state.files[idx].name;
     if(typeof confirm==='function' && !confirm('Xóa file "'+nm+'" khỏi danh sách?')) return;
+    var boF=state.files[idx], conMd={};
     state.files.splice(idx,1);
     if(typeof logLine==='function') logLine('Xóa file '+nm);
+    /* Mã đơn chỉ nằm trong file vừa xóa = ĐƠN BỊ XÓA (sửa 19/10): dọn bảng Mix Màu đã điền của
+       nó + báo lớp đám mây (hạ mục tiêu, ghi sổ đã xóa) — nếu không, người canh tưởng "bản lưu
+       rụng đơn" rồi tự cứu đơn đó về kèm số mix cũ (user báo 859P). */
+    state.files.forEach(function(F){ ((F&&F.maDons)||[]).forEach(function(m){ conMd[m]=1; }); });
+    (state.orders||[]).forEach(function(o){ if(o&&o._manual) conMd[o.maDon]=1; });
+    var mdBo=((boF&&boF.maDons)||[]).filter(function(m){ return !conMd[m]; });
+    mdBo.forEach(xoaDuLieuDon);
     var okImported=state.files.filter(function(F){ return F.data && F.imported; });
     if(state.processed){
       // đã Xử lý → dựng lại dữ liệu CHỈ từ file ĐÃ NHẬP còn lại (file đang chờ ở "File đã chọn" giữ nguyên)
       if(okImported.length) processFiles(true, true);
       else { state.orders=(state.orders||[]).filter(function(o){return o._manual;}); state.mixSheets=(state.mixSheets||[]).filter(function(s){return s._manual;}); state.keoRows=(state.keoRows||[]).filter(function(k){return k._manual;}); resetPack(); state.source=(state.orders.length?'✍ Thủ công '+state.orders.length+' đơn':'Chưa có dữ liệu'); state.processed=!!state.orders.length; render(); }
     }
+    try{ if(mdBo.length && window.__CL_daXoaDon) window.__CL_daXoaDon(mdBo); }catch(e){ logErr('removeFile.daXoa', e); }
     renderFiles();
   }
   document.addEventListener('click', function(ev){
@@ -4494,11 +4522,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     state.orders   =(state.orders||[]).filter(function(o){ return o.maDon!==md; });
     state.mixSheets=(state.mixSheets||[]).filter(function(s){ return s.maDon!==md; });
     state.keoRows  =(state.keoRows||[]).filter(function(k){ return k.maDon!==md; });
-    if(state.colorMix) Object.keys(state.colorMix).forEach(function(k){ if(k.indexOf(md+'#')===0) delete state.colorMix[k]; });
+    xoaDuLieuDon(md);
     if(typeof logLine==='function') logLine('Xóa đơn '+md+' ('+soDong+' dòng · bỏ '+boFile+' file, gọn '+gonFile+' file)');
     var conFile=state.files.filter(function(F){ return F.data && F.imported; });
     if(conFile.length) processFiles(true, true);
     else { resetPack(); state.source=(state.orders.length?'✍ Thủ công '+state.orders.length+' đơn':'Chưa có dữ liệu'); state.processed=!!state.orders.length; render(); }
+    try{ if(window.__CL_daXoaDon) window.__CL_daXoaDon([md]); }catch(e){ logErr('removeOrder.daXoa', e); }
     renderFiles();
   }
   document.addEventListener('click', function(ev){
@@ -5801,6 +5830,18 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   window.__hasUnmappedCurl = function(){ return (state.files||[]).some(function(F){ return F && F.meta && F.meta.curlUnmapped && F.meta.curlUnmapped.length; }); };
   // Còn cột QUY ĐỔI chưa DUYỆT → chặn bước sau (bắt admin kiểm tra quy đổi độ cong)
   window.__remapPending = function(){ state.remapApproved=state.remapApproved||{}; var n=0; (state.files||[]).forEach(function(F){ var rm=F&&F.meta&&F.meta.curlRemap; if(!rm) return; var md=(F.maDons&&F.maDons[0])||F.name||'—'; rm.forEach(function(x){ if(!state.remapApproved[md+'|'+x.curl+'|'+x.header]) n++; }); }); return n; };
+  document.addEventListener('click', function(ev){
+    var b=ev.target&&ev.target.closest?ev.target.closest('.cm-xoaso'):null; if(!b) return;
+    ev.preventDefault();
+    var key=b.getAttribute('data-cmkey'); if(!key || !(state.colorMix||{})[key]) return;
+    if(typeof confirm==='function' && !confirm('Xóa hết số sợi đã điền ở bảng Mix Màu này để điền lại?')) return;
+    pushUndo();
+    delete state.colorMix[key];
+    logLine('Xóa số đã điền ở Bảng Mix Màu '+key);
+    cmDirty=false;
+    try{ render(); }catch(e){ logErr('cm-xoaso', e); }
+    setTimeout(function(){ try{ window.__cmJumpFirst && window.__cmJumpFirst(); }catch(e){ logErr('cm-xoaso.jump', e); } }, 80);
+  });
   window.__cmFlush = function(){ if(!cmDirty) return; cmDirty=false; try{ render(); }catch(e){ logErr('__cmFlush', e); } };
   // ==== Bảng Mix Màu: chọn vùng kéo chuột · copy/cut/paste NHIỀU Ô · Delete xóa vùng ====
   var cmA=null, cmH=null, cmDrag=false;
@@ -14698,14 +14739,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1714360000"></script>
-<script src="cl.sync.js?v=1714360000"></script>
-<script src="auth.store.js?v=1714360000"></script>
-<script src="auth.web.js?v=1714360000"></script>
+<script src="cl.config.js?v=1714560000"></script>
+<script src="cl.sync.js?v=1714560000"></script>
+<script src="auth.store.js?v=1714560000"></script>
+<script src="auth.web.js?v=1714560000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1714360000"></script>
+<script src="cl.project.js?v=1714560000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1714360000" defer></script>
+<script src="firebase-bridge.js?v=1714560000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){

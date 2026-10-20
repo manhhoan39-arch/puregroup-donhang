@@ -2256,14 +2256,15 @@
           for (var q4 = r - 1; q4 >= Math.max(0, r - 4); q4--) {
             if (PS((aoa[q4] || [])[mi]).toLowerCase().replace(/\s+/g, ' ') === 'label type') { lt = q4; break; }
           }
-          if (lt < 0) return;
+          var chuan = function (v) { return PS(v).toLowerCase().replace(/\s+/g, '').replace(/~/g, '-'); };
           trung.forEach(function (k) {
-            var cols = nhom[k];
-            var nhan = cols.map(function (j) { return PS((aoa[lt] || [])[rangeCols[j]]).toLowerCase().replace(/\s+/g, '').replace(/~/g, '-'); });
-            var khac = {}, dau = ranges[cols[0]].replace(/mm$/, '');
+            var cols = nhom[k], dau = ranges[cols[0]].replace(/mm$/, '');
             // nhãn phải là TÊN DẢI (bắt đầu bằng "6-11"…) — dòng "20 Lines"/"Mix 1" không phải nhãn
-            nhan.forEach(function (x) { if (x && x.indexOf(dau) === 0) khac[x] = 1; });
-            if (Object.keys(khac).length !== cols.length) return;    // nhãn trống / trùng / sai dạng → không phân biệt được
+            var phanBiet = function (nh) { var kh = {}; nh.forEach(function (x) { if (x && x.indexOf(dau) === 0) kh[x] = 1; }); return Object.keys(kh).length === cols.length; };
+            var nhan = lt >= 0 ? cols.map(function (j) { return chuan((aoa[lt] || [])[rangeCols[j]]); }) : [];
+            /* không có dòng Label Type phân biệt → lấy chính tiêu đề dải "7-16mm" / "7-16mm (2)" */
+            if (!phanBiet(nhan)) nhan = cols.map(function (j) { return chuan((aoa[r] || [])[rangeCols[j]]); });
+            if (!phanBiet(nhan)) return;    // nhãn trống / trùng / sai dạng → không phân biệt được
             cols.forEach(function (j, t) { var vt = ranges[j] + '#' + (t + 1); bienThe[nhan[t]] = vt; bienTheKey[nhan[t] + '|' + lineThuc[j]] = vt; ranges[j] = vt; });
           });
         })();
@@ -2624,7 +2625,10 @@
       out.push({
         seri: Math.round(sttN), seriGoc: Math.round(sttN), maDon: maDon, codeSoi: code,
         detail: PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''),   // Detail = cột "Danh Mục / Phân Loại"
-        length: len, mixSingle: PS(row[col.mix]), curls: curls,
+        /* "7-16mm (2)" = bảng Mix thứ 2 cùng dải (đơn LS403-269S, user báo 20/10): bỏ đuôi "(2)" để
+           đọc được dải — bảng nào thì tra theo số line hoặc nhãn nguyên văn (_lenNhan, xoá ngay sau).
+           Trước đây thành "7-16(2)mm" → E-LEN, cả dòng LD bị loại khỏi Line Cuốn. */
+        length: len.replace(/\s*\(\s*\d+\s*\)\s*$/, ''), _lenNhan: len, mixSingle: PS(row[col.mix]), curls: curls,
         line: PN(soLineRaw.replace(/lines?/i, '').trim()),
         lineRaw: soLineRaw,
         loaiHang: PS(col.nhom >= 0 ? row[col.nhom] : ''),      // Loại Hàng = cột "Nhóm" của đơn khách
@@ -2650,6 +2654,7 @@
     var mixSheets = parseMixLengthBlocks(aoa, hr, maDon);
     apBienTheDai(out, mixSheets);
     dienCodeMixMau(out, mixSheets);
+    out.forEach(function (o) { delete o._lenNhan; });
     // 4. bảng keo: header có "Mã Keo"/"Loại Keo" (+ tuỳ chọn: Loại Sợi/Nguyên Liệu, Độ Dày, Độ Dài).
     //    Đọc ĐỦ CỘT để dựng QUY TẮC keo: 1 Material có thể nhiều keo theo khoảng chiều dài.
     //    Ô GỘP (merged): dòng phụ chỉ có Độ Dài + Mã Keo → kế thừa Loại Sợi/Độ Dày dòng trên.
@@ -2911,7 +2916,11 @@
       // không ghi gì nên lấy mm từ Bảng Mix Chi Tiết.
       var lenRaw = PS(col.length >= 0 ? row[col.length] : '');
       var isMix = !!lenRaw;
-      var length = isMix ? lenRaw.replace(/\.\d+\s*$/, '') : (ds.length ? ds[0].mm : '');
+      /* "7-16mm (2)" (đơn LS403-269S, user báo 20/10): khách đánh số bảng Mix thứ 2 cùng dải bằng
+         "(2)" — bỏ đuôi đó để đọc được dải 7-16mm, bảng nào thì tra theo số line (22 / 20 lines)
+         hoặc theo nhãn nguyên văn (_lenNhan) nếu 2 bảng cùng số line. Trước đây ra "7-16(2)mm"
+         → E-LEN, cả dòng (LD 10 hộp) bị bỏ khỏi Line Cuốn. */
+      var length = isMix ? lenRaw.replace(/\.\d+\s*$/, '').replace(/\s*\(\s*\d+\s*\)\s*$/, '') : (ds.length ? ds[0].mm : '');
       var gcX = PS(col.gcXuong >= 0 ? row[col.gcXuong] : '');    // "Faux Mink 0.085"
       /* ĐUÔI CODE SỢI THẮNG (user chốt 9/9) — xem doDayTuCode(). Tên gọi nguyên liệu chỉ là
          đường dự phòng khi code sợi không có đuôi số. */
