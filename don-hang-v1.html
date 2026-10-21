@@ -690,7 +690,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1714560000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1714660000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1422,7 +1422,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1714560000"></script>
+<script src="engine.web.js?v=1714660000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -7670,7 +7670,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      bước 5. Đưa 2 bảng đó xuống ngay dưới Bảng Hộp, CHỈ XEM (sửa vẫn ở bước 4/5) và dùng
      CHUNG thứ tự sắp xếp với bước 5 (keoSapXep) để 2 chỗ nhìn giống hệt nhau. */
   /* ===== GHI CHÚ "ĐỘ CONG MỚI ĐỔI KEO" (user chốt 7/10 · đơn K6-809P) =====
-     Độ cong LC+ · LC · LB · LJ luôn ăn keo của dải ngắn nhất, nên ở mm mà độ cong thường dùng
+     Độ cong LC+ · LC · LB · LJ luôn ăn keo 2mm, nên ở mm mà độ cong thường dùng
      keo khác (3.MK.7: .3 cho 10-13mm) thì mấy độ cong đó ĐỔI keo — Bảng Keo phải nói rõ.
      Câu ghi chú tính từ chính Bảng Line Cuốn (E.ghiChuKeoNC), hiện thành một dòng CHỈ XEM
      dưới Ghi Chú — KHÔNG ghi vào k.ghiChu vì ô đó còn được đọc làm điều kiện keo. */
@@ -7686,7 +7686,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function keoNCHtml(k){
     var t=keoNCText(k); if(!t) return '';
     var coChu=!!String((k&&k.ghiChu)||'').trim();
-    return '<div class="keo-nc" contenteditable="false" title="Độ cong mới LC+ · LC · LB · LJ luôn dùng keo của dải ngắn nhất — app tự ghi, không sửa ở đây" '+
+    return '<div class="keo-nc" contenteditable="false" title="Độ cong mới LC+ · LC · LB · LJ dùng keo 2mm — ở mm này độ cong thường dùng keo cỡ khác (vd keo 3mm). App tự ghi, không sửa ở đây" '+
            'style="margin-top:'+(coChu?'3px':'0')+';padding:2px 6px;border-left:3px solid #d97706;background:rgba(217,119,6,.10);color:#92400e;'+
            'font-size:.92em;font-weight:600;white-space:pre-line;line-height:1.35;overflow-wrap:anywhere">⚑ '+esc(t).replace(/\n/g,'\n⚑ ')+'</div>';
   }
@@ -14739,14 +14739,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1714560000"></script>
-<script src="cl.sync.js?v=1714560000"></script>
-<script src="auth.store.js?v=1714560000"></script>
-<script src="auth.web.js?v=1714560000"></script>
+<script src="cl.config.js?v=1714660000"></script>
+<script src="cl.sync.js?v=1714660000"></script>
+<script src="auth.store.js?v=1714660000"></script>
+<script src="auth.web.js?v=1714660000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1714560000"></script>
+<script src="cl.project.js?v=1714660000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1714560000" defer></script>
+<script src="firebase-bridge.js?v=1714660000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){

@@ -1290,7 +1290,7 @@
        2. 2 quy tắc TRANH NHAU (cùng điều kiện, khác mã keo) → KHÔNG đoán, lấy keo khách ghi
           trên chính dòng đó. (K54-754P: độ dày 6 có cả Cam837.2 lẫn Nau155C.2; dòng
           2.MK.6 khách ghi Cam837.2, dòng 2.MK.6-1ES ghi Nau155C.2.)
-       3. Độ cong LB/LC/LJ/LC+ LUÔN ăn "keo 2mm" (keo của dải ngắn nhất), không theo mm thật.
+       3. Độ cong LB/LC/LJ/LC+ LUÔN ăn "keo 2mm", không theo mm thật.
           (K6-774P: dòng chỉ có LB+LJ, dải 6-13mm — Line Cuốn ra Nau155C.2, Box trước đây
           liệt kê cả Nau155C.3 vì tra theo mm ≥10.)
      Trước bản này hàm chỉ làm bước 1 ⇒ Box điền sai keo mà không có cảnh báo nào. */
@@ -1424,7 +1424,7 @@
   }
   /* ===== GHI CHÚ "ĐỘ CONG MỚI ĐỔI KEO" CHO BẢNG KEO (user chốt 7/10 · đơn K6-809P) =====
      Đơn ghi 3.MK.7 dùng Nau155C.2 cho 6-9mm, Nau155C.3 cho 10-13mm. Nhưng độ cong mới
-     LC+ · LC · LB · LJ luôn ăn "keo 2mm" (keo của dải ngắn nhất) ⇒ 10-13mm của mấy độ cong đó
+     LC+ · LC · LB · LJ luôn ăn "keo 2mm" ⇒ 10-13mm của mấy độ cong đó
      ĐỔI sang Nau155C.2 (dòng "-NC" ở Bảng Line Cuốn). Bảng Keo chỉ ghi ".2 6-13mm · .3 10-13mm"
      nên người đọc không hiểu vì sao 10-13mm có cả hai keo.
      Lấy ĐÚNG kết quả Bảng Line Cuốn (cuonSheet.rows) làm căn cứ — dòng thường vs dòng ovrRow —
@@ -1469,7 +1469,14 @@
           });
         });
       });
-      var ds = Object.keys(doi).map(function (k) { return doi[k]; });
+      /* CHỈ GHI KHI ĐỔI CỠ KEO (user chốt 21/10 · đơn CS435-852P): độ cong mới dùng keo 2mm, nên
+         ghi chú chỉ có nghĩa khi độ cong THƯỜNG ở mm đó dùng keo CỠ KHÁC (Trong450G.3 → .2).
+         Hai mã cùng đuôi cỡ (Trong250G.2 ↔ Trong450G.2 — đều keo 2mm) thì KHÔNG ghi: trước đây
+         sửa Bảng Keo 0.03 sang Trong450G.2 là tự nhiên mọc câu "5-15mm: chỉ độ cong mới…". */
+      var ds = Object.keys(doi).map(function (k) { return doi[k]; }).filter(function (d) {
+        var a = duoiKeo(d.moi), b = duoiKeo(d.thuong);
+        return !(a && b && a === b);
+      });
       if (!ds.length) return;
       var them = function (keo, cau) {
         var k2 = g.maDon + '|' + key.slice(key.indexOf('|') + 1) + '|' + chuanKeo(keo);
@@ -1575,7 +1582,10 @@
         /* Keo fix KHÁC với quy tắc trong Bảng Keo → dòng này ăn keo trái lệ thường, đánh dấu. */
         if (keoRules && keoRules.length) {
           var _kLuat = glueFor(keoRules, Object.assign({}, _c2, { curlNhom: false }));
-          if (_kLuat && _kLuat !== k1) g.duoiKeo = duoiKeo(k1);
+          /* Chỉ đánh dấu khi ĐỔI CỠ keo (luật .3 mà khách fix .2 — 817P). Cùng cỡ khác mã (luật
+             Trong450G.2, khách fix Trong250G.2 — 852P sau khi sửa Bảng Keo) thì "-K2" chẳng nói
+             thêm gì, chỉ làm code sợi lạ đi (user chốt 21/10: "Trong450.2 vẫn là keo 2mm"). */
+          if (_kLuat && _kLuat !== k1 && duoiKeo(_kLuat) !== duoiKeo(k1)) g.duoiKeo = duoiKeo(k1);
         }
         k2 = (keoRules && keoRules.length)
           ? (glueForCurlOnly(keoRules, _c2) || glueForShort(keoRules, _c2) || keoMmNgan(r.keoMm) || k1)
@@ -1588,7 +1598,7 @@
           k1 = glueFor(keoRules, Object.assign({}, _ctx, { curlNhom: false }), _tr);
           /* LB/LC/LJ/LC+: nếu khách CÓ ghi rõ keo cho mấy độ cong này thì dùng ĐÚNG keo đó
              (750P: "Độ cong LB, LC, LJ, LC+" → XanhBLu150.2). Không ghi thì giữ nguyên luật
-             cũ — "keo 2mm" = keo của dải ngắn nhất. */
+             cũ — "keo 2mm". */
           var _kCurl = glueForCurlOnly(keoRules, _ctx);
           k2 = _kCurl || glueForShort(keoRules, _ctx);
           /* TRA RA 2 KEO CÙNG ĐIỂM → KHÔNG ĐOÁN: lấy đúng keo khách ghi ở BẢNG CHI TIẾT của
