@@ -1315,7 +1315,10 @@
     }
     if (coDacBiet) {
       var c2 = Object.assign({}, ctx, { mm: rg.lo });
-      them(glueForCurlOnly(rules, c2) || glueForShort(rules, c2));
+      var gDb = glueForCurlOnly(rules, c2) || glueForShort(rules, c2);
+      /* cùng cỡ với keo độ cong thường đã có (.2 ↔ .2) → độ cong mới cuốn chung keo đó, khỏi liệt kê
+         thêm mã (khớp luật tách dòng "-NC" của Bảng Line Cuốn — user chốt 21/10) */
+      if (!(gDb && coThuong && out.some(function (x) { return duoiKeo(x) && duoiKeo(x) === duoiKeo(gDb); }))) them(gDb);
     }
     return out;
   }
@@ -1666,7 +1669,8 @@
           var _ae = _nhomTheoDai[(g.length || '') + '|' + g.mm] || [];
           for (var _i2 = 0; _i2 < _ae.length; _i2++) {
             if (_ae[_i2] === g) continue;
-            if (Object.keys(_ae[_i2].keoSet || {}).join(', ') !== keo) { _laNC = true; break; }
+            var _kAe = Object.keys(_ae[_i2].keoSet || {}).join(', ');
+            if (_kAe !== keo && !(duoiKeo(_kAe) && duoiKeo(_kAe) === duoiKeo(keo))) { _laNC = true; break; }
           }
         }
         // tách độ cong THƯỜNG vs ĐẶC BIỆT (LB/LC/LJ/LC+); cộng dồn subtotal/grand toàn bộ trước
@@ -1685,6 +1689,11 @@
                      mm: g.mm, box: m.box || '—', mixSingle: g.mixSingle || m.mixSingle || 'Mix',
                      material: g.material || m.material || '', thickness: g.thickness || m.thickness || '', multiMat: multiMat, cmix: !!g.cmix, keoAmb: !!g.keoAmb, hlLech: g.hlLech || null };
         // Nếu có độ cong đặc biệt và keo 2mm KHÁC keo chuẩn → TÁCH 2 dòng, mỗi dòng 1 keo đúng
+        /* TÁCH dòng "-NC" chỉ khi keo của độ cong mới KHÁC CỠ (user chốt 21/10 · 852P: "đổi keo thành
+           Trong450G.2 sao vẫn phải tách… khi nào đổi thành Trong450G.3 mới tách"). Cùng cỡ (.2 ↔ .2)
+           thì độ cong mới cuốn chung dòng, chung keo với độ cong thường. */
+        var _khacCo = function (a, b) { var x = duoiKeo(a), y = duoiKeo(b); return !(x && y && x === y); };
+        if (hasOvr && keo2mm && keo2mm !== keo && keo.indexOf(',') < 0 && !_khacCo(keo, keo2mm)) { keo2mm = keo; }
         if (hasOvr && keo2mm && keo2mm !== keo) {
           if (normTot > 0) rows.push(Object.assign({ type: 'row', stt: ++stt, curls: normC, tong: normTot, keo: keo, keo2mm: keo2mm }, base));
           /* Dòng độ cong MỚI (LB/LC/LJ/LC+ ăn keo 2mm) → code sợi thêm đuôi "-NC" để phân
@@ -1708,8 +1717,64 @@
   }
 
   /* ---------------- pipeline ---------------- */
+  /* ===== SỬA BẢNG KEO = THAY LUÔN KEO KHÁCH GHI SẴN (user chốt 21/10 · đơn CS435-852P) =====
+     File khách ghi sẵn keo cho từng dòng đơn (keoMm theo mm ở bảng dải line · cột Keo Nhiệt =
+     ghiChuKeo) và keo ghi sẵn được ƯU TIÊN hơn Bảng Keo. Nên sửa Bảng Keo 0.03 Trong250G.2 →
+     Trong450G.2 thì chỉ độ cong mới đổi keo, độ cong thường vẫn Trong250G.2 → tách dòng "-NC".
+     Nay ô Loại Keo bị người dùng sửa thì dòng keo nhớ mã CŨ (k._thayKeo.tu — html đặt lúc sửa);
+     mọi keo ghi sẵn của đơn đó trùng mã cũ (cùng độ dày / nguyên liệu của dòng keo) đổi theo mã mới.
+     Không đụng dữ liệu đọc từ file: trả về BẢN SAO dòng đơn — Xử lý lại file là về như khách ghi. */
+  function soDay(v) { return (PS(v).replace(/,/g, '.').match(/\d*\.\d+|\d+/g) || []).map(Number); }
+  function chuNL(v) { return PS(v).toLowerCase().replace(/,/g, '.').replace(/\s+/g, ' ').trim(); }
+  function apKeoThay(orders, keoRows) {
+    var theoDon = {}, chuBang = {}, dongBang = {}, co = false;
+    (keoRows || []).forEach(function (k) {
+      if (!k || !k.maDon) return;
+      chuBang[k.maDon] = (chuBang[k.maDon] || '') + '|' + chuanKeo(k.loaiKeo) + '|' + chuanKeo(k.ghiChu);
+      if (PS(k.loaiKeo)) (dongBang[k.maDon] = dongBang[k.maDon] || []).push({ sang: PS(k.loaiKeo), day: soDay(k.doDay), nl: chuNL(k.loaiSoi) });
+      var tu = k._thayKeo && PS(k._thayKeo.tu), sang = PS(k.loaiKeo);
+      if (!tu || !sang || chuanKeo(tu) === chuanKeo(sang)) return;
+      (theoDon[k.maDon] = theoDon[k.maDon] || []).push({ tu: chuanKeo(tu), sang: sang, day: soDay(k.doDay), nl: chuNL(k.loaiSoi) });
+      co = true;
+    });
+    var khopDong = function (t, dayO, nlO) {
+      if (t.day.length && dayO.length && !t.day.some(function (x) { return dayO.indexOf(x) >= 0; })) return false;
+      if (t.nl && nlO && nlO.indexOf(t.nl) < 0 && t.nl.indexOf(nlO) < 0) {
+        // tên nguyên liệu ghi khác kiểu (0,05 · "( đen )"…) → chấp nhận nếu cùng độ dày
+        if (!(t.day.length && dayO.length)) return false;
+      }
+      return true;
+    };
+    return (orders || []).map(function (o) {
+      if (!o || !dongBang[o.maDon] || !(o.keoMm || PS(o.ghiChuKeo))) return o;
+      var dayO = soDay(o.thickness), nlO = chuNL(o.material || o.detail);
+      var hop = (theoDon[o.maDon] || []).filter(function (t) { return khopDong(t, dayO, nlO); });
+      var hopBang = dongBang[o.maDon].filter(function (t) { return khopDong(t, dayO, nlO); });
+      var doi = function (v) {
+        var c = chuanKeo(v); if (!c) return null;
+        for (var i = 0; i < hop.length; i++) if (hop[i].tu === c) return hop[i].sang;
+        /* Bản đã sửa TRƯỚC khi app biết nhớ mã cũ: keo ghi sẵn KHÔNG còn ở đâu trong Bảng Keo của
+           đơn (người dùng đã đổi nó đi) → lấy keo của Bảng Keo cho đúng độ dày / nguyên liệu, nếu
+           chỉ có MỘT mã và CÙNG CỠ keo (.2 ↔ .2). Không chắc thì giữ như khách ghi. */
+        if ((chuBang[o.maDon] || '').indexOf(c) >= 0) return null;
+        var ds = {}; hopBang.forEach(function (t) { if (duoiKeo(t.sang) && duoiKeo(t.sang) === duoiKeo(v)) ds[t.sang] = 1; });
+        var k = Object.keys(ds);
+        return k.length === 1 ? k[0] : null;
+      };
+      var o2 = null;
+      if (o.keoMm) {
+        var m2 = {}, doiMm = false;
+        Object.keys(o.keoMm).forEach(function (mm) { var n = doi(o.keoMm[mm]); m2[mm] = n || o.keoMm[mm]; if (n) doiMm = true; });
+        if (doiMm) { o2 = Object.assign({}, o); o2.keoMm = m2; }
+      }
+      var g = doi(o.ghiChuKeo);
+      if (g) { o2 = o2 || Object.assign({}, o); o2.ghiChuKeo = g; }
+      return o2 || o;
+    });
+  }
   function runPipeline(input) {
     var opt = input.opt || {};
+    input = Object.assign({}, input, { rawOrders: apKeoThay(input.rawOrders, input.keoRows) });
     // truyền keoRows vào bước kiểm tra để soi luôn mã keo ngoài danh sách chuẩn
     var s1 = runStep1(input.rawOrders, Object.assign({}, opt, { keoRows: input.keoRows || [] }));
     // MIX: key theo "dải|số line" — nhiều bảng Mix cùng mã đơn được GỘP THEO KHÓA,
@@ -3481,7 +3546,7 @@
     runStep1: runStep1, editCell: editCell,
     buildMix: buildMix, MixLabel: MixLabel, mixOfRange: mixOfRange, totalOfRange: totalOfRange,
     sheetRangeInfo: sheetRangeInfo, resolveMixDist: resolveMixDist,
-    buildKeoRules: buildKeoRules, expandKeoRows: expandKeoRows, maKHTrongSheet: maKHTrongSheet, ghepMaKH: ghepMaKH, laMixCong: laMixCong, laHoCurl: laHoCurl, ghiChuKeoNC: ghiChuKeoNC, ghiChuKeoNCCua: ghiChuKeoNCCua, boCauKeoFix: boCauKeoFix, glueFor: glueFor, glueForShort: glueForShort, orderGlues: orderGlues,
+    buildKeoRules: buildKeoRules, expandKeoRows: expandKeoRows, maKHTrongSheet: maKHTrongSheet, ghepMaKH: ghepMaKH, laMixCong: laMixCong, laHoCurl: laHoCurl, ghiChuKeoNC: ghiChuKeoNC, ghiChuKeoNCCua: ghiChuKeoNCCua, apKeoThay: apKeoThay, boCauKeoFix: boCauKeoFix, glueFor: glueFor, glueForShort: glueForShort, orderGlues: orderGlues,
     OVERRIDE_2MM_CURLS: OVERRIDE_2MM_CURLS, isOverrideCurl: isOverrideCurl,
     parseKeoCond: parseKeoCond, thickKey: thickKey, doDayTuCode: doDayTuCode, laMixColor: laMixColor,
     thicksOfDoDay: thicksOfDoDay, tachDoDay: tachDoDay, timKeoNhapNhang: timKeoNhapNhang, keoNhapNhangCuaDong: keoNhapNhangCuaDong,

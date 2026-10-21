@@ -690,7 +690,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1714660000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1714860000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1422,7 +1422,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1714660000"></script>
+<script src="engine.web.js?v=1714860000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -3369,8 +3369,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(seed != null && val === String(seed).replace(/\s+$/,'').trim()) return;
       // CHỜ LƯU: chưa đụng state; bấm "Lưu" mới áp dụng (keoMalformed, Keo nhiệt Line Cuốn + Box)
       markPending(td, function(){
-        state.keoRows[idx][field]=val;
-        logLine('Sửa bảng keo '+(state.keoRows[idx].maDon||'')+' ['+field+']: "'+oldVal+'" → "'+val+'"');
+        var kr=state.keoRows[idx];
+        /* Đổi LOẠI KEO = thay luôn keo khách ghi sẵn trong đơn (user chốt 21/10 · 852P): nhớ mã GỐC
+           để engine (apKeoThay) đổi mọi keo ghi sẵn trùng mã đó. Sửa về đúng mã gốc thì thôi nhớ. */
+        if(field==='loaiKeo'){
+          if(!kr._thayKeo && oldVal) kr._thayKeo={ tu: oldVal };
+          else if(kr._thayKeo && String(kr._thayKeo.tu).replace(/\s+/g,'').toUpperCase()===val.replace(/\s+/g,'').toUpperCase()) delete kr._thayKeo;
+        }
+        kr[field]=val;
+        logLine('Sửa bảng keo '+(kr.maDon||'')+' ['+field+']: "'+oldVal+'" → "'+val+'"'+(field==='loaiKeo'&&kr._thayKeo?' (thay cả keo khách ghi sẵn trong đơn)':''));
       });
     });
     // Enter (không Shift) = xác nhận; Shift+Enter = xuống dòng (ghi chú nhiều điều kiện)
@@ -7172,6 +7179,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // Bảng keo SAI CẤU TRÚC → tuyệt đối không điền (chờ sửa ở Step 5)
     if(state.R && state.R.keoMalformed && state.R.keoMalformed[o.maDon]) return '';
     try{
+      if(E.apKeoThay) o=E.apKeoThay([o], state.keoRows||[])[0]||o;   // keo đã thay ở Bảng Keo (21/10)
       var g=E.orderGlues((state.R&&state.R.keoRules)||[], o);
       if(g.length) return g.join(', ');
     }catch(e){ logErr('boxKeo', e); }
@@ -14739,14 +14747,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1714660000"></script>
-<script src="cl.sync.js?v=1714660000"></script>
-<script src="auth.store.js?v=1714660000"></script>
-<script src="auth.web.js?v=1714660000"></script>
+<script src="cl.config.js?v=1714860000"></script>
+<script src="cl.sync.js?v=1714860000"></script>
+<script src="auth.store.js?v=1714860000"></script>
+<script src="auth.web.js?v=1714860000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1714660000"></script>
+<script src="cl.project.js?v=1714860000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1714660000" defer></script>
+<script src="firebase-bridge.js?v=1714860000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
