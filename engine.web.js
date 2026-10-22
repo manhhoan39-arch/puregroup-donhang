@@ -1727,10 +1727,14 @@
   function soDay(v) { return (PS(v).replace(/,/g, '.').match(/\d*\.\d+|\d+/g) || []).map(Number); }
   function chuNL(v) { return PS(v).toLowerCase().replace(/,/g, '.').replace(/\s+/g, ' ').trim(); }
   function apKeoThay(orders, keoRows) {
+    /* ⚠ HIỆU NĂNG (sửa 22/10 — user: "link local sao đơ"): hàm này chạy cho TỪNG dòng Box, nên
+       chỉ mục dựng bằng MẢNG/ĐỐI TƯỢNG, không nối chuỗi dài (nối chuỗi cho cả trăm đơn là đứng máy);
+       chỗ gọi theo từng dòng (boxKeo) chỉ đưa vào keo của ĐÚNG đơn đó. */
     var theoDon = {}, chuBang = {}, dongBang = {}, co = false;
     (keoRows || []).forEach(function (k) {
       if (!k || !k.maDon) return;
-      chuBang[k.maDon] = (chuBang[k.maDon] || '') + '|' + chuanKeo(k.loaiKeo) + '|' + chuanKeo(k.ghiChu);
+      var cb = chuBang[k.maDon] || (chuBang[k.maDon] = { ma: {}, ghi: [] });
+      cb.ma[chuanKeo(k.loaiKeo)] = 1; if (PS(k.ghiChu)) cb.ghi.push(chuanKeo(k.ghiChu));
       if (PS(k.loaiKeo)) (dongBang[k.maDon] = dongBang[k.maDon] || []).push({ sang: PS(k.loaiKeo), day: soDay(k.doDay), nl: chuNL(k.loaiSoi) });
       var tu = k._thayKeo && PS(k._thayKeo.tu), sang = PS(k.loaiKeo);
       if (!tu || !sang || chuanKeo(tu) === chuanKeo(sang)) return;
@@ -1750,13 +1754,18 @@
       var dayO = soDay(o.thickness), nlO = chuNL(o.material || o.detail);
       var hop = (theoDon[o.maDon] || []).filter(function (t) { return khopDong(t, dayO, nlO); });
       var hopBang = dongBang[o.maDon].filter(function (t) { return khopDong(t, dayO, nlO); });
+      /* ưu tiên dòng keo ĐÚNG tên nguyên liệu (C127-825P: 0.03 có cả Café Noir lẫn Super faux mink);
+         không dòng nào trùng tên mới xét theo độ dày */
+      var hopTen = hopBang.filter(function (t) { return t.nl && nlO && (nlO.indexOf(t.nl) >= 0 || t.nl.indexOf(nlO) >= 0); });
+      if (hopTen.length) hopBang = hopTen;
       var doi = function (v) {
         var c = chuanKeo(v); if (!c) return null;
         for (var i = 0; i < hop.length; i++) if (hop[i].tu === c) return hop[i].sang;
         /* Bản đã sửa TRƯỚC khi app biết nhớ mã cũ: keo ghi sẵn KHÔNG còn ở đâu trong Bảng Keo của
            đơn (người dùng đã đổi nó đi) → lấy keo của Bảng Keo cho đúng độ dày / nguyên liệu, nếu
            chỉ có MỘT mã và CÙNG CỠ keo (.2 ↔ .2). Không chắc thì giữ như khách ghi. */
-        if ((chuBang[o.maDon] || '').indexOf(c) >= 0) return null;
+        var cb = chuBang[o.maDon];
+        if (cb && (cb.ma[c] || cb.ghi.some(function (x) { return x.indexOf(c) >= 0; }))) return null;
         var ds = {}; hopBang.forEach(function (t) { if (duoiKeo(t.sang) && duoiKeo(t.sang) === duoiKeo(v)) ds[t.sang] = 1; });
         var k = Object.keys(ds);
         return k.length === 1 ? k[0] : null;

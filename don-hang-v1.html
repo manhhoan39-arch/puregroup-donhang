@@ -690,7 +690,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1714860000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715060000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1422,7 +1422,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1714860000"></script>
+<script src="engine.web.js?v=1715060000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -7175,11 +7175,19 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function boxHop(o){ var t=0; CURLS.forEach(function(k){ if(o.curls&&o.curls[k]) t+=(+o.curls[k]||0); }); return t; }
   // Keo Nhiệt của 1 dòng đơn = GỘP các mã keo tra theo quy tắc trên toàn dải mm
   // (1 Mix nhiều keo → "Nau155C.2, Nau155C.3"); không tra được → giữ nguyên cột khách ghi
+  /* Keo của RIÊNG 1 đơn — dựng 1 lần cho mỗi lần tính (state.R đổi là dựng lại). Trước đây mỗi dòng
+     Box đưa CẢ Bảng Keo của mọi đơn vào apKeoThay ⇒ 120 đơn · 3000 dòng là đứng máy lúc mở app (22/10). */
+  var __kdR=null, __kdMap={};
+  function keoCuaDon(md){
+    var khoa=state.R||state.keoRows;
+    if(__kdR!==khoa){ __kdR=khoa; __kdMap={}; (state.keoRows||[]).forEach(function(k){ if(k&&k.maDon) (__kdMap[k.maDon]=__kdMap[k.maDon]||[]).push(k); }); }
+    return __kdMap[md]||[];
+  }
   function boxKeo(o){
     // Bảng keo SAI CẤU TRÚC → tuyệt đối không điền (chờ sửa ở Step 5)
     if(state.R && state.R.keoMalformed && state.R.keoMalformed[o.maDon]) return '';
     try{
-      if(E.apKeoThay) o=E.apKeoThay([o], state.keoRows||[])[0]||o;   // keo đã thay ở Bảng Keo (21/10)
+      if(E.apKeoThay) o=E.apKeoThay([o], keoCuaDon(o.maDon))[0]||o;   // keo đã thay ở Bảng Keo (21/10)
       var g=E.orderGlues((state.R&&state.R.keoRules)||[], o);
       if(g.length) return g.join(', ');
     }catch(e){ logErr('boxKeo', e); }
@@ -14747,14 +14755,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1714860000"></script>
-<script src="cl.sync.js?v=1714860000"></script>
-<script src="auth.store.js?v=1714860000"></script>
-<script src="auth.web.js?v=1714860000"></script>
+<script src="cl.config.js?v=1715060000"></script>
+<script src="cl.sync.js?v=1715060000"></script>
+<script src="auth.store.js?v=1715060000"></script>
+<script src="auth.web.js?v=1715060000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1714860000"></script>
+<script src="cl.project.js?v=1715060000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1714860000" defer></script>
+<script src="firebase-bridge.js?v=1715060000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
