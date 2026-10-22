@@ -109,8 +109,12 @@
        Nay dòng nào người dùng đã tự sửa Code Sợi (cờ xuongTay do editCell đặt) thì đọc THẲNG
        từ đuôi: có thì có, xoá thì hết. Dòng chưa ai đụng giữ nguyên luật cũ (cột của file
        trước, cột trống mới lấy theo đuôi). */
-    var _xuongMa = raw.xuongTay ? _xmCode : (_xmCot || _xmCode);
-    return {
+    /* SỬA Ô "XƯỞNG" Ở BƯỚC 2 (user chốt 22/10): ô xưởng người dùng gõ là CHỦ — cờ xuongCotTay
+       do editCell đặt; khi đó đọc thẳng xuongMa, không nhìn đuôi code sợi nữa (editCell đã bỏ
+       đuôi -TH/-HY trái với xưởng mới). Sửa Code Sợi sau đó thì cờ này bị gỡ, quay về luật trên. */
+    var _xuongMa = raw.xuongCotTay ? _xmCot : raw.xuongTay ? _xmCode : (_xmCot || _xmCode);
+    var _xuongTay = !!(raw.xuongCotTay || raw.xuongTay);
+    var _no = {
       seri: raw.seri,
       /* seriGoc = SỐ THỨ TỰ GỐC trong file khách, KHÔNG BAO GIỜ đổi.
          Cột seri bị ĐÁNH SỐ LẠI mỗi lần gộp file (1..N toàn bộ), nên mọi thứ cần nhớ theo
@@ -139,7 +143,7 @@
          (kể cả do người dùng gõ tay ở bước 2) — xem xuongTuCode. */
       xuongMa: _xuongMa,   // TH · HY · '' (ND)
       // dòng đã gõ tay: cờ TH đi đúng theo đuôi code sợi, KHÔNG cộng dồn cờ cũ nữa
-      xuongTH: raw.xuongTay ? (_xuongMa === 'TH') : (!!raw.xuongTH || _xuongMa === 'TH'),
+      xuongTH: _xuongTay ? (_xuongMa === 'TH') : (!!raw.xuongTH || _xuongMa === 'TH'),
       xuongTay: !!raw.xuongTay,   // người dùng đã tự sửa ô Code Sợi ở bước 2
       _colorBlocks: (raw._colorBlocks && raw._colorBlocks.length) ? raw._colorBlocks : null,   // phân bổ mix màu do admin nhập (per-dòng)
       /* HÀNG PREMADE (mẫu 2026): cột "Số Line" ghi chữ "Premade" thay vì con số → hàng đặt
@@ -160,6 +164,12 @@
       bangLine: (Array.isArray(raw.bangLine) && raw.bangLine.length) ? raw.bangLine : null,
       _manual: !!raw._manual,
     };
+    /* Chữ NGUYÊN VĂN ở cột xưởng của file (bên phải cột Tổng Số Hộp) — để bước 2 hiện "NĐ".
+       Chỉ ghi khi có, để dữ liệu cũ không đổi (khỏi gửi lại mọi mảnh khi lưu đám mây). */
+    var _xo = String(raw.xuongO == null ? '' : raw.xuongO).trim();
+    if (_xo) _no.xuongO = _xo;
+    if (raw.xuongCotTay) _no.xuongCotTay = true;
+    return _no;
   }
   /* ===== MÃ KEO CHUẨN =====
      Danh sách mã keo được phép dùng. Ô "Loại Keo" trong Bảng Keo ghi mã ngoài danh sách này
@@ -198,6 +208,16 @@
       if (y === x) break; x = y;
     }
     return x;
+  }
+  /** Bỏ đuôi xưởng "-TH"/"-HY" của 1 code sợi, GIỮ các đuôi hàng đặc biệt sau nó (x-TH-LZ → x-LZ). */
+  function boChiDuoiXuong(code) {
+    var x = String(code == null ? '' : code), duoi = '';
+    for (var k = 0; k < 4; k++) {
+      if (XUONG_SUF_RE.test(x)) { x = x.replace(XUONG_SUF_RE, ''); break; }
+      var m = x.match(SPECIAL_SUF_RE); if (!m) break;
+      duoi = m[0] + duoi; x = x.slice(0, x.length - m[0].length);
+    }
+    return x + duoi;
   }
   /** Xưởng suy từ đuôi Code Sợi: 'TH' · 'HY' · '' (nhiều code 1 ô → lấy cái đầu tiên thấy). */
   function xuongTuCode(code) {
@@ -330,6 +350,19 @@
     else if (col.indexOf('curl:') === 0) {
       var ck = col.slice(5), cv = Number(value) || 0;
       if (cv) next.curls[ck] = cv; else delete next.curls[ck];
+    } else if (col === 'xuong') {
+      /* Ô "XƯỞNG" ở bước 2 (chốt 22/10): TH · HY · NĐ (trống = xưởng nhà) · mã chữ khác (TK…).
+         Đuôi -TH/-HY đang có trong code sợi mà KHÁC xưởng mới thì bỏ đi — bước 5 tự gắn lại
+         đúng đuôi theo xưởng (themXuong), khỏi ra "-TH-HY". */
+      var xt = String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+      var xm = xt ? maXuongTuDo(xt) : '';
+      if (xm === null) xm = xt.replace(/\s+/g, '').toUpperCase();
+      next.xuongMa = xm; next.xuongTH = xm === 'TH';
+      if (xt) next.xuongO = xm || 'NĐ'; else delete next.xuongO;
+      next.xuongCotTay = true; delete next.xuongTay;
+      next.codeSoi = String(next.codeSoi == null ? '' : next.codeSoi).split(/\r?\n/).map(function (ln) {
+        var cur = xuongTuCode(ln); return (!cur || cur === xm) ? ln : boChiDuoiXuong(ln);
+      }).join('\n');
     } else next[col] = typeof value === 'string' ? value.trim() : value;
     if (col === 'length') { var r = parseRange(next.length); next.mixSingle = r && r.lo === r.hi ? 'Single' : 'Mix'; }
     /* Sửa ô "LINES" (cột chữ, vd "16 lines" / "Premade") thì SỐ LINE dùng để tính dây phải đổi
@@ -347,7 +380,7 @@
        tô vàng, bản in Tổng hợp Line in lại dòng đó). Đánh dấu xuongTay để lần chuẩn hoá sau
        không lấy lại cờ cũ đã ghi trong dữ liệu — xem normalizeOrder. */
     if (col === 'codeSoi') {
-      next.xuongTay = true;
+      next.xuongTay = true; delete next.xuongCotTay;
       next.xuongMa = xuongTuCode(next.codeSoi);   // (nhiều mã 1 ô: normalizeOrder tách dòng rồi soi lại)
       next.xuongTH = next.xuongMa === 'TH';
     }
@@ -2724,6 +2757,7 @@
         thickness: PS(col.doDay >= 0 ? row[col.doDay] : '') || doDayTuCode(code),
         label: PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''),
         xuongMa: colXuongTH >= 0 ? (maXuongCuaO(row[colXuongTH]) || '') : '',   // TH · HY · '' (ND)
+        xuongO: colXuongTH >= 0 ? PS(row[colXuongTH]) : '',                      // chữ nguyên văn ô xưởng
         xuongTH: colXuongTH >= 0 && LA_TH.test(PS(row[colXuongTH])),   // giữ tương thích chỗ cũ
         _kw: _kw,
       });
@@ -3024,6 +3058,7 @@
         seri: stt, seriGoc: stt, maDon: maDon, codeSoi: code, _lenNhan: lenRaw,   // nhãn Độ Dài nguyên văn (6-11mm.2) — chỉ để tra bảng Mix có dấu, xoá ngay sau
         detail: PS(col.danhMuc >= 0 ? row[col.danhMuc] : ''),
         xuongMa: colTH26 >= 0 ? (maXuongCuaO(row[colTH26]) || '') : '',
+        xuongO: colTH26 >= 0 ? PS(row[colTH26]) : '',
         xuongTH: colTH26 >= 0 && LA_TH.test(PS(row[colTH26])),
         /* ===== KÝ HIỆU HÀNG ĐẶC BIỆT Ở MẪU 2026 (user chốt 23/9) =====
            Trước đây mẫu 2026 CHỈ dò chữ Laser (cột "Laser?"), nên hàng Easy Fan · DU không
@@ -3552,7 +3587,7 @@
   var api = {
     CURLS: CURLS, RANGES: RANGES, MM_MIN: MM_MIN, MM_MAX: MM_MAX, SOI_PER_LINE: SOI_PER_LINE,
     normalizeLength: normalizeLength, parseRange: parseRange,
-    runStep1: runStep1, editCell: editCell,
+    runStep1: runStep1, editCell: editCell, maXuongTuDo: maXuongTuDo, boChiDuoiXuong: boChiDuoiXuong,
     buildMix: buildMix, MixLabel: MixLabel, mixOfRange: mixOfRange, totalOfRange: totalOfRange,
     sheetRangeInfo: sheetRangeInfo, resolveMixDist: resolveMixDist,
     buildKeoRules: buildKeoRules, expandKeoRows: expandKeoRows, maKHTrongSheet: maKHTrongSheet, ghepMaKH: ghepMaKH, laMixCong: laMixCong, laHoCurl: laHoCurl, ghiChuKeoNC: ghiChuKeoNC, ghiChuKeoNCCua: ghiChuKeoNCCua, apKeoThay: apKeoThay, boCauKeoFix: boCauKeoFix, glueFor: glueFor, glueForShort: glueForShort, orderGlues: orderGlues,

@@ -556,6 +556,9 @@ td.dang-sua{cursor:text;box-shadow:inset 0 0 0 2px var(--teal-500)!important}
 #eng-nhapdon td[contenteditable]:focus{white-space:pre-wrap}
 /* SUPER ADMIN sửa cả bảng Nhập Đơn: ô sửa được (không phải ô đỏ) — nhạt thôi, rê chuột mới rõ */
 #eng-nhapdon td.sa-edit{cursor:text}
+.tcong thead th.xuongcol{min-width:62px;white-space:nowrap;text-align:center}
+#eng-nhapdon td.xuongcol{text-align:center;min-width:52px;font-weight:600}
+#eng-nhapdon td.xuong-ngoai{color:#b45309;background:rgba(255,193,7,.12)}
 #eng-nhapdon td.sa-edit:hover{background:rgba(255,214,0,.13)}
 #eng-nhapdon td.sa-edit:focus{background:#fffef2;outline:2px solid var(--accent);outline-offset:-2px}
 td.cm-name[contenteditable]{background:rgba(232,24,92,.05);cursor:text}
@@ -706,7 +709,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715360000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715460000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1439,7 +1442,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1715360000"></script>
+<script src="engine.web.js?v=1715460000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -1621,8 +1624,18 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var s = String(o.length==null?'':o.length).replace(/mm(#\d+)?$/i,'$1');   // "6-11mm#2" (bảng mix trùng dải) → "6~11#2"
     return s.replace('-','~');
   };
+  /* CỘT "XƯỞNG" cuối bảng Nhập Đơn (user chốt 22/10): xưởng của dòng — đọc ở cột bên phải cột
+     Tổng Số Hộp của file đơn (engine: xuongMa · xuongO), hoặc đuôi -TH/-HY của code sợi.
+     TH · HY · mã khác (TK…) · "NĐ" khi file ghi NĐ · trống = xưởng nhà. */
+  var xuongHien = function(o){
+    if(!o) return '';
+    var m=String(o.xuongMa||'').toUpperCase(); if(m) return m;
+    if(o.xuongTH) return 'TH';
+    return /^(n[dđ]|nam\s*[dđ][ịi]nh)$/i.test(String(o.xuongO||'').trim()) ? 'NĐ' : '';
+  };
   var getFVal = function(o, key){
     if(key==='length') return fmtLength(o);
+    if(key==='xuong') return xuongHien(o);
     if(key==='_makh') return khOf(o.maDon);                      // cột Mã KH
     if(key.indexOf('_cur:')===0){                                // 16 cột độ cong
       var v=(o.curls && o.curls[key.slice(5)]) || 0;
@@ -2976,7 +2989,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         CURLS.map(function(k){
           var lbl=esc(k.replace('Curl-CT','CT'));
           return '<th class="grp-spec cw'+(k==='Curl 1'?' cw1':'')+'">'+lbl+' <span class="fbtn'+(state.filters['_cur:'+k]?' on':'')+'" data-fcol="_cur:'+esc(k)+'" title="Lọc cột độ cong '+lbl+'">▼</span></th>';
-        }).join('');
+        }).join('')+
+        '<th class="xuongcol" title="Xưởng làm dòng này — lấy ở cột bên phải cột Tổng Số Hộp của file đơn. TH · HY · NĐ (trống = xưởng nhà)">Xưởng <span class="fbtn'+(state.filters.xuong?' on':'')+'" data-fcol="xuong" title="Lọc cột Xưởng">▼</span></th>';
     }
     // --- Bảng Nhập Đơn: lưới + ô đỏ contenteditable (data-seri/data-col) ---
     var nd = document.getElementById('eng-nhapdon');
@@ -3042,6 +3056,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         cell('length',fmtLength(o))+
         cell('mixSingle',o.mixSingle)+
         curls+
+        cell('xuong', xuongHien(o), 'xuongcol'+(xuongHien(o)&&xuongHien(o)!=='NĐ'?' xuong-ngoai':''))+
       '</tr>';
     }).join('')); applyGridFilter(); }
     // badge của từng file cập nhật theo trạng thái HIỆN TẠI (sau khi sửa ô sai)
@@ -3337,6 +3352,24 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(idx<0) return;
       var val = layTextNhieuDong(td);
       var oldVal;
+      /* Ô XƯỞNG: nhận TH · HY · NĐ / trống (xưởng nhà) · mã chữ 1-4 ký tự (TK…). */
+      if(col==='xuong'){
+        val=String(val||'').replace(/\s+/g,' ').trim();
+        var _xm = val ? E.maXuongTuDo(val) : '';
+        if(_xm===null){ try{ alert('Ô Xưởng chỉ nhận TH · HY · NĐ (để trống = xưởng nhà) hoặc mã xưởng 1–4 chữ cái (vd TK).'); }catch(e){ logErr('suaXuong', e); }
+          try{ render(); }catch(e){ logErr('suaXuong', e); } return; }
+        val = _xm || (val ? 'NĐ' : '');
+        oldVal = xuongHien(state.orders[idx]);
+        if(val===oldVal) return;
+        markPending(td, function(){
+          var res = E.editCell(state.orders[idx], 'xuong', val);
+          state.orders[idx] = res.order;
+          ghiNguocVeFile(res.order);
+          resetPack();
+          logLine('Sửa xưởng '+mdon+'#'+seri+': "'+(oldVal||'(trống)')+'" → "'+(val||'(trống)')+'"');
+        });
+        return;
+      }
       if(col.indexOf('curl:')===0){ var _ck=col.slice(5); oldVal=String((state.orders[idx].curls&&state.orders[idx].curls[_ck])||''); }
       else oldVal = String(state.orders[idx][col]==null?'':state.orders[idx][col]);
       if(val === oldVal) return; // không đổi
@@ -5464,10 +5497,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(needXLSX(dlNhapDon)) return;   // nạp trễ thư viện Excel
     if(typeof XLSX==='undefined') return alert('Thiếu xlsx.full.min.js');
     // cấu trúc xuất = đúng thứ tự bảng Nhập Đơn hiển thị (đã bỏ cột Ghi Chú Keo)
-    var head=FCOLS.map(function(c){ return c.label; }).concat(CURLS);
+    var head=FCOLS.map(function(c){ return c.label; }).concat(CURLS).concat(['Xưởng']);
     var rows=locXuat(state.orders).map(function(o){
       return FCOLS.map(function(c){ return c.key==='length' ? fmtLength(o) : (o[c.key]==null?'':o[c.key]); })
-        .concat(CURLS.map(function(k){ return (o.curls&&o.curls[k])||''; }));
+        .concat(CURLS.map(function(k){ return (o.curls&&o.curls[k])||''; })).concat([xuongHien(o)]);
     });
     if(!rows.length) return alert('Không có dòng nào của đơn đang chọn để xuất.');
     var wb=XLSX.utils.book_new();
@@ -6265,6 +6298,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var txt='';
         FCOLS.forEach(function(c){ txt += ' ' + getFVal(o,c.key); });
         CURLS.forEach(function(k2){ if(o.curls&&o.curls[k2]) txt += ' ' + o.curls[k2]; });
+        txt += ' ' + xuongHien(o);
         if(txt.normalize) txt=txt.normalize('NFC');
         if(txt.toLowerCase().indexOf(q)<0) return false;
       }
@@ -6290,6 +6324,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var txt = '';
       FCOLS.forEach(function(c){ txt += ' ' + getFVal(o,c.key); });
       CURLS.forEach(function(k){ if(o.curls&&o.curls[k]) txt += ' ' + o.curls[k]; });
+      txt += ' ' + xuongHien(o);
       if(txt.normalize) txt = txt.normalize('NFC');
       txt = txt.toLowerCase();
       var okMadon = !gridMadon || o.maDon===gridMadon;
@@ -6390,6 +6425,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       ev.stopPropagation();
       var key = fb.getAttribute('data-fcol'), lbl = '';
       FCOLS.forEach(function(c){ if(c.key===key) lbl=c.label; });
+      if(key==='xuong') lbl='Xưởng';
       showFilterMenu(ev.clientX||60, (ev.clientY||120)+8, key, lbl);
     });
   }
@@ -11521,9 +11557,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var wb=XLSX.utils.book_new();
     var add=function(aoa, name){ XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), String(name).substring(0,31)); };
     // 1. Nhập Đơn
-    add([FCOLS.map(function(c){ return c.label; }).concat(CURLS)].concat(locXuat(state.orders).map(function(o){
+    add([FCOLS.map(function(c){ return c.label; }).concat(CURLS).concat(['Xưởng'])].concat(locXuat(state.orders).map(function(o){
       return FCOLS.map(function(c){ return c.key==='length' ? fmtLength(o) : (o[c.key]==null?'':o[c.key]); })
-        .concat(CURLS.map(function(k){ return (o.curls&&o.curls[k])||''; }));
+        .concat(CURLS.map(function(k){ return (o.curls&&o.curls[k])||''; })).concat([xuongHien(o)]);
     })), 'Nhập Đơn');
     // 2. Mix Label (các mã đơn xếp chồng)
     var mixAoa=[];
@@ -15055,14 +15091,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1715360000"></script>
-<script src="cl.sync.js?v=1715360000"></script>
-<script src="auth.store.js?v=1715360000"></script>
-<script src="auth.web.js?v=1715360000"></script>
+<script src="cl.config.js?v=1715460000"></script>
+<script src="cl.sync.js?v=1715460000"></script>
+<script src="auth.store.js?v=1715460000"></script>
+<script src="auth.web.js?v=1715460000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1715360000"></script>
+<script src="cl.project.js?v=1715460000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1715360000" defer></script>
+<script src="firebase-bridge.js?v=1715460000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
