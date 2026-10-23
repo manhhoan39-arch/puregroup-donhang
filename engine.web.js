@@ -479,7 +479,9 @@
       var outBL = [];
       o.bangLine.forEach(function (b) {
         if (!b || b.mm == null || !b.curls) return;
-        var xm = String(b.xuong || '').toUpperCase();
+        /* Ô "Xưởng" ở bước 2 người dùng đã sửa (xuongCotTay) → áp cho MỌI mm của dòng, thắng xưởng
+           ghi trong bảng line (user 23/10 · đơn CS212-819P.2: sửa bỏ TH mà bước 5 vẫn "-TH"). */
+        var xm = o.xuongCotTay ? String(o.xuongMa || '').toUpperCase() : String(b.xuong || '').toUpperCase();
         var code = (codesBL.length > 1 && b.code && codesBL.indexOf(b.code) >= 0) ? b.code : o.codeSoi;
         for (var cb in b.curls) {
           var vb = +b.curls[cb]; if (!vb) continue;
@@ -3368,13 +3370,28 @@
         if (!nl || !keo) return;
         var kn = chuanTenNL(nl);
         var m = theoHop[kn];
-        if (!m) { m = theoHop[kn] = { ten: nl, keo: {}, order: [], thick: PS(o.thickness) }; thOrder.push(kn); }
+        if (!m) { m = theoHop[kn] = { ten: nl, keo: {}, order: [], thick: PS(o.thickness), code: {} }; thOrder.push(kn); }
         if (!m.thick) m.thick = PS(o.thickness);
+        String(o.codeSoi == null ? '' : o.codeSoi).split(/\r?\n/).forEach(function (c) { var b = chuanTenNL(boDuoiXuong(c)); if (b) m.code[b] = 1; });
         if (!m.keo[keo]) { m.keo[keo] = 1; m.order.push(keo); }
       });
       thOrder.forEach(function (kn) {
         var hop = theoHop[kn], nl = hop.ten;
         var cu = keoRows.filter(function (k) { return chuanTenNL(k.loaiSoi) === kn; });
+        /* Bảng dải line ghi CODE SỢI ở cột Nguyên Liệu thay cho tên (đơn CS112-838P: "150.SMK.7"
+           thay vì "Cashmere Silk 0.07") → vẫn là cùng nguyên liệu. Vẫn bổ sung dòng theo tên
+           như cũ, nhưng CHỈ ghi chú lệch khi keo Bảng Hộp khác keo bảng line của đúng mấy code đó. */
+        var cuCode = cu.length ? [] : keoRows.filter(function (k) { return !k.lechHopLine && hop.code[chuanTenNL(boDuoiXuong(k.loaiSoi))]; });
+        if (cuCode.length) {
+          var boC = {}; cuCode.forEach(function (k) { boC[String(k.loaiKeo || '').replace(/\s+/g, '').toUpperCase()] = 1; });
+          hop.order.forEach(function (gk) {
+            var lech2 = !boC[String(gk).replace(/\s+/g, '').toUpperCase()];
+            var r2 = { maDon: maDon, loaiKeo: gk, loaiSoi: nl, doDay: hop.thick || '', doDai: '', ghiChu: lech2 ? 'Keo ở bảng hộp và bảng line khác nhau' : '' };
+            if (lech2) r2.lechHopLine = true;
+            keoRows.push(r2);
+          });
+          return;
+        }
         if (cu.length) {
           /* Bảng dải line CÓ nguyên liệu này → số theo bảng line, chỉ soi xem có lệch không.
              Bảng line tách nhỏ hơn (1 keo cho 7-8mm, 1 keo cho 9-15mm) mà Bảng Hộp chỉ ghi 1
