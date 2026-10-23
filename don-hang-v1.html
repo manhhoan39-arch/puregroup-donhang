@@ -709,7 +709,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715480000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715490000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1442,7 +1442,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1715480000"></script>
+<script src="engine.web.js?v=1715490000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -11750,7 +11750,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var d = state.khData = state.khData || khRong();
     var k = khKhoa(ten); if(!k) return null;
     var r = d.kh[k];
-    if(!r){ r = d.kh[k] = { maKH: khTxt(ten), brand:'', muc:[], anh:[] }; d.thuTu.push(k); }
+    if(!r){ r = d.kh[k] = { maKH: khTxt(ten), brand:'', muc:[], anh:[] }; d.thuTu.push(k);
+      try{ Object.defineProperty(r, '_moi', { value:true, writable:true, configurable:true, enumerable:false }); }catch(e){ logErr('khLay', e); }   // không ra JSON/đám mây
+    }
     return r;
   }
   function khNgay(v){
@@ -12848,6 +12850,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var A = khLaCheckList(wb);
     if(A){
       var kq = khDocCheckList(A);
+      try{ khDienNhanMoi(); }catch(e){ logErr('khNapFile.dienNhan', e); }
       state.khData.file = ten; state.khData.napLuc = Date.now();
       logLine('🗂 Nạp Check list KH từ '+ten+': '+kq.kh+' Mã KH');
       renderKH();
@@ -12873,7 +12876,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(hua) return hua.then(function(kq){
         renderKH(); khDaSua();
         khBao('xong', 'Nạp đơn "'+ten+'" vào dữ liệu khách hàng — '+(kq.kh.join(', ')||'không có dòng nào')+
-              ' · đơn '+kq.don.join(', ')+' · '+kq.anh+' ảnh', 8);
+              ' · đơn '+kq.don.join(', ')+' · '+kq.anh+' ảnh'+((kq.nhan&&kq.nhan.length)?' · ✨ tự điền nhãn hiệu: '+kq.nhan.join(' · '):''), 10);
         return kq;
       });
       alert('Chưa nhận ra file này.\n\nBước 7 nhận 3 loại:\n' +
@@ -12885,6 +12888,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       return;
     }
     var d = khDocGmail(wb);
+    try{ khDienNhanMoi(); }catch(e){ logErr('khNapFile.dienNhan', e); }
     state.khData.file = ten; state.khData.napLuc = Date.now();
     logLine('🗂 Nạp dữ liệu khách hàng từ '+ten+': '+d.kh+' Mã KH · '+d.don+' đơn'+
             (khBoQua?(' · bỏ qua '+khBoQua+' đơn đã có sẵn trong dữ liệu'):''));
@@ -13288,6 +13292,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(boDon && (F.addedAt||0) <= boDon) return;             // đơn đã BỎ tay khỏi khách, file này nạp từ trước lúc bỏ
       khThemMuc(tenKH, m); n++;
     });
+    try{ khDienNhanMoi(); }catch(e){ logErr('gopDonVaoKH.dienNhan', e); }
     return n;
   }
   function khMucTuMd(md, F, ngay, anh){
@@ -13358,9 +13363,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           khThemMuc(tenKH, x.m);
           if(maKH.indexOf(tenKH)<0) maKH.push(tenKH);
         });
+        var _dn=[]; try{ _dn=khDienNhanMoi(); }catch(e){ logErr('khNapDonXuong.dienNhan', e); }
         logLine('🗂 Nạp đơn gửi xưởng vào bước 7: '+ten+' → '+(maKH.join(', ')||'(không có dòng nào)')+
                 ' · '+keys.length+' ảnh (không đụng bước 1-6)');
-        return { ten:ten, don:ds2.map(function(x){ return donOf(x.md)||x.md; }), kh:maKH, anh:keys.length };
+        return { ten:ten, don:ds2.map(function(x){ return donOf(x.md)||x.md; }), kh:maKH, anh:keys.length, nhan:_dn };
       });
     });
   }
@@ -13844,9 +13850,29 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return ra;
   }
   // Gợi ý cho mọi Mã KH đang TRỐNG Nhãn hiệu: [{k, maKH, goiY, phuongAn:[...], tu:[tiêu đề…]}]
+  function khNhanTheoMaTrongTen(r, d){
+    var maR=khKhoa(r.maKH||'').replace(/^\(KHÔNG CÓ MÃ KH\)\s*/,''), ra=null;
+    (r.muc||[]).some(function(m){
+      var t=khTxt(m.tieuDe||m.tep||''); if(!t) return false;
+      var ds=t.toUpperCase().match(/(?:^|[^A-Z0-9])([A-Z]{1,3}\d{1,4}[A-Z]?)(?=$|[^A-Z0-9])/g)||[];
+      return ds.some(function(x){
+        var ma=x.replace(/^[^A-Z0-9]/,''); if(!ma || ma===maR) return false;
+        var kk=khKhoa(khMaSauDoi(ma)), o=d.kh[kk];
+        if(!o || o===r || !khTxt(o.brand)) return false;
+        ra={ ma:o.maKH||ma, brand:khTxt(o.brand), tieuDe:t }; return true;
+      });
+    });
+    return ra;
+  }
   function khGoiYNhan(){
     var d=state.khData, out=[]; if(!d || !d.kh) return out;
-    (d.thuTu||[]).forEach(function(k){
+    (d.thuTu||[]).forEach(function(k){ var x=khGoiYMot(k, d); if(x) out.push(x); });
+    return out;
+  }
+  /* Gợi ý nhãn hiệu cho ĐÚNG 1 Mã KH đang trống nhãn (null nếu không tìm được). */
+  function khGoiYMot(k, d){
+    var out=[];
+    (function(){
       var r=d.kh[k]; if(!r || khTxt(r.brand)) return;
       var phieu={}, mau={}, tu={};
       (r.muc||[]).forEach(function(m){
@@ -13858,11 +13884,41 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       });
       var cty=function(kk){ return NHAN_CTY.test(Object.keys(mau[kk])[0]) ? 1 : 0; };
       var ks=Object.keys(phieu).sort(function(a,b){ return (cty(a)-cty(b)) || (phieu[b]-phieu[a]) || (a.length-b.length); });
-      if(!ks.length) return;
+      if(!ks.length){
+        /* Tiêu đề không có tên label, nhưng TÊN FILE ghi một Mã KH KHÁC mã trong đơn mà mã đó đã
+           có nhãn (user 23/10 · đơn 847P: file "C27-847P" mà ô Mã Đơn gõ "C27777-847P") → gợi ý
+           nhãn của mã đó, ghi rõ nguồn để người dùng tự xem có phải gõ nhầm mã không. */
+        var gy=khNhanTheoMaTrongTen(r, d);
+        if(gy) out.push({ k:k, maKH:r.maKH, goiY:gy.brand, phuongAn:[gy.brand], tu:['Tên file ghi Mã KH '+gy.ma+' (đã có nhãn "'+gy.brand+'") — '+gy.tieuDe] });
+        return;
+      }
       var dang=function(kk){ var m=mau[kk]; return Object.keys(m).sort(function(a,b){ return m[b]-m[a]; })[0]; };
       out.push({ k:k, maKH:r.maKH, goiY:dang(ks[0]), phuongAn:ks.map(dang), tu:tu[ks[0]].slice(0,3) });
+    })();
+    return out[0] || null;
+  }
+  /* ===== MÃ KH MỚI → TỰ ĐIỀN NHÃN HIỆU (user chốt 23/10) =====
+     "Nếu mã KH mới thì app cũng tự điền nhãn hiệu theo thông tin trong đơn hoặc lấy tên nhãn
+     hiệu label." File đơn gửi xưởng KHÔNG có ô tên label (ô "KH" chỉ ghi lại Mã KH, cột Label
+     là tên danh mục sợi) → nguồn là tiêu đề mail / tên file, y như nút ✨ Điền nhãn hiệu.
+     Chỉ điền cho Mã KH VỪA TẠO trong lần gộp/nạp này (cờ _moi, không lưu ra ngoài) và ô đang
+     trống — Mã KH cũ còn trống vẫn đi qua bảng xem trước như trước, không tự đè gì. */
+  var khNhanMoiLanCuoi=[];
+  function khDienNhanMoi(){
+    var d=state.khData; if(!d || !d.kh) return [];
+    var ds=khNhanMoiLanCuoi=[];
+    (d.thuTu||[]).forEach(function(k){
+      var r=d.kh[k]; if(!r || !r._moi) return;
+      delete r._moi;
+      if(khTxt(r.brand)) return;
+      var x=khGoiYMot(k, d); if(!x || !khTxt(x.goiY)) return;
+      r.brand=khTxt(x.goiY); ds.push(r.maKH+' → '+r.brand);
     });
-    return out;
+    if(ds.length){
+      try{ logLine('✨ Tự điền nhãn hiệu cho '+ds.length+' Mã KH mới: '+ds.join(' · ')); }catch(e){ logErr('khDienNhanMoi', e); }
+      try{ khBao('xong', 'Tự điền nhãn hiệu cho '+ds.length+' Mã KH mới: '+ds.slice(0,4).join(' · ')+(ds.length>4?' …':''), 6); }catch(e){ logErr('khDienNhanMoi', e); }
+    }
+    return ds;
   }
   function khMoDienNhan(thongBao){
     if(!khSuaDuoc()){ khBao('hong', 'Chỉ tài khoản Super Admin được sửa Dữ liệu khách hàng.', 6); return; }
@@ -13927,13 +13983,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     /* ⟳ CẬP NHẬT (user chốt 22/10): "lâu lâu vào check xem có khách hàng nào chưa có nhãn bổ sung
        vào". Gộp đơn mới ở bước 1 vào bước 7 (đúng đường "▶ Xử lý" vẫn làm) rồi tìm lại. */
     document.getElementById('knp-capnhat').onclick=function(){
-      var truoc=ds.length, nDon=0;
+      var truoc=ds.length, nDon=0; khNhanMoiLanCuoi=[];
       try{ nDon=gopDonVaoKH(); }catch(e){ logErr('knp.capnhat', e); }
+      var tuDien=khNhanMoiLanCuoi.slice();
+      if(tuDien.length){ try{ khDaSua(); }catch(e){ logErr('knp.capnhat', e); } }
       try{ khApNhan(); }catch(e){ logErr('knp.apnhan', e); }
       pop.remove(); khDongTiet(); renderKH();
       var sau=khGoiYNhan().length, gio=new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
       khMoDienNhan('⟳ Đã cập nhật lúc '+gio+' — đối chiếu '+nDon+' đơn ở bước 1 · '+
-        (sau>truoc?('tìm thêm '+(sau-truoc)+' Mã KH'):(sau?'không có Mã KH mới':'không còn Mã KH nào tìm được tên')));
+        (sau>truoc?('tìm thêm '+(sau-truoc)+' Mã KH'):(sau?'không có Mã KH mới':'không còn Mã KH nào tìm được tên'))+
+        (tuDien.length?(' · ✨ tự điền '+tuDien.length+' Mã KH mới: '+tuDien.slice(0,4).join(' · ')+(tuDien.length>4?' …':'')):''));
     };
     document.getElementById('knp-dien').onclick=function(){
       var n=0, vd=[];
@@ -15098,14 +15157,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1715480000"></script>
-<script src="cl.sync.js?v=1715480000"></script>
-<script src="auth.store.js?v=1715480000"></script>
-<script src="auth.web.js?v=1715480000"></script>
+<script src="cl.config.js?v=1715490000"></script>
+<script src="cl.sync.js?v=1715490000"></script>
+<script src="auth.store.js?v=1715490000"></script>
+<script src="auth.web.js?v=1715490000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1715480000"></script>
+<script src="cl.project.js?v=1715490000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1715480000" defer></script>
+<script src="firebase-bridge.js?v=1715490000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
