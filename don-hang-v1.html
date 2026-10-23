@@ -709,7 +709,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715490000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715500000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1442,7 +1442,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1715490000"></script>
+<script src="engine.web.js?v=1715500000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -2466,29 +2466,39 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     state.imgStore=state.imgStore||{}; state.imgByMadon=state.imgByMadon||{};
     return zipDocMedia(ab).then(function(ds){
       if(!ds.length) return { moi:0, gan:0, co:0 };
-      var xong=0, gan=0;
+      var xong=0, gan=0, bo=0, tuFile=[];
       return ds.reduce(function(ch, e){
         return ch.then(function(){
           return luuAnh(e.bytes, e.ten).then(function(r){
             if(!r) return;
-            mds.forEach(function(md){
-              var arr=state.imgByMadon[md]=state.imgByMadon[md]||[];
-              if(arr.indexOf(r.key)<0){ arr.push(r.key); gan++; }
-            });
+            if(tuFile.indexOf(r.key)<0) tuFile.push(r.key);
             if(r.moi) xong++;
           });
         });
       }, Promise.resolve()).then(function(){
+        /* ===== ẢNH CỦA ĐƠN = ĐÚNG ẢNH TRONG FILE ĐƠN (user 23/10 · đơn C203-826P) =====
+           File có 3 ảnh mà bước 6 hiện 5: trước đây chỉ CỘNG THÊM, nên mấy tấm app tự vá từ bước 7
+           lúc đơn còn trống (ảnh đơn cũ của khách, bản mờ từ mail…) cứ nằm lại. Nay file đơn có
+           ảnh thì bộ ảnh của đơn ĐƯỢC THAY bằng đúng bộ trong file; file không có ảnh thì giữ nguyên. */
+        if(!tuFile.length) return { moi:0, gan:0, co:ds.length };
+        mds.forEach(function(md){
+          var cu=state.imgByMadon[md]||[], giu={};
+          tuFile.forEach(function(k){ giu[k]=1; if(cu.indexOf(k)<0) gan++; });
+          cu.forEach(function(k){ if(!giu[k]) bo++; });
+          state.imgByMadon[md]=tuFile.slice();
+          try{ khNguonAnhTheoFile(md, giu); }catch(e){ logErr('hutAnh.nguon', e); }
+        });
         /* ⚠ Bản cũ chỉ vẽ lại khi có ảnh MỚI (xong>0). Nhưng bổ sung ảnh cho đơn cũ thì mấy
            tấm đó thường ĐÃ nằm sẵn trong kho (file khác dùng chung) — lúc ấy xong=0 mà vẫn
            gắn thêm được cho đơn, vậy mà màn hình đứng im, nhìn như bấm không ăn gì.
            Nay cứ GẮN được là vẽ lại và tự lưu. */
-        if(!xong && !gan) return { moi:0, gan:0, co:ds.length };
+        if(!xong && !gan && !bo) return { moi:0, gan:0, bo:0, co:ds.length };
         logLine('🖼 Lấy '+ds.length+' ảnh trong file cho đơn '+mds.join(', ')+
-                ' — '+gan+' tấm gắn thêm'+(xong?(', '+xong+' tấm mới vào kho'):''));
+                ' — '+gan+' tấm gắn thêm'+(xong?(', '+xong+' tấm mới vào kho'):'')+
+                (bo?(' · bỏ '+bo+' tấm không có trong file đơn'):''));
         try{ if(typeof renderBoxTypes==='function') renderBoxTypes(); }catch(e){ logErr('hutAnh.render', e); }
         try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('hutAnh.autosave', e); }
-        return { moi:xong, gan:gan, co:ds.length };
+        return { moi:xong, gan:gan, bo:bo, co:ds.length };
       });
     }).catch(function(e){ logErr('hutAnhTuFile', e); return { moi:0, gan:0, co:0, loi:e }; });
   }
@@ -2520,8 +2530,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     fr.onload=function(ev){
       hutAnhTuFile(ev.target.result, [md]).then(function(kq){
         if(!kq || !kq.co){ alert('File "'+f.name+'" không có ảnh nào bên trong.'); return; }
-        if(!kq.gan){ alert('Mấy tấm ảnh trong file này đã gắn cho đơn '+md+' rồi.'); return; }
-        alert('Đã bổ sung '+kq.gan+' ảnh cho đơn '+md+'.');
+        if(!kq.gan && !kq.bo){ alert('Mấy tấm ảnh trong file này đã gắn cho đơn '+md+' rồi.'); return; }
+        alert('Ảnh đơn '+md+' giờ đúng bằng '+kq.co+' ảnh trong file'+
+              (kq.gan?(' · bổ sung '+kq.gan+' tấm'):'')+(kq.bo?(' · bỏ '+kq.bo+' tấm không có trong file'):'')+'.');
       }).catch(function(e){ logErr('boSungAnh', e); alert('Không đọc được ảnh trong file: '+((e&&e.message)||'')); });
     };
     fr.onerror=function(){ alert('Không đọc được file.'); };
@@ -12263,8 +12274,27 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       khAnhTheoGoc(r, gx, con, false).forEach(function(k){ khac[k]=1; });
     });
     kq.rieng=rieng;
-    kq.chung=tat.filter(function(k){ return !da[k] && !khac[k]; });
+    /* Đơn ĐÃ CÓ ảnh của chính nó (rút từ file đơn) thì chỉ hiện đúng ảnh đó — không kèm ảnh chung
+       của khách nữa (user 23/10 · 826P: file 3 ảnh mà xem đơn ra 6). Ảnh chung chỉ để vá đơn trống. */
+    kq.chung=rieng.length ? [] : tat.filter(function(k){ return !da[k] && !khac[k]; });
     return kq;
+  }
+  /* File đơn vừa cho bộ ảnh CHUẨN của đơn md (giu = {khóa:1}) → tấm nào bước 7 đang ghi là của
+     đơn này mà không có trong file thì gỡ nguồn đó đi (tấm vẫn còn trong ảnh chung của khách). */
+  function khNguonAnhTheoFile(md, giu){
+    var d=state.khData; if(!d || !d.kh) return 0;
+    var g=khKhoa(khDonGoc(donOf(md)||md)), k6=khOf(md), n=0; if(!g) return 0;
+    Object.keys(d.kh).forEach(function(K){
+      var r=d.kh[K]; if(!r || !r.anhDon) return;
+      if(k6 && khKhoa(r.maKH)!==khKhoa(k6)) return;
+      Object.keys(r.anhDon).forEach(function(k){
+        var ds=r.anhDon[k]||[], i=ds.indexOf(g);
+        if(i<0 || giu[k]) return;
+        ds.splice(i,1); n++;
+        if(!ds.length) delete r.anhDon[k];
+      });
+    });
+    return n;
   }
   function khAnhCuaDon(r, m){ var x=khAnhXemDon(r, m); return x.rieng.concat(x.chung); }
   function khMoiAnh(r){
@@ -14010,6 +14040,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       khBao('xong', 'Đã điền '+n+' nhãn hiệu — bấm 💾 Lưu để giữ lại', 8);
     };
   }
+  /* (để kiểm thử) ảnh hiện khi xem 1 đơn của 1 Mã KH ở bước 7: { rieng, chung, hien } */
+  window.__khAnhXemDon=function(ma, don){ var d=state.khData; if(!d||!d.kh) return null; var r=d.kh[khKhoa(ma)]; if(!r) return null;
+    var m=(r.muc||[]).filter(function(x){ return khKhoa(khDonGoc(x.don))===khKhoa(khDonGoc(don)); })[0]; if(!m) return null;
+    var x=khAnhXemDon(r, m); return { rieng:x.rieng.length, chung:x.chung.length, hien:khLocAnh(x.rieng.concat(x.chung)).length }; };
   window.__khGoiYNhan=khGoiYNhan; window.__khNhanTuTieuDe=khNhanTuTieuDe;
   /* ===== QUÉT KHO ẢNH, BỎ TẤM TRÙNG (user chốt 25/9) =====
      Project lưu từ bản cũ có thể giữ cùng một tấm ảnh hai ba lần (đơn gốc một bản, file
@@ -15157,14 +15191,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1715490000"></script>
-<script src="cl.sync.js?v=1715490000"></script>
-<script src="auth.store.js?v=1715490000"></script>
-<script src="auth.web.js?v=1715490000"></script>
+<script src="cl.config.js?v=1715500000"></script>
+<script src="cl.sync.js?v=1715500000"></script>
+<script src="auth.store.js?v=1715500000"></script>
+<script src="auth.web.js?v=1715500000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1715490000"></script>
+<script src="cl.project.js?v=1715500000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1715490000" defer></script>
+<script src="firebase-bridge.js?v=1715500000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
