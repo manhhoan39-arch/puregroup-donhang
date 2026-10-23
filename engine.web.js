@@ -2279,6 +2279,9 @@
       var nh = (o._lenNhan != null && o._lenNhan !== '') ? o._lenNhan : o.length;
       var k = String(nh == null ? '' : nh).toLowerCase().replace(/\s+/g, '').replace(/~/g, '-');
       var vt = map[k + '|' + (Number(o.line) || 0)];
+      /* dòng đơn ghi "11-12mm(1)" mà cột đầu của dải đó không ghi "(1)" ("11-12mm" · "11-12mm(2)")
+         → "(1)" là cột KHÔNG đánh số (đơn LS01-289S). */
+      if (!vt) { var _m1 = k.match(/^(.*?)\(1\)$/); if (_m1) vt = map[_m1[1] + '|' + (Number(o.line) || 0)]; }
       if (vt) o.length = vt;
     });
   }
@@ -2310,6 +2313,8 @@
           // BỎ MỌI khoảng trắng: khách hay ghi "12-20 mm" / "6 ~ 13 mm" → khóa phải là "12-20mm"
           // (khớp normalizeLength của dòng đơn). Trước đây có dấu cách là cột bị BỎ QUA → mất bảng Mix.
           var rg = v.replace(/\(.*?\)/g, '').replace(/\s+/g, '').toLowerCase().replace(/~/g, '-');
+          /* Tiêu đề cột ghi lặp chữ "Mix Length 9-10mm (1)" (đơn LS01-289S, 20 cột) → bỏ chữ đầu. */
+          rg = rg.replace(/^mix(length)?(?=\*?\d)/, '');
           /* Tên dải có thể kèm CHÚ THÍCH phía sau: "8-13mm - mix color lash -" (đơn 676P).
              Trước đây khớp cả chuỗi nên cột đó bị bỏ → app báo "không có bảng Mix cho dải
              này" và thiếu dây. Giờ chỉ lấy phần DẢI ở ĐẦU, phần chữ sau bỏ qua. */
@@ -2375,7 +2380,7 @@
           for (var q4 = r - 1; q4 >= Math.max(0, r - 4); q4--) {
             if (PS((aoa[q4] || [])[mi]).toLowerCase().replace(/\s+/g, ' ') === 'label type') { lt = q4; break; }
           }
-          var chuan = function (v) { return PS(v).toLowerCase().replace(/\s+/g, '').replace(/~/g, '-'); };
+          var chuan = function (v) { return PS(v).toLowerCase().replace(/\s+/g, '').replace(/~/g, '-').replace(/^mix(length)?(?=\*?\d)/, ''); };
           trung.forEach(function (k) {
             var cols = nhom[k], dau = ranges[cols[0]].replace(/mm$/, '');
             // nhãn phải là TÊN DẢI (bắt đầu bằng "6-11"…) — dòng "20 Lines"/"Mix 1" không phải nhãn
@@ -2721,15 +2726,25 @@
     }
     var colXuongTH = timCotXuongTH(H, aoa, hr, findCol(H, 'Tổng Số Hộp'));
     // 2. đọc dòng đơn (bỏ dòng #REF!/#N/A/trống) — CHỈ trong bảng hộp, dừng trước bảng line
-    var out = [];
+    var out = [], sttCuoi = 0;
     for (r = hr + 1; r < cuoiBang1; r++) {
       row = aoa[r] || [];
       var stt = row[col.stt];
-      if (stt == null || PS(stt) === '') continue;
-      var sttN = Number(stt);
-      if (!isFinite(sttN) || sttN <= 0) continue;
       var code = PS(row[col.code]), len = PS(row[col.length]);
+      /* DÒNG KHÔNG GHI STT (user 23/10 · đơn LS01-289S): khách chỉ đánh STT 1..5 rồi để trống,
+         22 dòng mà app đọc được 5. Dòng trống STT nhưng CÓ code sợi + độ dài + số liệu (độ cong
+         hoặc số line) vẫn là dòng đơn → đánh STT tiếp theo. */
+      var sttN;
+      if (stt == null || PS(stt) === '') {
+        if (!code || !len || code.charAt(0) === '#' || len.charAt(0) === '#') continue;
+        var _coSo = PN(PS(col.soLine >= 0 ? row[col.soLine] : '').replace(/lines?/i, '')) > 0 ||
+                    CURLS.some(function (k) { return soCurl(row, k, curlCol, curlThem) > 0; });
+        if (!_coSo || !parseRange(normalizeLength(len.replace(/\s*\(\s*\d+\s*\)\s*$/, '')).replace(/mm$/, ''))) continue;
+        sttN = sttCuoi + 1;
+      } else sttN = Number(stt);
+      if (!isFinite(sttN) || sttN <= 0) continue;
       if (!code || code.charAt(0) === '#' || len.charAt(0) === '#') continue;
+      if (sttN > sttCuoi) sttCuoi = Math.round(sttN);
       var _rowTxt = row.map(PS).join(' ¦ '), _kw = {};
       SPECIAL_SYM.forEach(function (p) { if (khopKyHieu(p[1], _rowTxt)) _kw[p[0]] = 1; });
       var curls = {};
@@ -3500,6 +3515,8 @@
           if (v.toLowerCase() === 'mix length') break;
           var lm = v.match(/\((\d+)\s*lines?\)/i);
           var rg = v.replace(/\(.*?\)/g, '').replace(/\s+/g, '').toLowerCase().replace(/~/g, '-');
+          /* Tiêu đề cột ghi lặp chữ "Mix Length 9-10mm (1)" (đơn LS01-289S, 20 cột) → bỏ chữ đầu. */
+          rg = rg.replace(/^mix(length)?(?=\*?\d)/, '');
           var _mrg = rg.match(/^\*?\d+(?:-\d+)?mm/); if (_mrg) rg = _mrg[0];   // bỏ chú thích sau tên dải
           if (!parseRange(rg.replace(/mm$/, ''))) continue;
           ranges.push(rg); rangeCols.push(ci); lineCounts.push(lm ? +lm[1] : null);

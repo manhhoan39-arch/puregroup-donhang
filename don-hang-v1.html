@@ -425,6 +425,7 @@ td.err.err-ack::after{content:" ✓";color:var(--accent);font-weight:800}
 .cell-sel input,.cell-sel select,input.cell-sel,select.cell-sel{background:var(--accent-soft)!important;outline:1.5px solid var(--accent);outline-offset:-1px}
 /* Bôi đen vùng ô (kéo chuột) ở các bảng dữ liệu — kiểu Google Sheets */
 .sheet td.cell-sel,.prev-table td.cell-sel,td.gs-sel,#ps-body td.cell-sel{background:var(--accent-soft)!important;box-shadow:inset 0 0 0 1px var(--accent)}
+th.gs-hd{background:var(--accent)!important;color:#fff!important}
 #ps-body td.ps-mat{background:#fffef2;cursor:text}
 #ps-body td.ps-mat:focus{background:#fff8c4;box-shadow:inset 0 0 0 2px var(--accent);outline:none}
 body.gs-selecting{user-select:none}
@@ -713,7 +714,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715530000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715550000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1446,7 +1447,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1715530000"></script>
+<script src="engine.web.js?v=1715550000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -6106,6 +6107,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var dsRow=[], coData=false;
       for(var r=r1;r<=r2;r++){
         var row=gsA.tb.rows[r]; if(!row || row.style.display==='none') continue;
+        if(row.classList.contains('pg-bar') || row.getAttribute('data-noflt')) continue;   // thanh chia trang / dòng thông báo
         var tong=row.classList.contains('subtotal')||row.classList.contains('grand')||row.classList.contains('rpt-sum');
         if(!tong) coData=true;
         dsRow.push({row:row, tong:tong});
@@ -6171,9 +6173,70 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   document.addEventListener('keydown', function(ev){
     if(ev.key==='Escape' && oDangSua(document.activeElement)){ try{ document.activeElement.blur(); }catch(e){ logErr('escOSua', e); } }
   });
+  /* ===== CHỌN CẢ DÒNG / CẢ CỘT KIỂU EXCEL (user chốt 23/10) =====
+     "Chọn dòng cần xem rồi kéo thanh cuộn sang thì mất bôi đen nên không biết số liệu của dòng
+     nào — làm như Excel: bấm ô ĐẦU của dòng/cột thì bôi đen cả dòng/cột, cuộn vẫn còn."
+       · bấm ô đầu dòng (STT / Seri) → bôi cả dòng (Shift = nối tới dòng đó · Ctrl = cộng thêm)
+       · bấm tiêu đề cột → bôi cả cột (Shift · Ctrl như trên). Nút ▼ lọc vẫn là lọc.
+       · bấm/kéo THANH CUỘN không còn xoá vùng đang chọn (trước đây cú bấm trên thanh cuộn bị
+         coi như bấm ra ngoài bảng ⇒ mất bôi đen — đúng cái user gặp). */
+  var gsKieu=null;   // null · 'dong' · 'cot' — đang chọn cả dòng / cả cột
+  function gsDauDong(td){
+    var tr=td && td.parentNode; if(!tr || !tr.cells || td.tagName!=='TD') return false;
+    if(tr.classList.contains('pg-bar') || tr.getAttribute('data-noflt')) return false;
+    if(td.getAttribute('contenteditable')==='true') return false;
+    var c0=tr.cells[0]; if(!c0) return false;
+    if(c0===td) return !c0.classList.contains('chkcol') && !c0.querySelector('input');
+    return (c0.classList.contains('chkcol') || !!c0.querySelector('input[type="checkbox"]')) && tr.cells[1]===td;
+  }
+  function gsDongCuoi(tb){ var m=0; for(var i=0;i<tb.rows.length && i<60;i++){ var n=tb.rows[i].cells.length; if(n>m) m=n; } return m-1; }
+  /* Cột thật (theo ô của thân bảng) của một ô tiêu đề — tính cả colSpan/rowSpan của các hàng tiêu đề. */
+  function gsCotCuaTh(th){
+    var thead=th.closest('thead'); if(!thead) return -1;
+    var luoi=[], kq=-1;
+    Array.prototype.forEach.call(thead.rows, function(tr, ri){
+      luoi[ri]=luoi[ri]||[]; var c=0;
+      Array.prototype.forEach.call(tr.cells, function(cell){
+        while(luoi[ri][c]) c++;
+        if(cell===th) kq=c;
+        for(var a=0;a<(cell.rowSpan||1);a++) for(var b=0;b<(cell.colSpan||1);b++){ (luoi[ri+a]=luoi[ri+a]||[])[c+b]=1; }
+        c+=(cell.colSpan||1);
+      });
+    });
+    return (th.colSpan||1)>1 ? -1 : kq;                 // tiêu đề gộp nhiều cột thì bỏ qua
+  }
+  function gsDanhDauTh(){
+    Array.prototype.forEach.call(document.querySelectorAll('th.gs-hd'), function(t){ t.classList.remove('gs-hd'); });
+    if(gsKieu!=='cot' || !gsA || !gsH || gsA.tb!==gsH.tb) return;
+    var tbl=gsA.tb.closest('table'), thead=tbl && tbl.tHead; if(!thead) return;
+    var c1=Math.min(gsA.c,gsH.c), c2=Math.max(gsA.c,gsH.c);
+    Array.prototype.forEach.call(thead.querySelectorAll('th'), function(t){ var c=gsCotCuaTh(t); if(c>=c1 && c<=c2) t.classList.add('gs-hd'); });
+  }
+  function gsTrenThanhCuon(ev){
+    var t=ev.target; if(!t || t.nodeType!==1 || (t.closest && t.closest('td,th'))) return false;
+    if(t===document.documentElement) return ev.clientX>=document.documentElement.clientWidth || ev.clientY>=document.documentElement.clientHeight;
+    return (t.scrollWidth>t.clientWidth && ev.offsetY>=t.clientHeight) || (t.scrollHeight>t.clientHeight && ev.offsetX>=t.clientWidth);
+  }
   document.addEventListener('mousedown', function(ev){
     if(ev.button!==0) return;
+    if(gsTrenThanhCuon(ev)) return;                // bấm/kéo thanh cuộn → giữ nguyên vùng đang bôi đen
     if(ev.target.closest&&ev.target.closest('input,button,select,a,.fbtn,#sel-stats')) return;
+    /* tiêu đề cột của bảng bôi đen được → chọn cả cột */
+    var th=ev.target.closest ? ev.target.closest('th') : null;
+    if(th && !th.closest('.ctx-menu')){
+      var tbl=th.closest('table'), tbB=tbl && tbl.tBodies && tbl.tBodies[0];
+      if(tbB && (GS_TB[tbB.id] || tbB.getAttribute('data-gs')) && tbB.rows.length){
+        var cT=gsCotCuaTh(th);
+        if(cT>=0){
+          ev.preventDefault();
+          var dc={tb:tbB, r:0, c:cT}, cc2={tb:tbB, r:tbB.rows.length-1, c:cT};
+          if(ev.shiftKey && gsKieu==='cot' && gsA && gsA.tb===tbB){ gsH=cc2; }
+          else { if(ev.ctrlKey||ev.metaKey) gsLockCurrent(); else gsClearLock(); gsA=dc; gsH=cc2; }
+          gsKieu='cot'; gsDrag=false; gsPaint(); gsDanhDauTh();
+          return;
+        }
+      }
+    }
     var tdSua=timOSua(ev.target);
     // ô đang sửa mà bấm trúng dòng ⚑ chỉ xem → giữ con trỏ ở cuối chữ sửa được
     if(oDangSua(tdSua) && trongChiXem(ev.target, tdSua)){ ev.preventDefault(); try{ conTroCuoi(tdSua); }catch(e){ logErr('conTroCuoi', e); } }
@@ -6196,15 +6259,26 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       }
     }
     var cc=gsCoord(ev.target);
-    if(!cc){ if(gsA||gsLock.length){ gsA=gsH=null; gsClearLock(); gsPaint(); } return; }
+    if(!cc){ if(gsA||gsLock.length){ gsA=gsH=null; gsKieu=null; gsClearLock(); gsPaint(); gsDanhDauTh(); } return; }
+    var tdDau=ev.target.closest ? ev.target.closest('td') : null;
+    if(tdDau && gsDauDong(tdDau)){                 // ô đầu dòng → chọn cả dòng
+      ev.preventDefault();
+      var cuoi=gsDongCuoi(cc.tb), dauC=cc.c;
+      if(ev.shiftKey && gsKieu==='dong' && gsA && gsA.tb===cc.tb){ gsH={tb:cc.tb, r:cc.r, c:cuoi}; }
+      else { if(ev.ctrlKey||ev.metaKey) gsLockCurrent(); else gsClearLock(); gsA={tb:cc.tb, r:cc.r, c:dauC}; gsH={tb:cc.tb, r:cc.r, c:cuoi}; }
+      gsKieu='dong'; gsDrag=true; gsPaint(); gsDanhDauTh();
+      return;
+    }
+    if(ev.shiftKey && gsA && gsA.tb===cc.tb && !gsKieu){ gsH=cc; gsPaint(); return; }   // Shift+bấm = nối vùng như Excel
     if(ev.ctrlKey||ev.metaKey) gsLockCurrent();   // giữ Ctrl → cộng dồn thêm vùng
     else gsClearLock();                           // kéo bình thường → chỉ 1 vùng như trước
-    gsA=cc; gsH=cc; gsDrag=true; gsPaint();
+    gsKieu=null; gsA=cc; gsH=cc; gsDrag=true; gsPaint(); gsDanhDauTh();
   });
   document.addEventListener('mousemove', function(ev){
     if(!gsDrag||ev.buttons!==1) return;
     var el=document.elementFromPoint(ev.clientX,ev.clientY); var cc=el?gsCoord(el):null;
     if(!cc||cc.tb!==gsA.tb) return;
+    if(gsKieu==='dong') cc={tb:cc.tb, r:cc.r, c:gsH?gsH.c:cc.c};        // kéo dọc các ô đầu dòng → thêm cả dòng
     if(!gsH||cc.r!==gsH.r||cc.c!==gsH.c){ gsH=cc; if(cc.r!==gsA.r||cc.c!==gsA.c){ document.body.classList.add('gs-selecting'); try{window.getSelection().removeAllRanges();}catch(e){ logErr('gsPaint', e); } } gsPaint(); }
   });
   document.addEventListener('mouseup', function(){ gsDrag=false; document.body.classList.remove('gs-selecting'); });
@@ -11033,6 +11107,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         // Ô ĐANG SỬA (đã focus) → cho BÔI ĐEN CHỮ trong ô (native), KHÔNG chọn vùng ô.
         if(document.activeElement===ceEl || ceEl.contains(document.activeElement)){ pending=null; return; }
         // Ô sửa được CHƯA focus: click = vào sửa; KÉO (>4px) = chọn vùng ô.
+        dropSel();   // bỏ khung chọn cũ (trước đây còn sót viền ở ô bấm trước — 23/10)
         pending={tbl:tbl, r:r, c:c, x:ev.clientX, y:ev.clientY};
       } else {
         // Ô không sửa: chọn NGAY + kéo mở rộng
@@ -15463,14 +15538,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1715530000"></script>
-<script src="cl.sync.js?v=1715530000"></script>
-<script src="auth.store.js?v=1715530000"></script>
-<script src="auth.web.js?v=1715530000"></script>
+<script src="cl.config.js?v=1715550000"></script>
+<script src="cl.sync.js?v=1715550000"></script>
+<script src="auth.store.js?v=1715550000"></script>
+<script src="auth.web.js?v=1715550000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1715530000"></script>
+<script src="cl.project.js?v=1715550000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1715530000" defer></script>
+<script src="firebase-bridge.js?v=1715550000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
