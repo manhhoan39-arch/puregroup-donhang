@@ -523,6 +523,10 @@ td.cl-hoplech{background:#E7F0FF!important;color:#0B4A8F!important;font-weight:7
 .anh-don .anh-ds{display:flex;gap:8px;flex-wrap:wrap;padding:8px}
 img.anh-th{height:120px;width:auto;max-width:220px;object-fit:cover;border:1px solid var(--border);border-radius:8px;cursor:zoom-in;background:var(--surface-2)}
 img.anh-th:hover{border-color:var(--accent);box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.anh-o{position:relative;display:inline-block;line-height:0}
+.anh-o .anh-xoa{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;border:1px solid var(--border);background:rgba(255,255,255,.92);color:var(--red-600,#dc2626);font-weight:800;font-size:13px;line-height:20px;cursor:pointer;padding:0;opacity:.85}
+.anh-o .anh-xoa:hover{opacity:1;background:#fff;border-color:var(--red-600,#dc2626)}
+@media print{.anh-o .anh-xoa{display:none!important}}
 #anh-to{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.82);align-items:center;justify-content:center;flex-direction:column;cursor:zoom-out;overflow:hidden;user-select:none}
 #anh-to img{max-width:94vw;max-height:88vh;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.6);transform-origin:center center}
 /* đang phóng to → con trỏ đổi thành bàn tay để biết là KÉO ĐƯỢC */
@@ -709,7 +713,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715500000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715530000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1442,7 +1446,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1715500000"></script>
+<script src="engine.web.js?v=1715530000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -1479,6 +1483,8 @@ window.__applyStepPerms = function(){
   if((!active || !window.__canView(active.dataset.s)) && firstVisible) go(firstVisible.dataset.s);
 };
 function go(id){
+  /* rời bước 7 thì cất nút ✏️ Sửa · 🗑 Xóa của ô Mã KH (nút nằm cố định trên màn hình — trước đây còn lơ lửng ở bước khác) */
+  try{ if(id!=='s11' && window.__khAnNutMa) window.__khAnNutMa(); }catch(e){ if(window.logErr) window.logErr('go.khAnNutMa', e); }
   if(window.__STEP_PERMS && window.__STEP_PERMS[id]==='none') return;   // không có quyền xem step này
   /* Chỉ hỏi khi ĐỔI bước thật. Nhảy tới ô lỗi cũng gọi go('s3') dù đang ở s3 sẵn —
      hỏi ở đây thì bấm xem ô nào cũng bị popup Lưu chặn đường. */
@@ -1580,17 +1586,53 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      60 bản ≈ 21 MB RAM. Giảm còn 25 bản (đủ dùng thực tế) + TỰ CO thêm khi dữ liệu lớn
      để trần bộ nhớ luôn ~8 MB. KHÔNG đổi cách hoạt động của Hoàn tác/Làm lại. */
   var undoStack=[], redoStack=[], UNDO_MAX=25, UNDO_BYTES_MAX=8*1024*1024;
+  /* ===== HOÀN TÁC / LÀM LẠI CHO CẢ BƯỚC 7 (user 23/10: "Step 7 không sử dụng được undo redo") =====
+     Mỗi bản chụp giờ là { s: bước 1-6 (snapState) , kh: Dữ liệu khách hàng (khData) } — có phần
+     nào thì hoàn tác phần đó. Bước 7 chụp SAU mỗi lần sửa (khDaSua) nên giữ sẵn "bản trước"
+     (__khTruoc). Sửa ở bước 2 kéo theo bước 7 (đổi Mã KH…) hoặc ngược lại thì GỘP vào cùng một
+     bản chụp → bấm hoàn tác 1 lần là cả hai bước cùng quay về. */
+  var __khTruoc=null, __khRef=null, __khGanVaoTren=false, __khDangHoan=false;
+  function mucUndo(s, kh){ var m={}; if(s!=null) m.s=s; if(kh!=null) m.kh=kh; return m; }
+  function khChupNay(){ try{ return state.khData ? JSON.stringify(state.khData) : null; }catch(e){ logErr('khChupNay', e); return null; } }
+  /* Dữ liệu khách hàng được thay cả khối (mở project, nạp đám mây…) → lấy lại mốc, bỏ lịch sử bước 7 cũ. */
+  function khMocNeuDoi(){ if(__khRef!==state.khData){ __khRef=state.khData; __khTruoc=khChupNay(); } }
+  function khMocLai(){ __khRef=state.khData; __khTruoc=khChupNay(); }
+  function khGhiUndo(){
+    if(__khDangHoan) return;
+    if(__khRef!==state.khData){ khMocLai(); __khGanVaoTren=false; return; }
+    var nay=khChupNay(), truoc=__khTruoc, gan=__khGanVaoTren; __khGanVaoTren=false;
+    __khTruoc=nay;
+    if(truoc==null || truoc===nay) return;
+    var tren=undoStack[undoStack.length-1];
+    if(gan && tren && tren.kh==null) tren.kh=truoc;               // gộp với bản chụp bước 1-6 của cùng thao tác
+    else undoStack.push(mucUndo(null, truoc));
+    trimUndo(); redoStack.length=0; updateUndoBtns();
+  }
+  function khApBan(chu){
+    __khDangHoan=true;
+    try{
+      state.khData=chu ? JSON.parse(chu) : null; khMocLai();
+      try{ if(typeof khAnNutMa==='function') khAnNutMa(); }catch(e){ logErr('khApBan.nut', e); }
+      try{ if(typeof khDongTiet==='function') khDongTiet(); }catch(e){ logErr('khApBan.tiet', e); }
+      try{ if(typeof renderKH==='function') renderKH(); }catch(e){ logErr('khApBan.ve', e); }
+      try{ if(typeof khDaSua==='function') khDaSua(); }catch(e){ logErr('khApBan.luu', e); }
+    } finally { __khDangHoan=false; khMocLai(); }
+  }
   function trimUndo(){
     while(undoStack.length>UNDO_MAX) undoStack.shift();
-    var bytes=0, i;
-    for(i=undoStack.length-1;i>=0;i--){ bytes+=undoStack[i].length;
-      if(bytes>UNDO_BYTES_MAX){ undoStack.splice(0,i+1); break; } }   // bỏ bản CŨ nhất khi vượt trần
+    /* Trần bộ nhớ tính RIÊNG cho phần bước 1-6 và phần bước 7 — mỗi phần ~8 MB, để chụp bước 7 không
+       ăn bớt số lần hoàn tác của bước 2-6 (và ngược lại). */
+    var bytes=0, khB=0, i, m;
+    for(i=undoStack.length-1;i>=0;i--){ m=undoStack[i]; bytes+=(m&&m.s!=null)?m.s.length:0; khB+=(m&&m.kh!=null)?m.kh.length:0;
+      if(bytes>UNDO_BYTES_MAX || khB>UNDO_BYTES_MAX){ undoStack.splice(0,i+1); break; } }   // bỏ bản CŨ nhất khi vượt trần
   }
   function snapState(){ try{ return JSON.stringify({ orders:state.orders, keoRows:state.keoRows, mixSheets:state.mixSheets, khachCuon:state.khachCuon||null, pack:state.pack||null, boxSel:(typeof boxSel!=='undefined'?boxSel:{}), boxTypes:state.boxTypes||{}, colorMix:state.colorMix||{}, remapApproved:state.remapApproved||{}, lenApproved:state.lenApproved||{}, errAck:state.errAck||{} }); }catch(e){ return null; } }
-  function pushUndo(){ var s=snapState(); if(s==null) return; undoStack.push(s); trimUndo(); redoStack.length=0; updateUndoBtns(); try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('pushUndo', e); } }
+  function pushUndo(){ khMocNeuDoi(); var s=snapState(); if(s==null) return; undoStack.push(mucUndo(s, null)); trimUndo(); redoStack.length=0; updateUndoBtns(); try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('pushUndo', e); } }
   function applySnap(s){ try{ var o=JSON.parse(s); state.orders=o.orders||[]; state.keoRows=o.keoRows||[]; state.mixSheets=o.mixSheets||[]; state.khachCuon=o.khachCuon||null; state.pack=o.pack||null; state._packR=null; if(typeof boxSel!=='undefined') boxSel=o.boxSel||{}; state.boxTypes=o.boxTypes||{}; state.colorMix=o.colorMix||{}; state.remapApproved=o.remapApproved||{}; state.lenApproved=o.lenApproved||{}; state.errAck=o.errAck||{}; try{ render(); }catch(e){ logErr('applySnap', e); } }catch(e){ logErr('applySnap', e); } }
-  function doUndo(){ if(!undoStack.length) return; var cur=snapState(); var prev=undoStack.pop(); if(cur!=null) redoStack.push(cur); applySnap(prev); try{ logLine('↶ Hoàn tác'); }catch(e){ logErr('doUndo', e); } updateUndoBtns(); }
-  function doRedo(){ if(!redoStack.length) return; var cur=snapState(); var nxt=redoStack.pop(); if(cur!=null) undoStack.push(cur); applySnap(nxt); try{ logLine('↷ Làm lại'); }catch(e){ logErr('doRedo', e); } updateUndoBtns(); }
+  function apMucUndo(m){ if(m.kh!=null) khApBan(m.kh); if(m.s!=null) applySnap(m.s); }
+  function chupNguoc(m){ return mucUndo(m.s!=null?snapState():null, m.kh!=null?khChupNay():null); }
+  function doUndo(){ if(!undoStack.length) return; var prev=undoStack.pop(); if(typeof prev==='string') prev=mucUndo(prev,null); redoStack.push(chupNguoc(prev)); apMucUndo(prev); try{ logLine('↶ Hoàn tác'+(prev.kh!=null?(prev.s!=null?' (bước 1-6 + Dữ liệu khách hàng)':' (Dữ liệu khách hàng)'):'')); }catch(e){ logErr('doUndo', e); } updateUndoBtns(); }
+  function doRedo(){ if(!redoStack.length) return; var nxt=redoStack.pop(); undoStack.push(chupNguoc(nxt)); apMucUndo(nxt); try{ logLine('↷ Làm lại'+(nxt.kh!=null?(nxt.s!=null?' (bước 1-6 + Dữ liệu khách hàng)':' (Dữ liệu khách hàng)'):'')); }catch(e){ logErr('doRedo', e); } updateUndoBtns(); }
   function updateUndoBtns(){ var u=document.getElementById('btn-undo'), r=document.getElementById('btn-redo'); if(u){ u.style.opacity=undoStack.length?'1':'.4'; u.style.pointerEvents=undoStack.length?'':'none'; } if(r){ r.style.opacity=redoStack.length?'1':'.4'; r.style.pointerEvents=redoStack.length?'':'none'; } }
   if(typeof window!=='undefined'){ window.__afUndo=doUndo; window.__afRedo=doRedo; }
   (function(){
@@ -2036,6 +2078,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var f2=state.filters && state.filters['_makh'];
       if(f2 && f2[khOf(cu)]!==undefined) f2[khOf(moi)]=1;   // KH cũ có thể còn đơn khác → chỉ THÊM, không bỏ
     }catch(e){ logErr('doiMaDonCaDon', e); }
+    /* Bước 7 đi theo (user chốt 23/10): đổi Mã KH / Mã Đơn ở bước 2 thì hồ sơ đơn đó ở bước 7
+       dời sang đúng Mã KH mới. Lượt đổi do chính bước 7 gây ra thì không dội ngược lại. */
+    if(!__khDongBoChay){ try{ khTheoDoiMaDon(cu, moi); }catch(e){ logErr('doiMaDonCaDon.buoc7', e); } }
     return n;
   }
   /* =====================================================================
@@ -2226,6 +2271,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     document.addEventListener('click', function(ev){
       var nbs=ev.target && ev.target.closest ? ev.target.closest('[data-bs-md]') : null;
       if(nbs){ moBoSungAnh(nbs.getAttribute('data-bs-md')); return; }
+      var nx=ev.target && ev.target.closest ? ev.target.closest('[data-xoa-anh]') : null;
+      if(nx){ ev.preventDefault(); ev.stopPropagation(); xoaAnhBuoc6(nx.getAttribute('data-xoa-md'), nx.getAttribute('data-xoa-anh')); return; }
       if(!__bsGan){ __bsGan=1; }
       var im=ev.target && ev.target.closest ? ev.target.closest('img.anh-th') : null;
       var ov=document.getElementById('anh-to');
@@ -2330,7 +2377,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         'của đơn — thao tác đó CHỈ lấy ảnh, không đụng tới dữ liệu đơn.</div>')+
       '<div class="anh-ds">'+ks.map(function(k){
         var a=kho[k];
-        return '<img class="anh-th" src="'+a.d+'" alt="'+esc(a.ten||'')+'" title="'+esc(a.ten||'')+' — bấm để xem to" data-anh="'+esc(k)+'">';
+        var im='<img class="anh-th" src="'+a.d+'" alt="'+esc(a.ten||'')+'" title="'+esc(a.ten||'')+' — bấm để xem to" data-anh="'+esc(k)+'">';
+        /* Nút ✕ xóa ảnh (user chốt 23/10): xóa ở bước 6 thì bước 7 xóa theo — xem xoaAnhBuoc6. */
+        return (md && suaDuoc) ? '<span class="anh-o">'+im+'<button class="anh-xoa" data-xoa-anh="'+esc(k)+'" data-xoa-md="'+esc(md)+'" title="Xóa ảnh này (Dữ liệu khách hàng ở bước 7 cũng xóa theo)">✕</button></span>' : im;
       }).join('')+'</div></div>';
   }
   /* ===== ẢNH TRONG FILE ĐƠN KHÁCH → BỘ PHẬN BOX XEM (chốt 18/8) =====
@@ -2461,7 +2510,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     });
   }
   /** Hút ảnh của 1 file vừa nạp rồi gắn cho các mã đơn của file đó. */
-  function hutAnhTuFile(ab, mds){
+  function hutAnhTuFile(ab, mds, layLaiDaXoa){
     if(!ab || !mds || !mds.length) return Promise.resolve({ moi:0, gan:0, co:0 });
     state.imgStore=state.imgStore||{}; state.imgByMadon=state.imgByMadon||{};
     return zipDocMedia(ab).then(function(ds){
@@ -2483,9 +2532,20 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         if(!tuFile.length) return { moi:0, gan:0, co:ds.length };
         mds.forEach(function(md){
           var cu=state.imgByMadon[md]||[], giu={};
-          tuFile.forEach(function(k){ giu[k]=1; if(cu.indexOf(k)<0) gan++; });
+          /* Ảnh người dùng đã XÓA (r.anhBo của khách) thì nạp lại file không gắn lại; bấm "Bổ sung
+             ảnh từ file đơn" (layLaiDaXoa) là muốn lấy lại → gỡ khỏi danh sách đã xóa. */
+          var ds2=tuFile.slice(), rK=null;
+          try{ var _k=khCuaMd(md); rK=(state.khData&&state.khData.kh)?state.khData.kh[_k]:null; }catch(e){ rK=null; }
+          if(rK && rK.anhBo && rK.anhBo.length){
+            if(layLaiDaXoa){
+              rK.anhBo=rK.anhBo.filter(function(k){ return tuFile.indexOf(k)<0; });
+              rK.anh=rK.anh||[]; tuFile.forEach(function(k){ if(rK.anh.indexOf(k)<0) rK.anh.push(k); try{ khGhiNguonAnh(rK, k, donOf(md)||md); }catch(e){ logErr('hutAnh.layLai', e); } });
+            }
+            else ds2=ds2.filter(function(k){ return rK.anhBo.indexOf(k)<0; });
+          }
+          ds2.forEach(function(k){ giu[k]=1; if(cu.indexOf(k)<0) gan++; });
           cu.forEach(function(k){ if(!giu[k]) bo++; });
-          state.imgByMadon[md]=tuFile.slice();
+          state.imgByMadon[md]=ds2.slice();
           try{ khNguonAnhTheoFile(md, giu); }catch(e){ logErr('hutAnh.nguon', e); }
         });
         /* ⚠ Bản cũ chỉ vẽ lại khi có ảnh MỚI (xong>0). Nhưng bổ sung ảnh cho đơn cũ thì mấy
@@ -2528,7 +2588,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(!/\.xls[xm]?$/i.test(f.name||'')){ alert('Cần chọn đúng file đơn (.xlsx) của mã đơn này.'); return; }
     var fr=new FileReader();
     fr.onload=function(ev){
-      hutAnhTuFile(ev.target.result, [md]).then(function(kq){
+      hutAnhTuFile(ev.target.result, [md], true).then(function(kq){
         if(!kq || !kq.co){ alert('File "'+f.name+'" không có ảnh nào bên trong.'); return; }
         if(!kq.gan && !kq.bo){ alert('Mấy tấm ảnh trong file này đã gắn cho đơn '+md+' rồi.'); return; }
         alert('Ảnh đơn '+md+' giờ đúng bằng '+kq.co+' ảnh trong file'+
@@ -3024,6 +3084,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       setRows('eng-nhapdon', _ndCap.rows.map(function(o, _oi){
       var cell=function(col,val,extra){ var er=errKey[o.maDon+'|'+o.seri+'|'+col];
         var _ack=!!(er && isErrAcked({maDon:o.maDon, seri:o.seri, seriGoc:o.seriGoc, col:col}));
+        // đã kiểm từ phiên trước → vẽ như ô thường, không hiện ra nữa
+        if(_ack && ackTuPhienTruoc(errAckKey({maDon:o.maDon, seri:o.seri, seriGoc:o.seriGoc, col:col}))){ er=null; _ack=false; }
         var cls=(extra||'')+(er?(er.level==='warn'?(_ack?' cell-warn err-ack':' cell-warn'):(_ack?' err err-ack':' err')):'');
         var _sua=(er || _saSua) && canEditStep('s3');
         if(_saSua && !er) cls+=' sa-edit';
@@ -3451,6 +3513,22 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     // Enter (không Shift) = xác nhận; Shift+Enter = xuống dòng (ghi chú nhiều điều kiện)
     document.addEventListener('keydown', function(ev){
       if(ev.key==='Enter' && !ev.shiftKey && ev.target && ev.target.hasAttribute && ev.target.hasAttribute('contenteditable')){
+        /* BƯỚC 7 (user 23/10: "khi sửa không enter xuống dòng được"): ô chữ nhiều dòng (Nội dung ·
+           Thùng và hộp · Bảng độ cong · Chú ý · keo trong bảng…) → Enter = XUỐNG DÒNG, bấm ra ngoài
+           (hoặc Ctrl+Enter) là lưu. Ô một dòng (Mã KH · Nhãn hiệu · từng ô của bảng keo chi tiết)
+           vẫn Enter = xác nhận như cũ. */
+        var t=ev.target;
+        if(t.closest && t.closest('#s11') && !ev.ctrlKey && !ev.metaKey){
+          var f=t.getAttribute('data-khf')||t.getAttribute('data-khf2')||t.getAttribute('data-khf3')||'';
+          var motDong={ maKH:1, brand:1 }[f] || t.hasAttribute('data-khk3') || (t.classList && t.classList.contains('knp-ma'));
+          if(!motDong){
+            ev.preventDefault();
+            var xong=false;
+            try{ xong=document.execCommand('insertLineBreak'); }catch(e){ xong=false; }
+            if(!xong){ try{ xong=document.execCommand('insertHTML', false, '<br>'); }catch(e2){ xong=false; } }
+            return;
+          }
+        }
         ev.preventDefault(); ev.target.blur();
       }
     });
@@ -5009,7 +5087,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     (state.R.errors||[]).forEach(function(e){
       if(!inScope(e.maDon)) return;
       if(e.level==='error'){ if(!isErrAcked(e)) sErr++; }
-      else sWarn++;
+      else if(!isErrAcked(e)) sWarn++;                 // cảnh báo đã kiểm cũng không đếm nữa
     });
     newFiles.forEach(function(F){ sRows+=(F.data&&F.data.rawOrders?F.data.rawOrders.length:0); });
     // ghi rõ MÃ ĐƠN vừa nạp — biết mà tra ở các bước sau, khỏi phải mò
@@ -6643,11 +6721,30 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function rowKey(x){ return (x.maDon||'')+'|'+(x.seriGoc!=null?x.seriGoc:x.seri); }
   /* E-KEO2: 1 đơn có thể có nhiều độ dày nhập nhằng, mà mọi lỗi keo đều seri 0 → phải thêm
      chỉ số dòng keo, không thì tích "đã kiểm" 1 ô là mất luôn mấy ô còn lại. */
-  function errAckKey(e){ return rowKey(e)+'|'+e.col+((e.code==='E-KEO2'&&e.keoIdx!=null)?('|k'+e.keoIdx):''); }
+  /* ===== "ĐÃ KIỂM" PHẢI BÁM ĐƯỢC SANG PHIÊN SAU (user chốt 23/10) =====
+     "Các ô sai chuẩn và các ô cảnh báo đã kiểm rồi thì từ phiên sau không được hiện ra nữa."
+     1. Dòng BẢNG KEO trước đây khoá theo CHỈ SỐ DÒNG (k<idx>) — chỉ số đó là vị trí trong cả
+        kho keo của mọi đơn, nạp thêm / xoá 1 đơn là xê dịch ⇒ phiên sau dấu "đã kiểm" lệch dòng,
+        ô lại hiện. Nay khoá theo NỘI DUNG dòng keo (k:<keo~loại sợi~độ dày~độ dài>); khoá cũ đọc
+        được thì tự đổi sang khoá mới.
+     2. Ô đã kiểm từ PHIÊN TRƯỚC thì vẽ như ô thường (không tô xám, không ✓) — chỉ ô vừa kiểm
+        trong phiên này mới còn dấu ✓ để thấy mình vừa bấm gì. "↺ Hiện lại" vẫn trả về như cũ. */
+  var __ackPhien={};
+  function ackDanhDau(key, on){ if(on) __ackPhien[key]=1; else delete __ackPhien[key]; }
+  function ackTuPhienTruoc(key){ return !!(state.errAck||{})[key] && !__ackPhien[key]; }
+  function keoSig(k){ return ['loaiKeo','loaiSoi','doDay','doDai'].map(function(f){ return String((k&&k[f])==null?'':k[f]).replace(/[|]/g,'/').replace(/\s+/g,' ').trim().toUpperCase(); }).join('~'); }
+  /* khoá CŨ (dòng keo theo chỉ số) — chỉ để đọc lại dấu đã kiểm cũ rồi đổi sang khoá mới */
+  function errAckKeyCu(e){ return rowKey(e)+'|'+e.col+((e.code==='E-KEO2'&&e.keoIdx!=null)?('|k'+e.keoIdx):''); }
+  function errAckKey(e){ return rowKey(e)+'|'+e.col+((e.code==='E-KEO2'&&e.keoIdx!=null)?((state.keoRows||[])[e.keoIdx]?('|k:'+keoSig(state.keoRows[e.keoIdx])):('|k'+e.keoIdx)):''); }
   /* CHỈ nhận khoá theo seri GỐC. Đã BỎ việc đọc thêm khoá cũ (bám seri hiển thị): seri đó
      bị đánh số lại mỗi lần gộp file, nên dấu "đã kiểm" của phiên trước rơi trúng dòng khác
      → đơn vừa xử lý xong đã thấy ✓ dù chưa ai xác nhận. Thà mất dấu cũ 1 lần còn hơn đánh dấu sai. */
-  function isErrAcked(e){ return !!(state.errAck||{})[errAckKey(e)]; }
+  function isErrAcked(e){
+    var a=state.errAck||{}, k=errAckKey(e); if(a[k]) return true;
+    var cu=errAckKeyCu(e);
+    if(cu!==k && a[cu]){ a[k]=1; delete a[cu]; return true; }        // khoá cũ theo chỉ số dòng → đổi sang khoá nội dung
+    return false;
+  }
   function filteredErrors(opts){
     var R=state.R; if(!R||!R.errors) return [];
     var keepAcked=opts&&opts.keepAcked;
@@ -6691,7 +6788,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     else   list=list.filter(function(e){ return isErrAcked(e); });
     if(!list.length) return;
     try{ pushUndo(); }catch(e){ logErr('ackErrors', e); }
-    list.forEach(function(e){ if(on) state.errAck[errAckKey(e)]=1; else delete state.errAck[errAckKey(e)]; });
+    list.forEach(function(e){ var k=errAckKey(e); if(on) state.errAck[k]=1; else delete state.errAck[k]; ackDanhDau(k, on); });
     var ten = lv==='warn' ? ' ô cảnh báo' : (lv==='error' ? ' ô sai chuẩn' : ' ô');
     logLine((on?'Xác nhận đã kiểm ':'Bỏ xác nhận ')+list.length+ten+(gridMadon?(' · đơn '+gridMadon):''));
     try{ render(); }catch(e){ logErr('ackErrors', e); }
@@ -6787,8 +6884,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var kk=bk.getAttribute('data-ackkey'); if(!kk) return;
       state.errAck=state.errAck||{};
       try{ pushUndo(); }catch(e){ logErr('errAck1', e); }
-      if(bk.classList.contains('err-ack1')){ state.errAck[kk]=1; logLine('Xác nhận đã kiểm 1 ô · '+kk); }
-      else { delete state.errAck[kk]; logLine('Bỏ xác nhận 1 ô · '+kk); }
+      if(bk.classList.contains('err-ack1')){ state.errAck[kk]=1; ackDanhDau(kk, true); logLine('Xác nhận đã kiểm 1 ô · '+kk); }
+      else { delete state.errAck[kk]; ackDanhDau(kk, false); logLine('Bỏ xác nhận 1 ô · '+kk); }
       try{ render({reuseR:true}); }catch(e){ logErr('errAck1', e); }
       return; }
     // Duyệt tất cả
@@ -7049,8 +7146,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
          là ô sai chuẩn ở bước 1 và bước 2 hết luôn, không phải bấm 2 nơi.
        · dòng thiếu sạch thông tin → khoá riêng `maDon|0|keoMiss|k<idx>` (dòng này không sinh
          ô sai chuẩn, chỉ nằm ở chip "N dòng cần kiểm"). */
-  function keoAckKey(maDon, idx, loai){ return (maDon||'')+'|0|'+(loai==='miss'?'keoMiss':'doDay')+'|k'+idx; }
-  function keoDaKiem(k, idx, loai){ return !!(state.errAck||{})[keoAckKey(k&&k.maDon, idx, loai)]; }
+  function keoAckKeyCu(maDon, idx, loai){ return (maDon||'')+'|0|'+(loai==='miss'?'keoMiss':'doDay')+'|k'+idx; }
+  function keoAckKey(k, idx, loai){ return ((k&&k.maDon)||'')+'|0|'+(loai==='miss'?'keoMiss':'doDay')+'|k:'+keoSig(k); }
+  function keoDaKiem(k, idx, loai){
+    var a=state.errAck||{}, kk=keoAckKey(k, idx, loai); if(a[kk]) return true;
+    var cu=keoAckKeyCu(k&&k.maDon, idx, loai);
+    if(a[cu]){ a[kk]=1; delete a[cu]; return true; }
+    return false;
+  }
+  function keoDaKiemCu(k, idx, loai){ return keoDaKiem(k, idx, loai) && ackTuPhienTruoc(keoAckKey(k, idx, loai)); }
   // Lý do "cần kiểm" của 1 dòng keo → ['miss'] · ['amb'] · cả hai · [] nếu không có gì
   function keoLyDoKiem(k, idx){
     var ds=[];
@@ -7087,7 +7191,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     idxs.forEach(function(i){
       var k=(state.keoRows||[])[i]; if(!k) return;
       keoLyDoKiem(k, i).forEach(function(loai){
-        var key=keoAckKey(k.maDon, i, loai);
+        keoDaKiem(k, i, loai);                       // đổi khoá cũ (nếu có) sang khoá nội dung trước
+        var key=keoAckKey(k, i, loai);
         if(on ? !state.errAck[key] : !!state.errAck[key]) doi.push(key);
       });
     });
@@ -7096,7 +7201,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       return;
     }
     try{ pushUndo(); }catch(e){ logErr('keoAckRows.undo', e); }
-    doi.forEach(function(key){ if(on) state.errAck[key]=1; else delete state.errAck[key]; });
+    doi.forEach(function(key){ if(on) state.errAck[key]=1; else delete state.errAck[key]; ackDanhDau(key, on); });
     logLine((on?'Xác nhận đã kiểm ':'Bỏ xác nhận ')+doi.length+' dòng Bảng Keo'+
             (tick.length?(' (đã tích chọn)'):''));
     gsMsg((on?'✓ Đã xác nhận ':'↺ Đã bỏ xác nhận ')+doi.length+' dòng Bảng Keo'+
@@ -7119,10 +7224,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       /* Đã bấm "✓ Đã kiểm" cho dòng này thì thôi báo nữa (26/8) — nhưng vẫn để vạch xanh mép
          trái (tr.keo-ok) cho biết đây là dòng từng cần kiểm, và "↺ Hiện lại" trả về như cũ. */
       var okMiss=miss&&keoDaKiem(k,idx,'miss'), okAmb=amb&&keoDaKiem(k,idx,'amb');
+      // đã kiểm từ phiên trước → dòng như thường (không vạch xanh, không chữ "đã xác nhận")
+      var _cuKiem=false;
+      if(okMiss && keoDaKiemCu(k,idx,'miss')){ miss=false; _cuKiem=true; }
+      if(okAmb && keoDaKiemCu(k,idx,'amb')){ amb=null; _cuKiem=true; }
       if(miss && !okMiss) warn++;
       if(amb  && !okAmb ) warn++;
       var conBao=(miss&&!okMiss)||(amb&&!okAmb);
       if((miss||amb) && !conBao) daKiem++;
+      else if(_cuKiem && !(miss||amb)) daKiem++;          // vẫn đếm để "↺ Hiện lại" lấy lại được
       /* Dòng cần kiểm (thiếu thông tin, hoặc 1 độ dày 2 keo) được đánh dấu để chip
          "N dòng cần kiểm" bấm vào là nhảy tới đúng dòng (user chốt 26/8). */
       var canKiem=conBao?' data-keowarn="1"':'';
@@ -8355,6 +8465,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var amb=keoAmbCuaDong(k);
       // đã bấm "✓ Đã kiểm" ở Bảng Keo thì bảng bên này cũng hết đỏ, chỉ còn vạch xanh
       var okAmb=amb&&idx>=0&&keoDaKiem(k,idx,'amb');
+      if(okAmb && keoDaKiemCu(k,idx,'amb')) amb=null;     // kiểm từ phiên trước → như dòng thường
       var _HK=hlLechKeo(k);                              // Bảng Hộp khai khác Bảng Line
       var ambCls=(amb?(okAmb?' keo-ok':' keo-amb'):'')+(_HK?' cl-hoplech':'');
       var ambTi=_HK?(' title="'+esc(hlLechTitle(_HK))+'"')
@@ -9583,7 +9694,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           /* HANG ANH (.anh-ds cua "Anh trong don khach"): truoc day di qua nhanh flex nen file
              Excel chi co may O TRONG ke vien, khong co anh (user chot 17/9). Gio thanh khoi
              rieng t:'img' de save() dung phan drawing that cua xlsx. */
-          var _ims=kids.filter(function(c){ return c.tagName==='IMG'; });
+          /* ảnh bước 6 có thể bọc trong <span class="anh-o"> kèm nút ✕ → vẫn tính là ảnh */
+          var _ims=kids.map(function(c){ return c.tagName==='IMG' ? c : ((c.classList && c.classList.contains('anh-o')) ? c.querySelector('img') : null); }).filter(Boolean);
           if(_ims.length && _ims.length===kids.length){
             _ims=_ims.filter(function(c){ return !hidden(c); });
             if(_ims.length) out.push({t:'img',els:_ims});
@@ -10593,6 +10705,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     '.bt-general ol,.bt-general ul{margin:3px 0 0 16px;padding:0}'+
     '.bt-general li{margin:1px 0}'+
     '.anh-don .anh-ds{display:flex;gap:6px;flex-wrap:wrap;padding:6px 0 0}'+
+    '.anh-xoa{display:none!important}.anh-o{display:inline-block}'+
     '.anh-don img{height:150px;width:auto;max-width:100%;border:1px solid #333;object-fit:contain}'+
     '.pr-scope table th,.pr-scope table td{font-size:10px;padding:2px 4px}'+
     '</style>';
@@ -12970,7 +13083,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      về "✓ Đã lưu" nhờ theo dõi nút ☁ Lưu. Mấy việc app TỰ làm (tự gắn ảnh, gộp ảnh trùng…)
      không tính là "thay đổi" để khỏi báo nhầm. */
   var khSoSua=0, khDangLuu=false, khDaTheoDoi=false, __khLuuT=null;
-  function khDaSua(){ khSoSua++; khLuuNgam(); veNutLuuKH(); }
+  function khDaSua(){ try{ khGhiUndo(); }catch(e){ logErr('khDaSua.undo', e); } khSoSua++; khLuuNgam(); veNutLuuKH(); }
   /* ===== MỐC SẠCH ĐỂ "↶ BỎ THAY ĐỔI" (user chốt 30/9) =====
      Nạp thử vài đơn gửi xưởng rồi không muốn giữ nữa — tải lại trang KHÔNG cứu được vì app đã
      tự lưu trong máy. Nên giữ một bản chụp dữ liệu khách hàng lúc CHƯA có chỗ sửa nào (lúc mở,
@@ -13047,6 +13160,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      để không lẫn vào chữ của ô khi sửa. Chỉ Super Admin. */
   var khNutMaKey=null;
   function khAnNutMa(){ var b=document.getElementById('kh-ma-nut'); if(b) b.remove(); khNutMaKey=null; }
+  window.__khAnNutMa=khAnNutMa;
   function khHienNutMa(td, key){
     khAnNutMa();
     if(!khSuaDuoc() || !td || !key) return;
@@ -13323,6 +13437,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       khThemMuc(tenKH, m); n++;
     });
     try{ khDienNhanMoi(); }catch(e){ logErr('gopDonVaoKH.dienNhan', e); }
+    try{ if(__khRef===state.khData) khMocLai(); }catch(e){ logErr('gopDonVaoKH.moc', e); }   // gộp lúc xử lý không phải một lần sửa để hoàn tác
     return n;
   }
   function khMucTuMd(md, F, ngay, anh){
@@ -13654,10 +13769,51 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      xóa luôn các bản TRÙNG của tấm đó (không thì bản trùng hiện lên thế chỗ, trông như chưa xóa),
      và GHI NHỚ vào r.anhBo để xử lý lại đơn ở bước 1-6 không gắn tấm đó trở lại.
      Kho ảnh (imgStore) KHÔNG đụng — bước 6 vẫn dùng chung. */
-  function khXoaAnh(key, i, anhKey){
-    var r=(state.khData&&state.khData.kh)?state.khData.kh[key]:null; if(!r || !anhKey) return;
-    var kho=state.imgStore||{}, goc=kho[anhKey], bo={};
-    bo[anhKey]=1;
+  /* ===== XÓA ẢNH: BƯỚC 6 ⇄ BƯỚC 7 (user chốt 23/10) =====
+     "Step 6 xóa ảnh thì ảnh ở step 7 cũng xóa theo" — và ngược lại. Ảnh ở bước 7 cất MỘT bộ cho
+     mỗi Mã KH, nên xóa ở đâu cũng là bỏ tấm đó (và bản trùng của nó) khỏi CẢ KHÁCH: bước 7 ghi
+     nhớ vào r.anhBo, bước 6 bỏ khỏi mọi đơn của khách đó. Nạp lại file đơn cũng không gắn lại
+     (hutAnhTuFile soi r.anhBo); muốn lấy lại thì "📷 Bổ sung ảnh từ file đơn". Kho ảnh không đụng. */
+  function khMdCuaKH(key){
+    var ten={}, ra=[];
+    (state.files||[]).forEach(function(F){ (F && F.maDons || []).forEach(function(m){ if(m && ten[m]==null) ten[m]=F.name||''; }); });
+    var co={};
+    (state.orders||[]).forEach(function(o){
+      var md=String((o&&o.maDon)||''); if(!md || co[md]) return; co[md]=1;
+      if(khKhoa(khMaSauDoi(khTenChoDon(md, ten[md]||'')))===key) ra.push(md);
+    });
+    return ra;
+  }
+  function khCuaMd(md){
+    var F=(state.files||[]).filter(function(f){ return f && (f.maDons||[]).indexOf(md)>=0; })[0];
+    return khKhoa(khMaSauDoi(khTenChoDon(md, F?F.name:'')));
+  }
+  function boAnhBuoc6(dsMd, bo){
+    var map=state.imgByMadon||{}, n=0;
+    dsMd.forEach(function(md){
+      var a=map[md]; if(!a || !a.length) return;
+      var t=a.length; map[md]=a.filter(function(k){ return !bo[k]; }); n+=t-map[md].length;
+    });
+    return n;
+  }
+  function xoaAnhBuoc6(md, anhKey){
+    if(!md || !anhKey) return;
+    if(typeof confirm==='function' && !confirm('Xóa tấm ảnh này?\n\nẢnh bỏ khỏi đơn '+md+' (bước 6) và khỏi Dữ liệu khách hàng (bước 7) của khách này.\nMuốn lấy lại: "📷 Bổ sung ảnh từ file đơn".')) return;
+    var kho=state.imgStore||{}, goc=kho[anhKey], bo={}; bo[anhKey]=1;
+    var key=khCuaMd(md), d=state.khData, r=(d&&d.kh)?d.kh[key]:null;
+    var dsMd=key ? khMdCuaKH(key) : []; if(dsMd.indexOf(md)<0) dsMd.push(md);
+    if(goc) dsMd.forEach(function(m){ ((state.imgByMadon||{})[m]||[]).forEach(function(k){ if(kho[k] && khCungTam(kho[k], goc)) bo[k]=1; }); });
+    var n6=boAnhBuoc6(dsMd, bo), n7=0;
+    if(r){ n7=khXoaAnhLoi(r, anhKey, bo); try{ khDaSua(); }catch(e){ logErr('xoaAnhBuoc6.luu', e); } }
+    logLine('🖼 Xóa 1 ảnh ở bước 6 · đơn '+md+' → bỏ '+n6+' chỗ ở bước 6'+(r?(' · bước 7 ('+r.maKH+') xóa theo'):''));
+    try{ if(typeof renderBoxTypes==='function') renderBoxTypes(); }catch(e){ logErr('xoaAnhBuoc6.ve', e); }
+    try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('xoaAnhBuoc6.autosave', e); }
+    return { n6:n6, n7:n7 };
+  }
+  /* Phần dữ liệu của xóa ảnh ở bước 7 (không vẽ lại). bo = {khóa:1} các tấm phải bỏ (đã gồm bản trùng). */
+  function khXoaAnhLoi(r, anhKey, bo){
+    var kho=state.imgStore||{}, goc=kho[anhKey];
+    bo=bo||{}; bo[anhKey]=1;
     if(goc) khMoiAnh(r).concat(r.anhCho||[]).forEach(function(k){ if(kho[k] && khCungTam(kho[k], goc)) bo[k]=1; });
     var n=0;
     var loc=function(o, f){ if(!o || !o[f] || !o[f].length) return;
@@ -13666,8 +13822,28 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     (r.muc||[]).forEach(function(m){ loc(m,'anh'); loc(m,'anhCho'); });
     r.anhBo=r.anhBo||[];
     Object.keys(bo).forEach(function(k){ if(r.anhBo.indexOf(k)<0) r.anhBo.push(k); });
+    return n;
+  }
+  function khXoaAnh(key, i, anhKey){
+    var r=(state.khData&&state.khData.kh)?state.khData.kh[key]:null; if(!r || !anhKey) return;
+    var kho=state.imgStore||{}, goc=kho[anhKey], bo={};
+    bo[anhKey]=1;
+    if(goc) khMoiAnh(r).concat(r.anhCho||[]).forEach(function(k){ if(kho[k] && khCungTam(kho[k], goc)) bo[k]=1; });
+    /* bước 6 xóa theo: mọi đơn của khách này */
+    var n6=0; try{ var _dsMd=khMdCuaKH(key);
+      if(goc) _dsMd.forEach(function(m){ ((state.imgByMadon||{})[m]||[]).forEach(function(k){ if(kho[k] && khCungTam(kho[k], goc)) bo[k]=1; }); });
+      n6=boAnhBuoc6(_dsMd, bo); }catch(e){ logErr('khXoaAnh.buoc6', e); }
+    if(n6){ try{ if(typeof renderBoxTypes==='function') renderBoxTypes(); }catch(e){ logErr('khXoaAnh.ve6', e); }
+            try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('khXoaAnh.autosave', e); } }
+    var n=n6;
+    var loc=function(o, f){ if(!o || !o[f] || !o[f].length) return;
+      var truoc=o[f].length; o[f]=o[f].filter(function(k){ return !bo[k]; }); n+=truoc-o[f].length; };
+    loc(r,'anh'); loc(r,'anhCho');
+    (r.muc||[]).forEach(function(m){ loc(m,'anh'); loc(m,'anhCho'); });
+    r.anhBo=r.anhBo||[];
+    Object.keys(bo).forEach(function(k){ if(r.anhBo.indexOf(k)<0) r.anhBo.push(k); });
     if(!n) return;
-    logLine('🖼 Bỏ 1 ảnh khỏi '+r.maKH+(i>=0?(' · đơn '+(((r.muc||[])[i]||{}).don||'')):''));
+    logLine('🖼 Bỏ 1 ảnh khỏi '+r.maKH+(i>=0?(' · đơn '+(((r.muc||[])[i]||{}).don||'')):'')+(n6?(' · bước 6 xóa theo ('+n6+' chỗ)'):''));
     khDaSua(); khVeLaiAnh({ key:key, i:i });
   }
   /* Ảnh người dùng đã XÓA ở bước 7 thì không được gắn lại vào khách (xử lý lại đơn, gom ảnh…). */
@@ -13712,7 +13888,101 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      DỜI cả hồ sơ sang khóa mới. Khóa mới đã có khách rồi thì GỘP vào: đơn, ảnh, ảnh đang giữ
      chờ, nhãn hiệu, bản sửa tay đều được mang theo — không đơn nào, không tấm ảnh nào rơi.
      Trả về 'doi' · 'gop' · 'giu' (không đổi được thì trả nguyên chữ cũ ra ô). */
+  /* ===== MÃ KH BƯỚC 2 ⇄ BƯỚC 7 LUÔN KHỚP NHAU (user chốt 23/10) =====
+     "Khi sửa mã KH trong step 2 thì mã KH ở step 7 cũng phải đổi theo và ngược lại."
+       · bước 2 → bước 7: khTheoDoiMaDon (gọi cuối doiMaDonCaDon) dời mục đơn + ảnh của đơn sang
+         Mã KH mới; Mã KH cũ hết đơn thì bỏ hẳn (nhãn hiệu mang sang) và ghi nhớ cũ → mới.
+       · bước 7 → bước 2: đổi Mã KH ở bước 7 đã ghi nhớ cũ → mới (d.doiMa) → khDongBoBuoc2 đổi
+         tên mọi đơn còn mang mã cũ ở bước 1-6. Chạy cả lúc mở dữ liệu, nên chỗ đã lệch từ trước
+         (847P: bước 2 C27777 · bước 7 C27) cũng tự khớp lại. */
+  var __khDongBoChay=false;
+  function khIdMuc(m){
+    if(!m || !m._id || m.nguon==='checklist') return;
+    var p=String(m._id).split('|'); if(p.length<2) return;
+    p[1]=khKhoa(m.don); m._id=p.join('|');
+  }
+  function khTheoDoiMaDon(cu, moi){
+    var d=state.khData; if(!d || !d.kh) return 0;
+    var F=(state.files||[]).filter(function(f){ return f && (f.maDons||[]).indexOf(moi)>=0; })[0], ten=F?F.name:'';
+    var tenCu=khMaSauDoi(khTenChoDon(cu, ten)), tenMoi=khTenChoDon(moi, ten);
+    var kCu=khKhoa(tenCu), kMoi=khKhoa(tenMoi);
+    /* Người dùng CHỦ Ý đặt mã này ở bước 2 → bỏ ghi nhớ "mã này đã đổi sang mã khác" nếu có,
+       kẻo lần đồng bộ sau kéo đơn về lại mã kia. */
+    if(d.doiMa && d.doiMa[kMoi] && kMoi!==kCu) delete d.doiMa[kMoi];
+    var gCu=khKhoa(khDonGoc(donOf(cu)||cu)), dMoi=donOf(moi)||moi, gMoi=khKhoa(khDonGoc(dMoi));
+    var rCu=d.kh[kCu]; if(!rCu || !gCu) return 0;
+    var cuaDon=function(m){ return khKhoa(khDonGoc(m.don))===gCu; };
+    var mucs=(rCu.muc||[]).filter(cuaDon); if(!mucs.length) return 0;
+    var doiDon=function(m){ if(gCu!==gMoi){ m.don=dMoi; khIdMuc(m); } };
+    var doiNguon=function(r, rDich){
+      Object.keys(r.anhDon||{}).forEach(function(k){
+        var ds=r.anhDon[k]||[], i=ds.indexOf(gCu); if(i<0) return;
+        ds.splice(i,1);
+        if(rDich!==r){ rDich.anh=rDich.anh||[]; if(rDich.anh.indexOf(k)<0) rDich.anh.push(k); }
+        khGhiNguonAnh(rDich, k, dMoi);
+        if(!ds.length && rDich!==r){ delete r.anhDon[k]; if(r.anh){ var v=r.anh.indexOf(k); if(v>=0) r.anh.splice(v,1); } }
+        else if(!ds.length) delete r.anhDon[k];
+      });
+    };
+    if(kCu===kMoi){ mucs.forEach(doiDon); doiNguon(rCu, rCu); if(tenMoi!==rCu.maKH && khKhoa(tenMoi)===kCu) rCu.maKH=tenMoi; }
+    else{
+      var rMoi=khLay(tenMoi); if(!rMoi) return 0;
+      rCu.muc=(rCu.muc||[]).filter(function(m){ return !cuaDon(m); });
+      mucs.forEach(function(m){
+        doiDon(m);
+        var co=(rMoi.muc||[]).some(function(x){ return (x._id && x._id===m._id) || (khTxt(m.don) && khKhoa(x.don)===khKhoa(m.don) && x.nguon===m.nguon && x.ngay===m.ngay); });
+        if(!co) rMoi.muc.push(m);
+      });
+      rMoi.muc.sort(function(a,b){ var na=String(a.ngay||''), nb=String(b.ngay||''); return na<nb?1:na>nb?-1:0; });
+      doiNguon(rCu, rMoi);
+      if(!(rCu.muc||[]).length){                       // Mã KH cũ hết đơn → bỏ hẳn, nhãn hiệu + ảnh mang sang
+        if(!khTxt(rMoi.brand) && khTxt(rCu.brand)) rMoi.brand=rCu.brand;
+        (rCu.anh||[]).forEach(function(k){ rMoi.anh=rMoi.anh||[]; if(rMoi.anh.indexOf(k)<0) rMoi.anh.push(k); });
+        delete d.kh[kCu]; d.thuTu=(d.thuTu||[]).filter(function(k){ return k!==kCu; });
+        d.doiMa=d.doiMa||{}; d.doiMa[kCu]=tenMoi;
+      }
+      try{ khGomAnhKhach(rMoi); }catch(e){ logErr('khTheoDoiMaDon.anh', e); }
+      try{ khDienNhanMoi(); }catch(e){ logErr('khTheoDoiMaDon.nhan', e); }
+    }
+    logLine('🗂 Bước 7 đổi theo bước 2: đơn '+dMoi+' '+(kCu===kMoi?'(đổi mã đơn)':('dời từ Mã KH '+tenCu+' → '+tenMoi)));
+    __khGanVaoTren=true;                               // cùng một lần hoàn tác với ô vừa sửa ở bước 2
+    try{ khDaSua(); }catch(e){ logErr('khTheoDoiMaDon.luu', e); }
+    return mucs.length;
+  }
+  /* Bước 7 → bước 2: mọi đơn ở bước 1-6 đang mang Mã KH đã đổi ở bước 7 (ghi nhớ d.doiMa, hoặc
+     đổi hoa/thường của chính mã đó: khoaCu + tenCho) → đổi tên đơn sang mã mới. */
+  function khDongBoBuoc2(khoaCu, tenCho){
+    var d=state.khData; if(!d || !d.kh || __khDongBoChay) return 0;
+    var ds={}, n=0, bo=[], daChup=false;
+    (state.orders||[]).forEach(function(o){ var md=String((o&&o.maDon)||''); if(md) ds[md]=1; });
+    var co=function(m){ return !!ds[m]; };
+    __khDongBoChay=true;
+    try{
+      Object.keys(ds).forEach(function(md){
+        var kh=khOf(md); if(!kh) return;
+        var dich = (khoaCu && khKhoa(kh)===khoaCu && tenCho) ? tenCho : khMaSauDoi(kh);
+        if(!dich || dich===kh) return;
+        var mdMoi=dich+'-'+donOf(md);
+        if(khOf(mdMoi)!==dich || donOf(mdMoi)!==donOf(md)){ bo.push(md+' (mã "'+dich+'" không ghép được vào mã đơn)'); return; }
+        if(co(mdMoi)){ bo.push(md+' (đã có đơn '+mdMoi+')'); return; }
+        /* Đổi do người dùng sửa Mã KH ở bước 7 (khoaCu có) → chụp bước 1-6 TRƯỚC khi đổi, để một lần
+           hoàn tác trả lại cả bước 7 lẫn tên đơn ở bước 2. */
+        if(khoaCu && !daChup){ daChup=true; try{ pushUndo(); __khGanVaoTren=true; }catch(e){ logErr('khDongBoBuoc2.undo', e); } }
+        doiMaDonCaDon(md, mdMoi); ds[mdMoi]=1; delete ds[md]; n++;
+        logLine('🗂 Bước 2 đổi theo bước 7: "'+md+'" → "'+mdMoi+'"');
+      });
+    } finally { __khDongBoChay=false; }
+    if(bo.length) logLine('⚠ Không đổi tên được ở bước 2: '+bo.join(' · '));
+    if(n){ setTimeout(function(){ try{ veLaiHoacCho(); }catch(e){ logErr('khDongBoBuoc2.ve', e); } }, 0);
+           try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('khDongBoBuoc2.luu', e); } }
+    return n;
+  }
   function khDoiMaKH(cu, tenMoi){
+    var kq=khDoiMaKHGoc(cu, tenMoi);
+    if(kq!=='giu'){ try{ khDongBoBuoc2(cu, khTxt(tenMoi)); }catch(e){ logErr('khDoiMaKH.buoc2', e); } }
+    return kq;
+  }
+  function khDoiMaKHGoc(cu, tenMoi){
     var d=state.khData; if(!d||!d.kh) return 'giu';
     var r=d.kh[cu]; if(!r) return 'giu';
     tenMoi=khTxt(tenMoi); if(!tenMoi) return 'giu';
@@ -14124,6 +14394,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     }catch(e){ logErr('khChuanLai', e); }
   }
   function renderKH(){
+    try{ khMocNeuDoi(); }catch(e){ logErr('renderKH.moc', e); }   // mốc hoàn tác của bước 7
     var tb=document.getElementById('eng-khdata'); if(!tb) return;
     window.__khRender = renderKH;      // go('s11') gọi qua đây (go nằm ngoài khối này)
     window.__khNap    = khNapFile;     // bộ kiểm thử gọi thẳng, khỏi qua bước chờ vẽ màn hình
@@ -14143,6 +14414,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     /* ⚠ Sắp ghi đè tbody → dời khung chi tiết về chỗ cũ, không thì nó bị xoá theo. */
     try{ khDatTiet(null); }catch(e){ logErr('renderKH.tiet', e); }
     khChuanLai(); khApNhan();
+    try{ khDongBoBuoc2(); }catch(e){ logErr('renderKH.dongBo', e); }   // chỗ đã lệch từ trước tự khớp lại
     /* Mở project / nạp bản đám mây khác → dữ liệu khách là một bản MỚI: bộ đếm chỗ sửa cũ hết nghĩa. */
     if(khMoc && khMoc.ref!==state.khData && khSoSua){ khSoSua=0; khMoc=null; }
     try{ veNutLuuKH(); }catch(e){ logErr('renderKH.nutLuu', e); }
@@ -15191,14 +15463,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1715500000"></script>
-<script src="cl.sync.js?v=1715500000"></script>
-<script src="auth.store.js?v=1715500000"></script>
-<script src="auth.web.js?v=1715500000"></script>
+<script src="cl.config.js?v=1715530000"></script>
+<script src="cl.sync.js?v=1715530000"></script>
+<script src="auth.store.js?v=1715530000"></script>
+<script src="auth.web.js?v=1715530000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1715500000"></script>
+<script src="cl.project.js?v=1715530000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1715500000" defer></script>
+<script src="firebase-bridge.js?v=1715530000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
