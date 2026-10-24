@@ -525,6 +525,7 @@ td.cl-hoplech{background:#E7F0FF!important;color:#0B4A8F!important;font-weight:7
 img.anh-th{height:120px;width:auto;max-width:220px;object-fit:cover;border:1px solid var(--border);border-radius:8px;cursor:zoom-in;background:var(--surface-2)}
 img.anh-th:hover{border-color:var(--accent);box-shadow:0 2px 10px rgba(0,0,0,.18)}
 .anh-o{position:relative;display:inline-block;line-height:0}
+.anh-don.bs-tha-on{outline:2px dashed var(--accent);outline-offset:-4px;background:var(--accent-soft)}
 .anh-o .anh-xoa{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;border:1px solid var(--border);background:rgba(255,255,255,.92);color:var(--red-600,#dc2626);font-weight:800;font-size:13px;line-height:20px;cursor:pointer;padding:0;opacity:.85}
 .anh-o .anh-xoa:hover{opacity:1;background:#fff;border-color:var(--red-600,#dc2626)}
 @media print{.anh-o .anh-xoa{display:none!important}}
@@ -714,7 +715,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715550000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715570000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1141,7 +1142,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </section>
   <!-- Ô chọn file để BỔ SUNG ẢNH cho đơn ở bước 6. Phải nằm NGOÀI mọi <section>: để trong
        khối của bước 7 thì lúc đang ở bước 6 nó nằm trong vùng display:none, bấm không ăn. -->
-  <input type="file" id="bs-anh-input" accept=".xlsx,.xlsm,.xls" style="display:none">
+  <input type="file" id="bs-anh-input" accept=".xlsx,.xlsm,.xls,image/*" multiple style="display:none">
   <div id="kh-lightbox">
     <button class="kh-lb-nut" id="kh-lb-truoc" title="Ảnh trước (←)">‹</button>
     <div id="kh-lb-khung"><img alt=""></div>
@@ -1447,7 +1448,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1715550000"></script>
+<script src="engine.web.js?v=1715570000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -2365,17 +2366,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var suaDuoc=false; try{ suaDuoc=(typeof canUpload==='function') ? canUpload() : false; }catch(e){ logErr('anhDon.quyen', e); }
     if(!ks.length && !(md && suaDuoc)) return '';
     var nut = (md && suaDuoc)
-      ? '<button class="btn sm" id="bs-anh" data-bs-md="'+esc(md)+'" style="float:right;margin-left:8px">📷 Bổ sung ảnh từ file đơn</button>'
+      ? '<button class="btn sm" id="bs-anh" data-bs-md="'+esc(md)+'" style="float:right;margin-left:8px" title="Chọn ẢNH (jpg · png…, chọn nhiều tấm được) để thêm thẳng cho đơn, hoặc chọn file đơn .xlsx để lấy ảnh trong file. Kéo thả ảnh vào khung này cũng được.">📷 Tải ảnh lên / lấy từ file đơn</button>'
       : '';
 
-    return '<div class="bt-general anh-don"><div class="bt-gtitle">🖼 Ảnh trong đơn khách · '+ks.length+' ảnh'+
+    return '<div class="bt-general anh-don"'+((md && suaDuoc)?(' data-bs-tha="'+esc(md)+'"'):'')+'><div class="bt-gtitle">🖼 Ảnh trong đơn khách · '+ks.length+' ảnh'+
       (md?(' · '+esc(md)):' · tất cả đơn')+nut+
-      '<span class="mini" style="float:right;color:var(--text-3);font-weight:600">bấm ảnh để xem to</span></div>'+
+      '<span class="mini" style="float:right;color:var(--text-3);font-weight:600">bấm ảnh để xem to'+((md && suaDuoc)?' · kéo thả ảnh vào đây để thêm':'')+'</span></div>'+
       (ks.length ? '' :
         '<div class="mini" style="color:var(--text-3);padding:4px 0 6px">Đơn này chưa có ảnh. '+
         'App đã tự đối chiếu với <b>bước 7 · Dữ liệu khách hàng</b> nhưng không tìm ra Mã KH nào mang mã đơn này. '+
-        'Nạp lại file tổng hợp Gmail ở bước 7 là hết, hoặc bấm “📷 Bổ sung ảnh từ file đơn” rồi chọn đúng file .xlsx '+
-        'của đơn — thao tác đó CHỈ lấy ảnh, không đụng tới dữ liệu đơn.</div>')+
+        'Bấm “📷 Tải ảnh lên / lấy từ file đơn” rồi chọn thẳng ẢNH (chọn nhiều tấm được) hoặc file đơn .xlsx, '+
+        'hay kéo thả ảnh vào khung này — thao tác đó CHỈ thêm ảnh, không đụng tới dữ liệu đơn.</div>')+
       '<div class="anh-ds">'+ks.map(function(k){
         var a=kho[k];
         var im='<img class="anh-th" src="'+a.d+'" alt="'+esc(a.ten||'')+'" title="'+esc(a.ten||'')+' — bấm để xem to" data-anh="'+esc(k)+'">';
@@ -2545,6 +2546,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             else ds2=ds2.filter(function(k){ return rK.anhBo.indexOf(k)<0; });
           }
           ds2.forEach(function(k){ giu[k]=1; if(cu.indexOf(k)<0) gan++; });
+          /* ảnh người dùng TẢI LÊN TAY cho đơn (đánh dấu taiLen ở kho) không nằm trong file → vẫn giữ */
+          var _kho=state.imgStore||{};
+          cu.forEach(function(k){ if(!giu[k] && _kho[k] && _kho[k].taiLen){ giu[k]=1; ds2.push(k); } });
           cu.forEach(function(k){ if(!giu[k]) bo++; });
           state.imgByMadon[md]=ds2.slice();
           try{ khNguonAnhTheoFile(md, giu); }catch(e){ logErr('hutAnh.nguon', e); }
@@ -2575,8 +2579,23 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   if(document.body){
     document.addEventListener('change', function(ev){
       var o=ev.target; if(!o || o.id!=='bs-anh-input') return;
-      var f=o.files && o.files[0]; o.value='';
-      boSungAnh(f);
+      var ds=o.files ? [].slice.call(o.files) : []; o.value='';
+      boSungAnh(ds);
+    });
+    /* KÉO THẢ ẢNH vào khung "Ảnh trong đơn khách" của bước 6 (user 24/10) */
+    document.addEventListener('dragover', function(ev){
+      var k=ev.target && ev.target.closest ? ev.target.closest('[data-bs-tha]') : null; if(!k) return;
+      ev.preventDefault(); k.classList.add('bs-tha-on');
+    });
+    document.addEventListener('dragleave', function(ev){
+      var k=ev.target && ev.target.closest ? ev.target.closest('[data-bs-tha]') : null; if(k) k.classList.remove('bs-tha-on');
+    });
+    document.addEventListener('drop', function(ev){
+      var k=ev.target && ev.target.closest ? ev.target.closest('[data-bs-tha]') : null; if(!k) return;
+      ev.preventDefault(); k.classList.remove('bs-tha-on');
+      var ds=(ev.dataTransfer && ev.dataTransfer.files) ? [].slice.call(ev.dataTransfer.files) : [];
+      if(!ds.length) return;
+      __bsMd=k.getAttribute('data-bs-tha'); boSungAnh(ds);
     });
   }
   function moBoSungAnh(md){
@@ -2584,9 +2603,57 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var o=document.getElementById('bs-anh-input'); if(!o) return;
     o.value=''; o.click();
   }
+  /* ===== TẢI ẢNH THẲNG LÊN CHO ĐƠN Ở BƯỚC 6 (user chốt 24/10) =====
+     "Phần bổ sung ảnh từ file này cho tải ảnh trực tiếp lên." Cùng một nút: chọn ẢNH (nhiều tấm)
+     thì cất vào kho chung (luuAnh — trùng nội dung thì dùng lại) và gắn THÊM cho đơn; bước 7 cũng
+     có theo (ảnh của khách, ghi nguồn là đơn này; tấm từng xoá thì gỡ khỏi danh sách đã xoá). */
+  function themAnhChoDon(md, ds){
+    var kho=function(){ return state.imgStore||{}; };
+    state.imgByMadon=state.imgByMadon||{};
+    var arr=state.imgByMadon[md]=state.imgByMadon[md]||[], them=0, coRoi=0, hong=0, keys=[];
+    return ds.reduce(function(ch, f){
+      return ch.then(function(){
+        return new Promise(function(ok){ var fr=new FileReader(); fr.onload=function(e){ ok(e.target.result); }; fr.onerror=function(){ ok(null); }; fr.readAsArrayBuffer(f); })
+          .then(function(ab){ if(!ab){ hong++; return null; } return luuAnh(new Uint8Array(ab), f.name||'anh.jpg'); })
+          .then(function(r){
+            if(!r || !r.key){ hong++; return; }
+            try{ var _o=(state.imgStore||{})[r.key]; if(_o) _o.taiLen=1; }catch(e){ logErr('themAnhChoDon.dau', e); }   // nạp lại file đơn không gỡ tấm này
+            if(arr.indexOf(r.key)>=0 || khDaCoAnhNay(arr, r.key)){ coRoi++; return; }
+            arr.push(r.key); keys.push(r.key); them++;
+          });
+      });
+    }, Promise.resolve()).then(function(){
+      if(them){
+        try{
+          var key=khCuaMd(md), d=state.khData, r=(d&&d.kh)?d.kh[key]:null;
+          if(r){
+            r.anh=r.anh||[];
+            keys.forEach(function(k){ if(r.anh.indexOf(k)<0) r.anh.push(k); khGhiNguonAnh(r, k, donOf(md)||md); });
+            if(r.anhBo && r.anhBo.length) r.anhBo=r.anhBo.filter(function(k){ return keys.indexOf(k)<0; });
+            khDaSua();
+          }
+        }catch(e){ logErr('themAnhChoDon.buoc7', e); }
+        logLine('🖼 Tải lên '+them+' ảnh cho đơn '+md+(coRoi?(' · '+coRoi+' tấm đã có sẵn nên bỏ qua'):''));
+        try{ if(typeof renderBoxTypes==='function') renderBoxTypes(); }catch(e){ logErr('themAnhChoDon.ve', e); }
+        try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('themAnhChoDon.luu', e); }
+      }
+      return { them:them, coRoi:coRoi, hong:hong };
+    });
+  }
   function boSungAnh(f){
     var md=__bsMd; if(!md || !f) return;
-    if(!/\.xls[xm]?$/i.test(f.name||'')){ alert('Cần chọn đúng file đơn (.xlsx) của mã đơn này.'); return; }
+    var ds=(f && f.length!=null && !f.name) ? [].slice.call(f) : [f];
+    var anh=ds.filter(function(x){ return x && (/^image\//i.test(x.type||'') || /\.(jpe?g|png|gif|webp|bmp)$/i.test(x.name||'')); });
+    var xl=ds.filter(function(x){ return x && /\.xls[xm]?$/i.test(x.name||''); });
+    if(!anh.length && !xl.length){ alert('Chọn ẢNH (jpg · png · webp…) hoặc file đơn .xlsx của mã đơn này.'); return; }
+    if(anh.length){
+      themAnhChoDon(md, anh).then(function(kq){
+        if(kq.them) alert('Đã thêm '+kq.them+' ảnh cho đơn '+md+(kq.coRoi?(' · '+kq.coRoi+' tấm đã có sẵn'):'')+(kq.hong?(' · '+kq.hong+' tệp không đọc được'):'')+'.');
+        else alert(kq.coRoi ? ('Mấy tấm ảnh này đơn '+md+' đã có rồi.') : 'Không đọc được ảnh đã chọn.');
+      }).catch(function(e){ logErr('boSungAnh.anh', e); alert('Không thêm được ảnh: '+((e&&e.message)||'')); });
+    }
+    if(!xl.length) return;
+    f=xl[0];
     var fr=new FileReader();
     fr.onload=function(ev){
       hutAnhTuFile(ev.target.result, [md], true).then(function(kq){
@@ -9808,7 +9875,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     /* Dựng một DÃY KHỐI thành ma trận dòng/ô. Tách riêng khỏi build() để mỗi nửa của cặp
        2 cột dựng được độc lập rồi mới ghép ngang. */
     function dungKhoi(bs, P){
-      var rows=[], merges=[], widths=[], maxc=0;
+      var rows=[], merges=[], widths=[], maxc=0, dsBang=[];
       bs.forEach(function(b){
         if(b.t==='pair'){
           var L=dungKhoi(blocks(b.left),P), Rp=dungKhoi(blocks(b.right),P);
@@ -9849,7 +9916,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         }
         if(b.t==='tbl'){
           var G=grid(b.el), base=rows.length;
-          G.widths.forEach(function(w,i){ if(w>(widths[i]||0)) widths[i]=w; });
+          var _nc=0; G.g.forEach(function(gr){ if(gr && gr.length>_nc) _nc=gr.length; });
+          var _tb={ G:G, base:base, nc:_nc, mg:[] }; dsBang.push(_tb);
           for(var r=0;r<G.n;r++){
             var gr=G.g[r]||[], line={h:G.heights[r], cells:[]};
             for(var c=0;c<gr.length;c++){
@@ -9860,7 +9928,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             }
             rows.push(line);
           }
-          G.merges.forEach(function(m){ merges.push([base+m[0],m[1],base+m[2],m[3]]); });
+          G.merges.forEach(function(m){ _tb.mg.push([base+m[0],m[1],base+m[2],m[3]]); });   // gộp ô của bảng: thêm vào sau, khi đã biết cột chính
           rows.push({h:0,cells:[]});
         } else if(b.t==='row'){
           var ln={h:0,cells:[]};
@@ -9870,10 +9938,72 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           rows.push({h:0,cells:[{c:0,el:b.el,text:b.text,chu:1}],span:true});
         }
       });
+      /* ===== BỀ RỘNG CỘT THEO BẢNG CHÍNH (user chốt 24/10 · Tổng hợp Cuốn C62-837P.2) =====
+         Trước đây mọi bảng trong trang cùng góp bề rộng theo SỐ THỨ TỰ cột: bảng Độ Cong (2 cột,
+         cột "Ghi Chú" dài cả trang) đẩy cột B của file lên ~1.200px — cột "Mã keo" của bảng chính
+         phình to, khác hẳn app. Nay: bề rộng lấy theo bảng NHIỀU CỘT NHẤT (bảng chính); bảng ít cột
+         hơn thì mỗi cột của nó GỘP ngang đúng số cột chính nằm dưới nó (theo bề ngang đo trên trang). */
+      (function(){
+        if(!dsBang.length) return;
+        var chinh=dsBang[0];
+        dsBang.forEach(function(t){ if(t.nc>chinh.nc) chinh=t; });
+        dsBang.forEach(function(t){ if(t.nc===chinh.nc) t.G.widths.forEach(function(w,i){ if(w>(widths[i]||0)) widths[i]=w; }); });
+        var cum=[], tong=0, i0;
+        for(i0=0;i0<chinh.nc;i0++){ tong+=(widths[i0]||64); cum.push(tong); }
+        dsBang.forEach(function(t){
+          if(t.nc>=chinh.nc) return;
+          // bề rộng từng cột của bảng nhỏ (đo cả ô gộp nếu cột đó không có ô đơn nào)
+          var sw=[];
+          for(var j=0;j<t.nc;j++) sw[j]=t.G.widths[j]||0;
+          var tongNho=0; sw.forEach(function(w){ tongNho+=w; });
+          if(!tongNho){ t.G.widths.forEach(function(w,i){ if(w>(widths[i]||0)) widths[i]=w; }); return; }
+          var dau=[], cuoi=[], ck=0, k=0;
+          for(j=0;j<t.nc;j++){
+            ck+=sw[j]; dau[j]=(j===0)?0:Math.min(cuoi[j-1]+1, chinh.nc-1);
+            k=dau[j];
+            while(k<chinh.nc-1 && Math.abs(cum[k+1]-ck) < Math.abs(cum[k]-ck)) k++;
+            cuoi[j]=Math.max(dau[j], k);
+          }
+          if(tongNho >= tong*0.9) cuoi[t.nc-1]=chinh.nc-1;     // bảng trải hết bề ngang → cột cuối gộp tới mép
+          // gộp lại cho bảng nhỏ: dựng lại mergeCell theo cột chính
+          var neo={}; t.mg.forEach(function(m){ neo[(m[0]-t.base)+'|'+m[1]]=m; });
+          var moi=[];
+          for(var r=0;r<t.G.n;r++){
+            var ln=rows[t.base+r]; if(!ln) continue;
+            var o={}; ln.cells.forEach(function(x){ o[x.c]=x; });
+            var cells=[];
+            for(var c=0;c<t.nc;c++){
+              var x=o[c]; if(!x) continue;
+              for(var cc=dau[c]; cc<=cuoi[c]; cc++) cells.push({ c:cc, el:x.el, text:(cc===dau[c]?x.text:''), chu:x.chu });
+              var gc=t.G.g[r] && t.G.g[r][c];
+              if(gc && gc.anchor){
+                var m0=neo[r+'|'+c], r2=m0?(m0[2]-t.base):r, c2=m0?m0[3]:c;
+                if(r2>r || cuoi[c2]>dau[c]) moi.push([t.base+r, dau[c], t.base+r2, cuoi[c2]]);
+              }
+            }
+            ln.cells=cells;
+          }
+          t.mg=moi;
+        });
+        if(chinh.nc>maxc) maxc=chinh.nc;
+      })();
+      dsBang.forEach(function(t){ t.mg.forEach(function(m){ merges.push(m); }); });
       /* Dòng CHỮ trải ngang: gộp theo bề rộng CỦA CHÍNH DÃY NÀY — nửa trái của cặp không được
          trải sang nửa phải. */
       rows.forEach(function(ln,ri){ if(ln.span && maxc>1) merges.push([ri,0,ri,maxc-1]); });
       return { rows:rows, merges:merges, widths:widths, maxc:maxc };
+    }
+    /* Ô này trên trang in hiện mấy DÒNG chữ (đếm các hộp dòng của chữ). 0 = không đo được →
+       giữ cách cũ (theo white-space). Ô 1 dòng trên app thì file Excel cũng 1 dòng, không wrap. */
+    function soDongTrenTrang(el){
+      try{
+        if(!el || !document.createRange) return 0;
+        var rg=document.createRange(); rg.selectNodeContents(el);
+        var rs=rg.getClientRects ? rg.getClientRects() : null; if(!rs || !rs.length) return 0;
+        var tops={}, n=0;
+        for(var i=0;i<rs.length;i++){ if(!(rs[i].width>0)) continue; var t=Math.round(rs[i].top/4); if(!tops[t] && !tops[t-1] && !tops[t+1]){ tops[t]=1; n++; } }
+        return n;
+      }catch(e){ return 0; }
     }
     function build(root, land, P){
       var K=dungKhoi(blocks(root),P);
@@ -9889,9 +10019,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var moiChu=(ln.cells.length>0);
         ln.cells.forEach(function(cl){
           var ngang=!!cl.chu; if(!ngang) moiChu=false;
-          var s=styleOf(cl.el,P,ngang?false:undefined), ref=cn(cl.c)+(ri+1), n=numOf(cl.text);
+          /* BỎ WRAP cho ô chữ MỘT DÒNG (user chốt 24/10): wrap làm Excel bẻ "205.SKS.MochaMousse.7" thành
+             2 dòng và dòng cao lệch app. Chỉ ô có XUỐNG DÒNG thật (nhiều dòng trong app) mới wrap. */
+          var motDong=String(cl.text||'').indexOf('\n')<0 && soDongTrenTrang(cl.el)===1;
+          var s=styleOf(cl.el,P,(ngang||motDong)?false:undefined), ref=cn(cl.c)+(ri+1), n=numOf(cl.text);
           /* doc khong duoc kieu o thi cu coi nhu co wrap: de Excel tu gian dong con hon cat chu */
-          try{ if(!ngang && !/nowrap|^pre$/.test(getComputedStyle(cl.el).whiteSpace)) coWrap=true; }catch(e){ coWrap=true; }
+          try{ if(!ngang && !motDong && !/nowrap|^pre$/.test(getComputedStyle(cl.el).whiteSpace)) coWrap=true; }catch(e){ coWrap=!motDong; }
           cells += (n===null)
             ? '<c r="'+ref+'" s="'+s+'" t="inlineStr"><is><t xml:space="preserve">'+X(cl.text)+'</t></is></c>'
             : '<c r="'+ref+'" s="'+s+'"><v>'+n+'</v></c>';
@@ -15538,14 +15671,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1715550000"></script>
-<script src="cl.sync.js?v=1715550000"></script>
-<script src="auth.store.js?v=1715550000"></script>
-<script src="auth.web.js?v=1715550000"></script>
+<script src="cl.config.js?v=1715570000"></script>
+<script src="cl.sync.js?v=1715570000"></script>
+<script src="auth.store.js?v=1715570000"></script>
+<script src="auth.web.js?v=1715570000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1715550000"></script>
+<script src="cl.project.js?v=1715570000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1715550000" defer></script>
+<script src="firebase-bridge.js?v=1715570000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
