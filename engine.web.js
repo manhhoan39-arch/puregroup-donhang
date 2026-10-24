@@ -1770,7 +1770,12 @@
       if (!k || !k.maDon) return;
       var cb = chuBang[k.maDon] || (chuBang[k.maDon] = { ma: {}, ghi: [] });
       cb.ma[chuanKeo(k.loaiKeo)] = 1; if (PS(k.ghiChu)) cb.ghi.push(chuanKeo(k.ghiChu));
-      if (PS(k.loaiKeo)) (dongBang[k.maDon] = dongBang[k.maDon] || []).push({ sang: PS(k.loaiKeo), day: soDay(k.doDay), nl: chuNL(k.loaiSoi) });
+      if (PS(k.loaiKeo)) {
+        var _dd = PS(k.doDai).replace(/\s+/g, '').match(/(\d+)(?:mm)?(?:[-~](\d+))?/i);
+        (dongBang[k.maDon] = dongBang[k.maDon] || []).push({ sang: PS(k.loaiKeo), day: soDay(k.doDay), nl: chuNL(k.loaiSoi), sua: !!k._sua,
+          lo: _dd ? +_dd[1] : null, hi: _dd ? +(_dd[2] || _dd[1]) : null });
+        if (k._sua) co = true;
+      }
       var tu = k._thayKeo && PS(k._thayKeo.tu), sang = PS(k.loaiKeo);
       if (!tu || !sang || chuanKeo(tu) === chuanKeo(sang)) return;
       (theoDon[k.maDon] = theoDon[k.maDon] || []).push({ tu: chuanKeo(tu), sang: sang, day: soDay(k.doDay), nl: chuNL(k.loaiSoi) });
@@ -1793,9 +1798,27 @@
          không dòng nào trùng tên mới xét theo độ dày */
       var hopTen = hopBang.filter(function (t) { return t.nl && nlO && (nlO.indexOf(t.nl) >= 0 || t.nl.indexOf(nlO) >= 0); });
       if (hopTen.length) hopBang = hopTen;
-      var doi = function (v) {
+      // mm = null: keo ghi cho CẢ dòng đơn (cột Keo Nhiệt) → chỉ dòng keo KHÔNG giới hạn độ dài mới thay được
+      var trongDai = function (t, mm) { return t.lo == null || (mm != null && mm >= t.lo && mm <= t.hi); };
+      var motMa = function (ds) { var m = {}, ra = []; ds.forEach(function (t) { var k0 = chuanKeo(t.sang); if (k0 && !m[k0]) { m[k0] = 1; ra.push(t.sang); } }); return ra; };
+      var doi = function (v, mm) {
         var c = chuanKeo(v); if (!c) return null;
         for (var i = 0; i < hop.length; i++) if (hop[i].tu === c) return hop[i].sang;
+        /* ===== DÒNG BẢNG KEO NGƯỜI DÙNG ĐÃ SỬA LÀ CHUẨN (user chốt 24/10 · C127-825P) =====
+           "Sửa bảng keo ở step 4 hay step 5 thì dữ liệu phải đổi theo bảng keo mới, kể cả template
+           đơn hàng mới." Dòng keo đã sửa tay (k._sua — html đặt khi sửa bất kỳ ô nào / dán / thêm
+           dòng) thắng keo khách ghi sẵn (Keo Đã Fix theo mm · cột Keo Nhiệt): dòng đơn khớp dòng đó
+           (độ dày + nguyên liệu, và độ dài nếu dòng keo có ghi) ăn đúng keo của dòng đó. */
+        var daSua = hopBang.filter(function (t) { return t.sua && trongDai(t, mm); });
+        if (daSua.length) { var ms = motMa(daSua); if (ms.length === 1) return chuanKeo(ms[0]) === c ? null : ms[0]; }
+        /* Bảng Keo có dòng ĐÚNG TÊN nguyên liệu của dòng đơn mà mã keo ghi sẵn KHÔNG nằm trong
+           mấy dòng đó (dữ liệu sửa từ trước khi app biết đánh dấu) → theo Bảng Keo, nếu chỉ một mã
+           và cùng cỡ keo. */
+        if (hopTen.length) {
+          var dsT = motMa(hopTen.filter(function (t) { return trongDai(t, mm); }));
+          if (dsT.length === 1 && chuanKeo(dsT[0]) !== c && !hopTen.some(function (t) { return chuanKeo(t.sang) === c; }) &&
+              duoiKeo(dsT[0]) && duoiKeo(dsT[0]) === duoiKeo(v)) return dsT[0];
+        }
         /* Bản đã sửa TRƯỚC khi app biết nhớ mã cũ: keo ghi sẵn KHÔNG còn ở đâu trong Bảng Keo của
            đơn (người dùng đã đổi nó đi) → lấy keo của Bảng Keo cho đúng độ dày / nguyên liệu, nếu
            chỉ có MỘT mã và CÙNG CỠ keo (.2 ↔ .2). Không chắc thì giữ như khách ghi. */
@@ -1808,7 +1831,7 @@
       var o2 = null;
       if (o.keoMm) {
         var m2 = {}, doiMm = false;
-        Object.keys(o.keoMm).forEach(function (mm) { var n = doi(o.keoMm[mm]); m2[mm] = n || o.keoMm[mm]; if (n) doiMm = true; });
+        Object.keys(o.keoMm).forEach(function (mm) { var n = doi(o.keoMm[mm], +mm); m2[mm] = n || o.keoMm[mm]; if (n) doiMm = true; });
         if (doiMm) { o2 = Object.assign({}, o); o2.keoMm = m2; }
       }
       var g = doi(o.ghiChuKeo);
