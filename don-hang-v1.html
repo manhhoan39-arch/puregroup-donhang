@@ -715,7 +715,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715580000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715590000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1448,7 +1448,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1715580000"></script>
+<script src="engine.web.js?v=1715590000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -3315,10 +3315,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
             var nh={}; Object.keys(t.theoMm).map(Number).sort(function(a,b){return a-b;}).forEach(function(m){ var c=t.theoMm[m]; (nh[c]=nh[c]||[]).push(m); });
             tachTxt=Object.keys(nh).map(function(c){ var a=nh[c]; return c+' '+(a.length>1?a[0]+'-'+a[a.length-1]:a[0])+'mm'; }).join(' · ');
           });
-          var dLbl = i<ranges.length ? (esc(ranges[i]) + (tachTxt?'<br><span class="mini" style="font-weight:700;color:var(--red-600)" title="Label trộn độ cong — dây mm nào cuốn theo độ cong ghi ở mm đó">Curl → '+esc(tachTxt)+'</span>':'') + (rInfo&&rInfo.lines[i]?'<br><span class="mini" style="font-weight:600">('+rInfo.lines[i]+' Lines)</span>':'') + addMark) : '';
+          /* TIÊU ĐỀ DẢI SỬA ĐƯỢC (user 28/10 · LS299-273S: khách gõ "14-7mm" thay vì "14-17mm"): bấm đúp
+             vào tên dải để sửa — cùng quyền với ô số (cột thêm: ai sửa được Mix; cột gốc: Super Admin).
+             Phần dưới tên dải (Curl → … · (N Lines) · ✕ xóa cột) là chữ CHỈ XEM, không sửa lẫn vào. */
+          var suaRg = i<ranges.length && canEditMix && (added || saMix);
+          var chiXem = suaRg ? ' contenteditable="false"' : '';
+          var dLbl = i<ranges.length ? (esc(ranges[i]) + (tachTxt?'<br'+chiXem+'><span class="mini"'+chiXem+' style="font-weight:700;color:var(--red-600)" title="Label trộn độ cong — dây mm nào cuốn theo độ cong ghi ở mm đó">Curl → '+esc(tachTxt)+'</span>':'') + (rInfo&&rInfo.lines[i]?'<br'+chiXem+'><span class="mini"'+chiXem+' style="font-weight:600">('+rInfo.lines[i]+' Lines)</span>':'') + (addMark?addMark.replace('<br>','<br'+chiXem+'>').replace('<span class="mix-delcol"','<span class="mix-delcol"'+chiXem):'')) : '';
           // cột bảng trùng dải ghi "6-11mm#1" + "(20 Lines)", bỏ dòng "Label 6-11mm.1" (user chốt 15/10); nhãn để ở chú thích khi rê chuột
-          var ttBT = nhanBT ? ' title="Label Type '+esc(nhanBT)+'"' : '';
-          defTds += '<td style="font-weight:700;color:var(--accent)'+(added?';background:rgba(0,207,200,.08)':'')+'"'+ttBT+'>'+dLbl+'</td>';
+          var ttBT = nhanBT ? ('Label Type '+nhanBT) : '';
+          var ttRg = suaRg ? ((ttBT?ttBT+' · ':'')+'Bấm đúp để sửa tên dải') : ttBT;
+          var meRg = suaRg ? ' contenteditable="true" data-mixrgmadon="'+esc(s.maDon)+'" data-mixrgcol="'+i+'"' : '';
+          defTds += '<td style="font-weight:700;color:var(--accent)'+(added?';background:rgba(0,207,200,.08)':'')+'"'+(ttRg?' title="'+esc(ttRg)+'"':'')+meRg+'>'+dLbl+'</td>';
         }
         mixRows += '<tr data-madon="'+esc(s.maDon)+'" data-makh="'+esc(khOf(s.maDon))+'"><td class="freeze" style="font-weight:800">'+esc(khOf(s.maDon))+'</td>'+
           '<td style="font-weight:800">'+esc(donOf(s.maDon))+'</td>'+
@@ -11125,7 +11132,63 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     });
   });
   document.addEventListener('keydown', function(ev){
-    if(ev.key==='Enter' && ev.target && ev.target.closest && ev.target.closest('td[data-mixmm]')){ ev.preventDefault(); ev.target.blur(); }
+    if(ev.key==='Enter' && ev.target && ev.target.closest && ev.target.closest('td[data-mixmm],td[data-mixrgcol]')){ ev.preventDefault(); ev.target.blur(); }
+  });
+  /* ===== SỬA TÊN DẢI (tiêu đề cột) CỦA BẢNG MIX — user 28/10 · LS299-273S =====
+     Khách gõ nhầm "14-7mm" (đúng là 14-17mm) → mm 14-17 nằm "ngoài dải", báo lỗi bảng Mix và dòng
+     đơn 14-17mm không tra ra bảng. Sửa tên dải là sửa ĐÚNG CHỖ SAI, mọi bước sau tính lại theo.
+       · chuẩn hoá như cột Độ Dài ("14 - 17", "14~17MM" → 14-17mm), giữ dấu phân biệt "#n" nếu có
+       · đổi theo: nhãn Label Type (bienThe), bảng mix màu kèm file (colorBlocks)
+       · ghi ngược về FILE → bấm ▶ Xử lý lại vẫn giữ tên mới
+       · dòng đơn của chính đơn này ghi ĐÚNG dải cũ (cùng lỗi gõ) → đổi luôn sang dải mới, để
+         dòng đơn vẫn tra trúng bảng này; Bảng Mix Màu đã điền của dòng đó đi theo. */
+  function mixRgDoc(td){
+    var c=td.cloneNode(true);
+    Array.prototype.forEach.call(c.querySelectorAll('[contenteditable="false"]'), function(x){ x.parentNode.removeChild(x); });
+    return String(c.textContent||'').replace(/\u200B/g,'').replace(/\s+/g,' ').trim();
+  }
+  function doiDaiMix(s, col, cu, moi){
+    var doiSheet=function(sh){
+      if(!sh) return false;
+      var rs=(sh.ranges||RANGES); if(rs[col]!==cu) return false;
+      sh.ranges=rs.slice(); sh.ranges[col]=moi;
+      ['bienThe','bienTheKey'].forEach(function(t){ var m=sh[t]; if(!m) return; Object.keys(m).forEach(function(k){ if(m[k]===cu) m[k]=moi; }); });
+      if(sh.colorBlocks && sh.colorBlocks[cu]!=null && sh.colorBlocks[moi]==null){ sh.colorBlocks[moi]=sh.colorBlocks[cu]; delete sh.colorBlocks[cu]; }
+      return true;
+    };
+    doiSheet(s);
+    (state.files||[]).forEach(function(F){
+      ((F&&F.data&&F.data.mixSheets)||[]).forEach(function(sh){ if(sh && sh.maDon===s.maDon && sh!==s) doiSheet(sh); });
+    });
+    var nCu=E.normalizeLength(cu), n=0;
+    (state.orders||[]).forEach(function(o, i){
+      if(!o || o.maDon!==s.maDon || E.normalizeLength(o.length)!==nCu) return;
+      var res=E.editCell(o, 'length', moi); state.orders[i]=res.order; ghiNguocVeFile(res.order); n++;
+    });
+    if(n){
+      var tien=function(rg){ return s.maDon+'#'+String(rg||'').toLowerCase().replace(/~/g,'-')+'#'; }, a=tien(nCu), b=tien(moi);
+      doiKhoaMap(state.colorMix, function(k){ return k.indexOf(a)===0 ? b+k.slice(a.length) : k; });
+      resetPack();
+    }
+    logLine('Sửa tên dải Mix '+s.maDon+' cột '+(col+1)+': '+cu+' → '+moi+(n?' · đổi luôn '+n+' dòng đơn đang ghi '+cu:''));
+    return n;
+  }
+  document.addEventListener('focusout', function(ev){
+    var td=ev.target&&ev.target.closest?ev.target.closest('td[data-mixrgcol]'):null; if(!td) return;
+    var mad=td.getAttribute('data-mixrgmadon'), col=+td.getAttribute('data-mixrgcol');
+    var s=(state.mixSheets||[]).filter(function(x){return x.maDon===mad;})[0]; if(!s) return;
+    var cu=String((s.ranges||RANGES)[col]||''), go=mixRgDoc(td);
+    if(!go){ try{ render(); }catch(e){ logErr('mixRg.trong', e); } return; }            // xoá trắng = không sửa
+    var moi=E.normalizeLength(go), bt=cu.match(/#\d+$/);
+    if(bt && !/#\d+$/.test(moi)) moi+=bt[0];                                            // giữ dấu phân biệt bảng trùng dải
+    if(moi===cu) return;
+    var pr=E.parseRange(moi);
+    if(!pr || pr.lo>pr.hi || pr.lo<1 || pr.hi>40){
+      alert('Tên dải "'+go+'" không đúng dạng — ghi kiểu 14-17mm (số nhỏ trước) hoặc 8mm.');
+      try{ render(); }catch(e){ logErr('mixRg.sai', e); }
+      return;
+    }
+    markPending(td, function(){ doiDaiMix(s, col, cu, moi); });
   });
   function mixSheetOfSel(){
     var md=getVal('s4-madon'); if(!md){ alert('Hãy chọn Mã Đơn ở bộ lọc trước.'); return null; }
@@ -15672,14 +15735,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1715580000"></script>
-<script src="cl.sync.js?v=1715580000"></script>
-<script src="auth.store.js?v=1715580000"></script>
-<script src="auth.web.js?v=1715580000"></script>
+<script src="cl.config.js?v=1715590000"></script>
+<script src="cl.sync.js?v=1715590000"></script>
+<script src="auth.store.js?v=1715590000"></script>
+<script src="auth.web.js?v=1715590000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1715580000"></script>
+<script src="cl.project.js?v=1715590000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1715580000" defer></script>
+<script src="firebase-bridge.js?v=1715590000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
