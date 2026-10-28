@@ -715,7 +715,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715600000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715610000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1527,7 +1527,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1715600000"></script>
+<script src="engine.web.js?v=1715610000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -4426,8 +4426,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     return out.sort(function(a,b){ return (a.x==='NĐ'?-1:b.x==='NĐ'?1:0) || (b.day-a.day); });   // xưởng nhà đứng đầu
   }
   // Nguyên liệu / độ dày / keo — CHỈ tính khi người dùng mở phần này
-  var TK_NHOM={ nl:['material'], day:['thickness'], keo:['keo'], nlkeo:['material','keo'] };   // tên NL đã kèm độ dày (vd "Faux Mink 0.15")
-  var TK_NHOM_TEN={ material:'Nguyên liệu', thickness:'Độ dày', keo:'Keo' };
+  // tên NL đã kèm độ dày (vd "Faux Mink 0.15"). Xem theo nguyên liệu thì có cột CODE SỢI bên trái (user 28/10) —
+  // đúng code sợi của bước 5 (Tổng hợp Code Sợi · Số Dây), nên cùng 1 nguyên liệu có nhiều code thì tách dòng.
+  var TK_NHOM={ nl:['codeSoi','material'], day:['thickness'], keo:['keo'], nlkeo:['codeSoi','material','keo'] };
+  var TK_NHOM_TEN={ codeSoi:'Code sợi', material:'Nguyên liệu', thickness:'Độ dày', keo:'Keo' };
   function tkTheoNL(ds, nhom){
     var R=state.R, co={}, m={}, out=[], cot=TK_NHOM[nhom]||TK_NHOM.nl;
     ds.forEach(function(o){ co[o.md]=1; });
@@ -4524,7 +4526,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '<input id="tk-nl-tim" placeholder="Tìm nguyên liệu / keo…" value="'+esc(tkNLTim)+'" autocomplete="off"></div>'+
       '<div class="tbl-wrap"><table class="sheet"><thead><tr><th>STT</th>'+kq.cot.map(function(c){ return '<th class="txt">'+TK_NHOM_TEN[c]+'</th>'; }).join('')+
       '<th>Số đơn</th><th>Số dây</th><th>Single</th><th>Mix</th><th class="txt">Tỉ lệ dây</th></tr></thead><tbody data-gs="1">'+
-      (rs.length?rs.map(function(g,i){ return '<tr><td>'+(i+1)+'</td>'+g.gt.map(function(v){ return '<td class="txt">'+esc(v)+'</td>'; }).join('')+
+      (rs.length?rs.map(function(g,i){ return '<tr><td>'+(i+1)+'</td>'+g.gt.map(function(v){ return '<td class="txt">'+esc(v).replace(/\n/g,'<br>')+'</td>'; }).join('')+
         '<td class="so">'+tkSo(g.don)+'</td><td class="so">'+tkSo(g.day)+'</td><td class="so">'+tkSo(g.single)+'</td><td class="so">'+tkSo(g.mix)+'</td><td>'+tkPct(g.day,tong)+'</td></tr>'; }).join('')+
         '<tr class="tk-sum"><td></td><td class="txt" colspan="'+kq.cot.length+'">TỔNG</td><td></td><td class="so">'+tkSo(tong)+'</td><td></td><td></td><td></td></tr>'
         :'<tr><td colspan="'+(kq.cot.length+6)+'" class="mini">Không có dòng khớp</td></tr>')+
@@ -4604,8 +4606,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
        return [tkNgayHien(o.ngay), o.sua?tkNgayHien(o.ngayGoc):'', o.kh, o.don, o.hop, o.day, o.single, o.mix, Object.keys(o.xuong).join(' · ')]; })),
        [12,12,12,14,9,9,9,9,12], 'Don');
     var nl=tkTheoNL(ds,'nlkeo');
-    ws([['Thống kê: '+ten],[],['Nguyên liệu','Keo','Số đơn','Số dây','Single','Mix']].concat(nl.ds.map(function(g){ return g.gt.concat([g.don, g.day, g.single, g.mix]); })),
-       [26,22,9,10,10,10], 'NL - Keo');
+    ws([['Thống kê: '+ten],[],['Code sợi','Nguyên liệu','Keo','Số đơn','Số dây','Single','Mix']].concat(nl.ds.map(function(g){ return g.gt.concat([g.don, g.day, g.single, g.mix]); })),
+       [20,26,22,9,10,10,10], 'NL - Keo');
     var fn='ThongKe_'+(tkThang==='*'?'TatCa':(tkThang||'ChuaRoNgay'))+'.xlsx';
     XLSX.writeFile(wb, tenXuat(fn));
     logLine('Đã tải '+fn+' ('+ds.length+' đơn)');
@@ -16134,14 +16136,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1715600000"></script>
-<script src="cl.sync.js?v=1715600000"></script>
-<script src="auth.store.js?v=1715600000"></script>
-<script src="auth.web.js?v=1715600000"></script>
+<script src="cl.config.js?v=1715610000"></script>
+<script src="cl.sync.js?v=1715610000"></script>
+<script src="auth.store.js?v=1715610000"></script>
+<script src="auth.web.js?v=1715610000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1715600000"></script>
+<script src="cl.project.js?v=1715610000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1715600000" defer></script>
+<script src="firebase-bridge.js?v=1715610000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
