@@ -715,7 +715,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715590000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715600000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -797,6 +797,23 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
           <ul class="file-list" id="file-list-imported"><li><span class="mini">Chưa có file đã xử lý.</span></li></ul>
         </div>
       </div>
+    </div>
+
+    <!-- THỐNG KÊ ĐƠN HÀNG THEO THÁNG — tính theo NGÀY NHẬP ĐƠN VÀO APP, sửa được ngày từng đơn (chốt 24/10) -->
+    <div class="card tk-card" id="tk-card" style="margin-bottom:14px">
+      <div class="card-head">
+        <h3>📊 Thống kê đơn hàng theo tháng</h3>
+        <span class="mini tk-nguon">theo ngày nhập đơn vào app · sửa được ngày từng đơn</span>
+        <div class="spacer"></div>
+        <div class="tk-nav">
+          <button class="btn sm" id="tk-truoc" title="Tháng trước">◀</button>
+          <select class="tk-sel" id="tk-thang" title="Chọn tháng"></select>
+          <button class="btn sm" id="tk-sau" title="Tháng sau">▶</button>
+        </div>
+        <button class="btn sm" id="tk-dl" title="Tải thống kê ra Excel">⬇ Excel</button>
+        <button class="btn sm ghost" id="tk-gon" title="Thu gọn / mở rộng">▴ Thu gọn</button>
+      </div>
+      <div class="tk-body" id="tk-body"><div class="tk-rong">Chưa có đơn nào — nạp file rồi bấm "▶ Xử lý" là có thống kê.</div></div>
     </div>
 
     <!-- Error list inline (kết quả kiểm tra ngay sau upload) -->
@@ -1445,10 +1462,72 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 .kh-lb-nut:hover{background:rgba(255,255,255,.14)}
 #kh-lb-dem{position:fixed;left:0;right:0;bottom:16px;text-align:center;color:#fff;font-size:12px;
   text-shadow:0 1px 3px rgba(0,0,0,.8);pointer-events:none}
+/* ===== BƯỚC 1 · THỐNG KÊ ĐƠN HÀNG THEO THÁNG ===== */
+.tk-card .card-head{flex-wrap:wrap;row-gap:8px}
+.tk-nav{display:flex;align-items:center;gap:6px}
+.tk-sel{height:30px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);color:var(--text);font:600 12.5px inherit;padding:0 8px;min-width:150px}
+.tk-body{padding:14px 16px 16px}
+.tk-card.gon .tk-body{display:none}
+.tk-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.tk-k{border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;background:var(--surface-2)}
+.tk-k .l{font-size:11px;color:var(--text-2);font-weight:600}
+.tk-k .v{font-size:22px;font-weight:800;color:var(--text);margin-top:2px;font-variant-numeric:tabular-nums}
+.tk-k .s{font-size:10.5px;color:var(--text-3);margin-top:2px}
+.tk-k .s b{color:var(--text-2)}
+.tk-chart{border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px 6px;margin-bottom:14px;position:relative}
+.tk-chart-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+.tk-chart-h b{font-size:12.5px}
+.tk-chart svg{display:block;max-width:100%}
+.tk-chart .bar{cursor:pointer}
+.tk-chart .bar rect.hit{fill:transparent}
+.tk-chart .bar path{fill:var(--blue-200)}
+.tk-chart .bar:hover path{fill:var(--blue-500)}
+.tk-chart .bar.on path{fill:var(--accent)}
+.tk-chart .grid{stroke:var(--border);stroke-width:1}
+.tk-chart .ax{fill:var(--text-3);font-size:10.5px}
+.tk-chart .ax.on{fill:var(--text);font-weight:700}
+.tk-chart .vl{fill:var(--text);font-size:11px;font-weight:700}
+.tk-seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:8px;overflow:hidden}
+.tk-seg button{border:0;background:var(--surface);color:var(--text-2);font:600 11.5px inherit;padding:4px 10px;cursor:pointer}
+.tk-seg button+button{border-left:1px solid var(--border-strong)}
+.tk-seg button.on{background:var(--accent-soft);color:var(--accent)}
+.tk-2{display:grid;grid-template-columns:1.35fr 1fr;gap:14px;margin-bottom:14px}
+.tk-t{font-size:12.5px;font-weight:700;margin:0 0 6px;display:flex;align-items:baseline;gap:4px 8px;flex-wrap:wrap}
+.tk-t .mini{font-weight:400}
+.tk-card .tbl-wrap{max-height:340px}
+.tk-card .sheet td.txt,.tk-card .sheet th.txt{text-align:left}
+.tk-card .sheet td.so{text-align:right;font-variant-numeric:tabular-nums}
+.tk-card .sheet tr.tk-sum td{font-weight:800;background:var(--surface-3)}
+.tk-pct{display:flex;align-items:center;gap:6px;min-width:96px}
+.tk-pct i{display:block;height:6px;border-radius:3px;background:var(--accent);min-width:2px}
+.tk-pct span{font-size:10.5px;color:var(--text-2);min-width:34px;text-align:right}
+.tk-ngay{font:12px inherit;border:1px solid var(--border-strong);border-radius:6px;padding:2px 4px;background:var(--surface);color:var(--text)}
+.tk-ngay.sua{border-color:var(--amber-500);background:var(--amber-50)}
+.tk-ngay:disabled{opacity:.7}
+.tk-ve{border:0;background:none;color:var(--accent);cursor:pointer;font-size:12px;padding:0 3px}
+.tk-nl-btn{margin:2px 0 0}
+.tk-nl{margin-top:12px;border-top:1px dashed var(--border-strong);padding-top:12px}
+.tk-nl-tool{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.tk-nl-tool input{height:28px;border:1px solid var(--border-strong);border-radius:7px;padding:0 8px;background:var(--surface);color:var(--text);min-width:180px}
+.tk-bao{font-size:11.5px;color:var(--text-2);background:var(--accent-soft);border-radius:7px;padding:6px 10px;margin-bottom:10px;display:none}
+.tk-rong{padding:28px 10px;text-align:center;color:var(--text-3);font-size:12.5px}
+@media(max-width:960px){ .tk-2{grid-template-columns:1fr} }
+@media(max-width:700px){
+  .tk-kpi{grid-template-columns:1fr 1fr;gap:8px}
+  .tk-k .v{font-size:19px}
+  .tk-body{padding:12px}
+  .tk-card .card-head .tk-nguon{display:none}
+  .tk-nav{order:5;width:100%}
+  .tk-card .card-head h3{flex:1 1 100%}
+  .tk-card .card-head .spacer{display:none}
+  .tk-chart{padding:8px 8px 4px}
+  .tk-card .tbl-wrap{max-height:300px}
+  .tk-sel{flex:1;min-width:0}
+}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1715590000"></script>
+<script src="engine.web.js?v=1715600000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -1524,6 +1603,8 @@ function go(id){
   }
   // Bước 7 vẽ lại mỗi lần vào: đơn có thể vừa được Xử lý hoặc vừa sửa mã đơn ở bước khác.
   if(id==='s11'){ try{ if(window.__khRender) window.__khRender(); }catch(e){ logErr('go.kh', e); } }
+  // Bước 1 · Thống kê theo tháng bị hoãn vẽ lúc đang ở bước khác → vẽ bây giờ
+  if(id==='s1'){ try{ if(window.__tkRender) window.__tkRender(); }catch(e){ logErr('go.tk', e); } }
   // Bảng của bước này bị HOÃN vẽ lúc trước (đang ẩn) → vẽ ngay bây giờ.
   // Dùng lại kết quả đã tính, KHÔNG tính lại → số liệu không thể lệch.
   try{ if(window.__flushStale) window.__flushStale(id); }catch(e){ logErr('go', e); }
@@ -2054,6 +2135,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         var kc=F.meta.khachCuon; if(kc&&kc.rows) kc.rows.forEach(doiMd);
       }
       F.maDons=(F.maDons||[]).map(function(m){ return m===cu?moi:m; });
+      // ngày nhập đã sửa tay (thống kê theo tháng, bước 1) đi theo mã đơn mới
+      if(F.ngayDon && F.ngayDon[cu]!=null){ F.ngayDon[moi]=F.ngayDon[cu]; delete F.ngayDon[cu]; }
       /* File từng bị app tự tách ".2"/".3" thì có bảng "trả về mã gốc" (_mdRen) — người dùng đã
          tự đặt tên thì bỏ dòng đó đi, kẻo lần Xử lý sau app trả ngược về tên cũ. */
       if(F._mdRen){ delete F._mdRen[cu]; if(!Object.keys(F._mdRen).length) F._mdRen=null; }
@@ -3223,6 +3306,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     }
     // bảng tổng hợp đơn đã nhập ở bước 2 (bọc riêng — hỏng thì cũng không chặn phần còn lại)
     try{ renderNhapDonReport(); }catch(e){ logErr('renderNhapDonReport', e); }
+    tkRenderNeuCan();                                  // bước 1 · thống kê theo tháng (đang ở bước khác thì hoãn)
     // chip cảnh báo / lỗi động trên toolbar — CHỈ đếm theo đơn/KH đang lọc
     if(typeof updateErrChips==='function') updateErrChips();
     // áp lại bộ lọc tìm kiếm sau khi render lại lưới
@@ -4250,6 +4334,320 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     logLine('Đã tải TongHopDonDaNhap.xlsx ('+rows.length+' đơn)');
   }
 
+
+  /* ===== BƯỚC 1 — THỐNG KÊ ĐƠN HÀNG THEO THÁNG (user chốt 24/10) =====
+     · Mốc tháng = NGÀY NHẬP ĐƠN VÀO APP: lần ▶ Xử lý gần nhất của file chứa đơn — đúng mốc cột
+       "Thời gian nhập" của Tổng hợp đơn (bước 2) đang dùng (donMoc). File chưa có giờ Xử lý thì
+       lấy giờ nạp file. Không có mốc nào → nhóm "Chưa rõ ngày".
+     · SỬA ĐƯỢC ngày từng đơn khi lệch: lưu ở F.ngayDon[mã đơn] của mọi file chứa đơn đó → đi theo
+       bản lưu như file, KHÔNG thêm khoá mới cho lớp đám mây. Đặt lại đúng ngày gốc = bỏ sửa.
+     · Hiện sẵn: số đơn · số hộp · số dây, theo khách hàng, theo xưởng. Nguyên liệu / độ dày / keo
+       chỉ tính + hiện khi bấm mở.
+     · Số hộp · số dây lấy THẲNG từ khopRows() + Line Cuốn (bước 5) — cùng bộ số với Tổng hợp đơn,
+       không tự tính lại theo công thức riêng.
+     · Chỉ vẽ khi đang đứng ở bước 1 (đang ở bước khác thì hoãn tới lúc quay về) → không làm chậm
+       các bước khác. */
+  var tkThang=null, tkChiSo='day', tkNLMo=false, tkNLNhom='nl', tkNLTim='', tkCho=false, tkVer=0, __tkC=null;
+  var TK_THANG_TEN=function(k){ if(k==='*') return 'Tất cả các tháng'; if(!k) return 'Chưa rõ ngày'; var p=k.split('-'); return 'Tháng '+(+p[1])+'/'+p[0]; };
+  var TK_THANG_NGAN=function(k){ var p=String(k).split('-'); return 'T'+(+p[1])+'/'+String(p[0]).slice(2); };
+  function tkSo(n){ n=Math.round(+n||0); try{ return n.toLocaleString('vi-VN'); }catch(e){ return String(n); } }
+  function tkNgayCua(ts){
+    if(!ts) return ''; var d=new Date(ts); if(isNaN(d.getTime())) return '';
+    var p=function(n){ return (n<10?'0':'')+n; };
+    return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+  }
+  function tkNgayHien(s){ if(!s) return '—'; var p=s.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
+  function tkCongThang(k, n){ var p=k.split('-'), y=+p[0], m=+p[1]-1+n; y+=Math.floor(m/12); m=((m%12)+12)%12; return y+'-'+(m<9?'0':'')+(m+1); }
+  // Ngày gốc (tự động) + ngày đã sửa tay của từng mã đơn
+  function tkMocDon(){
+    var M=donMoc(), them={}, sua={};
+    (state.files||[]).forEach(function(F){
+      if(!F) return;
+      var mds=(F.maDons&&F.maDons.length)?F.maDons:((F.data&&F.data.rawOrders)?F.data.rawOrders.map(function(o){return o.maDon;}):[]);
+      mds.forEach(function(m){
+        m=String(m||'').trim(); if(!m) return;
+        if(F.addedAt && (!them[m] || F.addedAt>them[m])) them[m]=F.addedAt;
+        var s=F.ngayDon && F.ngayDon[m]; if(s && /^\d{4}-\d{2}-\d{2}$/.test(s)) sua[m]=s;
+      });
+    });
+    return { goc:function(m){ return tkNgayCua(M.t[m]||them[m]||0); }, sua:sua };
+  }
+  // Gom số theo đơn — nhớ theo state.R + phiên bản ngày đã sửa, chỉ tính lại khi dữ liệu đổi
+  function tkDuLieu(){
+    var R=state.R;
+    var khoa=(state.files||[]).length+'|'+tkVer+'|'+((R&&R.orders)?R.orders.length:0);
+    if(__tkC && __tkC.R===R && __tkC.khoa===khoa) return __tkC;
+    var moc=tkMocDon(), don={}, ds=[];
+    khopRows().forEach(function(r){
+      var md=r.md, kk=khCuaMd(md), kr=(state.khData&&state.khData.kh&&state.khData.kh[kk])||null;
+      var goc=moc.goc(md), sua=moc.sua[md]||'';
+      var o={ md:md, kh:String((kr&&kr.maKH)||khOf(md)||kk||'—').replace(/^\(Không có mã KH\)\s*/i,'Không mã KH · '), khKhoa:kk||'—', nhan:(kr&&kr.brand)||'', don:donOf(md)||md,
+              hop:+r.khay||0, day:+r.app||0, single:0, mix:0, xuong:{},
+              ngayGoc:goc, ngay:(sua&&sua!==goc)?sua:goc, sua:!!(sua&&sua!==goc) };
+      o.thang=o.ngay?o.ngay.slice(0,7):'';
+      don[md]=o; ds.push(o);
+    });
+    ((R&&R.cuonSheet&&R.cuonSheet.rows)||[]).forEach(function(r){
+      if(r.type!=='row') return; var o=don[r.maDon]; if(!o) return;
+      var t=+r.tong||0;
+      if(/single/i.test(r.mixSingle||'')) o.single+=t; else o.mix+=t;
+      var x=String(r.xuongMa||'').toUpperCase()||'NĐ';
+      o.xuong[x]=(o.xuong[x]||0)+t;
+    });
+    var thang={};
+    ds.forEach(function(o){
+      var g=thang[o.thang]||(thang[o.thang]={k:o.thang, don:0, hop:0, day:0, single:0, mix:0, kh:{}});
+      g.don++; g.hop+=o.hop; g.day+=o.day; g.single+=o.single; g.mix+=o.mix; g.kh[o.khKhoa]=1;
+    });
+    var ks=Object.keys(thang).sort(function(a,b){ return a===''?1:b===''?-1:(a<b?1:a>b?-1:0); });   // mới nhất lên đầu
+    __tkC={R:R, khoa:khoa, don:don, ds:ds, thang:thang, ks:ks};
+    return __tkC;
+  }
+  function tkCuaThang(C, k){ return k==='*' ? C.ds : C.ds.filter(function(o){ return o.thang===k; }); }
+  function tkTong(ds){
+    var g={don:ds.length, hop:0, day:0, single:0, mix:0, kh:{}};
+    ds.forEach(function(o){ g.hop+=o.hop; g.day+=o.day; g.single+=o.single; g.mix+=o.mix; g.kh[o.khKhoa]=1; });
+    g.nkh=Object.keys(g.kh).length; return g;
+  }
+  function tkTheoKH(ds){
+    var m={}, out=[];
+    ds.forEach(function(o){
+      var g=m[o.khKhoa]; if(!g){ g=m[o.khKhoa]={kh:o.kh, nhan:o.nhan, don:0, hop:0, day:0}; out.push(g); }
+      g.don++; g.hop+=o.hop; g.day+=o.day; if(!g.nhan && o.nhan) g.nhan=o.nhan;
+    });
+    return out.sort(function(a,b){ return (b.day-a.day)||(b.hop-a.hop)||(a.kh<b.kh?-1:1); });
+  }
+  function tkTheoXuong(ds){
+    var m={}, out=[];
+    ds.forEach(function(o){ Object.keys(o.xuong).forEach(function(x){
+      var g=m[x]; if(!g){ g=m[x]={x:x, don:0, day:0}; out.push(g); }
+      g.don++; g.day+=o.xuong[x];
+    }); });
+    return out.sort(function(a,b){ return (a.x==='NĐ'?-1:b.x==='NĐ'?1:0) || (b.day-a.day); });   // xưởng nhà đứng đầu
+  }
+  // Nguyên liệu / độ dày / keo — CHỈ tính khi người dùng mở phần này
+  var TK_NHOM={ nl:['material'], day:['thickness'], keo:['keo'], nlkeo:['material','keo'] };   // tên NL đã kèm độ dày (vd "Faux Mink 0.15")
+  var TK_NHOM_TEN={ material:'Nguyên liệu', thickness:'Độ dày', keo:'Keo' };
+  function tkTheoNL(ds, nhom){
+    var R=state.R, co={}, m={}, out=[], cot=TK_NHOM[nhom]||TK_NHOM.nl;
+    ds.forEach(function(o){ co[o.md]=1; });
+    ((R&&R.cuonSheet&&R.cuonSheet.rows)||[]).forEach(function(r){
+      if(r.type!=='row' || !co[r.maDon]) return;
+      var gt=cot.map(function(c){ var v=String(r[c]==null?'':r[c]).trim(); return v || (c==='keo'?'(chưa gán keo)':'—'); });
+      var k=gt.join('\u0001'), g=m[k];
+      if(!g){ g=m[k]={gt:gt, md:{}, day:0, single:0, mix:0}; out.push(g); }
+      var t=+r.tong||0; g.day+=t; g.md[r.maDon]=1;
+      if(/single/i.test(r.mixSingle||'')) g.single+=t; else g.mix+=t;
+    });
+    out.forEach(function(g){ g.don=Object.keys(g.md).length; });
+    return { cot:cot, ds:out.sort(function(a,b){ return b.day-a.day; }) };
+  }
+  function tkPct(v, tong){
+    var p=tong?v/tong*100:0;
+    return '<div class="tk-pct"><i style="width:'+Math.max(2,Math.round(p*0.7))+'px"></i><span>'+(p>=10?Math.round(p):p.toFixed(1)).toString().replace('.',',')+'%</span></div>';
+  }
+  function tkLech(cur, truoc, k){
+    if(truoc==null) return '';
+    if(!truoc) return cur?'<span>mới so với '+TK_THANG_NGAN(k)+'</span>':'';
+    var p=Math.round((cur-truoc)/truoc*100);
+    return (p>0?'▲ ':p<0?'▼ ':'= ')+Math.abs(p)+'% so với '+TK_THANG_NGAN(k);
+  }
+  // Biểu đồ cột 12 tháng (một chuỗi số → không cần chú giải; tiêu đề nói rõ đang xem chỉ số nào)
+  function tkBieuDo(C){
+    var cac=C.ks.filter(function(k){ return k; });
+    if(!cac.length) return '';
+    var cuoi=cac[0], dau=tkCongThang(cuoi,-11);
+    if(tkThang && tkThang!=='*' && tkThang && tkThang<dau){ dau=tkThang; cuoi=tkCongThang(dau,11); }
+    var ks=[]; for(var k=dau; ks.length<12; k=tkCongThang(k,1)) ks.push(k);
+    var lay=function(k){ var g=C.thang[k]; return g?(tkChiSo==='hop'?g.hop:tkChiSo==='don'?g.don:g.day):0; };
+    var vs=ks.map(lay), max=Math.max.apply(null, vs.concat([1]));
+    var buoc=Math.pow(10, Math.floor(Math.log10(max))), nice=[1,2,2.5,5,10].map(function(x){ return x*buoc; }).filter(function(x){ return x*4>=max; })[0]||buoc*10;
+    var top=Math.ceil(max/nice)*nice||1;
+    var bd=document.getElementById('tk-body'), W=Math.max(300, Math.round(((bd&&bd.clientWidth)||760)-(bd&&bd.clientWidth<600?26:34))), hep=W<560, H=hep?170:210, L=hep?34:44, Rr=8, T=18, B=26, pw=W-L-Rr, ph=H-T-B, bw=pw/12, cw=Math.min(34, bw*0.62);
+    var y=function(v){ return T+ph-(v/top)*ph; };
+    var s='<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Biểu đồ '+esc(tkChiSo)+' theo tháng">';
+    for(var gi=0; gi<=top/nice+0.001; gi++){ var gv=gi*nice, gy=y(gv);
+      s+='<line class="grid" x1="'+L+'" x2="'+(W-Rr)+'" y1="'+gy+'" y2="'+gy+'"/>'+
+         '<text class="ax" x="'+(L-6)+'" y="'+(gy+3.5)+'" text-anchor="end">'+tkSoGon(gv)+'</text>'; }
+    ks.forEach(function(k,i){
+      var v=vs[i], x=L+i*bw+(bw-cw)/2, yy=y(v), h=T+ph-yy, on=(k===tkThang), r=Math.min(4,h);
+      var p=h>0?('M'+x+','+(T+ph)+'V'+(yy+r)+'Q'+x+','+yy+' '+(x+r)+','+yy+'H'+(x+cw-r)+'Q'+(x+cw)+','+yy+' '+(x+cw)+','+(yy+r)+'V'+(T+ph)+'Z'):'';
+      var g=C.thang[k]||{don:0,hop:0,day:0};
+      s+='<g class="bar'+(on?' on':'')+'" data-tkthang="'+k+'">'+'<title>'+esc(TK_THANG_TEN(k)+': '+tkSo(g.don)+' đơn · '+tkSo(g.hop)+' hộp · '+tkSo(g.day)+' dây')+'</title>'+
+         '<rect class="hit" x="'+(L+i*bw)+'" y="'+T+'" width="'+bw+'" height="'+(ph+B)+'"/>'+(p?'<path d="'+p+'"/>':'')+
+         (on&&v?'<text class="vl" x="'+(i===11?x+cw:i===0?x:x+cw/2)+'" y="'+(yy-5)+'" text-anchor="'+(i===11?'end':i===0?'start':'middle')+'">'+tkSo(v)+'</text>':'')+
+         '<text class="ax'+(on?' on':'')+'" x="'+(x+cw/2)+'" y="'+(H-8)+'" text-anchor="middle">'+(hep?'T'+(+k.slice(5)):TK_THANG_NGAN(k))+'</text></g>';
+    });
+    s+='</svg>';
+    var nut=function(v,t){ return '<button data-tkchiso="'+v+'" class="'+(tkChiSo===v?'on':'')+'">'+t+'</button>'; };
+    return '<div class="tk-chart"><div class="tk-chart-h"><b>'+(tkChiSo==='hop'?'Số hộp':tkChiSo==='don'?'Số đơn':'Số dây')+' theo tháng</b>'+
+      '<span class="mini">'+(hep?(dau.slice(5)==='01'?dau.slice(0,4):TK_THANG_NGAN(dau)+' → '+TK_THANG_NGAN(cuoi)):'12 tháng')+' · bấm cột để xem tháng đó</span><div class="spacer"></div>'+
+      '<div class="tk-seg">'+nut('day','Dây')+nut('hop','Hộp')+nut('don','Đơn')+'</div></div>'+s+'</div>';
+  }
+  function tkSoGon(v){ return v>=1e6?(Math.round(v/1e5)/10+'tr').replace('.',','):v>=1e3?(Math.round(v/100)/10+'k').replace('.',','):String(v); }
+  function tkBangKH(ds, tong){
+    var rs=tkTheoKH(ds);
+    return '<div><div class="tk-t">👥 Theo khách hàng <span class="mini">'+rs.length+' khách</span></div>'+
+      '<div class="tbl-wrap"><table class="sheet"><thead><tr><th>STT</th><th class="txt">Mã KH</th><th class="txt">Nhãn hiệu</th><th>Số đơn</th><th>Số hộp</th><th>Số dây</th><th class="txt">Tỉ lệ dây</th></tr></thead><tbody data-gs="1">'+
+      rs.map(function(g,i){ return '<tr><td>'+(i+1)+'</td><td class="txt"><b>'+esc(g.kh)+'</b></td><td class="txt">'+esc(g.nhan||'—')+'</td><td class="so">'+tkSo(g.don)+'</td><td class="so">'+tkSo(g.hop)+'</td><td class="so">'+tkSo(g.day)+'</td><td>'+tkPct(g.day,tong.day)+'</td></tr>'; }).join('')+
+      '<tr class="tk-sum"><td></td><td class="txt">TỔNG</td><td></td><td class="so">'+tkSo(tong.don)+'</td><td class="so">'+tkSo(tong.hop)+'</td><td class="so">'+tkSo(tong.day)+'</td><td></td></tr></tbody></table></div></div>';
+  }
+  function tkBangXuong(ds, tong){
+    var rs=tkTheoXuong(ds);
+    return '<div><div class="tk-t">🏭 Theo xưởng <span class="mini">số dây theo xưởng làm (bước 5)</span></div>'+
+      '<div class="tbl-wrap"><table class="sheet"><thead><tr><th>STT</th><th class="txt">Xưởng</th><th>Số đơn</th><th>Số dây</th><th class="txt">Tỉ lệ dây</th></tr></thead><tbody data-gs="1">'+
+      (rs.length?rs.map(function(g,i){ return '<tr><td>'+(i+1)+'</td><td class="txt"><b>'+esc(g.x)+'</b>'+(g.x==='NĐ'?' <span class="mini">xưởng nhà</span>':'')+'</td><td class="so">'+tkSo(g.don)+'</td><td class="so">'+tkSo(g.day)+'</td><td>'+tkPct(g.day,tong.day)+'</td></tr>'; }).join('')
+        :'<tr><td colspan="5" class="mini">Chưa có dây nào</td></tr>')+
+      '</tbody></table></div></div>';
+  }
+  function tkBangDon(ds){
+    var duoc=canUpload();
+    var rs=ds.slice().sort(function(a,b){ return (a.ngay<b.ngay?1:a.ngay>b.ngay?-1:0) || (a.md<b.md?-1:1); });
+    return '<div class="tk-t">🧾 Đơn trong tháng <span class="mini">'+rs.length+' đơn · '+(duoc?'ngày nhập sai thì sửa ngay ở cột Ngày nhập':'chỉ người có quyền nhập đơn mới sửa được ngày')+'</span></div>'+
+      '<div class="tbl-wrap"><table class="sheet"><thead><tr><th>STT</th><th class="txt">Ngày nhập</th><th class="txt">Mã KH</th><th class="txt">Mã Đơn</th><th>Số hộp</th><th>Số dây</th><th>Single</th><th>Mix</th><th class="txt">Xưởng</th></tr></thead><tbody data-gs="1">'+
+      rs.map(function(o,i){
+        var nx=Object.keys(o.xuong).join(' · ')||'—';
+        var oNgay=!duoc ? (esc(tkNgayHien(o.ngay))+(o.sua?' <span class="mini" title="Đã sửa tay · ngày gốc '+esc(tkNgayHien(o.ngayGoc))+'">✎</span>':'')) : '<input type="date" class="tk-ngay'+(o.sua?' sua':'')+'" data-tkmd="'+esc(o.md)+'" value="'+esc(o.ngay)+'"'+(duoc?'':' disabled')+
+          ' title="'+(o.sua?'Đã sửa tay · ngày gốc '+esc(tkNgayHien(o.ngayGoc)):'Ngày nhập đơn vào app')+'">'+
+          (o.sua&&duoc?'<button class="tk-ve" data-tkve="'+esc(o.md)+'" title="Trả về ngày gốc '+esc(tkNgayHien(o.ngayGoc))+'">↺</button>':'');
+        return '<tr><td>'+(i+1)+'</td><td class="txt">'+oNgay+'</td><td class="txt">'+esc(o.kh)+'</td><td class="txt"><b>'+esc(o.don)+'</b></td>'+
+          '<td class="so">'+tkSo(o.hop)+'</td><td class="so">'+tkSo(o.day)+'</td><td class="so">'+tkSo(o.single)+'</td><td class="so">'+tkSo(o.mix)+'</td><td class="txt">'+esc(nx)+'</td></tr>';
+      }).join('')+'</tbody></table></div>';
+  }
+  function tkBangNL(ds){
+    var kq=tkTheoNL(ds, tkNLNhom), q=rptKd(tkNLTim), tong=0;
+    var rs=kq.ds.filter(function(g){ return !q || rptKd(g.gt.join(' ')).indexOf(q)>=0; });
+    rs.forEach(function(g){ tong+=g.day; });
+    var opt=function(v,t){ return '<option value="'+v+'"'+(tkNLNhom===v?' selected':'')+'>'+t+'</option>'; };
+    return '<div class="tk-nl"><div class="tk-nl-tool"><b style="font-size:12.5px">🧵 Theo nguyên liệu / độ dày / keo</b>'+
+      '<select class="tk-sel" id="tk-nl-nhom">'+opt('nl','Nguyên liệu')+opt('day','Độ dày')+opt('keo','Keo')+opt('nlkeo','Nguyên liệu + keo')+'</select>'+
+      '<input id="tk-nl-tim" placeholder="Tìm nguyên liệu / keo…" value="'+esc(tkNLTim)+'" autocomplete="off"></div>'+
+      '<div class="tbl-wrap"><table class="sheet"><thead><tr><th>STT</th>'+kq.cot.map(function(c){ return '<th class="txt">'+TK_NHOM_TEN[c]+'</th>'; }).join('')+
+      '<th>Số đơn</th><th>Số dây</th><th>Single</th><th>Mix</th><th class="txt">Tỉ lệ dây</th></tr></thead><tbody data-gs="1">'+
+      (rs.length?rs.map(function(g,i){ return '<tr><td>'+(i+1)+'</td>'+g.gt.map(function(v){ return '<td class="txt">'+esc(v)+'</td>'; }).join('')+
+        '<td class="so">'+tkSo(g.don)+'</td><td class="so">'+tkSo(g.day)+'</td><td class="so">'+tkSo(g.single)+'</td><td class="so">'+tkSo(g.mix)+'</td><td>'+tkPct(g.day,tong)+'</td></tr>'; }).join('')+
+        '<tr class="tk-sum"><td></td><td class="txt" colspan="'+kq.cot.length+'">TỔNG</td><td></td><td class="so">'+tkSo(tong)+'</td><td></td><td></td><td></td></tr>'
+        :'<tr><td colspan="'+(kq.cot.length+6)+'" class="mini">Không có dòng khớp</td></tr>')+
+      '</tbody></table></div></div>';
+  }
+  function tkRender(){
+    var body=document.getElementById('tk-body'), sel=document.getElementById('tk-thang');
+    if(!body || !sel) return;
+    var s1=document.getElementById('s1');
+    if(s1 && !s1.classList.contains('active')){ tkCho=true; return; }   // đang ở bước khác → để dành
+    tkCho=false;
+    var C=tkDuLieu();
+    if(!C.ds.length){ sel.innerHTML='<option>—</option>'; body.innerHTML='<div class="tk-rong">Chưa có đơn nào — nạp file rồi bấm "▶ Xử lý" là có thống kê.</div>'; return; }
+    if(tkThang==null || (tkThang!=='*' && !C.thang[tkThang])) tkThang=C.ks[0];
+    sel.innerHTML=C.ks.map(function(k){ return '<option value="'+k+'"'+(k===tkThang?' selected':'')+'>'+esc(TK_THANG_TEN(k))+' · '+C.thang[k].don+' đơn</option>'; }).join('')+
+      '<option value="*"'+(tkThang==='*'?' selected':'')+'>'+TK_THANG_TEN('*')+' · '+C.ds.length+' đơn</option>';
+    var ds=tkCuaThang(C, tkThang), tong=tkTong(ds);
+    var truocK=(tkThang && tkThang!=='*')?tkCongThang(tkThang,-1):null, gT=truocK?(C.thang[truocK]||{don:0,hop:0,day:0,kh:{}}):null;
+    var kpi=function(l,v,s){ return '<div class="tk-k"><div class="l">'+l+'</div><div class="v">'+v+'</div><div class="s">'+(s||'&nbsp;')+'</div></div>'; };
+    body.innerHTML='<div class="tk-bao" id="tk-bao"></div>'+
+      '<div class="tk-kpi">'+
+        kpi('🧾 Số đơn', tkSo(tong.don), gT?tkLech(tong.don,gT.don,truocK):'')+
+        kpi('📦 Số hộp', tkSo(tong.hop), gT?tkLech(tong.hop,gT.hop,truocK):'')+
+        kpi('🧵 Số dây', tkSo(tong.day), 'Single <b>'+tkSo(tong.single)+'</b> · Mix <b>'+tkSo(tong.mix)+'</b>')+
+        kpi('👥 Khách hàng', tkSo(tong.nkh), gT?tkLech(tong.nkh,Object.keys(gT.kh).length,truocK):'')+
+      '</div>'+
+      tkBieuDo(C)+
+      '<div class="tk-2">'+tkBangKH(ds,tong)+tkBangXuong(ds,tong)+'</div>'+
+      tkBangDon(ds)+
+      '<div style="margin-top:12px"><button class="btn sm tk-nl-btn" id="tk-nl-btn">'+(tkNLMo?'▾ Ẩn':'▸ Xem')+' theo nguyên liệu / độ dày / keo</button></div>'+
+      (tkNLMo?tkBangNL(ds):'');
+    var tr=document.getElementById('tk-truoc'), sa=document.getElementById('tk-sau'), i=C.ks.indexOf(tkThang);
+    if(tr) tr.disabled=(tkThang==='*' || i>=C.ks.length-1);
+    if(sa) sa.disabled=(tkThang==='*' || i<=0);
+  }
+  function tkRenderNeuCan(){ try{ tkRender(); }catch(e){ logErr('tkRender', e); } }
+  window.__tkRender=function(){ if(tkCho) tkRenderNeuCan(); };
+  window.__tkDuLieu=function(){ return tkDuLieu(); };          // bộ kiểm thử đọc số
+  function tkBao(chu){
+    var b=document.getElementById('tk-bao'); if(!b) return;
+    b.innerHTML=chu; b.style.display='';
+    clearTimeout(tkBao._h); tkBao._h=setTimeout(function(){ var x=document.getElementById('tk-bao'); if(x) x.style.display='none'; }, 6000);
+  }
+  // Sửa ngày nhập của 1 đơn (rỗng / trùng ngày gốc = bỏ sửa)
+  function tkDatNgay(md, v){
+    if(!canUpload()) return;
+    v=String(v||'').trim(); if(v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+    var C=tkDuLieu(), o=C.don[md]; if(!o) return;
+    var cu=o.ngay, goc=o.ngayGoc, n=0;
+    (state.files||[]).forEach(function(F){
+      if(!F || (F.maDons||[]).indexOf(md)<0) return;
+      if(!v || v===goc){ if(F.ngayDon){ delete F.ngayDon[md]; if(!Object.keys(F.ngayDon).length) delete F.ngayDon; } }
+      else { F.ngayDon=F.ngayDon||{}; F.ngayDon[md]=v; }
+      n++;
+    });
+    if(!n) return;
+    var moi=(!v||v===goc)?goc:v;
+    tkVer++;
+    try{ logLine('Sửa ngày nhập đơn '+md+': '+tkNgayHien(cu)+' → '+tkNgayHien(moi)+(moi===goc?' (ngày gốc)':'')); }catch(e){ logErr('tkDatNgay.log', e); }
+    try{ if(window.__CLAUTOSAVE) window.__CLAUTOSAVE(); }catch(e){ logErr('tkDatNgay.luu', e); }
+    tkRenderNeuCan();
+    if(cu.slice(0,7)!==moi.slice(0,7)) tkBao('📅 Đơn <b>'+esc(md)+'</b> đã chuyển sang <b>'+esc(TK_THANG_TEN(moi.slice(0,7)))+'</b>. <a href="#" data-tkthang="'+moi.slice(0,7)+'">Xem tháng đó</a>');
+  }
+  function tkXuatExcel(){
+    if(needXLSX(tkXuatExcel)) return;
+    if(typeof XLSX==='undefined') return alert('Thiếu xlsx.full.min.js');
+    var C=tkDuLieu(); if(!C.ds.length) return alert('Chưa có đơn nào để thống kê.');
+    var ds=tkCuaThang(C, tkThang), tong=tkTong(ds), wb=XLSX.utils.book_new(), ten=TK_THANG_TEN(tkThang);
+    var ws=function(aoa, w, nm){ var s=XLSX.utils.aoa_to_sheet(aoa); s['!cols']=w.map(function(x){ return {wch:x}; }); XLSX.utils.book_append_sheet(wb, s, nm); };
+    ws([['Tháng','Số đơn','Số hộp','Số dây','Single','Mix','Số khách hàng']].concat(C.ks.map(function(k){ var g=C.thang[k]; return [TK_THANG_TEN(k), g.don, g.hop, g.day, g.single, g.mix, Object.keys(g.kh).length]; })),
+       [16,9,10,10,10,10,14], 'Theo thang');
+    ws([['Thống kê: '+ten],[],['Mã KH','Nhãn hiệu','Số đơn','Số hộp','Số dây','Tỉ lệ dây (%)']].concat(tkTheoKH(ds).map(function(g){ return [g.kh, g.nhan, g.don, g.hop, g.day, tong.day?Math.round(g.day/tong.day*1000)/10:0]; }))
+       .concat([['TỔNG','',tong.don,tong.hop,tong.day,'']]), [14,22,9,10,10,13], 'Theo KH');
+    ws([['Thống kê: '+ten],[],['Xưởng','Số đơn','Số dây','Tỉ lệ dây (%)']].concat(tkTheoXuong(ds).map(function(g){ return [g.x, g.don, g.day, tong.day?Math.round(g.day/tong.day*1000)/10:0]; })),
+       [10,9,10,13], 'Theo xuong');
+    ws([['Ngày nhập','Ngày gốc','Mã KH','Mã Đơn','Số hộp','Số dây','Single','Mix','Xưởng']].concat(ds.slice().sort(function(a,b){ return a.ngay<b.ngay?1:a.ngay>b.ngay?-1:0; }).map(function(o){
+       return [tkNgayHien(o.ngay), o.sua?tkNgayHien(o.ngayGoc):'', o.kh, o.don, o.hop, o.day, o.single, o.mix, Object.keys(o.xuong).join(' · ')]; })),
+       [12,12,12,14,9,9,9,9,12], 'Don');
+    var nl=tkTheoNL(ds,'nlkeo');
+    ws([['Thống kê: '+ten],[],['Nguyên liệu','Keo','Số đơn','Số dây','Single','Mix']].concat(nl.ds.map(function(g){ return g.gt.concat([g.don, g.day, g.single, g.mix]); })),
+       [26,22,9,10,10,10], 'NL - Keo');
+    var fn='ThongKe_'+(tkThang==='*'?'TatCa':(tkThang||'ChuaRoNgay'))+'.xlsx';
+    XLSX.writeFile(wb, tenXuat(fn));
+    logLine('Đã tải '+fn+' ('+ds.length+' đơn)');
+  }
+  (function(){
+    var card=document.getElementById('tk-card'); if(!card) return;
+    try{ if(localStorage.getItem('tk-gon')==='1') card.classList.add('gon'); }catch(e){ logErr('tk.gon.doc', e); }
+    var nutGon=function(){ var b=document.getElementById('tk-gon'); if(b) b.textContent=card.classList.contains('gon')?'▾ Mở':'▴ Thu gọn'; };
+    nutGon();
+    var chon=function(k){ tkThang=k; tkRenderNeuCan(); };
+    card.addEventListener('change', function(ev){
+      var t=ev.target; if(!t) return;
+      if(t.id==='tk-thang') return chon(t.value);
+      if(t.id==='tk-nl-nhom'){ tkNLNhom=t.value; return tkRenderNeuCan(); }
+      if(t.classList && t.classList.contains('tk-ngay')) return tkDatNgay(t.getAttribute('data-tkmd'), t.value);
+    });
+    var hen=0;
+    card.addEventListener('input', function(ev){
+      var t=ev.target; if(!t || t.id!=='tk-nl-tim') return;
+      tkNLTim=t.value; clearTimeout(hen);
+      hen=setTimeout(function(){ tkRenderNeuCan(); var x=document.getElementById('tk-nl-tim'); if(x){ x.focus(); try{ x.setSelectionRange(x.value.length, x.value.length); }catch(e){ logErr('tk.tim.contro', e); } } }, 200);
+    });
+    card.addEventListener('click', function(ev){
+      var t=ev.target; if(!t || !t.closest) return;
+      var b;
+      if(t.closest('#tk-gon')){ card.classList.toggle('gon'); nutGon(); try{ localStorage.setItem('tk-gon', card.classList.contains('gon')?'1':'0'); }catch(e){ logErr('tk.gon.ghi', e); } return; }
+      if(t.closest('#tk-dl')){ try{ tkXuatExcel(); }catch(e){ logErr('tkXuatExcel', e); } return; }
+      if(t.closest('#tk-nl-btn')){ tkNLMo=!tkNLMo; tkRenderNeuCan(); return; }
+      if((b=t.closest('[data-tkchiso]'))){ tkChiSo=b.getAttribute('data-tkchiso'); tkRenderNeuCan(); return; }
+      if((b=t.closest('[data-tkve]'))){ tkDatNgay(b.getAttribute('data-tkve'), ''); return; }
+      if((b=t.closest('[data-tkthang]'))){ ev.preventDefault(); chon(b.getAttribute('data-tkthang')); return; }
+      if(t.closest('#tk-truoc,#tk-sau')){
+        var C=tkDuLieu(), i=C.ks.indexOf(tkThang); if(i<0) return;
+        i+= t.closest('#tk-truoc') ? 1 : -1;                 // danh sách xếp mới → cũ
+        if(i>=0 && i<C.ks.length) chon(C.ks[i]);
+      }
+    });
+    // rê chuột lên cột biểu đồ → lời nhắc chuẩn của trình duyệt (<title>), không tự vẽ khung nổi
+    var henCo=0, rongCu=0;
+    window.addEventListener('resize', function(){ clearTimeout(henCo); henCo=setTimeout(function(){ var bd=document.getElementById('tk-body'), w=bd?bd.clientWidth:0; if(w && Math.abs(w-rongCu)>40){ rongCu=w; tkRenderNeuCan(); } }, 250); });
+  })();
+
   /* ===== DEBOUNCE cho ô TÌM KIẾM/LỌC =====
      Trước: mỗi ký tự gõ là quét lại TOÀN BỘ dòng × cột (843 dòng ≈ 27.000 phép so chuỗi/phím) → giật.
      Nay: gộp các phím gõ liên tiếp, chỉ lọc 1 lần sau khi ngừng gõ ~160ms.
@@ -4680,6 +5078,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     impUl.innerHTML = iHtml || '<li><span class="mini">'+(imported.length?'Không có file khớp mã đơn / tên file.':'Chưa có file đã xử lý. Bấm "▶ Xử lý".')+'</span></li>';
     setTxt('chosen-count', chosen.length);
     setTxt('imported-count', imported.length);
+    tkRenderNeuCan();                                  // thêm/xóa file → thống kê theo tháng đổi theo
   }
   // Xóa 1 file khỏi danh sách → dựng lại dữ liệu từ các file còn lại
   /* XÓA ĐƠN = XÓA SẠCH dữ liệu cũ của đơn đó (user chốt 19/10): bảng Mix Màu đã điền, ô đã kiểm,
@@ -15735,14 +16134,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1715590000"></script>
-<script src="cl.sync.js?v=1715590000"></script>
-<script src="auth.store.js?v=1715590000"></script>
-<script src="auth.web.js?v=1715590000"></script>
+<script src="cl.config.js?v=1715600000"></script>
+<script src="cl.sync.js?v=1715600000"></script>
+<script src="auth.store.js?v=1715600000"></script>
+<script src="auth.web.js?v=1715600000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1715590000"></script>
+<script src="cl.project.js?v=1715600000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1715590000" defer></script>
+<script src="firebase-bridge.js?v=1715600000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
