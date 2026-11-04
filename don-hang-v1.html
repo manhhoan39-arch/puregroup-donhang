@@ -715,7 +715,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715610000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715640000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -936,6 +936,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
       <button class="btn sm" id="btn-add-mixcol" style="color:var(--teal-600)" title="Thêm cột dải (chọn Mã Đơn trước). Xóa cột: bấm ✕ ngay trên cột đã thêm.">➕ Thêm cột</button>
       <div class="spacer"></div>
       <span class="badge fail" id="mix-err-chip" style="margin-right:6px;display:none;cursor:pointer" title="Bấm để nhảy tới từng ô lỗi trong bảng Mix">—</span>
+      <span class="badge warn" id="mix-warn-chip" style="margin-right:6px;display:none;cursor:pointer" title="Tiêu đề dải khác với số trong bảng (vd ghi 6-16mm mà số chỉ có 6-13mm) — bấm để xem">—</span>
       <button class="btn sm" id="btn-dl-mix">⬇ Xuất MixLabel.xlsx</button>
       <button class="btn primary sm" onclick="go('s5')">Sinh bảng Keo →</button>
     </div>
@@ -1509,6 +1510,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 .tk-nl{margin-top:12px;border-top:1px dashed var(--border-strong);padding-top:12px}
 .tk-nl-tool{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
 .tk-nl-tool input{height:28px;border:1px solid var(--border-strong);border-radius:7px;padding:0 8px;background:var(--surface);color:var(--text);min-width:180px}
+@media(max-width:700px){ .tk-nl-tool input{flex:1 1 140px;min-width:0} }
 .tk-bao{font-size:11.5px;color:var(--text-2);background:var(--accent-soft);border-radius:7px;padding:6px 10px;margin-bottom:10px;display:none}
 .tk-rong{padding:28px 10px;text-align:center;color:var(--text-3);font-size:12.5px}
 @media(max-width:960px){ .tk-2{grid-template-columns:1fr} }
@@ -1524,10 +1526,23 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
   .tk-card .tbl-wrap{max-height:300px}
   .tk-sel{flex:1;min-width:0}
 }
+/* Bảng Mix: tiêu đề dải lệch số trong bảng (cảnh báo vàng) */
+.sheet td.mix-rg-lech{background:var(--amber-50)!important;box-shadow:inset 0 0 0 2px var(--amber-500)}
+/* Thống kê: bấm dòng → xổ chi tiết */
+.tk-card tr.tk-row{cursor:pointer}
+.tk-card tr.tk-row:hover td{background:var(--accent-soft)}
+.tk-card tr.tk-mo td{background:var(--accent-soft);font-weight:700}
+.tk-caret{color:var(--accent);font-size:10px}
+.tk-card tr.tk-ct>td{background:var(--surface-2);text-align:left;white-space:normal;padding:8px 10px 10px}
+.tk-ct-t{font-size:12px;font-weight:600;margin:0 0 6px}
+.tk-card table.tk-ct-bang{width:auto;min-width:55%;font-size:11px}
+.tk-card table.tk-ct-bang thead th{position:static;background:var(--surface-3)}
+.tk-k[data-tkdi]{cursor:pointer}
+.tk-k[data-tkdi]:hover{border-color:var(--blue-200);background:var(--accent-soft)}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1715610000"></script>
+<script src="engine.web.js?v=1715640000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -3344,7 +3359,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var ml = document.getElementById('eng-mixlabel');
     if(ml){
       var MIX_MM_MIN = 4, MIX_MM_MAX = 20;
-      var mixErrTotal = 0;
+      var mixErrTotal = 0, mixWarnTotal = 0;
       var mixSheets = (state.mixSheets||[]);
       var canEditMix = canEditStep('s4');
       var maxN = 0; mixSheets.forEach(function(s){ maxN = Math.max(maxN, (s.ranges||RANGES).length); });
@@ -3388,6 +3403,12 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         /* SUPER ADMIN sửa được CẢ ô gốc (từ đơn) — user chốt 17/10, giống Bảng Nhập Đơn/Bảng Keo:
            bấm đúp mới mở ô, sửa xong mọi bước sau (Keo · Line Cuốn · Box…) tính lại ngay. */
         var saMix = canEditMix && vaiTroHienTai()==='super_admin';
+        /* TIÊU ĐỀ DẢI LỆCH SỐ TRONG BẢNG (user 4/11 · LS01-289S): tiêu đề ghi 6-16mm mà số Lines chỉ
+           nằm từ 6-13mm → cảnh báo VÀNG ngay trên tiêu đề cột. (Số nằm NGOÀI dải đã tô đỏ từng ô.)
+           Cột trống (chưa có số nào) thì không xét. */
+        var spanCot=function(i){ var lo=null, hi=null;
+          Object.keys(mixTbl).forEach(function(k){ var v=(mixTbl[k]||{})[colKey(i)]||0; if(!v) return; var m=+k; if(lo==null||m<lo) lo=m; if(hi==null||m>hi) hi=m; });
+          return lo==null ? null : {lo:lo, hi:hi}; };
         var defTds = '';
         for(var i=0;i<maxN;i++){
           var added = i<ranges.length && i>=origRC;
@@ -3409,7 +3430,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
           var ttBT = nhanBT ? ('Label Type '+nhanBT) : '';
           var ttRg = suaRg ? ((ttBT?ttBT+' · ':'')+'Bấm đúp để sửa tên dải') : ttBT;
           var meRg = suaRg ? ' contenteditable="true" data-mixrgmadon="'+esc(s.maDon)+'" data-mixrgcol="'+i+'"' : '';
-          defTds += '<td style="font-weight:700;color:var(--accent)'+(added?';background:rgba(0,207,200,.08)':'')+'"'+(ttRg?' title="'+esc(ttRg)+'"':'')+meRg+'>'+dLbl+'</td>';
+          var lech='';
+          if(i<ranges.length){ var prH=E.parseRange(ranges[i]), sp=spanCot(i);
+            if(prH && sp && (sp.lo!==prH.lo || sp.hi!==prH.hi)){ mixWarnTotal++; lech=(sp.lo===sp.hi ? sp.lo : sp.lo+'-'+sp.hi)+'mm'; } }
+          if(lech){
+            dLbl += '<br'+chiXem+'><span class="mini mix-rg-lechchu"'+chiXem+' style="font-weight:800;color:var(--amber-600)">⚠ số trong bảng: '+esc(lech)+'</span>';
+            ttRg = 'Tiêu đề ghi '+String(ranges[i]).replace(/#\d+$/,'')+' nhưng số Lines trong bảng chỉ có từ '+lech+' — kiểm tra lại với đơn khách'+(suaRg?' · Bấm đúp để sửa tên dải':'');
+          }
+          defTds += '<td class="'+(lech?'mix-rg-lech':'')+'" style="font-weight:700;color:var(--accent)'+(added?';background:rgba(0,207,200,.08)':'')+'"'+(ttRg?' title="'+esc(ttRg)+'"':'')+meRg+'>'+dLbl+'</td>';
         }
         mixRows += '<tr data-madon="'+esc(s.maDon)+'" data-makh="'+esc(khOf(s.maDon))+'"><td class="freeze" style="font-weight:800">'+esc(khOf(s.maDon))+'</td>'+
           '<td style="font-weight:800">'+esc(donOf(s.maDon))+'</td>'+
@@ -3451,13 +3479,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
         ml.innerHTML = '<div class="tbl-wrap"><table class="sheet prev-table" id="mix-table">'+
           '<thead id="mix-head">'+mixHead+'</thead><tbody id="eng-mix-body"></tbody></table></div>'+
           '<div class="ctx-hint">'+
-          (mixErrTotal?('<b id="mix-err-jump" style="color:var(--red-600);cursor:pointer;text-decoration:underline dotted" title="Bấm để nhảy tới từng ô lỗi (mm nằm ngoài dải của cột)">⚠ '+mixErrTotal+' lỗi bảng Mix — bấm để xem từng ô</b>'):'<b style="color:var(--green-600)">✓ bảng Mix hợp lệ</b>')+'</div>'+
+          (mixErrTotal?('<b id="mix-err-jump" style="color:var(--red-600);cursor:pointer;text-decoration:underline dotted" title="Bấm để nhảy tới từng ô lỗi (mm nằm ngoài dải của cột)">⚠ '+mixErrTotal+' lỗi bảng Mix — bấm để xem từng ô</b>'):(mixWarnTotal?'':'<b style="color:var(--green-600)">✓ bảng Mix hợp lệ</b>'))+
+          (mixWarnTotal?((mixErrTotal?' · ':'')+'<b id="mix-warn-jump" style="color:var(--amber-600);cursor:pointer;text-decoration:underline dotted" title="Bấm để nhảy tới từng tiêu đề dải lệch số trong bảng">⚠ '+mixWarnTotal+' tiêu đề dải lệch số trong bảng — bấm để xem</b>'):'')+'</div>'+
           colorTablesHtml + buildColorMixInputs();
         setRows('eng-mix-body', mixRows); applyTable('eng-mix-body');       // dựng dòng vào pool rồi chia trang
         if(typeof applyColorMixFilter==='function') applyColorMixFilter();  // áp lọc mã đơn cho Bảng Mix Màu
       }
       // số lỗi Mix LUÔN cập nhật (dùng cho cảnh báo + chặn sang bước sau) dù bảng chưa vẽ
-      if(typeof window!=='undefined') window.__afMixErrCount = mixErrTotal;
+      if(typeof window!=='undefined'){ window.__afMixErrCount = mixErrTotal; window.__afMixWarnCount = mixWarnTotal; }   // cảnh báo vàng KHÔNG chặn sang bước sau
     }
 
     // --- Bảng Cuốn·Box: header động theo 18 độ cong ---
@@ -4347,7 +4376,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
        không tự tính lại theo công thức riêng.
      · Chỉ vẽ khi đang đứng ở bước 1 (đang ở bước khác thì hoãn tới lúc quay về) → không làm chậm
        các bước khác. */
-  var tkThang=null, tkChiSo='day', tkNLMo=false, tkNLNhom='nl', tkNLTim='', tkCho=false, tkVer=0, __tkC=null;
+  var tkThang=null, tkChiSo='day', tkNLMo=false, tkNLNhom='nl', tkNLTim='', tkNLTimKeo='', tkCho=false, tkVer=0, __tkC=null;
+  var tkMo={};          // dòng đang XỔ chi tiết của từng bảng: {kh|xuong|nl|don: khoá}
   var TK_THANG_TEN=function(k){ if(k==='*') return 'Tất cả các tháng'; if(!k) return 'Chưa rõ ngày'; var p=k.split('-'); return 'Tháng '+(+p[1])+'/'+p[0]; };
   var TK_THANG_NGAN=function(k){ var p=String(k).split('-'); return 'T'+(+p[1])+'/'+String(p[0]).slice(2); };
   function tkSo(n){ n=Math.round(+n||0); try{ return n.toLocaleString('vi-VN'); }catch(e){ return String(n); } }
@@ -4382,7 +4412,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       var md=r.md, kk=khCuaMd(md), kr=(state.khData&&state.khData.kh&&state.khData.kh[kk])||null;
       var goc=moc.goc(md), sua=moc.sua[md]||'';
       var o={ md:md, kh:String((kr&&kr.maKH)||khOf(md)||kk||'—').replace(/^\(Không có mã KH\)\s*/i,'Không mã KH · '), khKhoa:kk||'—', nhan:(kr&&kr.brand)||'', don:donOf(md)||md,
-              hop:+r.khay||0, day:+r.app||0, single:0, mix:0, xuong:{},
+              hop:+r.khay||0, day:+r.app||0, single:0, mix:0, xuong:{}, xsm:{},
               ngayGoc:goc, ngay:(sua&&sua!==goc)?sua:goc, sua:!!(sua&&sua!==goc) };
       o.thang=o.ngay?o.ngay.slice(0,7):'';
       don[md]=o; ds.push(o);
@@ -4393,6 +4423,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(/single/i.test(r.mixSingle||'')) o.single+=t; else o.mix+=t;
       var x=String(r.xuongMa||'').toUpperCase()||'NĐ';
       o.xuong[x]=(o.xuong[x]||0)+t;
+      var xs=o.xsm[x]||(o.xsm[x]={s:0,m:0}); if(/single/i.test(r.mixSingle||'')) xs.s+=t; else xs.m+=t;
     });
     var thang={};
     ds.forEach(function(o){
@@ -4412,7 +4443,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function tkTheoKH(ds){
     var m={}, out=[];
     ds.forEach(function(o){
-      var g=m[o.khKhoa]; if(!g){ g=m[o.khKhoa]={kh:o.kh, nhan:o.nhan, don:0, hop:0, day:0}; out.push(g); }
+      var g=m[o.khKhoa]; if(!g){ g=m[o.khKhoa]={k:o.khKhoa, kh:o.kh, nhan:o.nhan, don:0, hop:0, day:0}; out.push(g); }
       g.don++; g.hop+=o.hop; g.day+=o.day; if(!g.nhan && o.nhan) g.nhan=o.nhan;
     });
     return out.sort(function(a,b){ return (b.day-a.day)||(b.hop-a.hop)||(a.kh<b.kh?-1:1); });
@@ -4437,9 +4468,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(r.type!=='row' || !co[r.maDon]) return;
       var gt=cot.map(function(c){ var v=String(r[c]==null?'':r[c]).trim(); return v || (c==='keo'?'(chưa gán keo)':'—'); });
       var k=gt.join('\u0001'), g=m[k];
-      if(!g){ g=m[k]={gt:gt, md:{}, day:0, single:0, mix:0}; out.push(g); }
-      var t=+r.tong||0; g.day+=t; g.md[r.maDon]=1;
-      if(/single/i.test(r.mixSingle||'')) g.single+=t; else g.mix+=t;
+      if(!g){ g=m[k]={k:k, gt:gt, md:{}, day:0, single:0, mix:0}; out.push(g); }
+      var t=+r.tong||0, sg=/single/i.test(r.mixSingle||''), dm=g.md[r.maDon]||(g.md[r.maDon]={day:0, single:0, mix:0});
+      g.day+=t; dm.day+=t;
+      if(sg){ g.single+=t; dm.single+=t; } else { g.mix+=t; dm.mix+=t; }
     });
     out.forEach(function(g){ g.don=Object.keys(g.md).length; });
     return { cot:cot, ds:out.sort(function(a,b){ return b.day-a.day; }) };
@@ -4486,48 +4518,137 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '<span class="mini">'+(hep?(dau.slice(5)==='01'?dau.slice(0,4):TK_THANG_NGAN(dau)+' → '+TK_THANG_NGAN(cuoi)):'12 tháng')+' · bấm cột để xem tháng đó</span><div class="spacer"></div>'+
       '<div class="tk-seg">'+nut('day','Dây')+nut('hop','Hộp')+nut('don','Đơn')+'</div></div>'+s+'</div>';
   }
+  /* ===== BẤM VÀO DÒNG → XỔ SỐ LIỆU CHI TIẾT ngay dưới dòng đó (user 4/11) =====
+     · Theo khách hàng / Theo xưởng / Theo nguyên liệu → danh sách ĐƠN làm nên con số đó
+       (xưởng, nguyên liệu: chỉ tính phần dây của đúng xưởng / nguyên liệu ấy)
+     · Đơn trong tháng → chi tiết đơn: từng Code sợi · Nguyên liệu · Keo · Xưởng · Số dây (Line Cuốn bước 5)
+     · Ô số liệu trên cùng (Số đơn · Số hộp · Số dây · Khách hàng) → đưa xuống đúng bảng chi tiết
+     Bấm lại đúng dòng đó thì đóng; mỗi bảng mở 1 dòng. Mở/đóng tại chỗ, không vẽ lại cả thẻ
+     (giữ nguyên chỗ đang cuộn trong bảng). */
+  function tkTrMo(loai, khoa, n){
+    var on=(tkMo[loai]===khoa);
+    return '<tr class="tk-row'+(on?' tk-mo':'')+'" data-tkct="'+loai+'" data-tkkhoa="'+esc(khoa)+'" title="Bấm để xem số liệu chi tiết">'+
+      '<td><span class="tk-caret">'+(on?'▾':'▸')+'</span> '+n+'</td>';
+  }
+  function tkDongCt(loai, khoa, nCot){
+    if(tkMo[loai]!==khoa) return '';
+    var h=''; try{ h=tkCtHtml(loai, khoa); }catch(e){ logErr('tkCtHtml', e); }
+    return '<tr class="tk-ct" data-tkctcua="'+loai+'"><td colspan="'+nCot+'">'+h+'</td></tr>';
+  }
+  function tkCtDs(items, tieuDe, coHop){
+    items=items.slice().sort(function(a,b){ return (b.day-a.day) || (a.o.md<b.o.md?-1:1); });
+    var t={hop:0, day:0, single:0, mix:0};
+    items.forEach(function(x){ t.hop+=x.o.hop; t.day+=x.day; t.single+=x.single; t.mix+=x.mix; });
+    return '<div class="tk-ct-t">'+tieuDe+' <span class="mini">'+items.length+' đơn</span></div>'+
+      '<table class="sheet tk-ct-bang"><thead><tr><th>#</th><th class="txt">Ngày nhập</th><th class="txt">Mã KH</th><th class="txt">Mã Đơn</th>'+(coHop?'<th>Số hộp</th>':'')+'<th>Số dây</th><th>Single</th><th>Mix</th></tr></thead><tbody>'+
+      items.map(function(x,i){ var o=x.o;
+        return '<tr><td>'+(i+1)+'</td><td class="txt">'+esc(tkNgayHien(o.ngay))+'</td><td class="txt">'+esc(o.kh)+'</td><td class="txt"><b>'+esc(o.don)+'</b></td>'+
+          (coHop?'<td class="so">'+tkSo(o.hop)+'</td>':'')+'<td class="so">'+tkSo(x.day)+'</td><td class="so">'+tkSo(x.single)+'</td><td class="so">'+tkSo(x.mix)+'</td></tr>'; }).join('')+
+      '<tr class="tk-sum"><td></td><td class="txt" colspan="3">TỔNG</td>'+(coHop?'<td class="so">'+tkSo(t.hop)+'</td>':'')+'<td class="so">'+tkSo(t.day)+'</td><td class="so">'+tkSo(t.single)+'</td><td class="so">'+tkSo(t.mix)+'</td></tr></tbody></table>';
+  }
+  function tkCtMa(md){
+    var C=tkDuLieu(), o=C.don[md], R=state.R, m={}, ds=[], t={day:0, single:0, mix:0};
+    ((R&&R.cuonSheet&&R.cuonSheet.rows)||[]).forEach(function(r){
+      if(r.type!=='row' || r.maDon!==md) return;
+      var keo=(r.keo&&String(r.keo).trim())||'(chưa gán keo)', x=String(r.xuongMa||'').toUpperCase()||'NĐ';
+      var k=[r.codeSoi||'', r.material||'', keo, x].join('\u0001'), g=m[k];
+      if(!g){ g=m[k]={code:r.codeSoi||'—', nl:r.material||'—', keo:keo, x:x, day:0, single:0, mix:0}; ds.push(g); }
+      var v=+r.tong||0; g.day+=v; t.day+=v;
+      if(/single/i.test(r.mixSingle||'')){ g.single+=v; t.single+=v; } else { g.mix+=v; t.mix+=v; }
+    });
+    ds.sort(function(a,b){ return String(a.code).localeCompare(String(b.code),'vi',{numeric:true}) || (b.day-a.day); });
+    return '<div class="tk-ct-t">Chi tiết đơn <b>'+esc(md)+'</b> <span class="mini">'+(o?('nhập '+esc(tkNgayHien(o.ngay))+' · '+tkSo(o.hop)+' hộp · '+tkSo(o.day)+' dây'):'')+' · theo Line Cuốn (bước 5)</span></div>'+
+      '<table class="sheet tk-ct-bang"><thead><tr><th>#</th><th class="txt">Code sợi</th><th class="txt">Nguyên liệu</th><th class="txt">Keo</th><th class="txt">Xưởng</th><th>Số dây</th><th>Single</th><th>Mix</th></tr></thead><tbody>'+
+      (ds.length?ds.map(function(g,i){ return '<tr><td>'+(i+1)+'</td><td class="txt">'+esc(g.code).replace(/\n/g,'<br>')+'</td><td class="txt">'+esc(g.nl).replace(/\n/g,'<br>')+'</td><td class="txt">'+esc(g.keo)+'</td><td class="txt">'+esc(g.x)+'</td>'+
+        '<td class="so">'+tkSo(g.day)+'</td><td class="so">'+tkSo(g.single)+'</td><td class="so">'+tkSo(g.mix)+'</td></tr>'; }).join('')+
+        '<tr class="tk-sum"><td></td><td class="txt" colspan="4">TỔNG</td><td class="so">'+tkSo(t.day)+'</td><td class="so">'+tkSo(t.single)+'</td><td class="so">'+tkSo(t.mix)+'</td></tr>'
+        :'<tr><td colspan="8" class="mini">Đơn này chưa có dây nào ở Line Cuốn</td></tr>')+'</tbody></table>';
+  }
+  function tkCtHtml(loai, khoa){
+    var C=tkDuLieu(), ds=tkCuaThang(C, tkThang);
+    if(loai==='don') return tkCtMa(khoa);
+    if(loai==='kh'){
+      var dk=ds.filter(function(o){ return o.khKhoa===khoa; });
+      return tkCtDs(dk.map(function(o){ return {o:o, day:o.day, single:o.single, mix:o.mix}; }), 'Các đơn của khách <b>'+esc((dk[0]&&dk[0].kh)||khoa)+'</b>', true);
+    }
+    if(loai==='xuong'){
+      return tkCtDs(ds.filter(function(o){ return o.xuong[khoa]; }).map(function(o){ var sm=o.xsm[khoa]||{s:0,m:0}; return {o:o, day:o.xuong[khoa], single:sm.s, mix:sm.m}; }),
+        'Các đơn có dây làm ở xưởng <b>'+esc(khoa)+'</b> <span class="mini">(chỉ tính dây của xưởng này)</span>', false);
+    }
+    if(loai==='nl'){
+      var kq=tkTheoNL(ds, tkNLNhom), g=kq.ds.filter(function(x){ return x.k===khoa; })[0]; if(!g) return '<span class="mini">Không còn dòng này.</span>';
+      return tkCtDs(Object.keys(g.md).filter(function(md){ return C.don[md]; }).map(function(md){ var v=g.md[md]; return {o:C.don[md], day:v.day, single:v.single, mix:v.mix}; }),
+        'Các đơn dùng <b>'+g.gt.map(function(v){ return esc(v).replace(/\n/g,' '); }).join(' · ')+'</b> <span class="mini">(chỉ tính dây của dòng này)</span>', false);
+    }
+    return '';
+  }
+  // mở/đóng tại chỗ
+  function tkBatCt(tr){
+    var loai=tr.getAttribute('data-tkct'), khoa=tr.getAttribute('data-tkkhoa'), tb=tr.parentNode; if(!tb) return;
+    var dong=(tkMo[loai]===khoa);
+    Array.prototype.forEach.call(tb.querySelectorAll('tr.tk-ct[data-tkctcua="'+loai+'"]'), function(x){ x.parentNode.removeChild(x); });
+    Array.prototype.forEach.call(tb.querySelectorAll('tr.tk-mo[data-tkct="'+loai+'"]'), function(x){ x.classList.remove('tk-mo'); var c=x.querySelector('.tk-caret'); if(c) c.textContent='▸'; });
+    if(dong){ tkMo[loai]=null; return; }
+    tkMo[loai]=khoa;
+    tr.classList.add('tk-mo'); var c=tr.querySelector('.tk-caret'); if(c) c.textContent='▾';
+    var tmp=document.createElement('tbody'); tmp.innerHTML=tkDongCt(loai, khoa, tr.cells.length);
+    if(tmp.firstChild) tb.insertBefore(tmp.firstChild, tr.nextSibling);
+  }
   function tkSoGon(v){ return v>=1e6?(Math.round(v/1e5)/10+'tr').replace('.',','):v>=1e3?(Math.round(v/100)/10+'k').replace('.',','):String(v); }
   function tkBangKH(ds, tong){
     var rs=tkTheoKH(ds);
-    return '<div><div class="tk-t">👥 Theo khách hàng <span class="mini">'+rs.length+' khách</span></div>'+
+    return '<div><div class="tk-t" id="tk-kh-t">👥 Theo khách hàng <span class="mini">'+rs.length+' khách · bấm 1 dòng để xem từng đơn</span></div>'+
       '<div class="tbl-wrap"><table class="sheet"><thead><tr><th>STT</th><th class="txt">Mã KH</th><th class="txt">Nhãn hiệu</th><th>Số đơn</th><th>Số hộp</th><th>Số dây</th><th class="txt">Tỉ lệ dây</th></tr></thead><tbody data-gs="1">'+
-      rs.map(function(g,i){ return '<tr><td>'+(i+1)+'</td><td class="txt"><b>'+esc(g.kh)+'</b></td><td class="txt">'+esc(g.nhan||'—')+'</td><td class="so">'+tkSo(g.don)+'</td><td class="so">'+tkSo(g.hop)+'</td><td class="so">'+tkSo(g.day)+'</td><td>'+tkPct(g.day,tong.day)+'</td></tr>'; }).join('')+
+      rs.map(function(g,i){ return tkTrMo('kh', g.k, i+1)+'<td class="txt"><b>'+esc(g.kh)+'</b></td><td class="txt">'+esc(g.nhan||'—')+'</td><td class="so">'+tkSo(g.don)+'</td><td class="so">'+tkSo(g.hop)+'</td><td class="so">'+tkSo(g.day)+'</td><td>'+tkPct(g.day,tong.day)+'</td></tr>'+tkDongCt('kh', g.k, 7); }).join('')+
       '<tr class="tk-sum"><td></td><td class="txt">TỔNG</td><td></td><td class="so">'+tkSo(tong.don)+'</td><td class="so">'+tkSo(tong.hop)+'</td><td class="so">'+tkSo(tong.day)+'</td><td></td></tr></tbody></table></div></div>';
   }
   function tkBangXuong(ds, tong){
     var rs=tkTheoXuong(ds);
-    return '<div><div class="tk-t">🏭 Theo xưởng <span class="mini">số dây theo xưởng làm (bước 5)</span></div>'+
+    return '<div><div class="tk-t">🏭 Theo xưởng <span class="mini">số dây theo xưởng làm (bước 5) · bấm 1 dòng để xem từng đơn</span></div>'+
       '<div class="tbl-wrap"><table class="sheet"><thead><tr><th>STT</th><th class="txt">Xưởng</th><th>Số đơn</th><th>Số dây</th><th class="txt">Tỉ lệ dây</th></tr></thead><tbody data-gs="1">'+
-      (rs.length?rs.map(function(g,i){ return '<tr><td>'+(i+1)+'</td><td class="txt"><b>'+esc(g.x)+'</b>'+(g.x==='NĐ'?' <span class="mini">xưởng nhà</span>':'')+'</td><td class="so">'+tkSo(g.don)+'</td><td class="so">'+tkSo(g.day)+'</td><td>'+tkPct(g.day,tong.day)+'</td></tr>'; }).join('')
+      (rs.length?rs.map(function(g,i){ return tkTrMo('xuong', g.x, i+1)+'<td class="txt"><b>'+esc(g.x)+'</b>'+(g.x==='NĐ'?' <span class="mini">xưởng nhà</span>':'')+'</td><td class="so">'+tkSo(g.don)+'</td><td class="so">'+tkSo(g.day)+'</td><td>'+tkPct(g.day,tong.day)+'</td></tr>'+tkDongCt('xuong', g.x, 5); }).join('')
         :'<tr><td colspan="5" class="mini">Chưa có dây nào</td></tr>')+
       '</tbody></table></div></div>';
   }
   function tkBangDon(ds){
     var duoc=canUpload();
     var rs=ds.slice().sort(function(a,b){ return (a.ngay<b.ngay?1:a.ngay>b.ngay?-1:0) || (a.md<b.md?-1:1); });
-    return '<div class="tk-t">🧾 Đơn trong tháng <span class="mini">'+rs.length+' đơn · '+(duoc?'ngày nhập sai thì sửa ngay ở cột Ngày nhập':'chỉ người có quyền nhập đơn mới sửa được ngày')+'</span></div>'+
+    return '<div class="tk-t" id="tk-don-t">🧾 Đơn trong tháng <span class="mini">'+rs.length+' đơn · bấm 1 dòng để xem code sợi · keo của đơn · '+(duoc?'ngày nhập sai thì sửa ngay ở cột Ngày nhập':'chỉ người có quyền nhập đơn mới sửa được ngày')+'</span></div>'+
       '<div class="tbl-wrap"><table class="sheet"><thead><tr><th>STT</th><th class="txt">Ngày nhập</th><th class="txt">Mã KH</th><th class="txt">Mã Đơn</th><th>Số hộp</th><th>Số dây</th><th>Single</th><th>Mix</th><th class="txt">Xưởng</th></tr></thead><tbody data-gs="1">'+
       rs.map(function(o,i){
         var nx=Object.keys(o.xuong).join(' · ')||'—';
         var oNgay=!duoc ? (esc(tkNgayHien(o.ngay))+(o.sua?' <span class="mini" title="Đã sửa tay · ngày gốc '+esc(tkNgayHien(o.ngayGoc))+'">✎</span>':'')) : '<input type="date" class="tk-ngay'+(o.sua?' sua':'')+'" data-tkmd="'+esc(o.md)+'" value="'+esc(o.ngay)+'"'+(duoc?'':' disabled')+
           ' title="'+(o.sua?'Đã sửa tay · ngày gốc '+esc(tkNgayHien(o.ngayGoc)):'Ngày nhập đơn vào app')+'">'+
           (o.sua&&duoc?'<button class="tk-ve" data-tkve="'+esc(o.md)+'" title="Trả về ngày gốc '+esc(tkNgayHien(o.ngayGoc))+'">↺</button>':'');
-        return '<tr><td>'+(i+1)+'</td><td class="txt">'+oNgay+'</td><td class="txt">'+esc(o.kh)+'</td><td class="txt"><b>'+esc(o.don)+'</b></td>'+
-          '<td class="so">'+tkSo(o.hop)+'</td><td class="so">'+tkSo(o.day)+'</td><td class="so">'+tkSo(o.single)+'</td><td class="so">'+tkSo(o.mix)+'</td><td class="txt">'+esc(nx)+'</td></tr>';
+        return tkTrMo('don', o.md, i+1)+'<td class="txt">'+oNgay+'</td><td class="txt">'+esc(o.kh)+'</td><td class="txt"><b>'+esc(o.don)+'</b></td>'+
+          '<td class="so">'+tkSo(o.hop)+'</td><td class="so">'+tkSo(o.day)+'</td><td class="so">'+tkSo(o.single)+'</td><td class="so">'+tkSo(o.mix)+'</td><td class="txt">'+esc(nx)+'</td></tr>'+tkDongCt('don', o.md, 9);
       }).join('')+'</tbody></table></div>';
   }
   function tkBangNL(ds){
-    var kq=tkTheoNL(ds, tkNLNhom), q=rptKd(tkNLTim), tong=0;
-    var rs=kq.ds.filter(function(g){ return !q || rptKd(g.gt.join(' ')).indexOf(q)>=0; });
+    /* "Nguyên liệu + keo" có HAI ô tìm riêng (user 4/11): ô 1 tìm theo code sợi / nguyên liệu, ô 2 tìm theo
+       keo — gõ cả hai thì lọc dòng khớp CẢ HAI (vd 30.MK.BC.7 + Vang80.2). Các kiểu xem khác giữ 1 ô. */
+    var kq=tkTheoNL(ds, tkNLNhom), q=rptKd(tkNLTim), hai=(tkNLNhom==='nlkeo'), qk=hai?rptKd(tkNLTimKeo):'', tong=0;
+    var rs=kq.ds.filter(function(g){
+      if(hai){
+        if(q && rptKd(g.gt[0]+' '+g.gt[1]).indexOf(q)<0) return false;
+        if(qk && rptKd(g.gt[2]).indexOf(qk)<0) return false;
+        return true;
+      }
+      return !q || rptKd(g.gt.join(' ')).indexOf(q)>=0;
+    });
     rs.forEach(function(g){ tong+=g.day; });
     var opt=function(v,t){ return '<option value="'+v+'"'+(tkNLNhom===v?' selected':'')+'>'+t+'</option>'; };
     return '<div class="tk-nl"><div class="tk-nl-tool"><b style="font-size:12.5px">🧵 Theo nguyên liệu / độ dày / keo</b>'+
       '<select class="tk-sel" id="tk-nl-nhom">'+opt('nl','Nguyên liệu')+opt('day','Độ dày')+opt('keo','Keo')+opt('nlkeo','Nguyên liệu + keo')+'</select>'+
-      '<input id="tk-nl-tim" placeholder="Tìm nguyên liệu / keo…" value="'+esc(tkNLTim)+'" autocomplete="off"></div>'+
+      (hai
+        ? '<input id="tk-nl-tim" placeholder="Nguyên liệu / code sợi…" title="Tìm theo code sợi hoặc tên nguyên liệu" value="'+esc(tkNLTim)+'" autocomplete="off">'+
+          '<input id="tk-nl-timkeo" placeholder="Keo…" title="Tìm theo keo" value="'+esc(tkNLTimKeo)+'" autocomplete="off">'
+        : '<input id="tk-nl-tim" placeholder="'+(tkNLNhom==='keo'?'Tìm keo…':tkNLNhom==='day'?'Tìm độ dày…':'Tìm nguyên liệu / code sợi…')+'" value="'+esc(tkNLTim)+'" autocomplete="off">')+
+      ((q||qk)?'<span class="mini">'+rs.length+'/'+kq.ds.length+' dòng khớp</span>':'')+'</div>'+
       '<div class="tbl-wrap"><table class="sheet"><thead><tr><th>STT</th>'+kq.cot.map(function(c){ return '<th class="txt">'+TK_NHOM_TEN[c]+'</th>'; }).join('')+
       '<th>Số đơn</th><th>Số dây</th><th>Single</th><th>Mix</th><th class="txt">Tỉ lệ dây</th></tr></thead><tbody data-gs="1">'+
-      (rs.length?rs.map(function(g,i){ return '<tr><td>'+(i+1)+'</td>'+g.gt.map(function(v){ return '<td class="txt">'+esc(v).replace(/\n/g,'<br>')+'</td>'; }).join('')+
-        '<td class="so">'+tkSo(g.don)+'</td><td class="so">'+tkSo(g.day)+'</td><td class="so">'+tkSo(g.single)+'</td><td class="so">'+tkSo(g.mix)+'</td><td>'+tkPct(g.day,tong)+'</td></tr>'; }).join('')+
+      (rs.length?rs.map(function(g,i){ return tkTrMo('nl', g.k, i+1)+g.gt.map(function(v){ return '<td class="txt">'+esc(v).replace(/\n/g,'<br>')+'</td>'; }).join('')+
+        '<td class="so">'+tkSo(g.don)+'</td><td class="so">'+tkSo(g.day)+'</td><td class="so">'+tkSo(g.single)+'</td><td class="so">'+tkSo(g.mix)+'</td><td>'+tkPct(g.day,tong)+'</td></tr>'+tkDongCt('nl', g.k, kq.cot.length+6); }).join('')+
         '<tr class="tk-sum"><td></td><td class="txt" colspan="'+kq.cot.length+'">TỔNG</td><td></td><td class="so">'+tkSo(tong)+'</td><td></td><td></td><td></td></tr>'
         :'<tr><td colspan="'+(kq.cot.length+6)+'" class="mini">Không có dòng khớp</td></tr>')+
       '</tbody></table></div></div>';
@@ -4545,13 +4666,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       '<option value="*"'+(tkThang==='*'?' selected':'')+'>'+TK_THANG_TEN('*')+' · '+C.ds.length+' đơn</option>';
     var ds=tkCuaThang(C, tkThang), tong=tkTong(ds);
     var truocK=(tkThang && tkThang!=='*')?tkCongThang(tkThang,-1):null, gT=truocK?(C.thang[truocK]||{don:0,hop:0,day:0,kh:{}}):null;
-    var kpi=function(l,v,s){ return '<div class="tk-k"><div class="l">'+l+'</div><div class="v">'+v+'</div><div class="s">'+(s||'&nbsp;')+'</div></div>'; };
+    var kpi=function(l,v,s,di,tt){ return '<div class="tk-k" data-tkdi="'+di+'" title="'+tt+'"><div class="l">'+l+'</div><div class="v">'+v+'</div><div class="s">'+(s||'&nbsp;')+'</div></div>'; };
     body.innerHTML='<div class="tk-bao" id="tk-bao"></div>'+
       '<div class="tk-kpi">'+
-        kpi('🧾 Số đơn', tkSo(tong.don), gT?tkLech(tong.don,gT.don,truocK):'')+
-        kpi('📦 Số hộp', tkSo(tong.hop), gT?tkLech(tong.hop,gT.hop,truocK):'')+
-        kpi('🧵 Số dây', tkSo(tong.day), 'Single <b>'+tkSo(tong.single)+'</b> · Mix <b>'+tkSo(tong.mix)+'</b>')+
-        kpi('👥 Khách hàng', tkSo(tong.nkh), gT?tkLech(tong.nkh,Object.keys(gT.kh).length,truocK):'')+
+        kpi('🧾 Số đơn', tkSo(tong.don), gT?tkLech(tong.don,gT.don,truocK):'', 'don', 'Bấm để xem từng đơn')+
+        kpi('📦 Số hộp', tkSo(tong.hop), gT?tkLech(tong.hop,gT.hop,truocK):'', 'don', 'Bấm để xem số hộp từng đơn')+
+        kpi('🧵 Số dây', tkSo(tong.day), 'Single <b>'+tkSo(tong.single)+'</b> · Mix <b>'+tkSo(tong.mix)+'</b>', 'nl', 'Bấm để xem số dây theo nguyên liệu / code sợi')+
+        kpi('👥 Khách hàng', tkSo(tong.nkh), gT?tkLech(tong.nkh,Object.keys(gT.kh).length,truocK):'', 'kh', 'Bấm để xem từng khách')+
       '</div>'+
       tkBieuDo(C)+
       '<div class="tk-2">'+tkBangKH(ds,tong)+tkBangXuong(ds,tong)+'</div>'+
@@ -4617,18 +4738,19 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     try{ if(localStorage.getItem('tk-gon')==='1') card.classList.add('gon'); }catch(e){ logErr('tk.gon.doc', e); }
     var nutGon=function(){ var b=document.getElementById('tk-gon'); if(b) b.textContent=card.classList.contains('gon')?'▾ Mở':'▴ Thu gọn'; };
     nutGon();
-    var chon=function(k){ tkThang=k; tkRenderNeuCan(); };
+    var chon=function(k){ tkThang=k; tkMo={}; tkRenderNeuCan(); };
     card.addEventListener('change', function(ev){
       var t=ev.target; if(!t) return;
       if(t.id==='tk-thang') return chon(t.value);
-      if(t.id==='tk-nl-nhom'){ tkNLNhom=t.value; return tkRenderNeuCan(); }
+      if(t.id==='tk-nl-nhom'){ tkNLNhom=t.value; tkMo.nl=null; return tkRenderNeuCan(); }
       if(t.classList && t.classList.contains('tk-ngay')) return tkDatNgay(t.getAttribute('data-tkmd'), t.value);
     });
     var hen=0;
     card.addEventListener('input', function(ev){
-      var t=ev.target; if(!t || t.id!=='tk-nl-tim') return;
-      tkNLTim=t.value; clearTimeout(hen);
-      hen=setTimeout(function(){ tkRenderNeuCan(); var x=document.getElementById('tk-nl-tim'); if(x){ x.focus(); try{ x.setSelectionRange(x.value.length, x.value.length); }catch(e){ logErr('tk.tim.contro', e); } } }, 200);
+      var t=ev.target; if(!t || (t.id!=='tk-nl-tim' && t.id!=='tk-nl-timkeo')) return;
+      if(t.id==='tk-nl-timkeo') tkNLTimKeo=t.value; else tkNLTim=t.value;
+      clearTimeout(hen); var oId=t.id;
+      hen=setTimeout(function(){ tkMo.nl=null; tkRenderNeuCan(); var x=document.getElementById(oId); if(x){ x.focus(); try{ x.setSelectionRange(x.value.length, x.value.length); }catch(e){ logErr('tk.tim.contro', e); } } }, 200);
     });
     card.addEventListener('click', function(ev){
       var t=ev.target; if(!t || !t.closest) return;
@@ -4637,6 +4759,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(t.closest('#tk-dl')){ try{ tkXuatExcel(); }catch(e){ logErr('tkXuatExcel', e); } return; }
       if(t.closest('#tk-nl-btn')){ tkNLMo=!tkNLMo; tkRenderNeuCan(); return; }
       if((b=t.closest('[data-tkchiso]'))){ tkChiSo=b.getAttribute('data-tkchiso'); tkRenderNeuCan(); return; }
+      if((b=t.closest('tr[data-tkct]')) && !t.closest('input,button,select,a')){ try{ tkBatCt(b); }catch(e){ logErr('tkBatCt', e); } return; }
+      if((b=t.closest('[data-tkdi]'))){
+        var di=b.getAttribute('data-tkdi');
+        if(di==='nl' && !tkNLMo){ tkNLMo=true; tkRenderNeuCan(); }
+        var dich=document.getElementById(di==='nl'?'tk-nl-btn':di==='kh'?'tk-kh-t':'tk-don-t');
+        if(dich && dich.scrollIntoView) dich.scrollIntoView({block:'start', behavior:'smooth'});
+        return;
+      }
       if((b=t.closest('[data-tkve]'))){ tkDatNgay(b.getAttribute('data-tkve'), ''); return; }
       if((b=t.closest('[data-tkthang]'))){ ev.preventDefault(); chon(b.getAttribute('data-tkthang')); return; }
       if(t.closest('#tk-truoc,#tk-sau')){
@@ -7130,17 +7260,19 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      4-7mm). Trước đây chỉ hiện con số, bấm không đi đâu. Nay bấm lần lượt qua từng ô: lần 1
      ô thứ nhất, lần 2 ô thứ hai… hết thì quay lại đầu. */
   var __mixErrI=0;
-  function mixErrCells(){
+  function mixErrCells(chon){
     var ds=[];
     try{
       Array.prototype.forEach.call(poolRows('eng-mix-body'), function(tr){
         if(tr.getAttribute && tr.getAttribute('data-noflt')) return;
-        Array.prototype.forEach.call(tr.querySelectorAll('td.err'), function(td){ ds.push({tr:tr, td:td}); });
+        Array.prototype.forEach.call(tr.querySelectorAll(chon||'td.err'), function(td){ ds.push({tr:tr, td:td}); });
       });
     }catch(e){ logErr('mixErrCells', e); }
     return ds;
   }
-  function jumpToMixErr(){
+  var __mixWarnI=0;
+  function jumpToMixErr(canhBao){
+    var chon=canhBao?'td.mix-rg-lech':'td.err', ten=canhBao?'Tiêu đề lệch':'Ô lỗi';
     if(typeof go==='function') go('s4');          // s4 = Bảng Mix Label (số 3 trên thanh bên)
     /* Bảng Mix có bộ lọc riêng (mã đơn · mã KH · ô tìm · lọc cột ▼) — đang lọc đơn khác thì
        ô lỗi bị ẩn, bấm xong chẳng thấy gì. Xoá sạch trước khi nhảy (giống nhảy ở Bảng Keo). */
@@ -7152,11 +7284,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     }catch(e){ logErr('jumpToMixErr.loc', e); }
     var tries=0;
     (function tim(){
-      var ds=mixErrCells();
+      var ds=mixErrCells(chon);
       // bảng chỉ vẽ khi ĐANG XEM bước Mix Label → chờ vài nhịp cho nó dựng xong
-      if(!ds.length){ if(++tries<12) return setTimeout(tim, 60); gsMsg('Bảng Mix không còn ô lỗi nào.'); return; }
-      if(__mixErrI>=ds.length) __mixErrI=0;
-      var idx=__mixErrI, o=ds[idx]; __mixErrI=(idx+1)%ds.length;
+      if(!ds.length){ if(++tries<12) return setTimeout(tim, 60); gsMsg(canhBao?'Bảng Mix không còn tiêu đề dải nào lệch.':'Bảng Mix không còn ô lỗi nào.'); return; }
+      var idx;
+      if(canhBao){ if(__mixWarnI>=ds.length) __mixWarnI=0; idx=__mixWarnI; __mixWarnI=(idx+1)%ds.length; }
+      else { if(__mixErrI>=ds.length) __mixErrI=0; idx=__mixErrI; __mixErrI=(idx+1)%ds.length; }
+      var o=ds[idx];
       try{ pgToiDong('eng-mix-body', o.tr); }catch(e){ logErr('jumpToMixErr.trang', e); }   // ô ở trang khác → lật trang
       var tr=o.tr, td=o.td;
       if(tr.scrollIntoView) tr.scrollIntoView({block:'center', behavior:'smooth'});
@@ -7165,15 +7299,15 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(td.scrollIntoView) td.scrollIntoView({block:'center', inline:'center'});
       if(td.classList) td.classList.add('jump-hit');
       setTimeout(function(){ if(td.classList) td.classList.remove('jump-hit'); }, 2600);
-      gsMsg('Ô lỗi '+(idx+1)+'/'+ds.length+(td.getAttribute('title')?(' · '+td.getAttribute('title')):'')+
+      gsMsg(ten+' '+(idx+1)+'/'+ds.length+(td.getAttribute('title')?(' · '+td.getAttribute('title')):'')+
             (ds.length>1?' — bấm nữa để xem ô kế tiếp':''));
     })();
   }
   document.addEventListener('click', function(ev){
-    var el=ev.target&&ev.target.closest?ev.target.closest('#mix-err-chip,#mix-err-jump'):null;
+    var el=ev.target&&ev.target.closest?ev.target.closest('#mix-err-chip,#mix-err-jump,#mix-warn-chip,#mix-warn-jump'):null;
     if(!el) return;
     ev.preventDefault(); ev.stopPropagation();
-    jumpToMixErr();
+    jumpToMixErr(/warn/.test(el.id));
   });
   function jumpToError(seri, mdon, col){
     if(typeof go==='function') go('s3');   // sang Bảng Nhập Đơn
@@ -8590,6 +8724,8 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     renderS7();
     var mchip=document.getElementById('mix-err-chip');
     if(mchip){ var n=window.__afMixErrCount||0; mchip.style.display=n?'':'none'; mchip.textContent=n+' lỗi bảng Mix'; }
+    var wchip=document.getElementById('mix-warn-chip');
+    if(wchip){ var nw=window.__afMixWarnCount||0; wchip.style.display=nw?'':'none'; wchip.textContent=nw+' tiêu đề dải lệch'; }
     applyAllFilters();
   }
   // ---- LỌC THEO CỘT (▼) dùng chung + tìm kiếm + lọc Mã Đơn cho mọi bảng ----
@@ -16136,14 +16272,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1715610000"></script>
-<script src="cl.sync.js?v=1715610000"></script>
-<script src="auth.store.js?v=1715610000"></script>
-<script src="auth.web.js?v=1715610000"></script>
+<script src="cl.config.js?v=1715640000"></script>
+<script src="cl.sync.js?v=1715640000"></script>
+<script src="auth.store.js?v=1715640000"></script>
+<script src="auth.web.js?v=1715640000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1715610000"></script>
+<script src="cl.project.js?v=1715640000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1715610000" defer></script>
+<script src="firebase-bridge.js?v=1715640000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
