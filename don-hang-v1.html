@@ -715,7 +715,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715640000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715650000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1542,7 +1542,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1715640000"></script>
+<script src="engine.web.js?v=1715650000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -9088,16 +9088,21 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
   function aggPivotKeo(keep){
     var R=state.R, kagg={}, korder=[], ktot=0;
     if(!R || !R.cuonSheet) return {order:korder, agg:kagg, tot:ktot};
-    function kadd(maDon,keo,qty){ if(!qty) return; keo=(keo&&String(keo).trim())?keo:'(chưa gán keo)'; var k=maDon+'||'+keo; if(kagg[k]==null){ kagg[k]={maDon:maDon, keo:keo, qty:0}; korder.push(k); } kagg[k].qty+=qty; ktot+=qty; }
-    // Dòng Line Cuốn đã TÁCH độ cong đặc biệt sang keo 2mm → mỗi dòng 1 keo, chỉ cần gộp theo r.keo
-    R.cuonSheet.rows.forEach(function(r){ if(r.type!=='row' || !keep(r)) return; kadd(r.maDon, r.keo, r.tong||0); });
+    /* TÁCH KEO THEO XƯỞNG (user 6/11 · K66-854P): Code Sợi đã có đuôi "-TH"/"-HY" cho phần xưởng ngoài
+       làm thì keo cũng tách y vậy — "Vang80.2" (xưởng nhà) và "Vang80.2-TH" (Thanh Hoá) thành 2 dòng,
+       để biết gửi bao nhiêu keo cho từng xưởng. Cùng nguồn xuongMa với Code Sợi nên 2 bảng luôn khớp. */
+    function kadd(maDon,keo,qty,xm){ if(!qty) return; keo=(keo&&String(keo).trim())?String(keo).trim():'(chưa gán keo)';
+      xm=String(xm||'').toUpperCase(); if(xm) keo=(keo==='(chưa gán keo)')?(keo+' · '+xm):(new RegExp('-'+xm+'$').test(keo)?keo:keo+'-'+xm);
+      var k=maDon+'||'+keo; if(kagg[k]==null){ kagg[k]={maDon:maDon, keo:keo, xm:xm, qty:0}; korder.push(k); } kagg[k].qty+=qty; ktot+=qty; }
+    // Dòng Line Cuốn đã TÁCH độ cong đặc biệt sang keo 2mm → mỗi dòng 1 keo, chỉ cần gộp theo r.keo (+ xưởng làm)
+    R.cuonSheet.rows.forEach(function(r){ if(r.type!=='row' || !keep(r)) return; kadd(r.maDon, r.keo, r.tong||0, r.xuongMa); });
     korder.sort(function(a,b){ return a.localeCompare(b,'vi',{numeric:true}); });
     return {order:korder, agg:kagg, tot:ktot};
   }
   function htmlPivotKeo(A){
     return A.order.length
       ? (A.order.map(function(k){ var g=A.agg[k];
-          var em=(g.keo==='(chưa gán keo)')?' style="color:var(--red-600)"':'';
+          var em=(String(g.keo).indexOf('(chưa gán keo)')===0)?' style="color:var(--red-600)"':'';
           return '<tr><td>'+esc(khOf(g.maDon))+'</td><td>'+esc(donOf(g.maDon))+'</td><td class="txt"'+em+'>'+esc(g.keo)+'</td><td class="qty">'+fmtN(g.qty)+'</td></tr>';
         }).join('')+'<tr class="grand"><td colspan="3" class="txt">Grand Total</td><td>'+fmtN(A.tot)+'</td></tr>')
       : '<tr><td colspan="4" class="txt mini">Chưa có dữ liệu keo.</td></tr>';
@@ -16272,14 +16277,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1715640000"></script>
-<script src="cl.sync.js?v=1715640000"></script>
-<script src="auth.store.js?v=1715640000"></script>
-<script src="auth.web.js?v=1715640000"></script>
+<script src="cl.config.js?v=1715650000"></script>
+<script src="cl.sync.js?v=1715650000"></script>
+<script src="auth.store.js?v=1715650000"></script>
+<script src="auth.web.js?v=1715650000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1715640000"></script>
+<script src="cl.project.js?v=1715650000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1715640000" defer></script>
+<script src="firebase-bridge.js?v=1715650000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
