@@ -715,7 +715,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715690000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715700000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1152,6 +1152,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
                autocomplete="off" style="max-width:170px">
       </div>
       <div id="kh-bao" style="display:none"></div>
+      <div id="kh-dangloc" class="rpt-loc" style="display:none"></div>
       <div style="max-height:70vh;overflow:auto">
         <table class="sheet" id="eng-khdata"></table>
       </div>
@@ -1542,7 +1543,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1715690000"></script>
+<script src="engine.web.js?v=1715700000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -14529,9 +14530,13 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       return KH_SS.some(function(c){ return c[0]!=='anh' && khKhoa(x.m[c[0]]).indexOf(qk)>=0; });
     });
     if(!khLoai) return ds;
-    /* Một dòng giờ mang nhiều mã đơn → chỉ cần CÓ một đơn đúng loại là giữ lại. */
+    /* Một dòng giờ mang nhiều mã đơn → chỉ cần CÓ một đơn đúng loại là giữ lại.
+       Dòng KHÔNG có mã đơn nào nhận ra được (chỉ có dữ liệu tờ check list) thì xét theo Mã KH:
+       khách Liilash mang mã "LS…", còn lại là Charmlash (user 11/11 — bấm Đơn Liilash ra 0 dòng). */
     return ds.filter(function(x){
-      return khDong(x.m.don).some(function(dn){ var d=khDuoiDon(dn); return !!d && d.duoi===khLoai; });
+      var dd=khDong(x.m.don).map(khDuoiDon).filter(Boolean);
+      if(dd.length) return dd.some(function(d){ return d.duoi===khLoai; });
+      return (/^LS/i.test(khTxt(x.r.maKH)) ? 'S' : 'P')===khLoai;
     });
   }
   /* Ảnh mang theo CẢ danh sách của dòng + vị trí, để xem phóng to còn lật tới lật lui được. */
@@ -15218,6 +15223,113 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       if(gomAnh) logLine('🖼 Dồn ảnh về theo Mã KH ở '+gomAnh+' chỗ — mỗi Mã KH một bộ ảnh, giữ mãi kể cả khi đơn bị xóa');
     }catch(e){ logErr('khChuanLai', e); }
   }
+  /* ===== ĐANG LỌC GÌ + NÚT XEM TẤT CẢ (user 11/11) =====
+     Bấm "Đơn Liilash" (hoặc lọc cột ▼ / ô tìm) mà ra 0 dòng thì cả tiêu đề bảng biến mất — không
+     còn chỗ nào bấm để quay về. Nay luôn nói rõ đang lọc theo gì, kèm nút ✕ Bỏ lọc, xem tất cả. */
+  function khCoLoc(){
+    return !!(khLoai || khTxt(getVal('kh-filter')) || khTxt(getVal('kh-filter-don')) ||
+              Object.keys(khLocCot).some(function(f){ return !!khLocCot[f]; }));
+  }
+  function khVeDangLoc(soHien){
+    var el=document.getElementById('kh-dangloc'); if(!el) return;
+    if(!khCoLoc()){ el.style.display='none'; el.innerHTML=''; return; }
+    var ct=[];
+    if(khLoai) ct.push('<b>'+(khLoai==='S'?'Đơn Liilash':'Đơn Charmlash')+'</b>');
+    var q=khTxt(getVal('kh-filter')), qd=khTxt(getVal('kh-filter-don'));
+    if(q) ct.push('Mã KH / nhãn hiệu "<b>'+esc(q)+'</b>"');
+    if(qd) ct.push('mã đơn "<b>'+esc(qd)+'</b>"');
+    Object.keys(khLocCot).forEach(function(f){ if(!khLocCot[f]) return;
+      var c=KH_COT_DU.filter(function(x){ return x[0]===f; })[0]; ct.push('cột <b>'+esc(c?c[1]:f)+'</b>'); });
+    var tong=0; try{ tong=khDongPhang().length; }catch(e){ logErr('khVeDangLoc.tong', e); }
+    el.innerHTML='🔎 Đang lọc theo '+ct.join(' · ')+' — hiện <b>'+soHien+'</b>/'+tong+' khách'+
+      '<button class="btn sm kh-boloc">✕ Bỏ lọc, xem tất cả</button>';
+    el.style.display='';
+  }
+  function khBoHetLoc(){
+    khLoai='';
+    ['kh-loai-p','kh-loai-s'].forEach(function(id){ var e=document.getElementById(id); if(e) e.classList.remove('bat'); });
+    ['kh-filter','kh-filter-don'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+    Object.keys(khLocCot).forEach(function(f){ delete khLocCot[f]; });
+    renderKH(); try{ renderKHTiet(null); }catch(e){ logErr('khBoHetLoc.tiet', e); }
+  }
+  document.addEventListener('click', function(ev){
+    var b=ev.target && ev.target.closest ? ev.target.closest('.kh-boloc') : null; if(!b) return;
+    ev.preventDefault(); khBoHetLoc();
+  });
+  /* ===== DÁN VÀO BẢNG DỮ LIỆU KHÁCH HÀNG (user 11/11) =====
+     · Bấm 1 LẦN vào ô rồi dán → mỗi dòng copy ĐÈ xuống một dòng bảng (cột tab thì sang các cột
+       bên phải), y như Excel. Copy 1 giá trị mà đang kéo chọn nhiều ô → điền đều các ô đó.
+     · Bấm ĐÚP vào ô (hoặc đã gõ chữ trong ô) rồi dán → MỌI dòng copy nằm gọn trong CHÍNH Ô ĐÓ
+       (xuống dòng trong ô), chỉ dán chữ trơn — không kéo theo bảng/định dạng của Excel.
+     Ô bảng này bấm 1 lần là đã có con trỏ (chốt 30/9) nên phải tự đánh dấu "đã bấm đúp / đã gõ"
+     (data-khgo) để phân biệt hai cách dán. */
+  ['dblclick','input'].forEach(function(lo){
+    document.addEventListener(lo, function(ev){
+      var td=ev.target && ev.target.closest ? ev.target.closest('#eng-khdata td[contenteditable="true"]') : null;
+      if(td) td.setAttribute('data-khgo','1');
+    }, true);
+  });
+  document.addEventListener('focusout', function(ev){
+    var td=ev.target && ev.target.closest ? ev.target.closest('#eng-khdata td[data-khgo]') : null;
+    if(td) td.removeAttribute('data-khgo');
+  }, true);
+  function khDanVaoO(text){
+    var g=parseClipboard(text);
+    var dong=g.map(function(h){ return h.map(function(v){ return khTxt(v); }).filter(Boolean).join(' '); });
+    while(dong.length && !dong[dong.length-1]) dong.pop();
+    dong.forEach(function(l, i){
+      if(i){ var ok=false; try{ ok=document.execCommand('insertLineBreak'); }catch(e){ ok=false; }
+             if(!ok){ try{ document.execCommand('insertHTML', false, '<br>'); }catch(e2){ logErr('khDanVaoO.br', e2); } } }
+      if(l){ try{ document.execCommand('insertText', false, l); }catch(e3){ logErr('khDanVaoO.chu', e3); } }
+    });
+  }
+  function khDanNhieuDong(tb, text, chon){
+    if(!chon || !chon.length) return 0;
+    var rows=Array.prototype.slice.call(tb.querySelectorAll('tbody tr[data-khk]')).filter(function(tr){ return tr.style.display!=='none'; });
+    var viTri=function(td){ return { r:rows.indexOf(td.parentNode), c:td.cellIndex }; };
+    var g=parseClipboard(text);
+    while(g.length>1 && g[g.length-1].length===1 && !khTxt(g[g.length-1][0])) g.pop();
+    var ghi=function(td, v){
+      if(!td || td.getAttribute('contenteditable')!=='true' || !td.hasAttribute('data-khf')) return 0;
+      if(td.getAttribute('data-khf')==='maKH') return 0;                 // Mã KH không dán đè (đổi mã là dời cả hồ sơ khách)
+      td.textContent=String(v==null?'':v);
+      if(td===document.activeElement){ try{ td.blur(); }catch(e){ logErr('khDan.blur', e); } dongOSua(td); }   // ô đang có con trỏ → rời ô là tự ghi
+      else td.dispatchEvent(new FocusEvent('focusout', { bubbles:true }));      // ô khác → ghi vào dữ liệu đúng như sửa tay
+      return 1;
+    };
+    var n=0;
+    if(g.length===1 && g[0].length===1 && chon.length>1){                // 1 giá trị → điền đều các ô đang chọn
+      chon.forEach(function(td){ n+=ghi(td, g[0][0]); });
+      return n;
+    }
+    var goc=chon.map(viTri).filter(function(x){ return x.r>=0; });
+    if(!goc.length) return 0;
+    var r0=Math.min.apply(null, goc.map(function(x){ return x.r; })), c0=Math.min.apply(null, goc.map(function(x){ return x.c; }));
+    g.forEach(function(h, i){ var tr=rows[r0+i]; if(!tr) return;
+      h.forEach(function(v, j){ n+=ghi(tr.cells[c0+j], v); }); });
+    return n;
+  }
+  document.addEventListener('paste', function(ev){
+    var s11=document.getElementById('s11'); if(!s11 || !s11.classList.contains('active')) return;
+    var tb=document.getElementById('eng-khdata'); if(!tb) return;
+    var cd=ev.clipboardData||window.clipboardData; if(!cd || !cd.getData) return;
+    var text=cd.getData('text/plain')||cd.getData('text'); if(text==null || text==='') return;
+    var ae=document.activeElement, tdSua=(ae && ae.closest) ? ae.closest('#eng-khdata td[contenteditable="true"]') : null;
+    if(tdSua && tdSua.getAttribute('data-khgo')==='1'){   // đã BẤM ĐÚP / đang gõ trong ô → dán gọn vào chính ô đó
+      ev.preventDefault(); ev.stopPropagation();
+      khDanVaoO(text);
+      return;
+    }
+    if(!tdSua && ae && /input|textarea|select/i.test(ae.tagName||'') && ae.id!=='cl-clip') return;   // ô tìm kiếm… → dán bình thường
+    var chon=Array.prototype.slice.call(tb.querySelectorAll('tbody td.gs-sel, tbody td.cell-sel'));
+    if(tdSua && chon.indexOf(tdSua)<0) chon=[tdSua];
+    if(!chon.length) return;
+    if(!khSuaDuoc()) return;
+    ev.preventDefault(); ev.stopPropagation();
+    var n=khDanNhieuDong(tb, text, chon);
+    if(n) logLine('🗂 Dán '+n+' ô vào Dữ liệu khách hàng');
+    try{ gsMsg(n ? ('Đã dán '+n+' ô.') : 'Ô đang chọn không sửa được (Mã KH, Mã đơn… không dán đè).'); }catch(e){ logErr('khDan.bao', e); }
+  }, true);
   function renderKH(){
     try{ khMocNeuDoi(); }catch(e){ logErr('renderKH.moc', e); }   // mốc hoàn tác của bước 7
     var tb=document.getElementById('eng-khdata'); if(!tb) return;
@@ -15247,6 +15359,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     khQuetAnhTrung(function(bo){ if(bo) renderKH(); });   // quét kho ảnh một lần, xong thì vẽ lại
     var d=state.khData, ds=khDsLoc();
     setTxt('kh-count', ds.length);
+    try{ khVeDangLoc(ds.length); }catch(e){ logErr('renderKH.dangLoc', e); }
     var st=document.getElementById('kh-stat');
     if(st){
       if(!d || !d.thuTu.length) st.innerHTML='<span class="mini" style="color:var(--text-3)">'+
@@ -15279,7 +15392,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     }
     if(!ds.length){
       tb.innerHTML='<tbody><tr><td class="mini" style="color:var(--text-3);padding:14px">'+
-        (d&&d.thuTu.length?'Không có dòng nào khớp bộ lọc.':'Chưa có dữ liệu khách hàng.')+'</td></tr></tbody>';
+        (d&&d.thuTu.length?'Không có dòng nào khớp bộ lọc. <button class="btn sm kh-boloc" style="margin-left:8px">✕ Bỏ lọc, xem tất cả</button>':'Chưa có dữ liệu khách hàng.')+'</td></tr></tbody>';
       return;
     }
     /* Tiêu đề 2 dòng: cột đứng riêng gộp 2 dòng, cột trong nhóm nằm dưới tên nhóm */
@@ -16300,14 +16413,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1715690000"></script>
-<script src="cl.sync.js?v=1715690000"></script>
-<script src="auth.store.js?v=1715690000"></script>
-<script src="auth.web.js?v=1715690000"></script>
+<script src="cl.config.js?v=1715700000"></script>
+<script src="cl.sync.js?v=1715700000"></script>
+<script src="auth.store.js?v=1715700000"></script>
+<script src="auth.web.js?v=1715700000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1715690000"></script>
+<script src="cl.project.js?v=1715700000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1715690000" defer></script>
+<script src="firebase-bridge.js?v=1715700000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
