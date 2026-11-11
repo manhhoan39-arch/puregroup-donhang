@@ -715,7 +715,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715700000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715710000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1543,7 +1543,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1715700000"></script>
+<script src="engine.web.js?v=1715710000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -15265,32 +15265,44 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      (data-khgo) để phân biệt hai cách dán. */
   ['dblclick','input'].forEach(function(lo){
     document.addEventListener(lo, function(ev){
-      var td=ev.target && ev.target.closest ? ev.target.closest('#eng-khdata td[contenteditable="true"]') : null;
+      var td=ev.target && ev.target.closest ? ev.target.closest('#s11 td[contenteditable="true"]') : null;
       if(td) td.setAttribute('data-khgo','1');
     }, true);
   });
   document.addEventListener('focusout', function(ev){
-    var td=ev.target && ev.target.closest ? ev.target.closest('#eng-khdata td[data-khgo]') : null;
+    var td=ev.target && ev.target.closest ? ev.target.closest('#s11 td[data-khgo]') : null;
     if(td) td.removeAttribute('data-khgo');
   }, true);
-  function khDanVaoO(text){
+  function khDanVaoO(text, motDong){
     var g=parseClipboard(text);
     var dong=g.map(function(h){ return h.map(function(v){ return khTxt(v); }).filter(Boolean).join(' '); });
     while(dong.length && !dong[dong.length-1]) dong.pop();
+    /* Ô MỘT DÒNG (từng ô của bảng keo · Mã KH · Nhãn hiệu): xuống dòng trong ô là lệch hàng keo
+       → nối các dòng copy bằng dấu cách, vẫn nằm gọn trong ô. */
+    if(motDong) dong=[dong.filter(Boolean).join(' ')];
     dong.forEach(function(l, i){
       if(i){ var ok=false; try{ ok=document.execCommand('insertLineBreak'); }catch(e){ ok=false; }
              if(!ok){ try{ document.execCommand('insertHTML', false, '<br>'); }catch(e2){ logErr('khDanVaoO.br', e2); } } }
       if(l){ try{ document.execCommand('insertText', false, l); }catch(e3){ logErr('khDanVaoO.chu', e3); } }
     });
   }
-  function khDanNhieuDong(tb, text, chon){
-    if(!chon || !chon.length) return 0;
-    var rows=Array.prototype.slice.call(tb.querySelectorAll('tbody tr[data-khk]')).filter(function(tr){ return tr.style.display!=='none'; });
+  /* Các dòng dữ liệu của ĐÚNG bảng chứa ô (bảng ngoài · bảng so sánh · bảng keo lồng bên trong):
+     tbl.rows chỉ lấy dòng của chính bảng đó, không lẫn dòng bảng con; bỏ dòng khung chi tiết. */
+  function khDongCuaBang(tbl){
+    return Array.prototype.filter.call(tbl.rows, function(tr){
+      if(!tr.parentNode || tr.parentNode.tagName!=='TBODY' || tr.style.display==='none' || tr.id==='kh-mo-row') return false;
+      return tbl.id!=='eng-khdata' || tr.hasAttribute('data-khk');
+    });
+  }
+  function khDanNhieuDong(tbl, text, chon){
+    if(!tbl || !chon || !chon.length) return 0;
+    var rows=khDongCuaBang(tbl);
     var viTri=function(td){ return { r:rows.indexOf(td.parentNode), c:td.cellIndex }; };
     var g=parseClipboard(text);
     while(g.length>1 && g[g.length-1].length===1 && !khTxt(g[g.length-1][0])) g.pop();
     var ghi=function(td, v){
-      if(!td || td.getAttribute('contenteditable')!=='true' || !td.hasAttribute('data-khf')) return 0;
+      if(!td || td.getAttribute('contenteditable')!=='true') return 0;
+      if(!(td.hasAttribute('data-khf') || td.hasAttribute('data-khk3') || td.hasAttribute('data-khf3'))) return 0;
       if(td.getAttribute('data-khf')==='maKH') return 0;                 // Mã KH không dán đè (đổi mã là dời cả hồ sơ khách)
       td.textContent=String(v==null?'':v);
       if(td===document.activeElement){ try{ td.blur(); }catch(e){ logErr('khDan.blur', e); } dongOSua(td); }   // ô đang có con trỏ → rời ô là tự ghi
@@ -15305,7 +15317,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var goc=chon.map(viTri).filter(function(x){ return x.r>=0; });
     if(!goc.length) return 0;
     var r0=Math.min.apply(null, goc.map(function(x){ return x.r; })), c0=Math.min.apply(null, goc.map(function(x){ return x.c; }));
-    g.forEach(function(h, i){ var tr=rows[r0+i]; if(!tr) return;
+    g.forEach(function(h, i){
+      /* đọc lại dòng mỗi lần: bảng keo tự mở thêm 1 dòng trống khi dòng cuối vừa có chữ
+         → dán 6 dòng keo vào bảng đang có 3 dòng vẫn vào đủ 6 */
+      var tr=khDongCuaBang(tbl)[r0+i]; if(!tr) return;
       h.forEach(function(v, j){ n+=ghi(tr.cells[c0+j], v); }); });
     return n;
   }
@@ -15314,19 +15329,25 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     var tb=document.getElementById('eng-khdata'); if(!tb) return;
     var cd=ev.clipboardData||window.clipboardData; if(!cd || !cd.getData) return;
     var text=cd.getData('text/plain')||cd.getData('text'); if(text==null || text==='') return;
-    var ae=document.activeElement, tdSua=(ae && ae.closest) ? ae.closest('#eng-khdata td[contenteditable="true"]') : null;
-    if(tdSua && tdSua.getAttribute('data-khgo')==='1'){   // đã BẤM ĐÚP / đang gõ trong ô → dán gọn vào chính ô đó
+    /* Ô sửa được ở bước 7: bảng ngoài, VÀ cả khung chi tiết mở ra khi bấm vào đơn (bảng so sánh ·
+       bảng Thông tin keo · ô chữ) — trước đây chỉ bắt ô bảng ngoài nên dán trong khung chi tiết
+       báo "Ô đang chọn không sửa được" (user 11/11). */
+    var ae=document.activeElement, oSua=(ae && ae.closest) ? ae.closest('#s11 [contenteditable="true"]') : null;
+    var tdSua=(oSua && oSua.tagName==='TD') ? oSua : null;
+    if(oSua && (!tdSua || tdSua.getAttribute('data-khgo')==='1')){   // BẤM ĐÚP / đang gõ / ô chữ (không phải ô bảng) → dán gọn vào chính ô đó
       ev.preventDefault(); ev.stopPropagation();
-      khDanVaoO(text);
+      khDanVaoO(text, !!(tdSua && (tdSua.hasAttribute('data-khk3') || /^(maKH|brand)$/.test(tdSua.getAttribute('data-khf')||''))));
       return;
     }
     if(!tdSua && ae && /input|textarea|select/i.test(ae.tagName||'') && ae.id!=='cl-clip') return;   // ô tìm kiếm… → dán bình thường
-    var chon=Array.prototype.slice.call(tb.querySelectorAll('tbody td.gs-sel, tbody td.cell-sel'));
+    var chon=Array.prototype.slice.call(s11.querySelectorAll('tbody td.gs-sel, tbody td.cell-sel'));
+    var tbl=tdSua ? tdSua.closest('table') : (chon[0] ? chon[0].closest('table') : null);
+    chon=chon.filter(function(td){ return td.closest('table')===tbl; });   // chỉ ô cùng bảng với ô đang bấm
     if(tdSua && chon.indexOf(tdSua)<0) chon=[tdSua];
-    if(!chon.length) return;
+    if(!chon.length || !tbl) return;
     if(!khSuaDuoc()) return;
     ev.preventDefault(); ev.stopPropagation();
-    var n=khDanNhieuDong(tb, text, chon);
+    var n=khDanNhieuDong(tbl, text, chon);
     if(n) logLine('🗂 Dán '+n+' ô vào Dữ liệu khách hàng');
     try{ gsMsg(n ? ('Đã dán '+n+' ô.') : 'Ô đang chọn không sửa được (Mã KH, Mã đơn… không dán đè).'); }catch(e){ logErr('khDan.bao', e); }
   }, true);
@@ -16413,14 +16434,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1715700000"></script>
-<script src="cl.sync.js?v=1715700000"></script>
-<script src="auth.store.js?v=1715700000"></script>
-<script src="auth.web.js?v=1715700000"></script>
+<script src="cl.config.js?v=1715710000"></script>
+<script src="cl.sync.js?v=1715710000"></script>
+<script src="auth.store.js?v=1715710000"></script>
+<script src="auth.web.js?v=1715710000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1715700000"></script>
+<script src="cl.project.js?v=1715710000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1715700000" defer></script>
+<script src="firebase-bridge.js?v=1715710000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
