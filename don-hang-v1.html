@@ -715,7 +715,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715670000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715690000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1542,7 +1542,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1715670000"></script>
+<script src="engine.web.js?v=1715690000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -12647,7 +12647,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
                      .map(function(c){ return [c[0], c[1], '', 0, '']; }));
   /* nhan = SỔ TAY TRA NHÃN HIỆU dựng từ tờ Check list (Mã KH → cột "Khách hàng").
      Giữ riêng khỏi từng bản ghi để đơn nạp SAU vẫn tra ra được, và đi theo project. */
-  function khRong(){ return { file:'', napLuc:0, kh:{}, thuTu:[], nhan:{}, hopVer:2 }; }
+  function khRong(){ return { file:'', napLuc:0, kh:{}, thuTu:[], nhan:{}, hopVer:3 }; }
   /* ⚠ Chữ Việt từ Excel hay ở dạng TÁCH DẤU (NFD: "Đã" = Đ + a + ◌̃). Nhìn y hệt nhau
      nhưng mọi biểu thức tìm chữ Việt trong app đều trượt — âm thầm, không lỗi nào bắn ra.
      Dồn về NFC ngay cửa vào để chỗ nào cũng so đúng (user gặp 25/9: "Đã chọn|" không bỏ được). */
@@ -12921,7 +12921,24 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     ph.forEach(function(x){ var k=khKhoa(x); if(co[k]) return; co[k]=1; ra.push(x); });
     return ra.join(' | ').split(che).join('(Box|Line)');
   }
+  /* ===== BỎ "MẪU BẢNG HỘP" ĐÃ CẤT SẴN (user 11/11) =====
+     Dữ liệu bước 7 lưu từ trước bản 1715670000 có những dòng chép NGUYÊN MẪU Bảng Hộp của đơn
+     (Hộp Nhựa thường · Hộp Nhựa nặng (chốt sắt) · Hộp Giấy · Hộp Bigtray · Khác — chỉ tên, số lượng
+     đã bị bỏ lúc cất). Đơn gốc nhiều khi không còn trong project nên không dựng lại được ⇒ nhận ra
+     mẫu (≥3 tên loại hộp TRƠN trong cùng một dòng đơn) thì bỏ các tên trơn đó, giữ dòng có ghi chú
+     cụ thể ("Hộp Giấy | Hộp trắng Feme…"). Ô đã sửa tay thì không đụng. */
+  var KH_MAU_HOP = {};
+  ['Hộp Nhựa thường','Hộp Nhựa nặng (chốt sắt)','Hộp Nhựa nặng','Hộp Nhựa xịn','Hộp Giấy','Hộp Bigtray','Khác'].forEach(function(x){ KH_MAU_HOP[khKhoa(x)]=1; });
+  function khLaTenMauHop(l){ return !!KH_MAU_HOP[khKhoa(l)]; }
+  function khBoMauHop(m){
+    if(!m || (m.suaTay && m.suaTay.loaiHop)) return false;
+    var ds=khTxt(m.loaiHop).split('\n'), tran=ds.filter(khLaTenMauHop);
+    if(tran.length<3) return false;
+    m.loaiHop=ds.filter(function(l){ return khTxt(l) && !khLaTenMauHop(l); }).join('\n');
+    return true;
+  }
   function khChuanHop(m){
+    khBoMauHop(m);
     var t=khTxt(m.loaiHop); if(!t) return;
     var ra=[], co={};
     t.split('\n').forEach(function(l){
@@ -13010,7 +13027,10 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(i<0 && m.nguon!=='app' && khTxt(m.don)){
       var dk=khKhoa(khDonGoc(m.don)), daCo=null;
       r.muc.forEach(function(x){ if(khKhoa(khDonGoc(x.don))===dk && khHonHan(x, m)) daCo=x; });
-      if(daCo){ khBoQua++; return r; }
+      /* Bỏ qua bản trùng NHƯNG vẫn BÙ CHỖ TRỐNG của bản đang có (user 11/11): dòng lấy từ đơn đã bị dọn
+         mẫu Bảng Hộp (để trống Thùng và hộp) thì nạp file tổng hợp Gmail vào là điền lại đúng loại hộp.
+         Chỉ điền ô TRỐNG — ô đã có chữ / đã sửa tay giữ nguyên (khGopHaiDon). */
+      if(daCo){ khGopHaiDon(daCo, m); khBoQua++; return r; }
     }
     if(i>=0) r.muc[i]=khGiuSuaTay(m, r.muc[i]); else r.muc.push(m);
     r.muc.sort(function(a,b){
@@ -16241,7 +16261,16 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       try{ renderS8(); }catch(e){ logErr('dlAll', e); }
       /* Bản lưu cũ: dòng lấy từ đơn (nguồn app) ở bước 7 đã chép CẢ MẪU Bảng Hộp → dựng lại MỘT LẦN
          theo cách mới (chỉ loại hộp đơn dùng). Ô đã sửa tay ở bước 7 vẫn giữ (khGiuSuaTay). */
-      try{ if(state.khData && state.khData.kh && state.khData.hopVer!==2 && (state.files||[]).length){ gopDonVaoKH(); state.khData.hopVer=2; } }catch(e){ logErr('loadData.hopVer', e); }
+      try{
+        var _kd=state.khData;
+        if(_kd && _kd.kh && !(_kd.hopVer>=3)){
+          if((state.files||[]).length) gopDonVaoKH();          // đơn còn trong project → dựng lại đúng loại hộp đơn dùng
+          var _nb=0;                                            // đơn không còn trong project → bỏ mẫu Bảng Hộp đã cất
+          Object.keys(_kd.kh).forEach(function(k){ ((_kd.kh[k]||{}).muc||[]).forEach(function(x){ if(khBoMauHop(x)) _nb++; }); });
+          _kd.hopVer=3;
+          if(_nb) logLine('🗂 Dữ liệu khách hàng: bỏ mẫu Bảng Hộp (liệt kê đủ mọi loại hộp) ở '+_nb+' dòng đơn cũ');
+        }
+      }catch(e){ logErr('loadData.hopVer', e); }
       try{ renderKH(); }catch(e){ logErr('dlAll', e); }
     },
     clearData: function(){
@@ -16271,14 +16300,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1715670000"></script>
-<script src="cl.sync.js?v=1715670000"></script>
-<script src="auth.store.js?v=1715670000"></script>
-<script src="auth.web.js?v=1715670000"></script>
+<script src="cl.config.js?v=1715690000"></script>
+<script src="cl.sync.js?v=1715690000"></script>
+<script src="auth.store.js?v=1715690000"></script>
+<script src="auth.web.js?v=1715690000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1715670000"></script>
+<script src="cl.project.js?v=1715690000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1715670000" defer></script>
+<script src="firebase-bridge.js?v=1715690000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
