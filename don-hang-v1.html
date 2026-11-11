@@ -715,7 +715,7 @@ td.jump-hit{outline:3px solid #E8185C!important;outline-offset:-3px;box-shadow:i
   </nav>
   <!-- Dấu bản dựng: đổi mỗi lần sửa code. Nhìn số này là biết trang đang chạy bản nào,
        khỏi mất công đoán "đã nạp code mới chưa". -->
-  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715650000</b><br>© 2026 Charmlash</div>
+  <div class="sidebar-foot">v0.9 · build <b id="build-tag">1715670000</b><br>© 2026 Charmlash</div>
 </aside>
 
 <!-- ============ MAIN ============ -->
@@ -1542,7 +1542,7 @@ table.kh-ss tr.kh-lech td,table.kh-ss tr.kh-lech th.kh-tf{background:#FFF0B8}
 </style>
 <!-- xlsx.full.min.js: NẠP TRỄ (chỉ khi nhập/xuất Excel) — xem needXLSX() -->
 <!-- Engine tính toán (bản trình duyệt) — nạp trước script chính -->
-<script src="engine.web.js?v=1715650000"></script>
+<script src="engine.web.js?v=1715670000"></script>
 <script>
 const stepBar = (cur)=>{
   const names=["Upload & Kiểm tra","AI đọc","Nhập đơn","Mix Label","Keo","Bảng Line Cuốn","Tổng hợp Box","So sánh","Xuất"];
@@ -11240,35 +11240,17 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     if(r.xuongTH || String(r.xuongMa||'').toUpperCase()==='TH') return true;
     return String(r.codeSoi||'').split(/\r?\n/).some(function(x){ return /-TH$/i.test(x.trim()); });
   }
-  /* ===== BẢN IN BƯỚC 5 ĐI THEO Ô XỔ XƯỞNG + XƯỞNG ĐANG XEM (user chốt 9/9) =====
-     Trước đây bản in cố định: Line luôn bỏ hàng -TH, Cuốn luôn bỏ hàng -HY, không nhìn ô xổ.
-     Nay:
-       · Chọn đúng MỘT xưởng (Xưởng NĐ / TH / HY) → in ĐÚNG hàng xưởng đó.
-         Xưởng NĐ = code sợi KHÔNG có đuôi · HY = đuôi -HY · TH = đuôi -TH.
-       · Chọn "Tất cả":
-           - tài khoản/xưởng đang xem là HY → in cả 3 xưởng;
-           - còn lại (NĐ…)  → Tổng hợp Line CHỈ NĐ (không đuôi), bỏ HY/TH/TK/xưởng khác (user chốt
-             13/10) · Tổng hợp Cuốn lấy tất cả trừ -HY.
-     Mã xưởng do auth.web.js bơm vào window.__CL_XUONG (đọc bảng factories). Không lấy được thì
-     coi như KHÔNG phải HY — giữ nguyên cách in cũ, không đổi số liệu ngoài ý muốn. */
-  function maXuongDangXem(){
-    /* Không bọc try/catch: đọc biến toàn cục và .normalize không thể văng, mà catch rỗng thì
-       bài kiểm "không nuốt lỗi im lặng" (ui.test mục E) bắt ngay — đúng luật của dự án. */
-    var v=String(window.__CL_XUONG||'');
-    if(v && v.normalize) v=v.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    return v.replace(/[Đđ]/g,'D').toUpperCase().trim();
-  }
+  /* ===== BẢN IN BƯỚC 5 ĐI THEO Ô XỔ XƯỞNG (user chốt 11/11 — "để trở lại bình thường") =====
+       · "Tất cả"  → in ĐỦ số liệu mọi xưởng (NĐ · TH · HY · TK…), tài khoản xưởng nào cũng vậy.
+       · Chọn đúng MỘT xưởng → in ĐÚNG hàng xưởng đó
+         (Xưởng NĐ = code sợi KHÔNG có đuôi · TH = đuôi -TH · HY = đuôi -HY).
+     Áp cho CẢ HAI bản in Tổng hợp Line và Tổng hợp Cuốn. Bỏ luật cũ 9/9 · 13/10 (tài khoản NĐ để
+     "Tất cả" thì Line chỉ in NĐ, Cuốn bỏ -HY) — luật đó làm bản in "Tất cả" thiếu hàng xưởng ngoài. */
   function locXuongIn(loai){
     var che=String(getVal('s6-th-mode')||'all');
     if(che!=='all') return { giu:function(r){ var x=xuongCuaDong(r); return che==='nd' ? !x : x===che.toUpperCase(); },
                              nhan:' · Xưởng '+(che==='nd'?'NĐ':che.toUpperCase()) };
-    if(maXuongDangXem()==='HY') return { giu:function(){ return true; }, nhan:' · mọi xưởng' };
-    /* User chốt 13/10: tài khoản xưởng NĐ, để "Tất cả":
-         · Tổng hợp Line  → CHỈ NĐ (code không đuôi) — bỏ HY, TH, TK và mọi xưởng khác;
-         · Tổng hợp Cuốn  → tất cả, chỉ bỏ HY. */
-    return loai==='line'
-      ? { giu:function(r){ return !xuongCuaDong(r); }, nhan:'' }
-      : { giu:function(r){ return xuongCuaDong(r)!=='HY'; }, nhan:'' };
+    return { giu:function(){ return true; }, nhan:'' };
   }
   /* ===== BẢN IN TỔNG HỢP BOX (user chốt 17/9) =====
      Người đóng hộp cần MỘT tờ có đủ: bảng Tổng hợp Box + Bảng Hộp + Bảng Keo + Bảng Độ Cong +
@@ -12665,7 +12647,7 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
                      .map(function(c){ return [c[0], c[1], '', 0, '']; }));
   /* nhan = SỔ TAY TRA NHÃN HIỆU dựng từ tờ Check list (Mã KH → cột "Khách hàng").
      Giữ riêng khỏi từng bản ghi để đơn nạp SAU vẫn tra ra được, và đi theo project. */
-  function khRong(){ return { file:'', napLuc:0, kh:{}, thuTu:[], nhan:{} }; }
+  function khRong(){ return { file:'', napLuc:0, kh:{}, thuTu:[], nhan:{}, hopVer:2 }; }
   /* ⚠ Chữ Việt từ Excel hay ở dạng TÁCH DẤU (NFD: "Đã" = Đ + a + ◌̃). Nhìn y hệt nhau
      nhưng mọi biểu thức tìm chữ Việt trong app đều trượt — âm thầm, không lỗi nào bắn ra.
      Dồn về NFC ngay cửa vào để chỗ nào cũng so đúng (user gặp 25/9: "Đã chọn|" không bỏ được). */
@@ -14181,15 +14163,24 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
     });
     return ra.join('\n');
   }
+  /* CHỈ LẤY LOẠI HỘP ĐƠN ĐÓ THẬT SỰ DÙNG (user 11/11 · C243, C91, CS152…): Bảng Hộp của đơn gửi xưởng
+     là MẪU in sẵn đủ 4-5 loại (Nhựa thường · Nhựa nặng · Giấy · Bigtray · Khác) — trước đây chép
+     cả mẫu sang bước 7 nên cột "Thùng và hộp" liệt kê hết mọi loại. Nay:
+       1. loại nào có SỐ LƯỢNG (trong file, hoặc số đã nhập ở Bảng Hộp bước 6) → là loại đơn dùng;
+       2. không loại nào có số → lấy loại nào khách GHI CHÚ (vd "Hộp Giấy · Hộp giấy như note");
+       3. không có gì → để trống (thà trống còn hơn liệt kê sai).
+     Ghi chú của loại hộp đi kèm ngay trên cùng dòng, đúng kiểu tổng hợp Gmail: "Hộp Giấy | Hộp giấy như note". */
   function khHopTheoDon(md){
     var b=khTraMd(state.boxTableByMadon, md);
     if(!b||!b.rows) return { loaiHop:'', ghiChuHop:'', noiDung:'' };
-    var ten=[], gc=[];
-    b.rows.forEach(function(x){
-      ten.push(khTxt(x.name) + (khTxt(x.qty) ? ' | '+khTxt(x.qty) : ''));
-      gc.push(khTxt(x.note));
-    });
-    return { loaiHop:ten.join('\n'), ghiChuHop:gc.some(Boolean)?gc.join('\n'):'',
+    var nhap=((state.boxTypes||{})[boxTypesKey(md)])||{};
+    var soCua=function(x){ var v=(nhap[x.name]!=null && nhap[x.name]!=='') ? nhap[x.name] : x.qty;
+      return parseInt(String(v==null?'':v).replace(/[^0-9]/g,''),10)||0; };
+    var dung=b.rows.filter(function(x){ return khTxt(x.name) && soCua(x)>0; });
+    if(!dung.length) dung=b.rows.filter(function(x){ return khTxt(x.name) && khTxt(x.note); });
+    var ten=dung.map(function(x){ var q=soCua(x), gc=khTxt(x.note);
+      return khTxt(x.name) + (q ? ' | '+q : '') + (gc ? ' | '+gc : ''); });
+    return { loaiHop:ten.join('\n'), ghiChuHop:'',
              noiDung:(b.notes||[]).map(khTxt).filter(Boolean).join('\n') };
   }
   /* App tách đơn theo xưởng ("K21-841P" → thêm "K21-841P ND") nên khóa CẤT bảng độ cong và
@@ -16248,6 +16239,9 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
       try{ render(); }catch(e){ logErr('dlAll', e); }
       try{ renderS7(); }catch(e){ logErr('dlAll', e); }
       try{ renderS8(); }catch(e){ logErr('dlAll', e); }
+      /* Bản lưu cũ: dòng lấy từ đơn (nguồn app) ở bước 7 đã chép CẢ MẪU Bảng Hộp → dựng lại MỘT LẦN
+         theo cách mới (chỉ loại hộp đơn dùng). Ô đã sửa tay ở bước 7 vẫn giữ (khGiuSuaTay). */
+      try{ if(state.khData && state.khData.kh && state.khData.hopVer!==2 && (state.files||[]).length){ gopDonVaoKH(); state.khData.hopVer=2; } }catch(e){ logErr('loadData.hopVer', e); }
       try{ renderKH(); }catch(e){ logErr('dlAll', e); }
     },
     clearData: function(){
@@ -16277,14 +16271,14 @@ function selRow(r){r.closest('tbody').querySelectorAll('tr').forEach(t=>t.style.
      KHÔNG BAO GIỜ có ai nhắc: máy đó chạy JS cũ vĩnh viễn ⇒ thiếu đúng mấy bản vá đồng bộ ⇒ nằm mãi
      với dữ liệu cũ. Nay mỗi lần đổi build là đường dẫn JS đổi theo ⇒ cache cũ không khớp nữa ⇒ chắc
      chắn HTML và JS cùng một bản. ĐỔI CODE THÌ PHẢI ĐỔI SỐ BUILD Ở CHÂN TRANG. -->
-<script src="cl.config.js?v=1715650000"></script>
-<script src="cl.sync.js?v=1715650000"></script>
-<script src="auth.store.js?v=1715650000"></script>
-<script src="auth.web.js?v=1715650000"></script>
+<script src="cl.config.js?v=1715670000"></script>
+<script src="cl.sync.js?v=1715670000"></script>
+<script src="auth.store.js?v=1715670000"></script>
+<script src="auth.web.js?v=1715670000"></script>
 <!-- Xuất/Mở file Project (.charmproj) — lưu trữ dài hạn Step 1→6 -->
-<script src="cl.project.js?v=1715650000"></script>
+<script src="cl.project.js?v=1715670000"></script>
 <!-- Cầu nối Firebase (Analytics/Crashlytics/Push) — chạy trong app Capacitor, web thường tự no-op -->
-<script src="firebase-bridge.js?v=1715650000" defer></script>
+<script src="firebase-bridge.js?v=1715670000" defer></script>
 <!-- TỰ ĐỘNG CẬP NHẬT: phát hiện bản deploy mới trên server → nhắc & tự tải lại (không làm mất ô đang sửa) -->
 <script>
 (function(){
