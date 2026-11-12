@@ -220,7 +220,95 @@
       });
     }).catch(function () { return false; });
   }
+  function idbXoa(khoa) {
+    return moDB().then(function (db) {
+      if (!db) return false;
+      return new Promise(function (res) {
+        try {
+          var tx = db.transaction(DB_BANG, 'readwrite');
+          tx.objectStore(DB_BANG).delete(khoa);
+          tx.oncomplete = function () { res(true); };
+          tx.onerror = function () { res(false); };
+          tx.onabort = function () { res(false); };
+        } catch (e) { res(false); }
+      });
+    }).catch(function () { return false; });
+  }
   function khoaMoNhanh() { return 'mo-nhanh-' + (fid() || 'none'); }
+  /* ===== MẢNH ĐƠN CẤT TRONG IndexedDB (12/11 — Supabase báo vượt hạn mức tải xuống) =====
+     Trước đây mảnh đơn nằm ở localStorage (~5MB). Mỗi lần mở app, giuChoTrong() thấy dùng quá
+     2,5MB là DỌN SẠCH cache mảnh ⇒ lần nạp nào cũng tải lại TOÀN BỘ đơn từ máy chủ, máy nào cũng
+     vậy, tab nào cũng vậy — tiền tải xuống cứ thế cộng dồn. Nay mảnh đơn cất vào IndexedDB (rộng
+     hàng trăm MB, không ai dọn), kèm một bản sao trong RAM để đọc ngay không phải đợi.
+     Mảnh cũ còn sót ở localStorage vẫn đọc được (lấy bản mới hơn). */
+  var TIEN_TO_DONG = 'dong-', _dongMay = {}, _khoDongSan = null;
+  function napKhoDong() {
+    if (_khoDongSan) return _khoDongSan;
+    _khoDongSan = moDB().then(function (db) {
+      if (!db || typeof IDBKeyRange === 'undefined') return 0;
+      return new Promise(function (res) {
+        var n = 0;
+        try {
+          var rq = db.transaction(DB_BANG, 'readonly').objectStore(DB_BANG)
+            .openCursor(IDBKeyRange.bound(TIEN_TO_DONG, TIEN_TO_DONG + '\uffff'));
+          rq.onsuccess = function () {
+            var cur = rq.result; if (!cur) return res(n);
+            var v = cur.value;
+            if (v && v.id && v.payload && !_dongMay[v.id]) { _dongMay[v.id] = v; n++; }
+            cur.continue();
+          };
+          rq.onerror = function () { res(n); };
+        } catch (e) { res(n); }
+      });
+    }).catch(function () { return 0; });
+    return _khoDongSan;
+  }
+  function layDongMay(id) {
+    var a = _dongMay[id] || null, b = jget(K.dsItem(id), null);
+    if (a && a.payload && b && b.payload) return String(b.updated_at || '') > String(a.updated_at || '') ? b : a;
+    return (a && a.payload) ? a : b;
+  }
+  function ghiDongMay(row) {
+    _dongMay[row.id] = row;
+    idbGhi(TIEN_TO_DONG + row.id, row);
+    jdel(K.dsItem(row.id));                 // chừa chỗ localStorage cho khoá phiên
+  }
+  function xoaDongMay(id) { delete _dongMay[id]; idbXoa(TIEN_TO_DONG + id); jdel(K.dsItem(id)); }
+  /* Mọi dòng đang cất trong máy (localStorage cũ + IndexedDB mới) — cho các bài cứu dữ liệu. */
+  function dongTrongMay() {
+    var theo = {};
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (!k || k.indexOf('clc_ds_') !== 0 || k.indexOf('clc_ds_index_') === 0) continue;
+        var r = jget(k, null); if (!r) continue;
+        if (!r.id) r.id = k.slice(7);
+        theo[r.id] = r;
+      }
+    } catch (_) {}
+    Object.keys(_dongMay).forEach(function (id) {
+      var a = _dongMay[id], b = theo[id];
+      if (!b || String(a.updated_at || '') >= String(b.updated_at || '')) theo[id] = a;
+    });
+    return Object.keys(theo).map(function (id) { return theo[id]; });
+  }
+  /* Đóng dấu vân tay lên dòng đã cất (để lần sau biết khớp bản máy chủ, khỏi tải lại). */
+  function dongDau(id, h) {
+    if (h == null || !id) return;
+    var a = _dongMay[id];
+    if (a && a.payload) { if (String(a.__h == null ? '' : a.__h) !== String(h)) { a.__h = h; idbGhi(TIEN_TO_DONG + id, a); } return; }
+    var r = jget(K.dsItem(id), null);
+    if (r && r.payload && String(r.__h == null ? '' : r.__h) !== String(h)) { r.__h = h; jset(K.dsItem(id), r); }
+  }
+  /* Lỗi do MÁY CHỦ (bị khoá vì vượt hạn mức 402, sập 5xx) hoặc MẤT MẠNG — khác hẳn lỗi "hết
+     phiên / sai mật khẩu". Gặp loại này thì CỨ XEM BẢN TRONG MÁY, không đăng xuất, không dọn cache. */
+  function laLoiMayChu(e) {
+    if (!e) return false;
+    var st = +(e.status || 0) || 0;
+    if (st === 402 || st >= 500) return true;
+    var t = String((e.name || '') + ' ' + (e.message || e.msg || e.error_description || e));
+    return /restricted|exceed_|quota|\b402\b|failed to fetch|networkerror|network request failed|load failed|fetch failed|timeout|timed out|ECONN|ENOTFOUND|AuthRetryableFetchError|Không tải được|offline/i.test(t);
+  }
   /* ===== KHO GÓI ẢNH TRONG MÁY — IndexedDB (thêm 26/9) =====
      Gói ảnh của bước 7 nặng cả chục MB, mà cache mảnh thì nằm ở localStorage (~5MB) và `jset`
      nuốt lỗi im lặng khi tràn ⇒ máy KHÔNG BAO GIỜ giữ được gói ảnh. Lúc có mạng không ai thấy
@@ -238,6 +326,28 @@
     var t = String(k == null ? '' : k), n = 0, i;
     for (i = 0; i < t.length; i++) n = (n * 31 + t.charCodeAt(i)) >>> 0;
     return n % ANH_LO;
+  }
+  /* ===== LÔ ẢNH CỐ ĐỊNH — ẢNH CŨ NẰM YÊN, ẢNH MỚI VÀO LÔ MỚI (12/11, user chốt) =====
+     User: "vẫn đồng bộ ảnh nhưng đơn nào lưu mới thì đồng bộ, còn các đơn cũ không sửa chữa thì
+     không đồng bộ". Chia lô theo băm khóa ảnh (cách cũ) thì ảnh mới rơi lung tung vào cả 16 lô
+     ⇒ thêm vài ảnh là lô nào cũng đổi ⇒ mọi máy tải lại gần hết kho ảnh (hơn 16MB mỗi lần).
+     Nay: ảnh đã nằm trong lô nào thì Ở YÊN lô đó; ảnh MỚI dồn vào "lô đang mở" (lô tuần tự cuối,
+     tối đa ~1,5MB), đầy thì mở lô mới. Lưu đơn mới chỉ đụng đúng lô đang mở; lô cũ không đổi vân
+     tay nên không gửi lên, máy khác không tải về. Xoá ảnh thì chỉ lô chứa ảnh đó đổi. */
+  var ANH_LO_TRAN = 1536 * 1024;
+  var _loKhoa = {};                 // id lô → { h, khoa:[…] } — lô đó đang chứa những ảnh nào
+  function ghiNhoLo(id, h, im) { if (id && im) _loKhoa[id] = { h: h == null ? null : h, khoa: Object.keys(im) }; }
+  /* Biết lô x đang chứa ảnh nào: nhớ trong RAM, không thì đọc bản cất trong máy. null = chịu. */
+  function khoaCuaLo(x) {
+    var m = _loKhoa[x.id];
+    if (m && (x.h == null || m.h == null || String(m.h) === String(x.h))) return Promise.resolve(m.khoa);
+    return docGoiAnh(x.id).then(function (r) {
+      if (!r || !r.payload) return null;
+      return giaiNen({ n: r.payload.n, d: r.payload.d }).then(function (v) {
+        var im = (v && v.imgStore) || null; if (!im) return null;
+        ghiNhoLo(x.id, x.h, im); return Object.keys(im);
+      });
+    }).catch(function () { return null; });
   }
   /* Danh sách dòng ảnh của một chỉ mục — nhận CẢ kiểu mới (anhLo) lẫn kiểu cũ (anh đơn lẻ). */
   function dsDongAnh(p) {
@@ -278,6 +388,8 @@
   var TO_QUA = 700 * 1024;          // trên ngưỡng này thì coi như localStorage không chứa nổi
   function catDong(row) {
     if (!row || !row.id) return;
+    if (row.kind === KIND_ANH) { ghiGoiAnh(row.id, row); jdel(K.dsItem(row.id)); return; }
+    if (row.kind === KIND_MANH || (row.payload && row.payload.__manh && row.kind !== 'orders')) { ghiDongMay(row); return; }
     var to = 0;
     try { to = (row.payload && row.payload.d && row.payload.d.length) || 0; } catch (_) {}
     jset(K.dsItem(row.id), row);
@@ -314,15 +426,7 @@
   }
   // Mọi dòng mảnh còn nằm trong bộ nhớ máy → mã đơn: dòng (bản mới nhất)
   function manhTrongMay() {
-    var ds = [];
-    try {
-      for (var i = 0; i < localStorage.length; i++) {
-        var k = localStorage.key(i);
-        if (!k || k.indexOf('clc_ds_') !== 0 || k.indexOf('clc_ds_index_') === 0) continue;
-        var row = jget(k, null);
-        if (row && row.payload && row.payload.__manh) ds.push(row);
-      }
-    } catch (_) {}
+    var ds = dongTrongMay().filter(function (row) { return row && row.payload && row.payload.__manh; });
     var theo = {};
     ds.forEach(function (r) {
       var m = mdTuTen(r.name); if (!m) return;
@@ -434,7 +538,7 @@
         return Promise.resolve(doAnh).then(function () {
           if (!can.length) return { thay: thay, hong: con };
           return layNhieuDong(c, can).then(function () {
-            ghep.forEach(function (g) { var r = jget(K.dsItem(g.nid), null); if (r && r.payload) thay[g.x.id] = g.nid; });
+            ghep.forEach(function (g) { var r = layDongMay(g.nid); if (r && r.payload) thay[g.x.id] = g.nid; });
             return { thay: thay, hong: con.filter(function (x) { return !thay[x.id]; }) };
           });
         });
@@ -494,11 +598,45 @@
       }).catch(function () { return null; });
     });
   }
+  try { napKhoDong(); } catch (_) {}
   var CLCloud = {
     // Cấu hình / trạng thái
     configured: configured,
     isOnline: online,
     getProfile: function () { return profile; },
+    laLoiMayChu: laLoiMayChu,
+    /* Bộ kiểm thử soi/đặt cache dòng trong máy (localStorage cũ + IndexedDB mới) như một kho
+       { 'clc_ds_<id>': chuỗi JSON } — để dựng lại cảnh "máy còn cache CŨ". */
+    __khoDong: {
+      chup: function () { var o = {}; dongTrongMay().forEach(function (r) { o['clc_ds_' + r.id] = JSON.stringify(r); });
+        var ds = CLCloud.listCached(); if (ds && ds.length) o[K.dsIndex(fid())] = JSON.stringify(ds); return o; },
+      dat: function (o) {
+        for (var i = localStorage.length - 1; i >= 0; i--) { var k = localStorage.key(i); if (k && k.indexOf('clc_ds_') === 0) localStorage.removeItem(k); }
+        Object.keys(_dongMay).forEach(function (id) { xoaDongMay(id); });
+        Object.keys(o || {}).forEach(function (k) {
+          var r = null; try { r = JSON.parse(o[k]); } catch (_) {}
+          if (r && r.payload && r.payload.__manh && r.kind !== KIND_ANH && r.kind !== 'orders') { _dongMay[r.id] = r; idbGhi(TIEN_TO_DONG + r.id, r); }
+          else localStorage.setItem(k, o[k]);
+        });
+      },
+      chuoi: function (id) { var r = layDongMay(id); return r ? JSON.stringify(r) : null; },
+      ghi: function (id, r) { if (_dongMay[id] || (r && r.kind === KIND_MANH)) { _dongMay[id] = r; idbGhi(TIEN_TO_DONG + id, r); } else jset(K.dsItem(id), r); }
+    },
+    /* Vào bằng hồ sơ đã cất trong máy (đăng nhập NGOẠI TUYẾN — mật khẩu đã được auth.web.js
+       đối chiếu với dấu băm cất từ lần đăng nhập trực tuyến trước). */
+    dungHoSoMay: function (p) { if (p && p.id) { profile = p; jset(K.profile, p); } return profile; },
+    /* Máy chủ còn sống không? Hỏi 1 dòng 1 cột (vài chục byte). song · khoa (402/5xx) · matMang */
+    kiemMayChu: function () {
+      if (!configured()) return Promise.resolve({ matMang: true });
+      return ensureClient().then(function (c) {
+        if (!c) return { matMang: true };
+        return c.from('profiles').select('id').limit(1).then(function (r) {
+          if (r && r.error && laLoiMayChu(r.error)) return { khoa: true, loi: String(r.error.message || '') };
+          if (r && (r.status === 402 || r.status >= 500)) return { khoa: true, loi: 'HTTP ' + r.status };
+          return { song: true };
+        });
+      }).catch(function (e) { return { matMang: true, loi: String((e && e.message) || e || '') }; });
+    },
     onAuth: function (cb) { listeners.auth.push(cb); },
     onSync: function (cb) { listeners.sync.push(cb); },
 
@@ -513,7 +651,11 @@
       return ensureClient().then(function (c) {
         if (!c) return { offline: true, profile: null };
         return c.auth.getSession().then(function (s) {
-          if (!(s && s.data && s.data.session)) return { khongCoPhien: true, profile: null };
+          if (!(s && s.data && s.data.session)) {
+            /* Làm mới phiên hỏng vì MÁY CHỦ (bị khoá 402 / sập / mất mạng) ≠ hết phiên thật. */
+            if (s && s.error && laLoiMayChu(s.error)) return { offline: true, mayChuLoi: String(s.error.message || s.error), profile: null };
+            return { khongCoPhien: true, profile: null };
+          }
           return fetchProfile().then(function (p) {
             if (p) { emit('auth', p); return { profile: p }; }
             return { hoSoHong: true, profile: null };
@@ -525,9 +667,9 @@
     // Đăng nhập email/mật khẩu (Supabase Auth)
     signIn: function (email, password) {
       return ensureClient().then(function (c) {
-        if (!c) return Promise.reject(new Error('Chưa cấu hình Supabase (đang offline).'));
+        if (!c) { var e0 = new Error('Không kết nối được máy chủ (đang offline).'); e0.mayChu = true; return Promise.reject(e0); }
         return c.auth.signInWithPassword({ email: email, password: password }).then(function (r) {
-          if (r.error) throw new Error(r.error.message);
+          if (r.error) { var er = new Error(r.error.message); er.status = r.error.status; er.mayChu = laLoiMayChu(r.error); throw er; }
           return fetchProfile().then(function (p) {
             if (!p) throw new Error('Đăng nhập được nhưng KHÔNG đọc được hồ sơ tài khoản (mạng chập hoặc quyền RLS). Thử lại sau ít giây.');
             if (p.active === false) { c.auth.signOut(); throw new Error('Tài khoản đã bị khóa.'); }
@@ -624,11 +766,11 @@
         if (!c) return { loi: 'không tạo được kết nối tới máy chủ' };
         return c.from('datasets').select('id,updated_at,created_by').eq('id', id).maybeSingle()
           .then(function (r) {
-            if (r && r.error) return { loi: 'đọc bảng datasets hỏng: ' + (r.error.message || r.error.code || '?') };
+            if (r && r.error) return { loi: 'đọc bảng datasets hỏng: ' + (r.error.message || r.error.code || '?'), khoa: laLoiMayChu(r.error) || r.status === 402 || r.status >= 500 };
             if (!r || !r.data) return { loi: 'máy chủ không trả về ô lưu (chưa có phiên đăng nhập hoặc không có quyền đọc)' };
             return r.data;
           });
-      }).catch(function (e) { return { loi: (e && e.message) || 'lỗi không rõ khi hỏi máy chủ' }; });
+      }).catch(function (e) { return { loi: (e && e.message) || 'lỗi không rõ khi hỏi máy chủ', khoa: true }; });
     },
 
     // Kéo dữ liệu xưởng từ DB → cache (gọi khi đăng nhập / bấm làm tươi)
@@ -685,7 +827,7 @@
       if (!online()) { enqueue({ op: 'upsert', row: row }); return Promise.resolve(row); }
       return ensureClient().then(function (c) {
         if (!c) { enqueue({ op: 'upsert', row: row }); return row; }
-        return c.from('datasets').upsert(row).select().then(function (r) {
+        return c.from('datasets').upsert(row).select('id').then(function (r) {   // chỉ cần biết đã ghi — khỏi tải lại cả dòng
           if (r.error) throw new Error('Lưu đám mây thất bại: ' + r.error.message);
           return row;
         });
@@ -694,7 +836,8 @@
     /* LƯU THEO MẢNH — rec = {id?, name, goi:{chung, manh:[{md,…}], anh}} (goi do
        __CLAPP.chiaLuu() dựng). Chỉ mảnh nào ĐỔI mới nén + gửi lại; mảnh cũ giữ nguyên dòng
        trên Supabase. Trả về dòng CHỈ MỤC. */
-    saveGoi: function (rec) {
+    saveGoi: function (rec) { return napKhoDong().then(function () { return CLCloud._saveGoi(rec); }); },
+    _saveGoi: function (rec) {
       if (!profile || !profile.factory_id) return Promise.reject(new Error('Tài khoản chưa được gán Xưởng — liên hệ quản trị viên.'));
       var goi = rec.goi || {}, id = rec.id || idMoi(), now = new Date().toISOString();
       var cuRow = jget(K.dsItem(id), null);
@@ -740,27 +883,52 @@
       dsAnhCu.forEach(function (x) { cuTheoLo[x.b] = x; });
       var khoAnh = (goi.anh && goi.anh.imgStore) || {};
       var soAnh = Object.keys(khoAnh).length;
-      var vieAnh = [];
+      var giuLo = function (x) { var o = { b: x.b, id: x.id, h: x.h }; if (x.tu) o.tu = 1; return o; };
+      var vieAnhP;
       if (!soAnh && dsAnhCu.length) {
         log('giữ nguyên gói ảnh cũ — kho ảnh đang trống, không ghi đè');
-        dsAnhCu.forEach(function (x) { vieAnh.push(Promise.resolve({ b: x.b, id: x.id, h: x.h })); });
+        vieAnhP = Promise.resolve(dsAnhCu.map(giuLo));
       } else {
-        /* Chia kho ảnh ra từng lô rồi gửi RIÊNG từng lô: lô nào không đổi thì `phan()` thấy
-           vân tay trùng và bỏ qua, nên thêm vài tấm chỉ tốn một lô chứ không phải cả kho. */
-        var lo = [], i2;
-        for (i2 = 0; i2 < ANH_LO; i2++) lo.push(null);
-        Object.keys(khoAnh).forEach(function (k) {
-          var b = loCuaAnh(k); if (!lo[b]) lo[b] = {}; lo[b][k] = khoAnh[k];
+        /* LÔ CỐ ĐỊNH (xem ghi chú ở ANH_LO_TRAN): ảnh cũ ở yên lô cũ, chỉ ảnh mới vào lô đang mở. */
+        vieAnhP = Promise.all(dsAnhCu.map(function (x) {
+          return khoaCuaLo(x).then(function (ds) { return { x: x, khoa: ds }; });
+        })).then(function (biet) {
+          var lo = {}, daXep = {}, giuNguyen = [], maxB = ANH_LO - 1, tuMoi = {};
+          biet.forEach(function (o) {
+            if (+o.x.b > maxB) maxB = +o.x.b;
+            /* Không biết lô này chứa gì (máy chưa từng tải về) → để NGUYÊN trên máy chủ, tuyệt
+               đối không ghi đè bằng phần mình đang có (ghi đè là mất ảnh của máy khác). */
+            if (!o.khoa) { giuNguyen.push(giuLo(o.x)); return; }
+            o.khoa.forEach(function (k) {
+              if (khoAnh[k] === undefined || daXep[k]) return;      // ảnh đã xoá → bỏ khỏi lô
+              if (!lo[o.x.b]) lo[o.x.b] = {};
+              lo[o.x.b][k] = khoAnh[k]; daXep[k] = 1;
+            });
+          });
+          var nangLo = function (b) { var n = 0, m = lo[b] || {}; for (var k in m) n += String((m[k] && m[k].d) || '').length; return n; };
+          var dang = null;
+          dsAnhCu.forEach(function (x) { if (x.tu && lo[x.b] && (dang == null || +x.b > dang)) dang = +x.b; });
+          var coDang = dang == null ? 0 : nangLo(dang);
+          if (dang != null && coDang >= ANH_LO_TRAN) dang = null;
+          Object.keys(khoAnh).forEach(function (k) {
+            if (daXep[k]) return;
+            var nang = String((khoAnh[k] && khoAnh[k].d) || '').length;
+            if (dang == null || (coDang > 0 && coDang + nang > ANH_LO_TRAN)) { dang = ++maxB; coDang = 0; }
+            if (!lo[dang]) lo[dang] = {};
+            lo[dang][k] = khoAnh[k]; coDang += nang; tuMoi[dang] = 1; daXep[k] = 1;
+          });
+          return Promise.all(Object.keys(lo).map(function (bs) {
+            var b = +bs, cuX = cuTheoLo[b], tu = !!((cuX && cuX.tu) || tuMoi[b]);
+            return phan('__anh' + b, { imgStore: lo[b] }, KIND_ANH, '⚙ ảnh · lô ' + b, cuX).then(function (x) {
+              ghiNhoLo(x.id, x.h, lo[b]);
+              var o = { b: b, id: x.id, h: x.h }; if (tu) o.tu = 1; return o;
+            });
+          })).then(function (ds) {
+            return ds.concat(giuNguyen).sort(function (a, b) { return a.b - b.b; });
+          });
         });
-        for (i2 = 0; i2 < ANH_LO; i2++) {
-          if (!lo[i2]) continue;                       // lô rỗng thì khỏi tạo dòng cho tốn chỗ
-          (function (b) {
-            vieAnh.push(phan('__anh' + b, { imgStore: lo[b] }, KIND_ANH, '⚙ ảnh · lô ' + b, cuTheoLo[b])
-              .then(function (x) { return { b: b, id: x.id, h: x.h }; }));
-          })(i2);
-        }
       }
-      return Promise.all([Promise.all(viec), Promise.all(vieAnh)]).then(function (hai) {
+      return Promise.all([Promise.all(viec), vieAnhP]).then(function (hai) {
         dsManh = hai[0];
         var dsAnh = hai[1].filter(function (x) { return x && x.id; });
         return nen(goi.chung || {}).then(function (nc) {
@@ -769,17 +937,12 @@
             created_by: profile.id, updated_at: now };
           // cache: chỉ mục + mọi dòng mảnh (đã nén nên nhẹ hơn hẳn bản cũ)
           jset(K.dsItem(id), row);
-          dongMoi.forEach(function (d) { catDong(d); });
+          dongMoi.forEach(function (d) { catDong(Object.assign({}, d, { __h: hTheoId[d.id] })); });
           /* Đóng dấu vân tay lên MỌI mảnh của lần lưu này trong cache — kể cả mảnh không đổi nên
              không gửi lại. Thiếu dấu này thì lần đọc sau coi cache là "chưa biết" và tải lại cả
              kho, chậm mà vô ích. */
           Object.keys(hTheoId).forEach(function (pid) {
-            try {
-              var r = jget(K.dsItem(pid), null);
-              if (r && r.payload && String(r.__h == null ? '' : r.__h) !== String(hTheoId[pid])) {
-                r.__h = hTheoId[pid]; jset(K.dsItem(pid), r);
-              }
-            } catch (_) {}
+            try { dongDau(pid, hTheoId[pid]); } catch (_) {}
           });
           var idx = CLCloud.listCached().filter(function (d) { return d.id !== id; });
           idx.unshift({ id: id, factory_id: row.factory_id, name: row.name, kind: 'orders', created_by: row.created_by, updated_at: now, created_at: now });
@@ -829,7 +992,8 @@
     },
     /* ĐỌC 1 bản lưu → payload đầy đủ. Nhận cả kiểu CŨ (payload nguyên khối) lẫn kiểu MẢNH.
        Kiểu mảnh: lấy các dòng mảnh (cache trước, thiếu thì hỏi DB 1 lần cho cả mớ) rồi gộp. */
-    fetchGoi: function (id) {
+    fetchGoi: function (id) { return napKhoDong().then(function () { return CLCloud._fetchGoi(id); }); },
+    _fetchGoi: function (id) {
       return Promise.resolve(CLCloud.fetchOne(id)).then(function (d) {
         var p = d && d.payload;
         /* ⚠ Không đọc được thì phải BÁO HỎNG, TUYỆT ĐỐI không trả về rỗng: chỗ gọi nó làm
@@ -863,7 +1027,7 @@
         (p.manh || []).forEach(function (m) { if (m && m.id) hCua[m.id] = m.h; });
         if (p.anh && p.anh.id) hCua[p.anh.id] = p.anh.h;
         var thieu = ids.filter(function (x) {
-          var r = jget(K.dsItem(x), null);
+          var r = layDongMay(x);
           if (!r || !r.payload) return true;                       // chưa có → tải
           var hMoi = hCua[x];
           if (hMoi == null) return false;                          // chỉ mục không có vân tay → đành tin cache
@@ -887,13 +1051,11 @@
              Mảnh đòi tải mà mạng không lấy được thì để nguyên (không dấu / dấu cũ) để lần đọc
              sau còn biết là chưa khớp mà tải lại. */
           ((kq && kq.ids) || []).forEach(function (x) {
-            try {
-              var r = jget(K.dsItem(x), null);
-              if (r && r.payload && hCua[x] != null && String(r.__h == null ? '' : r.__h) !== String(hCua[x])) {
-                r.__h = hCua[x]; jset(K.dsItem(x), r);
-              }
-            } catch (_) {}
+            try { if (hCua[x] != null) dongDau(x, hCua[x]); } catch (_) {}
           });
+          /* Dòng VỪA TẢI TỪ MÁY CHỦ về là chắc chắn đang nằm trên máy chủ ⇒ ghi sổ "đã lên". Thiếu
+             sổ này thì lần ☁ Lưu đầu tiên ở mỗi máy gửi lại TOÀN BỘ mảnh + lô ảnh dù chẳng đổi gì. */
+          try { danhDauLen((kq && kq.ids) || []); } catch (_) {}
           var caiGi = [];
           (p.manh || []).forEach(function (m) { caiGi.push({ loai: 'manh', md: m.md, id: m.id }); });
           /* Lô ảnh có thể chỉ nằm trong IndexedDB (quá to cho localStorage) — tra bảng này
@@ -904,12 +1066,13 @@
             if (rA && rA.payload) dongCoSan[x.id] = rA;
             caiGi.push({ loai: 'anh', id: x.id });
           });
-          var layDong = function (id2) { return dongCoSan[id2] || jget(K.dsItem(id2), null); };
+          var layDong = function (id2) { return dongCoSan[id2] || layDongMay(id2); };
+          var hLo = {}; dsAnh.forEach(function (x) { hLo[x.id] = x.h; });
           var mat = caiGi.filter(function (x) { var r = layDong(x.id); return !r || !r.payload; });
           function ghepRa(ds2, va) {
             return Promise.all(ds2.map(function (x) {
               var row = layDong(x.id);
-              return giaiNen({ n: row.payload.n, d: row.payload.d }).then(function (v) { return { loai: x.loai, v: v }; });
+              return giaiNen({ n: row.payload.n, d: row.payload.d }).then(function (v) { return { loai: x.loai, v: v, id: x.id }; });
             })).then(function (ds) {
               return giaiNen({ n: p.nc, d: p.chung }).then(function (chung) {
                 var goi = { chung: chung || {}, manh: [], anh: { imgStore: {} } };
@@ -917,6 +1080,7 @@
                 ds.forEach(function (x) {
                   if (x.loai !== 'anh') { goi.manh.push(x.v); return; }
                   var im = (x.v && x.v.imgStore) || {};
+                  if (hLo[x.id] !== undefined) ghiNhoLo(x.id, hLo[x.id], im);
                   Object.keys(im).forEach(function (k) { if (goi.anh.imgStore[k] === undefined) goi.anh.imgStore[k] = im[k]; });
                 });
                 if (!(root.__CLAPP && root.__CLAPP.gopLuu))
@@ -1007,7 +1171,8 @@
         }).catch(function () { return null; });
       }).catch(function () { return null; });
     },
-    napNhanh: function (id) {
+    napNhanh: function (id) { return napKhoDong().then(function () { return CLCloud._napNhanh(id); }); },
+    _napNhanh: function (id) {
       var d = jget(K.dsItem(id), null);
       var p = d && d.payload;
       if (!p) return Promise.resolve(null);
@@ -1028,13 +1193,17 @@
       })).then(function (dsRow) {
       var dongCoSan = {};
       dsRow.forEach(function (o) { if (o.r && o.r.payload) dongCoSan[o.id] = o.r; });
-      var layDong = function (id2) { return dongCoSan[id2] || jget(K.dsItem(id2), null); };
+      var layDong = function (id2) { return dongCoSan[id2] || layDongMay(id2); };
+      var hLoN = {}; dsAnhN.forEach(function (x) { hLoN[x.id] = x.h; });
       var co = caiGi.filter(function (x) { var r = layDong(x.id); return r && r.payload; });
       var thieu = caiGi.length - co.length;
       if (!co.filter(function (x) { return x.loai === 'manh'; }).length) return Promise.resolve(null);
       return Promise.all(co.map(function (x) {
         var row = layDong(x.id);
-        return giaiNen({ n: row.payload.n, d: row.payload.d }).then(function (v) { return { loai: x.loai, v: v }; }).catch(function () { return null; });
+        return giaiNen({ n: row.payload.n, d: row.payload.d }).then(function (v) {
+          if (x.loai === 'anh' && v && v.imgStore && hLoN[x.id] !== undefined) ghiNhoLo(x.id, hLoN[x.id], v.imgStore);
+          return { loai: x.loai, v: v };
+        }).catch(function () { return null; });
       })).then(function (ds) {
         var hong = ds.filter(function (x) { return !x; }).length;
         return giaiNen({ n: p.nc, d: p.chung }).then(function (chung) {
@@ -1087,7 +1256,8 @@
        và supabase". Xoá mọi dòng orders / orders-manh / orders-anh của xưởng KHÔNG thuộc bản
        lưu đang giữ, cả trên máy chủ lẫn trong bộ nhớ máy.
        ⚠ CHỈ ĐƯỢC GỌI SAU khi kiemTraBanLuu() nói OK — xoá là không lấy lại được. */
-    donDep: function (giuIds) {
+    donDep: function (giuIds) { return napKhoDong().then(function () { return CLCloud._donDep(giuIds); }); },
+    _donDep: function (giuIds) {
       var giu = {}; (giuIds || []).forEach(function (i) { if (i) giu[i] = 1; });
       if (!Object.keys(giu).length) return Promise.resolve({ may: 0, server: 0 });
       var may = 0;
@@ -1100,6 +1270,7 @@
           if (!giu[k.slice(7)]) bo.push(k);
         }
         bo.forEach(function (k) { jdel(k); }); may = bo.length;
+        Object.keys(_dongMay).forEach(function (x) { if (!giu[x]) { xoaDongMay(x); may++; } });
       } catch (_) {}
       // sổ "đã lên máy chủ" cũng thu gọn theo, khỏi phình vô hạn
       try { var so = lenRoi(), so2 = {}; Object.keys(giu).forEach(function (x) { if (so[x]) so2[x] = 1; }); jset(K.daLen(fid()), so2); } catch (_) {}
@@ -1134,16 +1305,11 @@
        lần lưu đó. Cả kho mảnh vì thế chính là một cuốn phim: muốn quay về lúc T thì với TỪNG
        mã đơn lấy bản mới nhất mà còn ≤ T. Đây là lý do KHÔNG được tự động xoá mảnh cũ.
        dsKho() chỉ xin cột nhẹ (id·kind·name·updated_at) nên quét cả nghìn dòng vẫn nhanh. */
-    dsKho: function () {
-      var may = [];
-      try {
-        for (var i = 0; i < localStorage.length; i++) {
-          var k = localStorage.key(i);
-          if (!k || k.indexOf('clc_ds_') !== 0 || k.indexOf('clc_ds_index_') === 0) continue;
-          var r = jget(k, null); if (!r) continue;
-          may.push({ id: r.id || k.slice(7), kind: r.kind || '?', name: r.name || '', updated_at: r.updated_at || '', nguon: 'máy' });
-        }
-      } catch (_) {}
+    dsKho: function () { return napKhoDong().then(function () { return CLCloud._dsKho(); }); },
+    _dsKho: function () {
+      var may = dongTrongMay().map(function (r) {
+        return { id: r.id, kind: r.kind || '?', name: r.name || '', updated_at: r.updated_at || '', nguon: 'máy' };
+      });
       if (!configured() || !online() || !fid()) return Promise.resolve({ may: may, server: [] });
       return ensureClient().then(function (c) {
         if (!c) return { may: may, server: [] };
@@ -1190,7 +1356,7 @@
         var tMayChu = {};
         tatCa.forEach(function (d) { var t = String(d.updated_at || ''); if (d && d.id && t > (tMayChu[d.id] || '')) tMayChu[d.id] = t; });
         var thieu = ids.filter(function (x) {
-          var r = jget(K.dsItem(x), null);
+          var r = layDongMay(x);
           if (!r || !r.payload) return true;                    // chưa có → tải
           var tS = tMayChu[x]; if (!tS) return false;           // không biết mốc máy chủ → đành tin cache
           return String(r.updated_at || '') < String(tS);       // cache cũ hơn máy chủ → tải lại
@@ -1199,7 +1365,7 @@
           : ensureClient().then(function (c) { return c ? layNhieuDong(c, thieu) : null; });
         return doThieu.then(function () {
           return Promise.all(ids.map(function (x) {
-            var row = jget(K.dsItem(x), null);
+            var row = layDongMay(x);
             if (!row || !row.payload) return null;
             return giaiNen({ n: row.payload.n, d: row.payload.d }).catch(function () { return null; });
           })).then(function (vs) {
@@ -1217,16 +1383,9 @@
        Quét MỌI mảnh còn nằm trong bộ nhớ trình duyệt rồi ghép lại, KHÔNG cần dòng chỉ mục.
        Dùng khi chỉ mục hỏng/ghi đè nhầm mà mảnh thì vẫn còn — đây là lý do bản mới KHÔNG bao
        giờ tự xoá mảnh nữa. Trả về payload (như bản lưu) hoặc null nếu chẳng còn gì. */
-    cuuManh: function () {
-      var ds = [];
-      try {
-        for (var i = 0; i < localStorage.length; i++) {
-          var k = localStorage.key(i);
-          if (!k || k.indexOf('clc_ds_') !== 0) continue;
-          var row = jget(k, null);
-          if (row && row.payload && row.payload.__manh) ds.push(row);
-        }
-      } catch (_) {}
+    cuuManh: function () { return napKhoDong().then(function () { return CLCloud._cuuManh(); }); },
+    _cuuManh: function () {
+      var ds = dongTrongMay().filter(function (row) { return row && row.payload && row.payload.__manh; });
       if (!ds.length) return Promise.resolve(null);
       return Promise.all(ds.map(function (r) {
         return giaiNen({ n: r.payload.n, d: r.payload.d }).catch(function () { return null; });
@@ -1248,7 +1407,8 @@
          3. mọi bản lưu NGUYÊN KHỐI kiểu cũ ('orders' không chia mảnh) — mỏ vàng, vì đó là các
             bản ☁ Lưu tay TRƯỚC khi có chia mảnh, thường còn đủ đơn
        Trả về { payload, bc } — bc là BÁO CÁO để nhìn thấy sự thật, không phải đoán. */
-    gomTatCa: function () {
+    gomTatCa: function () { return napKhoDong().then(function () { return CLCloud._gomTatCa(); }); },
+    _gomTatCa: function () {
       var theoMd = {}, anh = {};
       var bc = { manhTrongMay: 0, manhTrenServer: 0, banNguyenKhoi: 0, donTuNguyenKhoi: 0, maDon: 0, dong: 0 };
       function nhan(v, t) {
@@ -1257,15 +1417,9 @@
         if (!theoMd[m] || String(t || '') > String(theoMd[m].t || '')) theoMd[m] = { v: v, t: t || '' };
       }
       // (1) bộ nhớ máy
-      var dsMay = [];
-      try {
-        for (var i = 0; i < localStorage.length; i++) {
-          var k = localStorage.key(i); if (!k || k.indexOf('clc_ds_') !== 0) continue;
-          var r = jget(k, null);
-          if (r && r.payload && r.payload.__manh) dsMay.push(r);
-          else if (r && r.payload && !r.payload.__goi && (r.payload.orders || []).length) dsMay.push(r);
-        }
-      } catch (_) {}
+      var dsMay = dongTrongMay().filter(function (r) {
+        return r && r.payload && (r.payload.__manh || (!r.payload.__goi && (r.payload.orders || []).length));
+      });
       var b1 = Promise.all(dsMay.map(function (r) {
         if (r.payload.__manh) {
           return giaiNen({ n: r.payload.n, d: r.payload.d })
@@ -1349,7 +1503,8 @@
        dấu vết `imgByMadon` của nó còn nằm ở đâu đó trong phim, kể cả khi bản MỚI NHẤT đã trống.
        Hàm này xem lại TOÀN BỘ phim và GOM (hợp) mọi khóa ảnh từng gắn cho từng mã đơn.
        ⚠ CHỈ ĐỌC: không ghi, không xoá, không đụng một dòng đơn nào. Trả về { theoMd, bc }. */
-    timAnhCu: function () {
+    timAnhCu: function () { return napKhoDong().then(function () { return CLCloud._timAnhCu(); }); },
+    _timAnhCu: function () {
       var theoMd = {}, bc = { manhMay: 0, manhServer: 0, banNguyenKhoi: 0, maDon: 0, khoa: 0 };
       function nhan(map) {
         if (!map) return;
@@ -1360,13 +1515,7 @@
         });
       }
       // (1) mảnh còn trong bộ nhớ máy
-      var dsMay = [];
-      try {
-        for (var i = 0; i < localStorage.length; i++) {
-          var k = localStorage.key(i); if (!k || k.indexOf('clc_ds_') !== 0) continue;
-          var row = jget(k, null); if (row && row.payload) dsMay.push(row);
-        }
-      } catch (_) {}
+      var dsMay = dongTrongMay().filter(function (row) { return row && row.payload; });
       var b1 = Promise.all(dsMay.map(function (r) {
         if (r.payload.__manh) {
           return giaiNen({ n: r.payload.n, d: r.payload.d })
@@ -1455,7 +1604,8 @@
         if (_p && _p.__goi) {
           var _con = (_p.manh || []).map(function (m) { return m.id; });
           if (_p.anh && _p.anh.id) _con.push(_p.anh.id);
-          _con.forEach(function (x) { jdel(K.dsItem(x)); });
+          dsDongAnh(_p).forEach(function (x) { if (_con.indexOf(x.id) < 0) _con.push(x.id); });
+          _con.forEach(function (x) { xoaDongMay(x); idbXoa(khoaGoiAnh(x)); });
           if (_con.length && configured()) {
             if (!online()) _con.forEach(function (x) { enqueue({ op: 'delete', id: x }); });
             else ensureClient().then(function (c) { if (c) c.from('datasets').delete().in('id', _con); });
@@ -1535,10 +1685,10 @@
       return ensureClient().then(function (c) {
         if (!c || !profile) return null;
         var flt = profile.factory_id ? ('factory_id=eq.' + profile.factory_id) : undefined;
+        /* ⚠ KHÔNG nghe bảng datasets nữa (12/11 — vượt hạn mức tải xuống): Realtime đẩy NGUYÊN
+           dòng (cả lô ảnh vài MB) tới MỌI tab đang mở mỗi lần có ai lưu, kể cả tab của chính người
+           lưu. Việc "máy khác có bản mới" đã có người canh hỏi 1 dòng nhẹ mỗi 15 giây lo. */
         var ch = c.channel('sync-' + (profile.factory_id || 'all'))
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'datasets', filter: flt }, function (payload) {
-            try { onChange && onChange({ table: 'datasets', payload: payload }); } catch (_) {}
-          })
           .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: flt }, function (payload) {
             try { onChange && onChange({ table: 'profiles', payload: payload }); } catch (_) {}
           })

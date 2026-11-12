@@ -200,8 +200,20 @@
       var useCloud = !!(window.CLCloud && window.CLCloud.configured() && u.indexOf('@') >= 0);
       if (useCloud) {
         window.CLCloud.signIn(u, p)
-          .then(function (profile) { startCloudSession(profile); })
-          .catch(function (e) { fail(e.message || 'Đăng nhập đám mây thất bại'); });
+          .then(function (profile) { ghiDangNhapMay(u, p, profile); startCloudSession(profile); })
+          .catch(function (e) {
+            /* Máy chủ bị khoá (vượt hạn mức) / sập / mất mạng → không phải lỗi của người dùng:
+               đối chiếu mật khẩu với dấu băm cất từ lần đăng nhập trước rồi cho XEM BẢN TRONG MÁY. */
+            var loiMay = !!(e && e.mayChu) || (navigator.onLine === false) ||
+                         !!(window.CLCloud.laLoiMayChu && window.CLCloud.laLoiMayChu(e));
+            if (!loiMay) return fail(e.message || 'Đăng nhập đám mây thất bại');
+            btn.textContent = 'Đang mở bản trong máy…';
+            thuDangNhapMay(u, p).then(function (hoSo) {
+              if (hoSo) return vaoNgoaiTuyen(hoSo, u, p);
+              fail('Không kết nối được máy chủ (' + (e.message || 'mất mạng') + '). Máy này chưa có bản đăng nhập ' +
+                   'ngoại tuyến cho email này — cần đăng nhập thành công 1 lần khi máy chủ hoạt động.');
+            }, function (sai) { fail(sai.message); });
+          });
       } else {
         api('POST', '/api/auth/login', { username: u, password: p })
           .then(function (r) { setSession(r); startSession(); })
@@ -227,6 +239,112 @@
   }
 
   function removeEl(id) { var e = document.getElementById(id); if (e) e.remove(); }
+
+  /* ===== XEM NGOẠI TUYẾN KHI MÁY CHỦ BỊ KHOÁ / MẤT MẠNG (user chốt 12/11) =====
+     User: "các tài khoản tự động tải dữ liệu về máy tính để lưu, khi mất kết nối thì vẫn phải xem
+     được và khi có dữ liệu mới cũng tự động cập nhật về máy".
+     · Dữ liệu: mở app là tải đủ đơn + ảnh về máy (IndexedDB) và người canh tự cập nhật bản mới.
+     · Đăng nhập: mỗi lần đăng nhập trực tuyến thành công, cất DẤU BĂM mật khẩu (PBKDF2, không
+       cất mật khẩu) + hồ sơ. Máy chủ hỏng mà gõ đúng mật khẩu → vào xem bản trong máy.
+     · Đang ngoại tuyến: không đăng xuất, không dọn cache; cứ 90 giây hỏi máy chủ 1 dòng nhẹ,
+       sống lại là tự đăng nhập lại và lấy bản mới — không bắt ai bấm gì. */
+  var KHOA_DN_MAY = 'cl_dn_may', DN_VONG = 120000;
+  function docDnMay() { try { return JSON.parse(localStorage.getItem(KHOA_DN_MAY) || '{}') || {}; } catch (e) { return {}; } }
+  function b64Byte(u8) { var s = ''; for (var i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s); }
+  function bamMatKhau(pass, muoi, vong) {
+    try {
+      if (!(window.crypto && crypto.subtle && window.TextEncoder)) return Promise.reject(new Error('Trình duyệt không hỗ trợ kiểm tra mật khẩu ngoại tuyến.'));
+      var s = atob(muoi), m = new Uint8Array(s.length);
+      for (var i = 0; i < s.length; i++) m[i] = s.charCodeAt(i);
+      return crypto.subtle.importKey('raw', new TextEncoder().encode(String(pass)), 'PBKDF2', false, ['deriveBits'])
+        .then(function (k) { return crypto.subtle.deriveBits({ name: 'PBKDF2', salt: m, iterations: vong, hash: 'SHA-256' }, k, 256); })
+        .then(function (b) { return b64Byte(new Uint8Array(b)); });
+    } catch (e) { return Promise.reject(e); }
+  }
+  function ghiDangNhapMay(email, pass, hoSo) {
+    try {
+      if (!hoSo || !hoSo.id || !(window.crypto && crypto.getRandomValues)) return;
+      var e = String(email || '').trim().toLowerCase(), r = new Uint8Array(16);
+      crypto.getRandomValues(r);
+      var muoi = b64Byte(r);
+      bamMatKhau(pass, muoi, DN_VONG).then(function (h) {
+        var tat = docDnMay();
+        tat[e] = { s: muoi, h: h, n: DN_VONG, p: hoSo, t: Date.now() };
+        var ds = Object.keys(tat).sort(function (a, b) { return (tat[b].t || 0) - (tat[a].t || 0); });
+        ds.slice(6).forEach(function (k) { delete tat[k]; });             // giữ tối đa 6 tài khoản gần nhất
+        try { localStorage.setItem(KHOA_DN_MAY, JSON.stringify(tat)); } catch (_) {}
+      }).catch(function () {});
+    } catch (_) {}
+  }
+  /* → Promise: hồ sơ (đúng mật khẩu) · null (máy chưa có bản ngoại tuyến) · reject (sai mật khẩu) */
+  function thuDangNhapMay(email, pass) {
+    var x = docDnMay()[String(email || '').trim().toLowerCase()];
+    if (!x || !x.s || !x.h || !x.p) return Promise.resolve(null);
+    return bamMatKhau(pass, x.s, x.n || DN_VONG).then(function (h) {
+      if (h !== x.h) throw new Error('Sai mật khẩu (đang kiểm tra ngoại tuyến vì máy chủ không truy cập được).');
+      return x.p;
+    });
+  }
+  var _ngoaiTuyen = null, _ntT = null;
+  function laNgoaiTuyen() { return !!_ngoaiTuyen; }
+  function vaoNgoaiTuyen(hoSo, email, pass) {
+    try { window.CLCloud.dungHoSoMay(hoSo); } catch (_) {}
+    batNgoaiTuyen('dangnhap', email, pass);
+    startCloudSession(hoSo);
+    toast('Máy chủ không truy cập được — đang XEM BẢN LƯU TRONG MÁY. Có mạng lại app tự cập nhật.', 'ok');
+  }
+  function batNgoaiTuyen(lyDo, email, pass) {
+    var cu = _ngoaiTuyen || {};
+    _ngoaiTuyen = { lyDo: lyDo, email: email || cu.email || '', pass: pass || cu.pass || '', luc: cu.luc || Date.now() };
+    veNhanMang();
+    if (!_ntT) _ntT = setInterval(thuNoiLai, 90000);
+  }
+  function tatNgoaiTuyen() {
+    _ngoaiTuyen = null;
+    if (_ntT) { clearInterval(_ntT); _ntT = null; }
+    veNhanMang();
+  }
+  function veNhanMang() {
+    try {
+      var el = document.getElementById('cl-mang');
+      if (!_ngoaiTuyen) { if (el) el.remove(); return; }
+      var bar = document.getElementById('cl-bar');
+      if (!el) {
+        el = h('span', { id: 'cl-mang', class: 'cl-pill', style: 'background:#fef3c7;color:#92400e;cursor:help' });
+        if (bar) bar.insertBefore(el, bar.firstChild); else { el.style.cssText += ';position:fixed;top:6px;right:8px;z-index:99990'; document.body.appendChild(el); }
+      }
+      el.textContent = '⚠ Ngoại tuyến · xem bản trong máy';
+      el.title = 'Máy chủ không truy cập được (mất mạng hoặc máy chủ đang bị khoá). Đang xem dữ liệu đã tải về máy này. ' +
+                 'Sửa vẫn được giữ trong máy nhưng CHƯA lưu lên máy chủ. App tự kết nối lại sau mỗi 90 giây.';
+    } catch (_) {}
+  }
+  function thuNoiLai() {
+    if (!_ngoaiTuyen || !window.CLCloud || !window.CLCloud.kiemMayChu) return;
+    if (navigator.onLine === false) return;
+    window.CLCloud.kiemMayChu().then(function (k) {
+      if (!k || !k.song || !_ngoaiTuyen) return;
+      var nt = _ngoaiTuyen;
+      if (nt.email && nt.pass) {
+        return window.CLCloud.signIn(nt.email, nt.pass).then(function (hoSo) {
+          ghiDangNhapMay(nt.email, nt.pass, hoSo);
+          tatNgoaiTuyen();
+          setSession(cloudToSession(hoSo)); buildBar();
+          toast('Máy chủ đã hoạt động lại — đã kết nối lại, đang lấy bản mới.', 'ok');
+          try { canhBanMoi(); } catch (_) {}
+        }).catch(function (e) {
+          if (e && (e.mayChu || (window.CLCloud.laLoiMayChu && window.CLCloud.laLoiMayChu(e)))) return;   // còn hỏng → thử lượt sau
+          tatNgoaiTuyen();
+          showLogin('Máy chủ đã hoạt động lại — đăng nhập lại để lấy bản mới (' + (e && e.message || '') + ').');
+        });
+      }
+      return window.CLCloud.init().then(function (res) {
+        if (res && res.profile) { tatNgoaiTuyen(); toast('Máy chủ đã hoạt động lại — đang lấy bản mới.', 'ok'); try { canhBanMoi(); } catch (_) {} return; }
+        if (res && res.khongCoPhien) { tatNgoaiTuyen(); doLogout(true); }
+      });
+    }).catch(function () {});
+  }
+  window.__clNgoaiTuyen = function () { return _ngoaiTuyen ? { lyDo: _ngoaiTuyen.lyDo, email: _ngoaiTuyen.email } : null; };
+  window.__clThuNoiLai = thuNoiLai;      // bộ kiểm thử gọi thẳng, khỏi đợi 90 giây
 
   function setSession(r) {
     S.token = r.token || S.token;
@@ -297,6 +415,7 @@
   }
 
   function doLogout(expired) {
+    try { tatNgoaiTuyen(); } catch (e) {}
     var t = S.token, wasCloud = S.cloud;
     try { dungCanh(); } catch (e) {}
     S.token = ''; S.user = null; S.factory = null; S.perms = []; S.cloud = false;
@@ -355,6 +474,7 @@
     if (can('user:read') || can('factory:create')) bar.appendChild(h('button', { class: 'cl-btn sm', onclick: (S.cloud ? openCloudAdminModal : openAdminModal) }, ['⚙ Quản lý']));
 
     bar.appendChild(h('button', { class: 'cl-btn sm danger', onclick: function () { doLogout(false); } }, ['Đăng xuất']));
+    setTimeout(veNhanMang, 0);
 
     /* Lối vào bảng "Quay về một mốc thời gian": CHỮ NHỎ Ở CHÂN THANH BÊN, không phải nút trên
        thanh trên cùng (user đã chốt bỏ nút ở đó). Trước tính gọi bằng địa chỉ ?cuu=1 nhưng dán
@@ -440,6 +560,11 @@
     var payload = window.__CLAPP.getState();
     // ĐÁM MÂY: lưu qua Supabase (RLS gắn factory theo profile) + cache.
     if (dungDamMay()) {
+      if (_ngoaiTuyen) {
+        try { doAutoSave(); } catch (_) {}
+        try { thuNoiLai(); } catch (_) {}
+        return toast('Đang NGOẠI TUYẾN — chưa lưu lên máy chủ được. Phần sửa vẫn giữ trong máy; có mạng lại thì bấm ☁ Lưu.', 'err');
+      }
       if (!duocGhiXuong()) return toast('Đang xem xưởng khác — không lưu đè. Chọn lại xưởng của bạn rồi lưu.', 'err');
       if (_moTam && !window.confirm('ĐANG XEM BẢN TẠM — còn thiếu ' + _moTamThieu + ' mảnh chưa lấy về được.\n\n' +
           'Lưu bây giờ là GHI ĐÈ bản thiếu này lên máy chủ, mấy đơn kia sẽ mất.\n\nVẫn lưu?')) return;
@@ -1127,8 +1252,11 @@
      Trước đây mocMayChu() nuốt lỗi im lặng nên không ai biết. Nay hỏng 3 lượt liền mà máy VẪN
      CÓ MẠNG thì: dọn cache mảnh để chừa chỗ (mảnh lấy lại được từ máy chủ) → xin lại hồ sơ/phiên
      → thử mở lại bản mới nhất. Tối đa 5 phút một lần cho khỏi quần máy. */
-  function khongDocDuocMayChu(loi) {
+  function khongDocDuocMayChu(loi, khoa) {
     _loiCanh = String(loi || 'không rõ'); _soLoiCanh++;
+    /* Máy chủ bị khoá / sập / mất mạng: dọn cache rồi nạp lại chỉ làm mất bản trong máy và tốn
+       tải xuống — chỉ báo ngoại tuyến, cứ xem bản đang có. */
+    if (khoa || _ngoaiTuyen) { if (_soLoiCanh >= 2 || _ngoaiTuyen) batNgoaiTuyen((_ngoaiTuyen && _ngoaiTuyen.lyDo) || 'mayChu'); return; }
     try { console.warn('[CL] hỏi máy chủ hỏng (' + _soLoiCanh + ' lượt liền): ' + _loiCanh); } catch (_) {}
     if (_soLoiCanh < 3) return;
     try { if (typeof navigator !== 'undefined' && navigator.onLine === false) return; } catch (_) {}
@@ -1234,7 +1362,14 @@
       return { coF: coF, coD: coD, canF: can.file, canD: can.dong };
     } catch (e) { return null; }
   }
+  var _canhAnLuc = 0;
   function canhBanMoi() {
+    /* Tab đang ẨN: hỏi 60 giây một lần thay vì 15 giây (12/11 — vượt hạn mức tải xuống: mỗi tab
+       mở cả ngày là ~5.700 lượt hỏi). Quay lại tab là hỏi ngay (visibilitychange) nên vẫn thấy
+       bản mới tức thì. */
+    try {
+      if (document.hidden) { if (Date.now() - _canhAnLuc < 60000) return; _canhAnLuc = Date.now(); }
+    } catch (_) {}
     _soCanh++;
     try {
       /* ⚠ dungDamMay() chứ KHÔNG phải cờ S.cloud (bài học 3/9, tu-cap-nhat-khi-co-ban-moi):
@@ -1263,8 +1398,9 @@
       return window.CLCloud.mocMayChu(id).then(function (r) {
         /* KHÔNG NUỐT LỖI: mocMayChu nay trả { loi: … } khi đọc hỏng, phân biệt được với
            "máy chủ không có gì mới". Hỏng 3 lượt liền mà máy vẫn có mạng thì tự chữa. */
-        if (!r || !r.updated_at) { khongDocDuocMayChu(r && r.loi); return; }
+        if (!r || !r.updated_at) { khongDocDuocMayChu(r && r.loi, r && r.khoa); return; }
         _loiCanh = ''; _soLoiCanh = 0;
+        if (_ngoaiTuyen) tatNgoaiTuyen();                 // đọc lại được máy chủ → hết ngoại tuyến
         var t = String(r.updated_at);
         if (t <= String(_dangMo.t || '')) {
           /* Máy chủ không có gì mới. NHƯNG nếu màn hình đang hụt so với nhãn thì phải tự đi lấy
@@ -1509,9 +1645,39 @@
      → 54+12 = 66 đơn, 1394+384 = 1778 dòng, khớp đúng nhãn.
      Bản trước tôi bỏ đường này đi vì sợ lôi đơn đợt cũ về. Nay giữ lại nhưng CÓ CHỐT: chỉ thêm
      khi cộng vào KHÔNG VƯỢT con số của nhãn. Và KHÔNG hỏi — user đã chốt "không cần tôi chọn". */
+  /* ===== SỔ "ĐƠN NGƯỜI DÙNG ĐÃ XÓA" (thêm 19/10) =====
+     Lỗi user báo 19/10: xóa đơn 859P → 2 giây sau đơn TỰ HIỆN LẠI kèm bảng Mix Màu cũ. Vì mục
+     tiêu vẫn là "1 file · 27 dòng" của lần Xử lý trước (chỉ hạ khi bấm ☁ Lưu), người canh thấy
+     hụt ⇒ đường B1 "🛟 Cứu thêm đơn từ kho lưu trữ" lôi chính đơn vừa xóa về, còn tự ghi lên
+     máy chủ. Nay xóa đơn/xóa file là: hạ mục tiêu NGAY + ghi tên đơn vào sổ này; đường cứu
+     không bao giờ lấy lại đơn có tên trong sổ. Nạp lại file của đơn đó là tên tự ra khỏi sổ. */
+  function khoaDaXoa() { return 'cl_daxoa_' + ((S.factory && S.factory.id) || 'none'); }
+  function soDaXoa() { try { return JSON.parse(localStorage.getItem(khoaDaXoa()) || '{}') || {}; } catch (e) { return {}; } }
+  function ghiSoDaXoa(m) { try { localStorage.setItem(khoaDaXoa(), JSON.stringify(m)); } catch (e) {} }
+  // đơn đang có trên màn hình thì không còn là "đã xóa" (người dùng đã nạp lại)
+  function donSoDaXoa() {
+    var m = soDaXoa(), co = {}, doi = false;
+    try { co = window.__CLAPP.maDonDangCo(); } catch (e) {}
+    Object.keys(m).forEach(function (k) { if (co[k]) { delete m[k]; doi = true; } });
+    if (doi) ghiSoDaXoa(m);
+    return m;
+  }
+  function daCoHoacDaXoa() {
+    var co = {}; try { co = window.__CLAPP.maDonDangCo(); } catch (e) {}
+    var x = donSoDaXoa(); Object.keys(x).forEach(function (k) { co[k] = 1; });
+    return co;
+  }
+  window.__CL_daXoaDon = function (mds) {
+    try {
+      var m = soDaXoa(), t = Date.now();
+      (mds || []).forEach(function (k) { k = String(k || '').trim(); if (k) m[k] = t; });
+      ghiSoDaXoa(m);
+      datMucTieu(window.__CLAPP.getState());     // mục tiêu = đúng số còn lại sau khi xóa
+    } catch (e) {}
+  };
   function themDonMoCoi(plSot, can, coD) {
     if (!plSot || !(plSot.orders || []).length) return false;
-    var daCo = window.__CLAPP.maDonDangCo();
+    var daCo = daCoHoacDaXoa();
     var mdThem = {}, dongThem = 0;
     (plSot.orders || []).forEach(function (o) {
       var m = String((o && o.maDon) || '');
@@ -1546,7 +1712,7 @@
          được (hoặc lấy không nổi) mới nói — xem chotBanDaVa / xong(). */
       try { console.log('[CL] bản lưu thiếu ' + coF + '/' + can.file + ' file · ' + coD + '/' + can.dong + ' dòng — đang tự tìm lại'); } catch (e) {}
       var b1 = (window.CLCloud.timDonConSot && window.__CLAPP.maDonDangCo && window.__CLAPP.themDonConSot)
-        ? window.CLCloud.timDonConSot(window.__CLAPP.maDonDangCo()).catch(function () { return null; })
+        ? window.CLCloud.timDonConSot(daCoHoacDaXoa()).catch(function () { return null; })
         : Promise.resolve(null);
       /* ⚠⚠ ĐÃ BỎ B2 "dò từng mốc lưu rồi quay về mốc cũ" (sửa 4/9 lần 2).
          User chụp được: "⚠ Đã lấy lại được nhiều nhất: 66/66 file · 1778/1800 dòng — QUAY VỀ MỐC
@@ -1878,7 +2044,7 @@
           window.CLCloud.init().then(function (res) {
             if (!res) return;
             if (res.profile) return;                        // phiên còn tốt
-            if (res.offline) return;                        // không có mạng → cứ xem tiếp
+            if (res.offline) { batNgoaiTuyen('mayChu'); return; }   // không có mạng / máy chủ khoá → cứ xem tiếp
             /* ⚠ Đọc hồ sơ hỏng KHÔNG phải là hết phiên. Đo được 3/9 trên máy user: khoá phiên
                trong máy còn hạn tới 08:12Z mà app vẫn hiện "Phiên đã hết hạn" rồi xoá sạch dữ
                liệu đang mở ⇒ máy đó không bao giờ lấy được bản mới. Nay chỉ đăng xuất khi máy
@@ -1887,7 +2053,15 @@
               toast('Chưa đọc được hồ sơ tài khoản (mạng chập) — vẫn xem được bản trong máy, app tự thử lại.', 'ok');
               return;
             }
-            if (res.khongCoPhien) doLogout(true);           // máy chủ nói hết phiên → mới bắt đăng nhập
+            /* Không còn phiên: hỏi xem máy chủ có SỐNG không. Máy chủ bị khoá (402) thì thư viện
+               Supabase tự xoá phiên khi làm mới hỏng — đó KHÔNG phải hết phiên thật ⇒ cứ xem bản
+               trong máy, máy chủ sống lại mới bắt đăng nhập. */
+            if (res.khongCoPhien) {
+              return window.CLCloud.kiemMayChu().then(function (k) {
+                if (k && k.song) return doLogout(true);     // máy chủ nói hết phiên → mới bắt đăng nhập
+                batNgoaiTuyen('khongCoPhien');
+              });
+            }
           }).catch(function () {});
           return;
         }
